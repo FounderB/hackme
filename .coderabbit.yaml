@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit: one AI reviewer alongside Qodo. CI/CodeQL remain the merge gate.
+language: "en-US"
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  collapse_walkthrough: true
+  review_status: true
+  path_filters:
+    - "!docs/archive/**"
+    - "!web/site/assets/news*.json"
+    - "!web/site/assets/news-display*.json"
+    - "!reports/**"
+    - "!**/*.min.js"
+  path_instructions:
+    - path: "internal/chain/**"
+      instructions: "Focus on escrow, settle once, payout integrity, and auth fail-closed paths. Prefer real money bugs over style."
+    - path: "internal/poolfuzz/**"
+      instructions: "Focus on Hunt replay, miner_address hijack, settle ACK/outbox, and escrow-enabled fail-closed behavior."
+    - path: "cmd/coordinator/**"
+      instructions: "Focus on auth on claim/submit/settle/ack routes and token handling. Flag cleartext admin exposure risks."
+    - path: "internal/hunt/**"
+      instructions: "Focus on harness fetch SSRF, hash validation, and executable artifact overwrite risks."
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    # Default branch (main) is always included; extend for release/feature bases.
+    base_branches:
+      - "feature/.*"
+      - "release/.*"
+    ignore_title_keywords:
+      - "WIP"
+      - "[skip review]"
+    labels:
+      - "!do-not-review"
+chat:
+  auto_reply: true
