@@ -3,27 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HackMe Network — Mine useful work</title>
-  <meta name="description" content="HackMe: mine useful GPU work for HMC on a live pool. Order security fuzz on your node. Read public research ledgers." />
+  <title>HackMe Network — Ecosystem · Mine · Exchange</title>
+  <meta name="description" content="HackMe multi-asset network: mine HMC, trade on the paper Exchange desk, SUP support coin, HMS storage lane, Dig/Hunt fuzz, and public research." />
   <link rel="canonical" href="https://hackme.tech/" />
   <link rel="sitemap" type="application/xml" title="Sitemap" href="https://hackme.tech/sitemap.xml" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="/assets/favicon.png" type="image/png" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://hackme.tech/" />
-  <meta property="og:title" content="HackMe Network | Useful PoW mining" />
-  <meta property="og:description" content="Mine useful work. Order fuzz. Verify public research — one network." />
+  <meta property="og:title" content="HackMe Network | Multi-asset ecosystem" />
+  <meta property="og:description" content="HMC · SUP · HMS — mine useful work, paper Exchange D0, fuzz, research. One network." />
   <meta property="og:image" content="https://hackme.tech/assets/logo-hex.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20260914dev1" />
-  <link rel="stylesheet" href="./assets/disclosure-ticker.css?v=20260914dev1" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260914glass1" />
+  <link rel="stylesheet" href="./assets/disclosure-ticker.css?v=20260914glass1" />
 </head>
-<body class="page-home">
+<body class="page-home page-home--net">
   <div class="bg-glow bg-glow-a" aria-hidden="true"></div>
   <div class="bg-glow bg-glow-b" aria-hidden="true"></div>
+  <canvas class="hs-net" data-hs-net aria-hidden="true"></canvas>
+
   <header class="topbar">
     <a class="brand" href="./index.html">
       <img class="brand-logo" src="./assets/logo-hex.png" alt="HackMe logo" />
@@ -31,6 +33,7 @@
     </a>
     <nav class="nav" data-site-page="home"></nav>
   </header>
+
   <div class="disclosure-ticker disclosure-ticker-slot" aria-hidden="true">
     <div class="dt-shell">
       <div class="dt-bar glass dt-bar--skeleton">
@@ -49,19 +52,35 @@
   </div>
 
   <main class="container">
-    <section class="hero glass home-hero">
-      <p class="kicker">HackMe Network</p>
-      <h1>Mine useful work</h1>
+    <section class="hero glass home-hero" data-home-screen aria-label="HackMe hero">
+      <div class="home-hero-shine" aria-hidden="true"></div>
+      <div class="hs-brand">
+        <img class="hs-mark" src="./assets/logo-hex.png" alt="" width="56" height="56" />
+        <p class="hs-wordmark">HackMe</p>
+      </div>
+      <p class="kicker">One network · multi-asset</p>
+      <h1>One network. Many assets.</h1>
       <p class="hero-copy">
-        Your GPU solves real tasks on the public pool and earns <strong>HMC</strong>.
-        Same network for security fuzz and public research.
+        Mine useful work for <strong>HMC</strong>, hold <strong>SUP</strong>, and watch <strong>HMS</strong> storage come online —
+        plus Dig/Hunt fuzz and a live paper <strong>Exchange</strong> desk.
       </p>
+      <div class="hs-eco-row" aria-label="Ecosystem tickers">
+        <a class="hs-eco-chip" href="./coin-hmc.html"><span>HMC</span><em>mine</em></a>
+        <a class="hs-eco-chip" href="./coin-sup.html"><span>SUP</span><em>live</em></a>
+        <a class="hs-eco-chip hs-eco-chip--soft" href="./coin-hms.html"><span>HMS</span><em>soon</em></a>
+        <a class="hs-eco-chip hs-eco-chip--x" href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer"><span>EX</span><em>D0</em></a>
+      </div>
       <div class="cta-row">
         <a class="btn btn-primary btn-hero" href="./downloads.html#start">Start mining</a>
-        <a class="btn btn-secondary" href="./orders.html">Order fuzz</a>
+        <a class="btn btn-secondary" href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">Open Exchange</a>
+        <a class="btn btn-secondary" href="./coins.html">All coins</a>
       </div>
       <p class="hero-subcta muted">
-        <a href="./downloads.html">Downloads</a> · <a href="./explorer-lite.html">Explorer</a> · <a href="./research.html">Research</a> · <a href="./contacts.html">Community</a>
+        <a href="./downloads.html">Downloads</a> ·
+        <a href="http://127.0.0.1:8080/#exchange">Local hub #exchange</a> ·
+        <a href="./docs.html">Docs</a> ·
+        <a href="./research.html">Research</a> ·
+        <a href="./contacts.html">Community</a>
       </p>
       <div class="hero-meta home-hero-meta">
         <div class="meta-chip">
@@ -81,22 +100,27 @@
         <strong>Mine HMC</strong>
         <span class="audience-desc">Install the worker and join the live pool</span>
       </a>
+      <a class="audience-card audience-card-eco" href="./coins.html">
+        <span class="audience-tag">Ecosystem</span>
+        <strong>HMC · SUP · HMS</strong>
+        <span class="audience-desc">Multi-asset registry — not a single-coin story</span>
+      </a>
+      <a class="audience-card audience-card-x" href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">
+        <span class="audience-tag">Exchange</span>
+        <strong>Paper desk D0</strong>
+        <span class="audience-desc">Spot · pool oracle — also hub #exchange</span>
+      </a>
       <a class="audience-card audience-card-audit" href="./orders.html">
         <span class="audience-tag">Customers</span>
         <strong>Order a fuzz run</strong>
-        <span class="audience-desc">Pay in HMC on your local node — keep the keys</span>
-      </a>
-      <a class="audience-card audience-card-research" href="./research.html">
-        <span class="audience-tag">Reviewers</span>
-        <strong>Read the ledgers</strong>
-        <span class="audience-desc">Public L1 and OSS results — honest scope</span>
+        <span class="audience-desc">Dig or Hunt on your node — keep the keys</span>
       </a>
     </nav>
 
     <section id="lanes" class="panel glass">
       <div class="panel-head">
-        <h2>What you can do here</h2>
-        <p class="subtle">Start with mining. Open the other lanes when you need them.</p>
+        <h2>Ecosystem lanes</h2>
+        <p class="subtle">Several assets and products on one hub — start where you need.</p>
       </div>
       <div class="lane-grid">
         <article class="lane-card lane-card-mine">
@@ -104,6 +128,12 @@
           <h3>HMC + SUP</h3>
           <p>Useful work on the public pool. Windows or Linux — usually running in minutes.</p>
           <a class="btn btn-primary" href="./downloads.html#start">Download</a>
+        </article>
+        <article class="lane-card">
+          <span class="lane-tag">Exchange</span>
+          <h3>Paper desk D0</h3>
+          <p>Spot HMC with pool oracle. Public desk + local hub tab <code>#exchange</code>.</p>
+          <a class="btn btn-secondary" href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a>
         </article>
         <article class="lane-card">
           <span class="lane-tag">Storage</span>
@@ -116,12 +146,6 @@
           <h3>Fuzz orders</h3>
           <p>Run Dig or Hunt from your machine. Get a report and a CI gate.</p>
           <a class="btn btn-secondary" href="./orders.html">How to order</a>
-        </article>
-        <article class="lane-card">
-          <span class="lane-tag">Research</span>
-          <h3>Public ledgers</h3>
-          <p>BTC30 and OSS series with clear scope — not marketing PDFs.</p>
-          <a class="btn btn-secondary" href="./research.html">Open research</a>
         </article>
       </div>
     </section>
@@ -168,11 +192,17 @@
 
   <footer class="footer">
     <p>HackMe Network</p>
-    <p class="muted">Useful proof-of-work. <a href="./contacts.html">Community</a> · <a href="./docs.html">Docs</a> · <a href="./downloads.html">Downloads</a></p>
+    <p class="muted">Multi-asset useful PoW.
+      <a href="./coins.html">Coins</a> ·
+      <a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">Exchange</a> ·
+      <a href="./docs.html">Docs</a> ·
+      <a href="./downloads.html">Downloads</a>
+    </p>
     <div class="footer-nav"></div>
   </footer>
 
-  <script src="./assets/site-shell.js?v=20260914dev1"></script>
-  <script src="./assets/app.js?v=20260914dev1"></script>
+  <script src="./assets/site-shell.js?v=20260914glass1"></script>
+  <script src="./assets/app.js?v=20260914glass1"></script>
+  <script src="./assets/home-hero.js?v=20260914glass1"></script>
 </body>
 </html>

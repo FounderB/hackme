@@ -64,7 +64,7 @@
   background:
     radial-gradient(40% 60% at 12% 40%, rgba(110, 255, 173, 0.14), transparent 70%),
     radial-gradient(45% 70% at 78% 30%, rgba(77, 228, 255, 0.16), transparent 72%),
-    radial-gradient(35% 55% at 55% 90%, rgba(167, 139, 250, 0.1), transparent 70%);
+    radial-gradient(35% 55% at 55% 90%, rgba(77, 228, 255, 0.08), transparent 70%);
   animation: dt-aurora-drift 14s ease-in-out infinite alternate;
   pointer-events: none;
   z-index: 0;

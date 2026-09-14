@@ -40,7 +40,7 @@
     newsDisplay: "/assets/news-display.json",
     newsArchive: "/assets/news.json",
     releaseChannel: RELEASE_VER,
-    releaseChannelNote: "rc17 cutover — paper exchange · SUP wallet · Hunt ASAN; installers still resolve to last published " + PUBLISHED_ARTIFACT_VER + " until SHA lands",
+    releaseChannelNote: "rc17 cutover — ecosystem · paper exchange · SUP · Hunt; installers still " + PUBLISHED_ARTIFACT_VER + " until SHA",
     publishedArtifactVer: PUBLISHED_ARTIFACT_VER,
     releaseBase: `/dist/release_${PUBLISHED_ARTIFACT_VER}`,
     // Primary downloads: GitHub Releases (Cloudflare /dist often stalls or truncates large files).

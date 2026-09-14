@@ -15,12 +15,13 @@
 | Page | Purpose |
 |------|---------|
 | [coins.html](https://hackme.tech/coins.html) | Ecosystem registry + live pool strip |
+| [exchange.hackme.tech](https://exchange.hackme.tech/) | Paper Exchange desk (D0) · also hub `#exchange` |
 | [coin-hmc.html](https://hackme.tech/coin-hmc.html) | HMC listing package (investor-readable) |
 | [coin-sup.html](https://hackme.tech/coin-sup.html) | SUP utility + emission |
 | [coin-hms.html](https://hackme.tech/coin-hms.html) | HMS prelaunch preview |
 | [token-transparency.html](https://hackme.tech/token-transparency.html) | Live supply / treasury / APIs |
 | [roadmap.html](https://hackme.tech/roadmap.html) | Shipped milestones + next quarters |
-| [listing.html](https://hackme.tech/listing.html) | Exchange readiness hub (all tickers) |
+| [listing.html](https://hackme.tech/listing.html) | CEX listing readiness hub (all tickers) — not the paper desk |
 | [economics-model.html](https://hackme.tech/economics-model.html) | Three-layer HMC economics |
 
 ## Canonical docs (GitHub)

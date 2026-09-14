@@ -8,6 +8,11 @@
   const PAGES = {
     home: { href: "/", label: "Home" },
     coins: { href: "/coins.html", label: "Coins" },
+    exchange: {
+      href: "https://exchange.hackme.tech/",
+      label: "Exchange",
+      external: true,
+    },
     transparency: { href: "/token-transparency.html", label: "Transparency" },
     roadmap: { href: "/roadmap.html", label: "Roadmap" },
     listing: { href: "/listing.html", label: "Listing" },
@@ -28,11 +33,11 @@
     github: { href: "https://github.com/jokeez/hackme", label: "GitHub", external: true },
   };
 
-  const PRIMARY = ["mine", "coins", "research", "docs"];
+  const PRIMARY = ["mine", "coins", "exchange", "research", "docs"];
   const MORE = ["orders", "fuzz", "developers", "news", "economics", "transparency", "roadmap", "listing", "rewards", "contacts", "legal", "privacy", "explorer", "downloads"];
 
   const FOOTER_GROUPS = [
-    { title: "Network", keys: ["home", "coins", "transparency", "roadmap", "research", "github", "explorer"] },
+    { title: "Network", keys: ["home", "coins", "exchange", "transparency", "roadmap", "research", "github", "explorer"] },
     { title: "Start", keys: ["mine", "downloads", "docs", "listing"] },
     { title: "Product", keys: ["orders", "fuzz", "developers", "economics", "news"] },
     { title: "Legal", keys: ["contacts", "rewards", "legal", "privacy"] },
@@ -77,6 +82,7 @@
     const ext = meta.external ? ' target="_blank" rel="noreferrer"' : "";
     let cls = "";
     if (p === "mine") cls = ' class="nav-mine-cta"';
+    else if (p === "exchange") cls = ' class="nav-link-exchange"';
     else if (p === "fuzz") cls = ' class="nav-link-fuzz"';
     return `<a href="${meta.href}"${cls}${cur}${ext}>${meta.label}</a>`;
   }
@@ -121,7 +127,7 @@
     ).join("");
   }
 
-  const TICKER_CACHE = "20260914rc17";
+  const TICKER_CACHE = "20260914glass1";
 
   function ensureDisclosureTickerStyles() {
     if (document.querySelector('link[data-disclosure-ticker-css="1"]')) return;
