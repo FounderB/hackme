@@ -1,8 +1,8 @@
 # Hunt economics — 50/50 split (spec)
 
-**Status:** wired in code on `feature/hunt-mvp` (Dig/Scan still 20/80)  
-**Updated:** 2026-08-31  
-**Related:** [FUZZ_ESCROW_20_80.md](FUZZ_ESCROW_20_80.md) · [ORDER_ECONOMICS.md](ORDER_ECONOMICS.md) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md)
+**Status:** shipped on **0.1.0-rc17** channel (Dig/Scan still 20/80)  
+**Updated:** 2026-09-14  
+**Related:** [FUZZ_ESCROW_20_80.md](FUZZ_ESCROW_20_80.md) · [ORDER_ECONOMICS.md](ORDER_ECONOMICS.md) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) · [HACKME_RC17.md](HACKME_RC17.md)
 
 ---
 

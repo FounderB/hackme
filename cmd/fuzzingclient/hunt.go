@@ -164,7 +164,7 @@ func doHunt(base string, args []string) error {
 		return nil
 	case "create":
 		fs := flag.NewFlagSet("hunt-create", flag.ExitOnError)
-		pkg := fs.String("package", "hunt_lite", "hunt_lite|hunt_standard")
+		pkg := fs.String("package", "hunt_lite", "hunt_lite|hunt_standard|hunt_heavy")
 		title := fs.String("title", "", "campaign title")
 		targetID := fs.String("target", "", "catalog target id")
 		sourceRel := fs.String("source", "", "inventory source relative path")

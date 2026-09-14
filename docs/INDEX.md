@@ -23,8 +23,9 @@
 | [HMS_PUBLIC_ROADMAP.md](HMS_PUBLIC_ROADMAP.md) | HackMe Storage (HMS) — prelaunch |
 | [HMS_BACKEND.md](HMS_BACKEND.md) | HMS coordinator + workers |
 | [SUPPORT_COIN_UTILITY.md](SUPPORT_COIN_UTILITY.md) | HackMe Support (SUP) accrual |
-| [HACKME_RC16.md](HACKME_RC16.md) | **Current** release channel (rc16 — self-update + signed apt) |
-| [RC17_CUTOVER.md](RC17_CUTOVER.md) | **Next** cutover plan — hub exchange embed + SUP (deploy at rc17 only) |
+| [HACKME_RC17.md](HACKME_RC17.md) | **Current** channel (rc17 cutover — Exchange · SUP · Hunt); installers still last published **rc16** until SHA |
+| [RC17_CUTOVER.md](RC17_CUTOVER.md) | Cutover deploy plan — hub exchange embed + SUP (ops window) |
+| [HACKME_RC16.md](HACKME_RC16.md) | **Last published artifacts** — self-update + signed apt + ISO |
 | [HACKME_RC15.md](HACKME_RC15.md) | Previous rc15 — B2B fuzz Phase 2 + pool anticheat |
 | [HACKME_RC14.md](HACKME_RC14.md) | Previous rc14x channel |
 | [YEAR_PLAN_2026_2027.md](YEAR_PLAN_2026_2027.md) | Year plan stub · feature freeze before exchange |
@@ -40,7 +41,7 @@
 
 | Doc / page | Topic |
 |------------|--------|
-| [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) | B2B Dig packages, Hunt Phase 2, packs, coverage, pool anticheat, CI gate |
+| [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) | Dig packages + Hunt ASAN (Lite/Standard/Heavy), packs, coverage, pool anticheat, CI gate |
 | [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) | Hunt 50/50 escrow, packages, pool shards |
 | [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md) | Honest Hunt vs libFuzzer depth |
 | [HUNT_RUST_PHASE_A.md](HUNT_RUST_PHASE_A.md) | Rust inventory + catalog ASAN (`serde_json`, `memchr`, `quick_xml`) |

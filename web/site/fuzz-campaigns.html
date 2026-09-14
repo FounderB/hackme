@@ -7,7 +7,7 @@
   <meta name="description" content="HackMe fuzzing: local-node B2B campaigns with token-gated reports, public multi-chain L1 research, and read-only pool marketplace status." />
   <link rel="canonical" href="https://hackme.tech/fuzz-campaigns.html" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
-  <link rel="stylesheet" href="./assets/styles.css" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260914dev1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
@@ -28,9 +28,10 @@
       <p class="kicker">Fuzz · Ecosystem</p>
       <h1>Security audits &amp; distributed fuzz</h1>
       <p class="hero-copy">
-        <strong>Customers</strong> run <code>hackme-fuzzing wizard --pack …</code> on a <strong>local hackme-node</strong> (<code>127.0.0.1:8080</code>) — Scan (~1 HMC) · Audit (~5) · Deep (~25) packages, ready packs, wallet escrow.
-        The <strong>public pool</strong> (hybrid PoH + fuzz) fills distributed work — Deep capped at <strong>64 exec/unit</strong> on hub; coordinator replays segments on submit.
-        Detailed reports need your private <code>X-Hackme-Report-Token</code>. Public multi-chain research is separate — see <a href="./research.html">Research hub</a>.
+        <strong>Dig</strong> — <code>wizard --pack …</code> on a local node (Scan · Audit · Deep).
+        <strong>Hunt</strong> — ASAN shards via <code>hackme-fuzzing hunt</code> (Lite · Standard · Heavy · 50/50).
+        Pool fills distributed work; private reports need your report token.
+        Public research is separate — <a href="./research.html">Research hub</a>.
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="./developers.html">Developers &amp; local setup</a>
@@ -41,20 +42,20 @@
 
     <section class="grid grid-3">
       <article class="card glass">
-        <h3>B2B customer path</h3>
-        <p>Download node → <code>hackme-fuzzing wizard --pack filter_utf8 --package audit</code> (or <code>--wasm guard.wasm</code> · <code>#orders</code>). Report + gate via <code>X-Hackme-Report-Token</code> only.</p>
+        <h3>B2B Dig path</h3>
+        <p><code>wizard --pack filter_utf8 --package audit</code> (or <code>--wasm</code>). Report + CI gate with report token.</p>
+      </article>
+      <article class="card glass">
+        <h3>Hunt path</h3>
+        <p><code>hackme-fuzzing hunt</code> · Lite/Standard/Heavy · 50/50 escrow · ASAN pool shards. Not the Dig wizard.</p>
       </article>
       <article class="card glass">
         <h3>Miners &amp; pool</h3>
-        <p>Hybrid PoH + distributed fuzz workers earn HMC on completed pool units. Customer campaigns claim first. No access to private customer reports.</p>
+        <p>Hybrid PoH + fuzz workers. Customer Dig/Hunt work claims first. No private report access.</p>
       </article>
       <article class="card glass">
         <h3>Public L1 research</h3>
-        <p>BTC · ETH · DOGE · LTC · HackMe upstream WASM — offline corpora and live v4 prod campaigns.</p>
-      </article>
-      <article class="card glass">
-        <h3>Customer case study</h3>
-        <p><a href="./reports/b2b-fuzz/shannon-packet-scan.html">Promo Scan #1</a> — C packet parser (published with consent). <a href="./reports/b2b-fuzz/">More B2B cases →</a></p>
+        <p>BTC · ETH · DOGE · LTC · HackMe — see Research hub and OSS ledgers.</p>
       </article>
     </section>
 
@@ -110,7 +111,7 @@
     }
     loadReproVerdict();
   </script>
-  <script src="./assets/site-shell.js?v=20260914rc17"></script>
-  <script src="./assets/app.js?v=20260914rc17"></script>
+  <script src="./assets/site-shell.js?v=20260914dev1"></script>
+  <script src="./assets/app.js?v=20260914dev1"></script>
 </body>
 </html>

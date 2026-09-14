@@ -4,12 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HackMe — Fuzz Campaigns Guide</title>
-  <meta name="description" content="HackMe fuzz campaigns: release gates, autorunner env, report tokens, CI gate endpoint, housekeeping." />
+  <meta name="description" content="HackMe Dig (WASM wizard) and Hunt (ASAN escrow): packages, CLI paths, CI gate, pool anticheat. Local node only." />
   <link rel="canonical" href="https://hackme.tech/fuzz-guide.html" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20260914rc17" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260914dev1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="/assets/favicon.png" type="image/png" />
 </head>
@@ -33,9 +33,9 @@
       <p class="kicker">How-to · operator guide · rc17</p>
       <h1>Fuzz campaigns — Dig &amp; Hunt</h1>
       <p class="hero-copy">
-        Local node only: <code>hackme-fuzzing wizard --pack secrets --package audit</code> (or <code>--wasm</code>).
-        Dig = WASM packs · Hunt = ASAN/escrow packages. Reports + CI <strong>gate</strong> on localhost; hackme.tech is tracker/docs.
-        Full Markdown: <code>docs/FUZZ_PRODUCT_GUIDE.md</code>.
+        <strong>Dig</strong> = WASM packs via <code>wizard</code> (Scan · Audit · Deep).
+        <strong>Hunt</strong> = ASAN repo shards via <code>hackme-fuzzing hunt …</code> (Lite · Standard · Heavy · 50/50 escrow).
+        Everything on your local node; hackme.tech is tracker/docs only.
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="./developers.html">B2B packages</a>
@@ -44,8 +44,26 @@
       </div>
     </section>
 
+    <section class="panel glass" style="border:1px solid rgba(110,255,173,0.28)">
+      <div class="panel-head"><h2>0a. Hunt (ASAN · separate CLI)</h2></div>
+      <p class="section-lede">Hunt is <strong>not</strong> Dig <code>wizard</code>. Use the Hunt subcommands on a funded local node:</p>
+      <div class="formula-box">
+        hackme-fuzzing hunt packages
+        hackme-fuzzing hunt inventory --path ./my-repo
+        hackme-fuzzing hunt create --package hunt_lite|hunt_standard|hunt_heavy …
+      </div>
+      <ul class="list">
+        <li><strong>hunt_lite</strong> — ~20 HMC · 1200 shards · 32 exec/shard · 50/50 escrow</li>
+        <li><strong>hunt_standard</strong> — ~60 HMC · 4000 shards · 128 exec/shard</li>
+        <li><strong>hunt_heavy</strong> — ~150 HMC · 12000 shards · 256 exec/shard · severity-tier bounty</li>
+        <li>Pool miners claim <code>hunt_shard</code> work; coordinator replays on submit.</li>
+        <li>Spec: <a href="https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/HUNT_ECONOMICS.md" target="_blank" rel="noreferrer">HUNT_ECONOMICS.md</a> · API <code>GET /api/hunt/packages</code></li>
+      </ul>
+      <p class="muted">Dig stays 20/80 escrow. Hunt stays 50/50 because CLEAN is common — miners still get paid for shards.</p>
+    </section>
+
     <section class="panel glass" style="border:1px solid rgba(0,209,255,0.25)">
-      <div class="panel-head"><h2>0. B2B customer wizard (final)</h2></div>
+      <div class="panel-head"><h2>0. Dig customer wizard</h2></div>
       <p class="section-lede">On your <strong>local node</strong> with <span class="code-inline">HACKME_ADMIN_TOKEN</span>:</p>
       <div class="formula-box">
         hackme-fuzzing wizard --pack secrets|script_bounds|filter_utf8 [--package scan|audit|deep] [--public-proof]
@@ -142,7 +160,7 @@
     <div class="footer-nav"></div>
   </footer>
 
-  <script src="./assets/site-shell.js?v=20260914rc17"></script>
-  <script src="./assets/app.js?v=20260914rc17"></script>
+  <script src="./assets/site-shell.js?v=20260914dev1"></script>
+  <script src="./assets/app.js?v=20260914dev1"></script>
 </body>
 </html>

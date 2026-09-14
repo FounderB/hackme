@@ -9,7 +9,7 @@
 | Automation | **hackme-fuzzing CLI** → `--base http://127.0.0.1:8080` only (wizard **blocks** hackme.tech) |
 | Watch network | [fuzzing-console.html](https://hackme.tech/fuzzing-console.html) (read-only) |
 | Product guide | [fuzz-guide.html](https://hackme.tech/fuzz-guide.html) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) |
-| Hunt (ASAN repo) | [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · [HUNT_RUST_PHASE_A.md](HUNT_RUST_PHASE_A.md) · [API.md](API.md)#hunt-campaigns-phase-2 |
+| Hunt (ASAN repo) | [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · CLI `hackme-fuzzing hunt` · [API.md](API.md)#hunt-campaigns-phase-2 |
 | Downloads | [downloads.html#local-node](https://hackme.tech/downloads.html#local-node) |
 
 There is **no** order-creation UI on hackme.tech (removed `/pool/developer`).
@@ -32,9 +32,23 @@ hackme-fuzzing wizard --wasm ./guard.wasm --package deep --public-proof
 4. Wizard prints `report_url`, `gate_url`, `pulse_url`, one-time `customer_report_token`.
 5. Pool miners pick up `pool_distributed` campaigns; hybrid rigs run fuzz in PoH backpressure windows.
 
+### Hunt (separate from Dig wizard)
+
+```bash
+export HACKME_ADMIN_TOKEN=…
+hackme-fuzzing hunt packages
+hackme-fuzzing hunt inventory --path ./my-repo
+# then template / build / create — see HUNT_ECONOMICS.md
+hackme-fuzzing hunt create --package hunt_lite   # or hunt_standard | hunt_heavy
+```
+
+Hunt uses **50/50** escrow (not Dig 20/80). Packages: Lite ~20 HMC · Standard ~60 · Heavy ~150.
+
 ---
 
 ## Packages
+
+### Dig (WASM · `wizard`)
 
 | Package | HMC | Runs | exec/unit | Pool |
 |---------|-----|------|-----------|------|
@@ -43,6 +57,16 @@ hackme-fuzzing wizard --wasm ./guard.wasm --package deep --public-proof
 | **deep** | ~25 | 2048 | 512 local · **64 cap on hub pool** | yes |
 
 **Packs:** `secrets` · `script_bounds` · `filter_utf8` · `parser_expat` — `hackme-fuzzing packs`
+
+### Hunt (ASAN · `hunt` CLI)
+
+| Package | HMC | Shards | exec/shard | Escrow |
+|---------|-----|--------|------------|--------|
+| **hunt_lite** | ~20 | 1200 | 32 | 50/50 |
+| **hunt_standard** | ~60 | 4000 | 128 | 50/50 |
+| **hunt_heavy** | ~150 | 12000 | 256 | 50/50 |
+
+Full economics: [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md).
 
 ---
 

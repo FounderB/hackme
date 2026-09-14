@@ -4,12 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HackMe for Developers — Fuzzing & API</title>
-  <meta name="description" content="B2B fuzz final: hackme-fuzzing wizard (Scan · Dig · Audit · Deep), Hunt reuse, local node escrow, distributed pool, HTML report + CI gate. No browser admin on hackme.tech." />
+  <meta name="description" content="B2B Dig (Scan·Audit·Deep wizard) and Hunt (ASAN Lite·Standard·Heavy). Local node escrow, pool, report + CI gate. No browser admin on hackme.tech." />
   <link rel="canonical" href="https://hackme.tech/developers.html" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/styles.css" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260914dev1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="./assets/favicon.png" type="image/png" />
 </head>
@@ -92,7 +92,7 @@
               <tr><td>2 · Build guard</td><td><code>hackme-fuzzing build</code> + manual manifest</td><td>Same, or existing <code>.wasm</code></td></tr>
               <tr><td>3 · Order</td><td><code>create manifest.json</code> or long <code>curl security-audit</code></td><td><strong>One command:</strong> <code>wizard --pack secrets --package audit</code> or <code>wizard --wasm guard.wasm --package audit</code></td></tr>
               <tr><td>4 · Package</td><td>Pick depth_tier + budget by hand</td><td><strong>Scan / Dig Audit / Deep</strong> presets (1 / 5 / 25 HMC) + Hunt inventory</td></tr>
-              <tr><td>5 · Deliverable</td><td>Hunt for report token in JSON</td><td>Wizard prints <code>report_url</code>, <code>gate_url</code>, <code>pulse_url</code></td></tr>
+              <tr><td>5 · Deliverable</td><td>Hunt for report token in JSON</td><td>Wizard prints <code>report_url</code>, <code>gate_url</code>, <code>pulse_url</code> (Dig). Hunt uses Hunt campaign status + escrow settle.</td></tr>
               <tr><td>6 · CI</td><td>Wire gate yourself</td><td>GitHub Action example in repo + gate URL in wizard output</td></tr>
               <tr><td>Where</td><td>Same localhost model</td><td>Same — <strong>no</strong> public upload on hackme.tech</td></tr>
             </tbody>
@@ -116,11 +116,15 @@
           </tbody>
         </table>
       </div>
-      <pre class="code-block" style="margin-top:1rem"><code>export HACKME_ADMIN_TOKEN=…   # local node only
-hackme-fuzzing wizard \
-  --pack filter_utf8 \
-  --package audit \
-  --title "FluxTap-class filter preflight"</code></pre>
+      <pre class="code-block" style="margin-top:1rem"><code># Dig (WASM)
+export HACKME_ADMIN_TOKEN=…   # local node only
+hackme-fuzzing wizard --pack filter_utf8 --package audit --title "Filter preflight"
+
+# Hunt (ASAN) — separate CLI, not wizard
+hackme-fuzzing hunt packages
+hackme-fuzzing hunt inventory --path ./repo
+hackme-fuzzing hunt create --package hunt_lite …</code></pre>
+      <p class="subtle" style="margin-top:0.75rem">Dig escrow <strong>20/80</strong> · Hunt escrow <strong>50/50</strong>. Details: <a href="./fuzz-guide.html">fuzz guide</a> · <a href="https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/HUNT_ECONOMICS.md" target="_blank" rel="noreferrer">HUNT_ECONOMICS.md</a>.</p>
     </section>
 
     <section class="grid grid-2">
@@ -136,10 +140,11 @@ hackme-fuzzing wizard \
       <article class="panel glass">
         <div class="panel-head"><h2>What you get</h2></div>
         <ul class="check-list">
-          <li><strong>hackme-fuzzing wizard</strong> — Scan / Dig Audit / Deep in one POST (<code>security-audit</code>)</li>
-          <li><strong>CI gate</strong> — <code>GET …/gate</code> with report token</li>
-          <li><strong>Public tracker</strong> — redacted orders + pool stats (no manifest)</li>
-          <li>Full spec in <a href="https://github.com/jokeez/hackme/blob/main/docs/DEVELOPERS_FUZZING.md" target="_blank" rel="noreferrer">DEVELOPERS_FUZZING.md</a></li>
+          <li><strong>Dig wizard</strong> — Scan / Audit / Deep (<code>security-audit</code>)</li>
+          <li><strong>Hunt CLI</strong> — <code>hunt_lite</code> · <code>hunt_standard</code> · <code>hunt_heavy</code> (ASAN 50/50)</li>
+          <li><strong>CI gate</strong> — <code>GET …/gate</code> with report token (Dig)</li>
+          <li><strong>Public tracker</strong> — redacted orders + pool stats</li>
+          <li>Spec: <a href="https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/DEVELOPERS_FUZZING.md" target="_blank" rel="noreferrer">DEVELOPERS_FUZZING.md</a></li>
         </ul>
       </article>
     </section>
@@ -238,7 +243,7 @@ curl -sS https://hackme.tech/api/wallet | jq .
   </main>
   <script src="./assets/hackme-dev-common.js" defer></script>
   <script src="./assets/integrator-token.js" defer></script>
-  <script src="./assets/site-shell.js?v=20260914rc17"></script>
-  <script src="./assets/app.js?v=20260914rc17"></script>
+  <script src="./assets/site-shell.js?v=20260914dev1"></script>
+  <script src="./assets/app.js?v=20260914dev1"></script>
 </body>
 </html>

@@ -18,13 +18,13 @@ CLI/API keys stay `scan` | `audit` | `deep`. Customer-facing names:
 
 **Dig depth v2 (2026-09):** richer pack `mutator_dict` profiles, tier power scheduling (Audit **mut_cap≥8** · Deep **≥14**), optional external seeds in `.cache/dig-seeds/{pack}/`, cross-campaign corpus persist `pack:{id}`, and customer report `dig_depth` card + expanded `human_summary`.
 
-**Hunt** (repo + ASAN on pool, 50/50 escrow) — Phase 2 on `feature/hunt-mvp`:
+**Hunt** (repo + ASAN on pool, 50/50 escrow) — on **0.1.0-rc17** channel:
 
 **Inventory languages (Phase 2.5):** **C, C++, and Rust (Phase A)** — scan `LLVMFuzzerTestOneInput` in `.c/.cpp` and `fuzz_target!` / `libfuzzer_sys` in `.rs`. C/C++ auto-compile sibling helpers with `clang`/`clang++` + ASAN. Rust **catalog** targets build with `cargo +nightly` AddressSanitizer stdin drivers (`serde_json` pipeline pilot; **`memchr`** / **`quick_xml`** unsafe-shaped). Customer Rust inventory **detect** works; auto-harness compile for arbitrary crates is catalog-only — see [HUNT_RUST_PHASE_A.md](HUNT_RUST_PHASE_A.md). **C#:** not in Hunt MVP.
 
 | API | Purpose |
 |-----|---------|
-| `GET /api/hunt/packages` | Hunt Lite / Standard presets |
+| `GET /api/hunt/packages` | Hunt Lite / Standard / Heavy presets |
 | `GET /api/hunt/targets` | Curated OSS catalog (`upstream/oss_cve_targets.json`) |
 | `POST /api/hunt/inventory` | Admin: scan local path for `LLVMFuzzerTestOneInput` / Rust `fuzz_target!` + **pack-map suggest** |
 | `POST /api/hunt/pack-suggest` | Admin: Dig/Hunt pack hints for one path |
@@ -107,7 +107,7 @@ See [CUSTOMER_FUZZ_DELIVERABLES.md](CUSTOMER_FUZZ_DELIVERABLES.md).
 
 When `pool_distributed: true`, hub `workerfuzz` / hybrid `workerpoh` claims work via `/api/fuzz/work/claim`.
 
-**Anticheat (rc16 / Phase 2):**
+**Anticheat (rc17 / Dig + Hunt pool):**
 
 - Guided campaigns freeze `corpus_seeds` + anchor input at **claim**
 - Tier defaults: `power_mut_cap` scan **2** · audit **6** · deep **12** (pool segment mutation depth)

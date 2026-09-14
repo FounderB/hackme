@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/styles.css" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260914dev1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="/assets/favicon.png" type="image/png" />
 </head>
@@ -93,18 +93,35 @@
             <tr>
               <td><span class="method-pill method-post">POST</span></td>
               <td><span class="code-inline">/api/security-audit</span></td>
-              <td>B2B wizard: <span class="code-inline">guard_pack</span> (<code>secrets</code> · <code>filter_utf8</code> · …), <span class="code-inline">package</span> (scan/audit/deep), <span class="code-inline">coverage_kind</span>, <span class="code-inline">exec_per_unit</span>, <span class="code-inline">public_proof</span>. Pool claim returns frozen <span class="code-inline">corpus_seeds</span>.</td>
+              <td>Dig wizard: <span class="code-inline">guard_pack</span>, <span class="code-inline">package</span> (scan/audit/deep), <span class="code-inline">public_proof</span>. Not Hunt.</td>
+            </tr>
+            <tr>
+              <td><span class="method-pill method-get">GET</span></td>
+              <td><span class="code-inline">/api/hunt/packages</span></td>
+              <td>Hunt Lite / Standard / Heavy presets (ASAN · 50/50 escrow).</td>
+            </tr>
+            <tr>
+              <td><span class="method-pill method-post">POST</span></td>
+              <td><span class="code-inline">/api/hunt/campaigns</span></td>
+              <td>Create Hunt campaign + escrow (admin). CLI: <code>hackme-fuzzing hunt create</code>.</td>
+            </tr>
+            <tr>
+              <td><span class="method-pill method-get">GET</span></td>
+              <td><span class="code-inline">/api/sup/activity</span></td>
+              <td>SUP loyalty activity (public allowlist at cutover). Wallet send: <code>/api/sup/tx/send</code>.</td>
             </tr>
             <tr>
               <td><span class="method-pill method-post">POST</span></td>
               <td><span class="code-inline">/api/tx/send</span></td>
-              <td>Submit signed transfer transaction (v1).</td>
+              <td>Submit signed HMC transfer transaction (v1).</td>
             </tr>
           </tbody>
         </table>
       </div>
       <p class="muted" style="margin-top:0.75rem">
-        Fuzz lifecycle primer: <a href="./fuzz-guide.html">fuzz-guide.html</a>. Full route tables: <a href="../docs/API.md" target="_blank" rel="noreferrer">docs/API.md</a> (Fuzz Campaigns).
+        Dig primer: <a href="./fuzz-guide.html">fuzz-guide.html</a>.
+        Full routes: <a href="https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/API.md" target="_blank" rel="noreferrer">docs/API.md</a>
+        (Dig + <a href="https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/API.md#hunt-campaigns-phase-2" target="_blank" rel="noreferrer">Hunt</a>).
       </p>
     </section>
 
@@ -126,12 +143,12 @@
       </article>
       <article class="doc-card glass">
         <h3>Fuzzing / B2B</h3>
-        <p>B2B: <code>hackme-fuzzing wizard --pack filter_utf8 --package audit</code> on <a href="./downloads.html#local-node">127.0.0.1:8080</a> · <a href="./developers.html">packages</a> · Deep pool cap 64 exec/unit · <a href="./fuzzing-console.html">tracker</a>.</p>
+        <p>Dig: <code>wizard --pack … --package audit</code>. Hunt: <code>hunt create --package hunt_lite|hunt_standard|hunt_heavy</code> on <a href="./downloads.html#local-node">localhost</a> · <a href="./developers.html">packages</a> · <a href="./fuzzing-console.html">tracker</a>.</p>
       </article>
       <article class="doc-card glass">
         <h3>Full specification</h3>
         <p>Need complete contract details, all routes, and payload structures?</p>
-        <p><a class="btn btn-secondary" href="../docs/API.md" target="_blank" rel="noreferrer">Open full API.md</a></p>
+        <p><a class="btn btn-secondary" href="https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/API.md" target="_blank" rel="noreferrer">Open full API.md</a></p>
       </article>
     </section>
   </main>
@@ -142,7 +159,7 @@
     <div class="footer-nav"></div>
   </footer>
 
-  <script src="./assets/site-shell.js?v=20260914rc17"></script>
-  <script src="./assets/app.js?v=20260914rc17"></script>
+  <script src="./assets/site-shell.js?v=20260914dev1"></script>
+  <script src="./assets/app.js?v=20260914dev1"></script>
 </body>
 </html>

@@ -22,7 +22,8 @@ Three layers on one stack:
 
 1. **Chain (HMC)** — PoH blocks, transfers, emission
 2. **Coordinator pool** — fair attempt accounting, hybrid signatures
-3. **Orders / fuzz** — B2B escrow for WASM security campaigns
+3. **Orders / fuzz** — Dig (WASM) + Hunt (ASAN) escrow campaigns on the same network
+4. **Paper Exchange + SUP wallet** — rc17 cutover desk (not live CEX custody)
 
 ## Slide 4 — Ecosystem map
 
@@ -34,7 +35,7 @@ Three layers on one stack:
 
 ## Slide 5 — Technology proof
 
-- Live pool + explorer + downloads (**0.1.0-rc16**)
+- Live pool + explorer + downloads (**0.1.0-rc17** channel · **rc16** installers until SHA)
 - OSS CVE Watch: nghttp2 14/14 CLEAN · libheif 14/14 CLEAN (~2.57B series exec · ASAN=0)
 - Operator gates: miner launch, SUP verdict, site consistency
 - Private bounty B1–B5 patched (desktop rebind, fleet settle, CF IP, fuzz PoP)

@@ -173,7 +173,7 @@ bash scripts/tests/verify_hackme_iso.sh your.iso
 
 **Packs:** `secrets` · `script_bounds` · `filter_utf8` (FluxTap-class filter POC) · `parser_expat`
 
-**Hunt** (Phase 2 on `feature/hunt-mvp`): repo + ASAN, **50/50** escrow, inventory **C/C++/Rust Phase A** — [HUNT_ECONOMICS.md](docs/HUNT_ECONOMICS.md) · [HUNT_RUST_PHASE_A.md](docs/HUNT_RUST_PHASE_A.md) (`serde_json`, `memchr`, `quick_xml`).
+**Hunt** (ASAN on pool, **50/50** escrow) — Lite / Standard / Heavy on **0.1.0-rc17** channel: `hackme-fuzzing hunt …` · [HUNT_ECONOMICS.md](docs/HUNT_ECONOMICS.md) · [HUNT_RUST_PHASE_A.md](docs/HUNT_RUST_PHASE_A.md) (`serde_json`, `memchr`, `quick_xml`).
 
 ```bash
 hackme-fuzzing wizard --pack filter_utf8 --package audit   # local node only

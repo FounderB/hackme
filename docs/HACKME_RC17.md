@@ -17,8 +17,19 @@ Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · prior [HACKME_RC16.md](HACKME_RC1
 
 - Paper Exchange desk (`exchange.hackme.tech` iframe)
 - SUP public send/activity (nginx allowlist)
-- Hunt ASAN + escrow pool hardening
-- Dig customer-first fleet
+- Hunt ASAN + escrow pool hardening (Lite / Standard / Heavy · 50/50)
+- Dig customer-first fleet (Scan / Audit / Deep · 20/80)
+
+## Product paths (honest)
+
+| Product | CLI | Escrow |
+|---------|-----|--------|
+| **Dig** | `hackme-fuzzing wizard --package scan\|audit\|deep` | 20/80 |
+| **Hunt** | `hackme-fuzzing hunt … --package hunt_lite\|hunt_standard\|hunt_heavy` | 50/50 |
+
+## PDFs / listing packs
+
+Files under `dist/docs/` (`HMC_Listing_Pack.pdf`, `SUP_Companion_Overview.pdf`, `HackMe_Network_Pitch.pdf`, …) were last exported **Aug 2026** and may still say rc16 LIVE. Links on the site resolve; **regenerate after cutover publish** — see `DOCUMENTATION_EXPORT.md`.
 
 ## Operator note
 

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20260914rc17" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260914dev1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="/assets/favicon.png" type="image/png" />
 </head>
@@ -98,16 +98,19 @@
     <section class="panel glass">
       <div class="panel-head"><h2>Proof of Analysis (utility layer)</h2></div>
       <p class="hero-copy">
-        HackMe pays for measurable compute: audit orders decompose into deterministic segments for fuzz, property, and symbolic-style workloads.
-        Rewards tie to accepted segments and verified artefacts rather than blind noise.
+        <strong>Dig</strong> = WASM packs (<code>wizard</code>, 20/80 escrow).
+        <strong>Hunt</strong> = ASAN repo shards (<code>hackme-fuzzing hunt</code>, 50/50 escrow · Lite/Standard/Heavy).
+        Rewards tie to verified work — not blind noise.
       </p>
       <ul class="list">
-        <li>Coordinator leases bounded nonce batches per worker session.</li>
-        <li>Accepted submissions advance campaign evidence and telemetry streams.</li>
-        <li>Deliverables include coverage deltas, crash/finding feeds, and signed report bundles.</li>
+        <li>Coordinator leases bounded work batches per worker session.</li>
+        <li>Dig: segment claim/submit + CI gate. Hunt: shard claim/submit + crash bounty.</li>
+        <li>Orders stay on your local node; hackme.tech is tracker/docs.</li>
       </ul>
-      <p style="margin-top:0.85rem">
-        <a class="btn btn-primary" href="./fuzz-guide.html">Fuzz campaigns guide</a>
+      <p style="margin-top:0.85rem" class="cta-row">
+        <a class="btn btn-primary" href="./fuzz-guide.html">Fuzz guide (Dig + Hunt)</a>
+        <a class="btn btn-secondary" href="./developers.html">Packages</a>
+        <a class="btn btn-secondary" href="./api-reference.html">API</a>
       </p>
     </section>
 
@@ -285,7 +288,7 @@
         <li>Linux launcher install: <span class="code-inline">bash scripts/ops/install_linux_desktop_launcher.sh</span>.</li>
         <li>Desktop lifecycle: <span class="code-inline">desktop_mode_up.sh</span>, <span class="code-inline">desktop_mode_status.sh</span>, <span class="code-inline">desktop_mode_stop.sh</span>.</li>
         <li>First run generates admin token when missing and enables local desktop profile flags.</li>
-        <li>Dashboard includes a first-run wizard for token generation plus Solo/Worker start buttons.</li>
+        <li>Dashboard: first-run admin token, mining / wallet / orders / Exchange / Hunt-capable fuzz tabs.</li>
       </ul>
     </section>
 
@@ -356,7 +359,7 @@
     <div class="footer-nav"></div>
   </footer>
 
-  <script src="./assets/site-shell.js?v=20260914rc17"></script>
-  <script src="./assets/app.js?v=20260914rc17"></script>
+  <script src="./assets/site-shell.js?v=20260914dev1"></script>
+  <script src="./assets/app.js?v=20260914dev1"></script>
 </body>
 </html>
