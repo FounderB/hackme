@@ -176,10 +176,11 @@ func fetchHarnessHTTP(ctx context.Context, rawURL string) ([]byte, error) {
 		return nil, err
 	}
 	u, _ := url.Parse(rawURL)
-	attachBearer := u != nil && strings.HasPrefix(path.Clean(u.Path), "/api/fuzz/pool/hunt/harness/")
+	_, harnessOK := harnessFetchPathHash(u)
+	attachBearer := harnessOK
 	if attachBearer {
 		if coord := strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_URL")); coord != "" {
-			if cu, err := url.Parse(coord); err == nil && cu.Host != "" && u != nil && !strings.EqualFold(cu.Host, u.Host) {
+			if !sameCoordinatorHost(coord, u) {
 				attachBearer = false
 			}
 		}
@@ -213,32 +214,26 @@ func fetchHarnessHTTP(ctx context.Context, rawURL string) ([]byte, error) {
 }
 
 // SafeHarnessFetchURL allows relative coordinator harness paths, same-host coordinator
-// absolute URLs, or https public hosts with the harness path (blocks SSRF/private IPs).
+// absolute URLs (incl. :port and /pool/coordinator prefix), or https public hosts
+// with the harness path (blocks SSRF/private IPs).
 func SafeHarnessFetchURL(raw string) bool {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return false
 	}
-	if strings.HasPrefix(raw, "/api/fuzz/pool/hunt/harness/") {
-		h := strings.TrimPrefix(raw, "/api/fuzz/pool/hunt/harness/")
-		h = strings.Trim(h, "/")
-		return ValidHarnessHash(h) && !strings.Contains(h, "/") && !strings.Contains(h, "..")
+	if strings.HasPrefix(raw, "/") {
+		_, ok := harnessFetchPathHash(&url.URL{Path: raw})
+		return ok
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
 		return false
 	}
-	p := path.Clean(u.Path)
-	const prefix = "/api/fuzz/pool/hunt/harness/"
-	if !strings.HasPrefix(p, prefix) {
-		return false
-	}
-	h := strings.Trim(strings.TrimPrefix(p, prefix), "/")
-	if !ValidHarnessHash(h) || strings.Contains(h, "/") {
+	if _, ok := harnessFetchPathHash(u); !ok {
 		return false
 	}
 	if coord := strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_URL")); coord != "" {
-		if cu, err := url.Parse(coord); err == nil && cu.Host != "" && strings.EqualFold(cu.Host, u.Hostname()) {
+		if sameCoordinatorHost(coord, u) {
 			return true
 		}
 	}
@@ -255,6 +250,50 @@ func SafeHarnessFetchURL(raw string) bool {
 		}
 	}
 	return true
+}
+
+func harnessFetchPathHash(u *url.URL) (string, bool) {
+	if u == nil {
+		return "", false
+	}
+	p := path.Clean(u.Path)
+	for _, prefix := range []string{
+		"/api/fuzz/pool/hunt/harness/",
+		"/pool/coordinator/api/fuzz/pool/hunt/harness/",
+	} {
+		if !strings.HasPrefix(p, prefix) {
+			continue
+		}
+		h := strings.Trim(strings.TrimPrefix(p, prefix), "/")
+		if ValidHarnessHash(h) && !strings.Contains(h, "/") && !strings.Contains(h, "..") {
+			return h, true
+		}
+	}
+	return "", false
+}
+
+func sameCoordinatorHost(coordURL string, u *url.URL) bool {
+	cu, err := url.Parse(strings.TrimSpace(coordURL))
+	if err != nil || cu.Host == "" || u == nil || u.Host == "" {
+		return false
+	}
+	if !strings.EqualFold(cu.Hostname(), u.Hostname()) {
+		return false
+	}
+	return urlPortOrDefault(cu) == urlPortOrDefault(u)
+}
+
+func urlPortOrDefault(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	if p := u.Port(); p != "" {
+		return p
+	}
+	if u.Scheme == "https" {
+		return "443"
+	}
+	return "80"
 }
 
 // HarnessFetchURL builds coordinator-relative fetch path for workers.

@@ -39,8 +39,18 @@ func TestSafeHarnessFetchURL(t *testing.T) {
 	if !SafeHarnessFetchURL("/api/fuzz/pool/hunt/harness/abc12345") {
 		t.Fatal("relative harness path")
 	}
+	if !SafeHarnessFetchURL("/pool/coordinator/api/fuzz/pool/hunt/harness/abc12345") {
+		t.Fatal("pool coordinator relative path")
+	}
 	if SafeHarnessFetchURL("http://127.0.0.1/api/fuzz/pool/hunt/harness/abc12345") {
 		t.Fatal("loopback must be rejected without matching coordinator env")
+	}
+	t.Setenv("HACKME_POOL_COORDINATOR_URL", "http://203.0.113.10:18083")
+	if !SafeHarnessFetchURL("http://203.0.113.10:18083/api/fuzz/pool/hunt/harness/abc12345") {
+		t.Fatal("pool-direct host:port must match coordinator env")
+	}
+	if !SafeHarnessFetchURL("https://hackme.tech/pool/coordinator/api/fuzz/pool/hunt/harness/abc12345") {
+		t.Fatal("public https /pool/coordinator harness path")
 	}
 	if SafeHarnessFetchURL("https://evil.example/ssrf") {
 		t.Fatal("non-harness path")
