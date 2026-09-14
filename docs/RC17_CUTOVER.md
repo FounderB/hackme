@@ -51,4 +51,4 @@ cd ../hackme-exchange-demo && npx tsx scripts/lab-smoke.ts   # API on :18443
 
 - **Production hub** — leave on rc16 runtime (code in git may be ahead; no restart)
 - **D0 static** — can be prepared locally; DNS flip only in cut window
-- **Lab dev** — `localStorage.setItem('hackme.exchange.origin', 'http://127.0.0.1:5199')`
+- **Lab / desktop hub** — `#exchange` prefers `http://127.0.0.1:5199` when reachable; buttons Local / Public; override via `localStorage.hackme.exchange.origin`

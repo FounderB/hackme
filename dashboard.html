@@ -3391,7 +3391,7 @@
 					</div>
 				</div>
 
-				<!-- EXCHANGE (D0 paper SPA on exchange.hackme.tech; loopback override via localStorage) -->
+				<!-- EXCHANGE (D0 paper SPA; loopback hub prefers local :5199 when up) -->
 				<div id="panel-exchange" class="tab-panel">
 					<div id="exchange-chrome">
 						<span class="ex-title">Exchange</span>
@@ -3400,6 +3400,8 @@
 						<span id="exchange-lab-status" class="ex-meta">checking…</span>
 						<span class="ex-meta hidden sm:inline" id="exchange-origin-label">https://exchange.hackme.tech</span>
 						<span class="ml-auto flex flex-wrap gap-2 items-center">
+							<button type="button" id="btn-exchange-local" class="text-[10px] px-2.5 py-1 rounded border border-white/15 text-gray-400 hover:text-neon hover:border-neon/35 uppercase tracking-wider" title="Embed http://127.0.0.1:5199">Local</button>
+							<button type="button" id="btn-exchange-public" class="text-[10px] px-2.5 py-1 rounded border border-white/15 text-gray-400 hover:text-neon hover:border-neon/35 uppercase tracking-wider" title="Embed https://exchange.hackme.tech">Public</button>
 							<button type="button" data-goto-tab="wallet" class="text-[10px] px-2.5 py-1 rounded border border-white/15 text-gray-400 hover:text-neon hover:border-neon/35 uppercase tracking-wider">Wallet</button>
 							<button type="button" id="btn-exchange-reload" class="text-[10px] px-2.5 py-1 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Reload</button>
 							<a id="btn-exchange-popout" href="https://exchange.hackme.tech/" target="_blank" rel="noopener noreferrer" class="text-[10px] px-2.5 py-1 rounded border border-matrix/35 text-matrix hover:bg-matrix/10 uppercase tracking-wider no-underline">Pop out</a>
@@ -14497,8 +14499,9 @@
 			}
 		}
 
-		/** Exchange SPA embed — D0 paper host; loopback override for private lab dev. */
+		/** Exchange SPA embed — D0 paper host; loopback hub prefers local Vite :5199 when reachable. */
 		const EXCHANGE_SPA_ORIGIN_DEFAULT = 'https://exchange.hackme.tech';
+		const EXCHANGE_SPA_ORIGIN_LOCAL = 'http://127.0.0.1:5199';
 		const EXCHANGE_API_HEALTH_DEFAULT = 'http://127.0.0.1:18443/health';
 		const EXCHANGE_SPA_ORIGIN_ALLOW = [
 			'https://exchange.hackme.tech',
@@ -14507,8 +14510,15 @@
 			'http://[::1]:5199',
 		];
 		let exchangeFrameLoaded = false;
+		let exchangeResolvedOrigin = '';
+
+		function isLoopbackHostname(h) {
+			const x = String(h || '').toLowerCase();
+			return x === '127.0.0.1' || x === 'localhost' || x === '[::1]' || x === '::1';
+		}
 
 		function exchangeSpaOrigin() {
+			if (exchangeResolvedOrigin) return exchangeResolvedOrigin;
 			try {
 				const o = String(localStorage.getItem('hackme.exchange.origin') || '').replace(/\/$/, '');
 				if (o && EXCHANGE_SPA_ORIGIN_ALLOW.includes(o)) return o;
@@ -14516,6 +14526,68 @@
 					console.warn('[exchange] rejected non-allowlisted origin override:', o);
 				}
 			} catch (_) {}
+			// Loopback hub: default to local desk (public often fails to iframe from 127.0.0.1).
+			if (isLoopbackHostname(location.hostname)) return EXCHANGE_SPA_ORIGIN_LOCAL;
+			return EXCHANGE_SPA_ORIGIN_DEFAULT;
+		}
+
+		function setExchangeSpaOrigin(origin, persist) {
+			const o = String(origin || '').replace(/\/$/, '');
+			if (!EXCHANGE_SPA_ORIGIN_ALLOW.includes(o)) return false;
+			exchangeResolvedOrigin = o;
+			if (persist) {
+				try { localStorage.setItem('hackme.exchange.origin', o); } catch (_) {}
+			}
+			return true;
+		}
+
+		async function probeOriginReachable(origin) {
+			try {
+				const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+				const t = ctrl ? setTimeout(() => ctrl.abort(), 1800) : null;
+				await fetch(origin + '/', {
+					method: 'GET',
+					mode: 'no-cors',
+					cache: 'no-store',
+					signal: ctrl ? ctrl.signal : undefined,
+				});
+				if (t) clearTimeout(t);
+				return true;
+			} catch (_) {
+				return false;
+			}
+		}
+
+		async function resolveExchangeSpaOrigin() {
+			try {
+				const o = String(localStorage.getItem('hackme.exchange.origin') || '').replace(/\/$/, '');
+				if (o && EXCHANGE_SPA_ORIGIN_ALLOW.includes(o)) {
+					const localish = /127\.0\.0\.1:5199|localhost:5199|\[::1\]:5199/i.test(o);
+					// On loopback hub, skip a stale public preference when local desk is up.
+					if (!isLoopbackHostname(location.hostname) || localish) {
+						exchangeResolvedOrigin = o;
+						return o;
+					}
+					if (!(await probeOriginReachable(EXCHANGE_SPA_ORIGIN_LOCAL))) {
+						exchangeResolvedOrigin = o;
+						return o;
+					}
+					try { localStorage.removeItem('hackme.exchange.origin'); } catch (_) {}
+				}
+			} catch (_) {}
+			if (isLoopbackHostname(location.hostname)) {
+				if (await probeOriginReachable(EXCHANGE_SPA_ORIGIN_LOCAL)) {
+					exchangeResolvedOrigin = EXCHANGE_SPA_ORIGIN_LOCAL;
+					return EXCHANGE_SPA_ORIGIN_LOCAL;
+				}
+				if (await probeOriginReachable(EXCHANGE_SPA_ORIGIN_DEFAULT)) {
+					exchangeResolvedOrigin = EXCHANGE_SPA_ORIGIN_DEFAULT;
+					return EXCHANGE_SPA_ORIGIN_DEFAULT;
+				}
+				exchangeResolvedOrigin = EXCHANGE_SPA_ORIGIN_LOCAL;
+				return EXCHANGE_SPA_ORIGIN_LOCAL;
+			}
+			exchangeResolvedOrigin = EXCHANGE_SPA_ORIGIN_DEFAULT;
 			return EXCHANGE_SPA_ORIGIN_DEFAULT;
 		}
 
@@ -14536,39 +14608,31 @@
 			setExchangeLabStatus('checking…', '');
 			let spaOk = false;
 			let apiOk = false;
-			try {
-				const r = await fetch(origin + '/', { method: 'GET', mode: 'no-cors', cache: 'no-store' });
-				// no-cors → opaque; treat as reachable if no throw
-				spaOk = true;
-				void r;
-			} catch (_) {
-				spaOk = false;
-			}
+			spaOk = await probeOriginReachable(origin);
 			try {
 				const hr = await fetch(EXCHANGE_API_HEALTH_DEFAULT, { method: 'GET', cache: 'no-store' });
 				apiOk = hr.ok;
 			} catch (_) {
 				apiOk = false;
 			}
-			if (spaOk && apiOk) setExchangeLabStatus('SPA + API up', 'ok');
-			else if (spaOk) {
-				const paper = !/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|$)/i.test(origin);
-				setExchangeLabStatus(paper ? 'paper desk up' : 'SPA up · API unreachable', paper ? 'ok' : 'warn');
-			}
+			const local = /127\.0\.0\.1:5199|localhost:5199|\[::1\]:5199/i.test(origin);
+			if (spaOk && apiOk) setExchangeLabStatus(local ? 'local SPA + API up' : 'SPA + API up', 'ok');
+			else if (spaOk) setExchangeLabStatus(local ? 'local desk up' : 'paper desk up', 'ok');
 			else if (apiOk) setExchangeLabStatus('API up · SPA unreachable', 'warn');
-			else setExchangeLabStatus('offline — start demo + api', 'err');
+			else setExchangeLabStatus(local ? 'offline — start vite :5199' : 'offline — public desk unreachable', 'err');
 		}
 
-		function ensureExchangeLabFrame(forceReload) {
+		async function ensureExchangeLabFrame(forceReload) {
 			const frame = $('exchange-spa-frame');
 			if (!frame) return;
-			const origin = exchangeSpaOrigin();
+			const origin = await resolveExchangeSpaOrigin();
 			const label = $('exchange-origin-label');
 			if (label) label.textContent = origin;
 			const pop = $('btn-exchange-popout');
 			if (pop) pop.href = origin + '/';
-			if (forceReload || !exchangeFrameLoaded || !frame.getAttribute('src')) {
-				frame.src = origin + '/?embed=hub';
+			const next = origin + '/?embed=hub';
+			if (forceReload || !exchangeFrameLoaded || frame.getAttribute('src') !== next) {
+				frame.src = next;
 				exchangeFrameLoaded = true;
 			}
 			void probeExchangeLab();
@@ -14813,7 +14877,21 @@
 		const btnExReload = $('btn-exchange-reload');
 		if (btnExReload) {
 			btnExReload.addEventListener('click', () => {
-				ensureExchangeLabFrame(true);
+				void ensureExchangeLabFrame(true);
+			});
+		}
+		const btnExLocal = $('btn-exchange-local');
+		if (btnExLocal) {
+			btnExLocal.addEventListener('click', () => {
+				setExchangeSpaOrigin(EXCHANGE_SPA_ORIGIN_LOCAL, true);
+				void ensureExchangeLabFrame(true);
+			});
+		}
+		const btnExPublic = $('btn-exchange-public');
+		if (btnExPublic) {
+			btnExPublic.addEventListener('click', () => {
+				setExchangeSpaOrigin(EXCHANGE_SPA_ORIGIN_DEFAULT, true);
+				void ensureExchangeLabFrame(true);
 			});
 		}
 		window.addEventListener('message', (ev) => {
