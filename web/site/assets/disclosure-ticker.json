@@ -1,17 +1,35 @@
 {
-  "updated": "2026-08-27T11:00:00Z",
+  "updated": "2026-09-14T12:00:00Z",
   "interval_ms": 6500,
   "pool_poll_ms": 30000,
   "slides": [
     {
       "kind": "release",
-      "badge": "Shipped",
+      "badge": "Cutover",
+      "title": "0.1.0-rc17 — paper exchange · SUP · Hunt",
+      "detail": "Channel bump · installers still rc16 until SHA · see downloads",
+      "cta": "Downloads",
+      "href": "/downloads.html#start",
+      "accent": "cyan",
+      "stats": [
+        "rc17",
+        "cutover",
+        "honest"
+      ]
+    },
+    {
+      "kind": "release",
+      "badge": "Prior",
       "title": "0.1.0-rc16 — self-update + signed apt",
       "detail": "latest.json · update_hackme_miner · apt hackme-node · Windows banner",
       "cta": "Downloads",
       "href": "/downloads.html#start",
       "accent": "success",
-      "stats": ["rc16", "apt", "LIVE"]
+      "stats": [
+        "rc16",
+        "apt",
+        "published"
+      ]
     },
     {
       "kind": "win",
@@ -21,7 +39,11 @@
       "cta": "Case study",
       "href": "/reports/oss-cve/cases/cfgpack.html",
       "accent": "success",
-      "stats": ["#1 closed", "b5e7cff", "UBSan"]
+      "stats": [
+        "#1 closed",
+        "b5e7cff",
+        "UBSan"
+      ]
     },
     {
       "kind": "series",
@@ -31,7 +53,11 @@
       "cta": "Day 14",
       "href": "/reports/oss-cve-watch-libheif/day14.html",
       "accent": "cyan",
-      "stats": ["14/14", "~2.57B", "ASAN=0"]
+      "stats": [
+        "14/14",
+        "~2.57B",
+        "ASAN=0"
+      ]
     },
     {
       "kind": "series",
@@ -41,7 +67,11 @@
       "cta": "Research",
       "href": "/research.html",
       "accent": "gold",
-      "stats": ["nghttp2", "libheif", "14/14"]
+      "stats": [
+        "nghttp2",
+        "libheif",
+        "14/14"
+      ]
     },
     {
       "kind": "pool",
@@ -61,7 +91,10 @@
       "cta": "Case",
       "href": "/reports/oss-cve/cases/centijson.html",
       "accent": "medium",
-      "stats": ["hold", "medium"]
+      "stats": [
+        "hold",
+        "medium"
+      ]
     },
     {
       "kind": "b2b",
@@ -71,7 +104,10 @@
       "cta": "Developers",
       "href": "/developers.html",
       "accent": "violet",
-      "stats": ["B2B", "WASM"]
+      "stats": [
+        "B2B",
+        "WASM"
+      ]
     }
   ]
 }

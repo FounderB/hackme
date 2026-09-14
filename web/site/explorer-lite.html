@@ -3,38 +3,99 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HackMe Explorer Lite</title>
+  <title>HackMe Explorer Lite · 0.1.0-rc17</title>
+  <meta name="description" content="Public lite explorer for HackMe pool stats and coordinator work. Full live UI at /pool/explorer/live." />
+  <link rel="canonical" href="https://hackme.tech/explorer-lite.html" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
-  <link rel="stylesheet" href="./assets/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260914rc17" />
+  <style>
+    .ex-lite-hero h1 {
+      font-family: "Space Grotesk", sans-serif;
+      letter-spacing: 0.04em;
+      margin: 0 0 0.45rem;
+    }
+    .ex-lite-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    @media (max-width: 900px) { .ex-lite-grid { grid-template-columns: 1fr; } }
+    .ex-lite-pre {
+      margin: 0;
+      padding: 0.85rem 1rem;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(77, 228, 255, 0.16);
+      background: rgba(4, 8, 16, 0.72);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      max-height: 28rem;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .ex-lite-links { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 0.75rem; }
+    .ex-lite-links a {
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid rgba(120, 170, 220, 0.28);
+      font-size: 0.75rem;
+      color: var(--primary);
+    }
+    .ex-lite-links a:hover { border-color: rgba(77, 228, 255, 0.55); }
+  </style>
 </head>
 <body>
-  <main class="container" style="padding-top:24px">
-    <section class="panel glass">
-      <h1 style="margin-top:0">HackMe Explorer (Lite)</h1>
-      <p class="subtle">Stable public view for pool listings and operators. Full explorer UI is available at <a href="/pool/explorer/live">/pool/explorer/live</a>.</p>
-      <p id="status" class="subtle">Loading...</p>
+  <div class="bg-glow bg-glow-a" aria-hidden="true"></div>
+  <div class="bg-glow bg-glow-b" aria-hidden="true"></div>
+  <header class="topbar">
+    <a class="brand" href="./index.html"><img class="brand-logo" src="./assets/logo-hex.png" alt="HackMe" /><span>HackMe Network</span></a>
+    <nav class="nav" data-site-page="explorer"></nav>
+  </header>
+
+  <main class="container" style="padding-top:8px;padding-bottom:2.5rem">
+    <section class="hero glass hero-small ex-lite-hero">
+      <p class="kicker">Explorer · lite · 0.1.0-rc17</p>
+      <h1>Pool pulse</h1>
+      <p class="hero-copy">
+        Public read-only strip for operators. Full explorer UI:
+        <a href="/pool/explorer/live">/pool/explorer/live</a>
+      </p>
+      <p id="status" class="subtle" style="margin-top:0.65rem">Loading…</p>
+      <div class="ex-lite-links">
+        <a href="/pool/explorer/live">Full explorer</a>
+        <a href="./downloads.html">Downloads</a>
+        <a href="./roadmap.html">Roadmap</a>
+        <a href="https://hackme.tech/" rel="noreferrer">Site</a>
+      </div>
     </section>
 
-    <section class="panel glass">
-      <h2 style="margin-top:0">Pool Stats</h2>
-      <pre id="poolStats" style="white-space:pre-wrap">Loading...</pre>
-    </section>
+    <div class="ex-lite-grid">
+      <section class="panel glass">
+        <div class="panel-head"><h2>Pool stats</h2></div>
+        <pre id="poolStats" class="ex-lite-pre">Loading…</pre>
+      </section>
+      <section class="panel glass">
+        <div class="panel-head"><h2>Coordinator work</h2></div>
+        <pre id="workStats" class="ex-lite-pre">Loading…</pre>
+      </section>
+    </div>
 
-    <section class="panel glass">
-      <h2 style="margin-top:0">Coordinator Work Stats</h2>
-      <pre id="workStats" style="white-space:pre-wrap">Loading...</pre>
-    </section>
-
-    <section class="panel glass">
-      <h2 style="margin-top:0">Quick Links</h2>
-      <ul>
-        <li><a href="/pool/coordinator/api/pool/stats">/pool/coordinator/api/pool/stats</a></li>
-        <li><a href="/pool/coordinator/api/work/stats">/pool/coordinator/api/work/stats</a></li>
-        <li><a href="/api/status">/api/status</a></li>
-        <li><a href="/pool/explorer/live">Full Explorer UI (live)</a></li>
-      </ul>
+    <section class="panel glass" style="margin-top:1rem">
+      <div class="panel-head"><h2>API</h2></div>
+      <div class="ex-lite-links">
+        <a href="/pool/coordinator/api/pool/stats">pool/stats</a>
+        <a href="/pool/coordinator/api/work/stats">work/stats</a>
+        <a href="/api/status">/api/status</a>
+      </div>
     </section>
   </main>
+
+  <footer class="footer"><p>HackMe Network · explorer lite · channel 0.1.0-rc17</p><div class="footer-nav"></div></footer>
+  <script src="./assets/site-shell.js?v=20260914rc17"></script>
 
   <script>
     async function loadJSON(url, id) {
@@ -49,16 +110,25 @@
           el.textContent = t;
         }
       } catch (e) {
-        el.textContent = 'ERROR: ' + (e && e.message ? e.message : e);
+        el.textContent = String(e && e.message ? e.message : e);
       }
     }
-    Promise.all([
-      loadJSON('/pool/coordinator/api/pool/stats', 'poolStats'),
-      loadJSON('/pool/coordinator/api/work/stats', 'workStats')
-    ]).then(() => {
+    async function boot() {
       const st = document.getElementById('status');
-      st.textContent = 'Explorer Lite ready.';
-    });
+      try {
+        const r = await fetch('/api/status', { cache: 'no-store' });
+        const j = await r.json();
+        const ver = j.version || j.Version || '—';
+        st.textContent = 'node ' + ver + (j.commit && j.commit !== 'nogit' ? ' · ' + String(j.commit).slice(0, 8) : '') + ' · ok';
+      } catch (e) {
+        st.textContent = 'status unavailable';
+      }
+      await Promise.all([
+        loadJSON('/pool/coordinator/api/pool/stats', 'poolStats'),
+        loadJSON('/pool/coordinator/api/work/stats', 'workStats'),
+      ]);
+    }
+    boot();
   </script>
 </body>
 </html>

@@ -252,7 +252,7 @@
 }
 .dt-title {
   min-width: 0;
-  font-family: "Space Grotesk", Inter, sans-serif;
+  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
   font-size: 0.88rem;
   font-weight: 650;
   line-height: 1.2;

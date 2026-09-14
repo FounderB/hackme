@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HackMe Downloads · 0.1.0-rc16</title>
-  <meta name="description" content="Download HackMe 0.1.0-rc16: Windows Setup, Linux tarball, HackMe OS ISO, signed apt. Verify SHA256 before install." />
+  <title>HackMe Downloads · 0.1.0-rc17</title>
+  <meta name="description" content="HackMe 0.1.0-rc17 channel: paper exchange, SUP wallet, Hunt. Download last published Win/Linux/ISO (0.1.0-rc16) until rc17 SHA lands. Verify SHA256." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./assets/styles.css" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="/assets/favicon.png" type="image/png" />
@@ -34,7 +34,7 @@
       transform: translateY(-2px);
     }
     .dl-pick .card h3 {
-      font-family: "Space Grotesk", Inter, sans-serif;
+      font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
       letter-spacing: 0.02em;
       margin: 0;
     }
@@ -91,15 +91,18 @@
       <p class="kicker">Downloads</p>
       <h1>Get HackMe · mine in minutes</h1>
       <p class="hero-copy">
-        Channel <strong id="dl-release-ver">0.1.0-rc16</strong>
+        Channel <strong id="dl-release-ver">0.1.0-rc17</strong>
         · verify SHA256 ·
-        <a href="https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16" target="_blank" rel="noreferrer">GitHub release</a>
+        <a id="dl-github-release" href="https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16" target="_blank" rel="noreferrer">GitHub 0.1.0-rc16</a>
+      </p>
+      <p id="dl-artifact-note" class="subtle" style="margin-top:0.55rem;max-width:42rem">
+        Installers resolve to last published 0.1.0-rc16 until the rc17 SHA256SUMS land.
       </p>
       <div class="dl-meta-row" aria-label="Release facts">
-        <span class="dl-chip">Status <strong>LIVE</strong></span>
+        <span class="dl-chip">Status <strong>CUTOVER</strong></span>
         <span class="dl-chip">Self-update <strong>L1</strong></span>
         <span class="dl-chip">Apt <strong>hackme-node</strong></span>
-        <span class="dl-chip">ISO <strong>rc16</strong></span>
+        <span class="dl-chip">Artifacts <strong>rc16</strong></span>
       </div>
 
       <div class="dl-pick">
@@ -240,7 +243,7 @@ chmod +x hackme-fuzzing-*
     <div class="footer-nav"></div>
   </footer>
 
-  <script src="./assets/site-shell.js?v=20260827rc16b"></script>
-  <script src="./assets/app.js?v=20260827rc16b"></script>
+  <script src="./assets/site-shell.js?v=20260914rc17"></script>
+  <script src="./assets/app.js?v=20260914rc17"></script>
 </body>
 </html>

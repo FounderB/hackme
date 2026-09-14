@@ -8,7 +8,7 @@
   <link rel="canonical" href="https://hackme.tech/developers.html" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./assets/styles.css" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="./assets/favicon.png" type="image/png" />
@@ -33,11 +33,8 @@
       <p class="kicker">Commercial · B2B security audit</p>
       <h1>B2B fuzz final — one command to report + CI gate</h1>
       <p class="hero-copy">
-        Ship a WASM security guard <em>or</em> pick a ready <strong>pack</strong> (<code>secrets</code> · <code>script_bounds</code> · <code>filter_utf8</code> · <code>parser_expat</code> · Scan smokes),
-        choose <strong>Scan · Dig · Audit · Deep</strong>, hybrid pool miners fuzz distributed work — you get
-        an HTML report, CI <strong>gate</strong>, optional <strong>Proof of Fuzz</strong> badge, and escrow economics.
-        <code>report.html</code>, live <code>pulse</code>, and <code>GET /gate</code> for CI.
-        Escrow stays on <strong>your local node</strong> (<code>127.0.0.1:8080</code>); hackme.tech delivers read-only tracker + token-gated reports.
+        Ship a WASM Dig guard <em>or</em> pick a ready pack, choose <strong>Scan · Dig · Audit · Deep</strong> (or Hunt),
+        get HTML report + CI gate. Escrow on your local node (<code>127.0.0.1:8080</code>); hackme.tech is tracker + docs only.
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="./orders.html">Customer orders path</a>
@@ -46,13 +43,10 @@
         <a class="btn btn-secondary" href="./fuzzing-console.html">Public status tracker</a>
       </div>
       <div class="pill-row">
-        <span class="pill">hackme-fuzzing wizard</span>
-        <span class="pill">Packs · 7 guards</span>
         <span class="pill">Scan · Dig · Audit · Deep</span>
-        <span class="pill">Hunt reuse</span>
-        <span class="pill">Proof of Fuzz</span>
-        <span class="pill">CI gate endpoint</span>
-        <span class="pill">rc16 live</span>
+        <span class="pill">Hunt ASAN</span>
+        <span class="pill">CI gate</span>
+        <span class="pill">rc17</span>
         <span class="pill">No browser admin on prod</span>
       </div>
     </section>
@@ -244,7 +238,7 @@ curl -sS https://hackme.tech/api/wallet | jq .
   </main>
   <script src="./assets/hackme-dev-common.js" defer></script>
   <script src="./assets/integrator-token.js" defer></script>
-  <script src="./assets/site-shell.js?v=20260824iso"></script>
-  <script src="./assets/app.js?v=20260824iso"></script>
+  <script src="./assets/site-shell.js?v=20260914rc17"></script>
+  <script src="./assets/app.js?v=20260914rc17"></script>
 </body>
 </html>

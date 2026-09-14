@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| `0.1.0-rc16` | Yes (current release candidate) |
+| `0.1.0-rc17` | Yes (current channel / cutover) |
+| `0.1.0-rc16` | Yes (last published artifacts) |
 | `0.1.0-rc15` | Yes |
 | `0.1.0-rc14x` | Best effort only |
 | `0.1.0-rc12w`–`rc11i` | Best effort only |

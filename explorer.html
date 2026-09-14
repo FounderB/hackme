@@ -6,7 +6,7 @@
   <title>HackMe Explorer · Pool</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@500;700&display=swap" rel="stylesheet" />
   <style>
     :root {
       color-scheme: dark;
@@ -21,8 +21,11 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: Inter, system-ui, sans-serif;
-      background: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(127, 231, 255, 0.08), transparent 55%), var(--bg);
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      background:
+        radial-gradient(ellipse 110% 70% at 12% -10%, rgba(127, 231, 255, 0.11), transparent 50%),
+        radial-gradient(ellipse 90% 60% at 92% 8%, rgba(147, 255, 177, 0.07), transparent 45%),
+        var(--bg);
       color: #dce3ef;
       min-height: 100vh;
     }
@@ -131,7 +134,8 @@
   <div class="wrap">
     <div class="hero">
       <h1><span class="live-dot"></span>HackMe Explorer</h1>
-      <p class="muted" style="margin:0;">Chain: <span class="mono">{{.ChainID}}</span> · Node: <span class="mono">{{.NodeID}}</span> · auto-refresh 5s</p>
+      <p class="muted" style="margin:0;">Pool · chain · workers · <span class="mono">0.1.0-rc17</span> channel · auto-refresh 5s</p>
+      <p class="muted" style="margin:6px 0 0;font-size:11px;">Chain: <span class="mono">{{.ChainID}}</span> · Node: <span class="mono">{{.NodeID}}</span></p>
     </div>
     <p id="explorer-wallet-path" class="muted mono" style="margin:0 0 14px;font-size:11px;line-height:1.45;">—</p>
 

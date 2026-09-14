@@ -8,18 +8,33 @@
   --primary-strong: #00b8ff;
   --ok: #6effad;
   --shadow: 0 24px 80px rgba(0, 12, 36, 0.45);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  font-family: Inter, system-ui, sans-serif;
-  background: radial-gradient(circle at top, #0c1231 0%, var(--bg) 40%);
+  font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  background:
+    radial-gradient(ellipse 100% 70% at 50% -15%, rgba(77, 228, 255, 0.14), transparent 52%),
+    radial-gradient(circle at 85% 10%, rgba(110, 255, 173, 0.07), transparent 40%),
+    radial-gradient(circle at top, #0a1024 0%, var(--bg) 48%);
   color: var(--text);
   min-height: 100vh;
   position: relative;
 }
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+body > * { position: relative; z-index: 1; }
 a { color: inherit; text-decoration: none; }
 
 .bg-glow {
@@ -30,9 +45,14 @@ a { color: inherit; text-decoration: none; }
   filter: blur(90px);
   opacity: 0.25;
   z-index: -1;
+  animation: glow-drift 18s var(--ease-out) infinite alternate;
 }
 .bg-glow-a { background: #2dd4ff; top: -10rem; left: -8rem; }
-.bg-glow-b { background: #0ea5a8; bottom: -14rem; right: -8rem; }
+.bg-glow-b { background: #0ea5a8; bottom: -14rem; right: -8rem; animation-delay: -6s; }
+@keyframes glow-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(2%, 3%, 0) scale(1.06); }
+}
 
 .topbar {
   position: relative;
@@ -151,7 +171,7 @@ a { color: inherit; text-decoration: none; }
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
-  font-family: "Space Grotesk", Inter, sans-serif;
+  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -160,6 +180,11 @@ a { color: inherit; text-decoration: none; }
   height: 1.45rem;
   object-fit: contain;
   filter: drop-shadow(0 0 10px rgba(66, 245, 255, 0.55));
+  transition: filter 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+}
+.brand:hover .brand-logo {
+  filter: drop-shadow(0 0 14px rgba(66, 245, 255, 0.75));
+  transform: scale(1.04);
 }
 .nav {
   display: inline-flex;
@@ -204,16 +229,28 @@ a { color: inherit; text-decoration: none; }
 }
 
 .glass {
-  background: var(--panel);
+  background: linear-gradient(165deg, rgba(14, 22, 40, 0.88), rgba(8, 12, 22, 0.72));
   border: 1px solid var(--line);
   border-radius: 1rem;
   box-shadow: var(--shadow);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(10px);
 }
 
 .hero {
   padding: 2.2rem;
+  position: relative;
+  overflow: hidden;
 }
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -10% -40% auto;
+  width: min(28rem, 70%);
+  height: min(18rem, 55%);
+  background: radial-gradient(circle, rgba(77, 228, 255, 0.16), transparent 70%);
+  pointer-events: none;
+}
+.hero > * { position: relative; z-index: 1; }
 .hero-small {
   padding: 1.8rem;
 }
@@ -226,12 +263,13 @@ a { color: inherit; text-decoration: none; }
   font-weight: 700;
 }
 h1, h2, h3, h4 {
-  font-family: "Space Grotesk", Inter, sans-serif;
+  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
   margin: 0.5rem 0 0.7rem;
 }
 h1 {
   font-size: clamp(1.8rem, 4vw, 2.9rem);
   line-height: 1.13;
+  letter-spacing: -0.01em;
 }
 h2 { font-size: clamp(1.2rem, 2.2vw, 1.6rem); }
 h3 { font-size: 1.15rem; }
@@ -261,6 +299,18 @@ h4 { font-size: 1.02rem; }
   border: 1px solid rgba(140, 165, 204, 0.35);
   border-radius: 999px;
   padding: 0.27rem 0.62rem;
+  background: rgba(8, 14, 27, 0.35);
+}
+.pill.live {
+  color: #041018;
+  border-color: rgba(110, 255, 173, 0.55);
+  background: linear-gradient(135deg, #8dffc2, #4de4ff);
+  font-weight: 700;
+}
+.pill.prelaunch {
+  color: #ffd37a;
+  border-color: rgba(255, 211, 122, 0.4);
+  background: rgba(255, 211, 122, 0.08);
 }
 .hero-meta {
   margin-top: 1rem;
@@ -298,13 +348,19 @@ h4 { font-size: 1.02rem; }
   min-height: 44px;
   font-weight: 600;
   font-size: 0.92rem;
+  transition: transform 0.18s var(--ease-out), filter 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .btn-block { width: 100%; margin-top: 0.5rem; }
 .btn-primary {
   color: #041421;
   background: linear-gradient(180deg, #73f2ff, #37c6ff);
+  box-shadow: 0 8px 24px rgba(55, 198, 255, 0.22);
 }
-.btn-primary:hover { filter: brightness(1.05); }
+.btn-primary:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(55, 198, 255, 0.3);
+}
 .btn-secondary {
   border-color: rgba(118, 169, 226, 0.4);
   color: #b9d7ff;
@@ -313,6 +369,7 @@ h4 { font-size: 1.02rem; }
 .btn-secondary:hover {
   border-color: rgba(144, 197, 255, 0.58);
   color: #deeeff;
+  transform: translateY(-1px);
 }
 
 .grid {
@@ -448,7 +505,7 @@ h4 { font-size: 1.02rem; }
 }
 .research-card h3 {
   margin: 0.45rem 0 0;
-  font-family: "Space Grotesk", Inter, sans-serif;
+  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
   font-size: 1.05rem;
   line-height: 1.3;
 }
@@ -1267,11 +1324,13 @@ h4 { font-size: 1.02rem; }
   background: rgba(10, 16, 30, 0.72);
   text-decoration: none;
   color: var(--text);
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.2s var(--ease-out), background 0.2s ease, transform 0.2s var(--ease-out), box-shadow 0.2s ease;
 }
 .audience-card:hover {
   border-color: rgba(102, 233, 255, 0.55);
   background: rgba(12, 22, 40, 0.85);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
 }
 .audience-card strong {
   font-family: "Space Grotesk", system-ui, sans-serif;
@@ -1843,3 +1902,17 @@ h4 { font-size: 1.02rem; }
 }
 
 /* Disclosure ticker styles: assets/disclosure-ticker.css (loaded by disclosure-ticker.js) */
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-glow,
+  .brand-logo,
+  .btn,
+  .audience-card,
+  .lane-card,
+  .quick-item,
+  .eco-link-card,
+  .research-card {
+    animation: none !important;
+    transition: none !important;
+  }
+}

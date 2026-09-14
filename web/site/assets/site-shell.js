@@ -121,7 +121,7 @@
     ).join("");
   }
 
-  const TICKER_CACHE = "20260827rc16";
+  const TICKER_CACHE = "20260914rc17";
 
   function ensureDisclosureTickerStyles() {
     if (document.querySelector('link[data-disclosure-ticker-css="1"]')) return;

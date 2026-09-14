@@ -1366,7 +1366,7 @@
 						<span id="hdr-ui-mode" class="hidden sm:inline text-[9px] px-2 py-0.5 rounded border border-white/20 text-gray-300 uppercase tracking-widest" title="UI rendering mode">ui: full</span>
 						<span class="hidden sm:inline text-[10px] px-2 py-0.5 rounded border border-neon/25 text-neon/90 bg-neon/5">WASM</span>
 						<span id="chain-id-pill" class="tag-pill text-matrix/90 border-matrix/30">hackme-dev-mainnet</span>
-						<span id="hdr-node-version" class="text-[9px] px-2 py-0.5 rounded border border-white/10 text-neon/80 font-mono max-w-[280px] truncate hidden sm:inline-block" title="Node version · commit · build date from /api/status">0.1.0-rc16 · …</span>
+						<span id="hdr-node-version" class="text-[9px] px-2 py-0.5 rounded border border-white/10 text-neon/80 font-mono max-w-[280px] truncate hidden sm:inline-block" title="Node version · commit · build date from /api/status">0.1.0-rc17 · …</span>
 						<button type="button" id="btn-check-updates" class="inline text-[9px] px-2 py-0.5 rounded border border-neon/30 text-neon/90 hover:bg-neon/10 uppercase tracking-wider" title="Compare to hackme.tech/dist/latest.json">Updates</button>
 						<span id="hdr-update-pill" class="hidden text-[9px] px-2 py-0.5 rounded border border-warn/40 text-warn uppercase tracking-widest" title="Newer release published">update</span>
 					</div>
@@ -1445,11 +1445,11 @@
 					<p id="desktop-status-banner-body" class="text-gray-200/95"></p>
 					<div id="desktop-status-banner-actions" class="mt-2 flex flex-wrap gap-2"></div>
 				</div>
-				<div id="dashboard-whats-new" class="hidden mb-4 max-w-[1600px] mx-auto rounded-lg border border-matrix/35 bg-matrix/[0.07] px-4 py-3 text-[11px] leading-relaxed" role="status">
+				<div id="dashboard-whats-new" class="hidden mb-4 max-w-[1600px] mx-auto rounded-lg border border-neon/30 bg-gradient-to-r from-neon/[0.08] via-matrix/[0.06] to-transparent px-4 py-3.5 text-[11px] leading-relaxed shadow-[0_0_28px_rgba(0,209,255,0.08)]" role="status">
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div class="min-w-0 flex-1">
-							<p class="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-matrix mb-1">What&apos;s new · <span id="dashboard-whats-new-ver">0.1.0-rc16</span></p>
-							<p id="dashboard-whats-new-body" class="text-gray-200/95">Self-update channel: <code class="text-neon/80">latest.json</code> + Linux/Windows updaters, signed <code class="text-neon/80">apt</code> (<code class="text-neon/80">hackme-node</code>), branded app menu. Prefer <code class="text-neon/80">apt upgrade</code> on Ubuntu/Debian; else <code class="text-neon/80">update_hackme_miner.sh</code>.</p>
+							<p class="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-neon mb-1.5">What&apos;s new · <span id="dashboard-whats-new-ver">0.1.0-rc17</span></p>
+							<p id="dashboard-whats-new-body" class="text-gray-200/95">rc17 cutover: paper <strong class="text-white/90">Exchange</strong> tab · SUP wallet send/activity · Hunt ASAN + escrow · Dig customer-first. Self-update stays on published <code class="text-neon/80">latest.json</code> until the rc17 bundle lands.</p>
 						</div>
 						<button type="button" id="dashboard-whats-new-dismiss" class="shrink-0 text-[10px] px-2 py-1 rounded border border-white/15 text-gray-400 hover:text-gray-200 uppercase tracking-wider">Dismiss</button>
 					</div>
@@ -1988,14 +1988,14 @@
 						<p id="hms-preview-toast" class="mt-2 text-[10px] font-mono text-gray-500">Docs: <a class="text-neon/90 underline" href="https://hackme.tech/coins.html#hms" target="_blank" rel="noreferrer">coins.html#hms</a> · <a class="text-neon/90 underline" href="/docs/HMS_MARKET_PRICING.md" target="_blank" rel="noreferrer">market spec</a></p>
 					</div>
 					<div id="mining-hmc-stack" data-coin-scope="hmc-only" class="space-y-4">
-					<div id="mining-fuzz-rc15-banner" class="card card-glow rounded-lg p-4 md:p-5 border-neon/35 bg-gradient-to-r from-neon/10 via-black/40 to-transparent">
+					<div id="mining-fuzz-rc15-banner" class="card card-glow rounded-lg p-4 md:p-5 border-neon/40 bg-gradient-to-r from-neon/12 via-black/45 to-matrix/[0.04]">
 						<div class="flex flex-wrap items-start justify-between gap-3 mb-2">
 							<div class="max-w-3xl">
-								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">B2B fuzz · 0.1.0-rc16</p>
-								<h3 class="font-display text-sm font-semibold text-white tracking-wide">Hybrid PoH + pool fuzz — customer campaigns first</h3>
-								<p class="text-[11px] text-gray-400 leading-relaxed mt-1">OSS <strong class="text-white/90">libheif</strong> research is <strong class="text-matrix">closed CLEAN</strong> (~2.57B exec). Hub fleet now prioritizes <strong class="text-neon/90">customer B2B</strong> work — packs <code class="text-neon/80">secrets</code> · <code class="text-neon/80">filter_utf8</code> · <code class="text-neon/80">script_bounds</code> · <code class="text-neon/80">parser_expat</code>. Safe pool tiers: Scan (1 exec/run) · Audit (64). Deep capped at 64 exec/unit; coordinator segment replay anticheat.</p>
+								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">B2B fuzz · 0.1.0-rc17</p>
+								<h3 class="font-display text-sm font-semibold text-white tracking-wide">Dig · Hunt · customer campaigns first</h3>
+								<p class="text-[11px] text-gray-400 leading-relaxed mt-1"><strong class="text-neon/90">Dig</strong> (WASM packs) + <strong class="text-matrix">Hunt</strong> (ASAN / escrow / pool replay). Fleet prioritizes customer work — <code class="text-neon/80">secrets</code> · <code class="text-neon/80">filter_utf8</code> · <code class="text-neon/80">script_bounds</code> · <code class="text-neon/80">parser_expat</code>. Pool tiers: Scan · Audit · Deep (hub-capped). libheif OSS series archived CLEAN.</p>
 							</div>
-							<span class="tag-pill border-neon/40 text-neon shrink-0">rc15</span>
+							<span class="tag-pill border-neon/40 text-neon shrink-0">rc17</span>
 						</div>
 						<div class="flex flex-wrap gap-2 mt-2">
 							<button type="button" class="text-[10px] px-3 py-1.5 rounded border border-neon/40 text-neon uppercase tracking-wider hover:bg-neon/10" data-goto-tab="orders">Run B2B audit (#orders)</button>
@@ -3455,8 +3455,8 @@
 		try {
 		// Enable JS-driven tab behavior (single active panel view).
 		document.body.classList.add('js-ui');
-		const DASHBOARD_UI_VER = '0.1.0-rc16';
-		const DASHBOARD_WHATS_NEW_HTML = 'Self-update channel: <code class="text-neon/80">latest.json</code> + Linux/Windows updaters, signed <code class="text-neon/80">apt</code> (<code class="text-neon/80">hackme-node</code>), branded app menu. Prefer <code class="text-neon/80">apt upgrade</code> on Ubuntu/Debian; else <code class="text-neon/80">update_hackme_miner.sh</code>.';
+		const DASHBOARD_UI_VER = '0.1.0-rc17';
+		const DASHBOARD_WHATS_NEW_HTML = 'rc17 cutover: paper <strong class="text-white/90">Exchange</strong> tab · SUP wallet send/activity · <strong class="text-matrix">Hunt</strong> ASAN + escrow · Dig customer-first. Self-update stays on published <code class="text-neon/80">latest.json</code> until the rc17 bundle lands.';
 		function updateUIModeBadge() {
 			const el = document.getElementById('hdr-ui-mode');
 			if (!el) return;
@@ -4851,7 +4851,7 @@
 		function initDashboardWhatsNew() {
 			const wrap = $('dashboard-whats-new');
 			if (!wrap) return;
-			const dismissKey = 'hackme_notice_dismiss:dashboard-whats-new-rc15';
+			const dismissKey = 'hackme_notice_dismiss:dashboard-whats-new-rc17';
 			try {
 				if (localStorage.getItem(dismissKey) === '1') {
 					wrap.classList.add('hidden');

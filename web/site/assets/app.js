@@ -1,8 +1,10 @@
 (() => {
-  /** Bump with scripts/release/CURRENT_VERSION, dist/release_<VERSION>/, main.go Version */
-  const RELEASE_VER = "0.1.0-rc16";
-  /** HackMe OS ISO — aligned with Win/Linux (scripts/release/CURRENT_ISO_VERSION). */
-  const ISO_CHANNEL = "0.1.0-rc16";
+  /** Channel label (UI / news). Artifact URLs use PUBLISHED_ARTIFACT_VER until rc17 GH tag exists. */
+  const RELEASE_VER = "0.1.0-rc17";
+  /** Last published downloadables on GitHub / dist (do not break installs before cutover publish). */
+  const PUBLISHED_ARTIFACT_VER = "0.1.0-rc16";
+  /** HackMe OS ISO — last published until rc17 ISO SHA lands. */
+  const ISO_CHANNEL = PUBLISHED_ARTIFACT_VER;
 
   /** Sub-1 TH/s → GH/s (matches dashboard / explorer pool strip). */
   function fmtPoolHashrateTHS(ths, mock) {
@@ -38,38 +40,38 @@
     newsDisplay: "/assets/news-display.json",
     newsArchive: "/assets/news.json",
     releaseChannel: RELEASE_VER,
-    releaseChannelNote: "rc16 — self-update channel (latest.json + apt) · branded Linux menu · L1 updaters in release",
-    releaseBase: `/dist/release_${RELEASE_VER}`,
+    releaseChannelNote: "rc17 cutover — paper exchange · SUP wallet · Hunt ASAN; installers still resolve to last published " + PUBLISHED_ARTIFACT_VER + " until SHA lands",
+    publishedArtifactVer: PUBLISHED_ARTIFACT_VER,
+    releaseBase: `/dist/release_${PUBLISHED_ARTIFACT_VER}`,
     // Primary downloads: GitHub Releases (Cloudflare /dist often stalls or truncates large files).
     // Mirrors under /dist/ remain for origin IP / grey-cloud bypass.
-    ghRelease: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}`,
-    windowsInstaller: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/HackMe-Setup-${RELEASE_VER}.exe`,
-    windowsInstallerMirror: `/dist/release_${RELEASE_VER}/HackMe-Setup-${RELEASE_VER}.exe?v=20260724`,
-    // rc15 GitHub Releases publish installer + zip + fuzz CLI bundles.
-    windowsBundle: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/hackme_${RELEASE_VER}_windows.zip`,
-    windowsBundleMirror: `/dist/release_${RELEASE_VER}/hackme_${RELEASE_VER}_windows.zip`,
-    windowsBundleLegacy: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/hackme_${RELEASE_VER}_windows.zip`,
-    windowsBundleLegacyMirror: `/dist/release_${RELEASE_VER}/hackme_${RELEASE_VER}_windows.zip`,
-    linuxBundle: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/hackme_${RELEASE_VER}_linux.tar.gz`,
-    linuxBundleMirror: `/dist/release_${RELEASE_VER}/hackme_${RELEASE_VER}_linux.tar.gz`,
-    linuxDeb: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/hackme-node_${RELEASE_VER}_amd64.deb`,
-    linuxDebMirror: `/dist/release_${RELEASE_VER}/hackme-node_${RELEASE_VER}_amd64.deb`,
+    ghRelease: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}`,
+    windowsInstaller: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/HackMe-Setup-${PUBLISHED_ARTIFACT_VER}.exe`,
+    windowsInstallerMirror: `/dist/release_${PUBLISHED_ARTIFACT_VER}/HackMe-Setup-${PUBLISHED_ARTIFACT_VER}.exe?v=20260724`,
+    windowsBundle: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/hackme_${PUBLISHED_ARTIFACT_VER}_windows.zip`,
+    windowsBundleMirror: `/dist/release_${PUBLISHED_ARTIFACT_VER}/hackme_${PUBLISHED_ARTIFACT_VER}_windows.zip`,
+    windowsBundleLegacy: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/hackme_${PUBLISHED_ARTIFACT_VER}_windows.zip`,
+    windowsBundleLegacyMirror: `/dist/release_${PUBLISHED_ARTIFACT_VER}/hackme_${PUBLISHED_ARTIFACT_VER}_windows.zip`,
+    linuxBundle: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/hackme_${PUBLISHED_ARTIFACT_VER}_linux.tar.gz`,
+    linuxBundleMirror: `/dist/release_${PUBLISHED_ARTIFACT_VER}/hackme_${PUBLISHED_ARTIFACT_VER}_linux.tar.gz`,
+    linuxDeb: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/hackme-node_${PUBLISHED_ARTIFACT_VER}_amd64.deb`,
+    linuxDebMirror: `/dist/release_${PUBLISHED_ARTIFACT_VER}/hackme-node_${PUBLISHED_ARTIFACT_VER}_amd64.deb`,
     hackmeOSIso: `https://github.com/jokeez/hackme/releases/download/${ISO_CHANNEL}/HackMe-OS-${ISO_CHANNEL}-amd64.iso`,
     hackmeOSIsoMirror: `/dist/release_${ISO_CHANNEL}/HackMe-OS-${ISO_CHANNEL}-amd64.iso`,
     hackmeOSIsoLegacy: `/dist/release_${ISO_CHANNEL}/HackMe-Miner-${ISO_CHANNEL}-amd64.iso`,
     hackmeOSSha: `https://github.com/jokeez/hackme/releases/download/${ISO_CHANNEL}/SHA256SUMS-iso.txt`,
     hackmeOSShaMirror: `/dist/release_${ISO_CHANNEL}/SHA256SUMS-iso.txt`,
     isoChannel: ISO_CHANNEL,
-    fuzzingLinux: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/hackme-fuzzing-${RELEASE_VER}-linux-amd64`,
-    fuzzingWindows: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/hackme-fuzzing-${RELEASE_VER}-windows-amd64.exe`,
-    fuzzingBuildLinux: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/hackme-fuzzing-build-${RELEASE_VER}-linux-amd64`,
-    fuzzingBuildWindows: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/hackme-fuzzing-build-${RELEASE_VER}-windows-amd64.exe`,
-    shaSums: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/SHA256SUMS.txt`,
-    shaSumsMirror: `/dist/release_${RELEASE_VER}/SHA256SUMS.txt`,
+    fuzzingLinux: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/hackme-fuzzing-${PUBLISHED_ARTIFACT_VER}-linux-amd64`,
+    fuzzingWindows: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/hackme-fuzzing-${PUBLISHED_ARTIFACT_VER}-windows-amd64.exe`,
+    fuzzingBuildLinux: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/hackme-fuzzing-build-${PUBLISHED_ARTIFACT_VER}-linux-amd64`,
+    fuzzingBuildWindows: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/hackme-fuzzing-build-${PUBLISHED_ARTIFACT_VER}-windows-amd64.exe`,
+    shaSums: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/SHA256SUMS.txt`,
+    shaSumsMirror: `/dist/release_${PUBLISHED_ARTIFACT_VER}/SHA256SUMS.txt`,
     latestJson: `/dist/latest.json`,
     latestJsonGh: `https://github.com/jokeez/hackme/releases/latest/download/latest.json`,
-    manifest: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/RELEASE_MANIFEST.json`,
-    buildInfo: `https://github.com/jokeez/hackme/releases/download/${RELEASE_VER}/BUILD_INFO.txt`,
+    manifest: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/RELEASE_MANIFEST.json`,
+    buildInfo: `https://github.com/jokeez/hackme/releases/download/${PUBLISHED_ARTIFACT_VER}/BUILD_INFO.txt`,
   };
 
   function setHref(id, href) {
@@ -222,6 +224,18 @@
     if (verMeta) verMeta.textContent = verLabel;
     const contactsVer = document.getElementById("contacts-release-ver");
     if (contactsVer) contactsVer.textContent = `release ${verLabel}`;
+    const artNote = document.getElementById("dl-artifact-note");
+    if (artNote && CONFIG.publishedArtifactVer) {
+      artNote.textContent =
+        "Installers resolve to last published " +
+        CONFIG.publishedArtifactVer +
+        " until the rc17 SHA256SUMS land.";
+    }
+    const ghTag = document.getElementById("dl-github-release");
+    if (ghTag && CONFIG.publishedArtifactVer) {
+      ghTag.href = "https://github.com/jokeez/hackme/releases/tag/" + CONFIG.publishedArtifactVer;
+      ghTag.textContent = "GitHub " + CONFIG.publishedArtifactVer;
+    }
     const isoHref = resolveHackMeOSIsoHref();
     const isoBtn = document.getElementById("download-iso");
     const isoStat = document.getElementById("download-iso-status");
