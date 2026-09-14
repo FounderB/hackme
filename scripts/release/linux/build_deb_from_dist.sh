@@ -39,7 +39,8 @@ done
 [[ -d "${SRC}/bin" ]] && cp -a "${SRC}/bin" "${PKG}/opt/hackme/bin"
 [[ -d "${SRC}/lib" ]] && cp -a "${SRC}/lib" "${PKG}/opt/hackme/lib"
 for f in update_hackme_miner.sh update_hackme_os_binaries.sh start_hackme_miner.sh stop_hackme_miner.sh \
-         setup_hackme_miner.sh install_hackme.sh install_menu_entry.sh RELEASE_QUICKSTART.md README.md \
+         setup_hackme_miner.sh install_hackme.sh install_menu_entry.sh hackme_desktop_launch.sh \
+         RELEASE_QUICKSTART.md README.md \
          hackme-node.service.template hackme.desktop.template hackme-dashboard.desktop.template; do
   if [[ -f "${SRC}/${f}" ]]; then
     install -m 0755 "${SRC}/${f}" "${PKG}/opt/hackme/${f}" 2>/dev/null || \
@@ -57,6 +58,9 @@ done
   install -m 0755 "${ROOT}/scripts/ops/update_hackme_os_binaries.sh" "${PKG}/opt/hackme/update_hackme_os_binaries.sh"
 [[ -f "${PKG}/opt/hackme/install_menu_entry.sh" ]] || \
   install -m 0755 "${ROOT}/scripts/release/linux/install_menu_entry.sh" "${PKG}/opt/hackme/install_menu_entry.sh"
+[[ -f "${PKG}/opt/hackme/hackme_desktop_launch.sh" ]] || \
+  install -m 0755 "${ROOT}/scripts/release/linux/hackme_desktop_launch.sh" "${PKG}/opt/hackme/hackme_desktop_launch.sh"
+chmod 0755 "${PKG}/opt/hackme/hackme_desktop_launch.sh" 2>/dev/null || true
 
 # Icons (branded HackMe logo)
 ICON_SRC="${SRC}/icons"
@@ -83,11 +87,16 @@ sed 's#__INSTALL_DIR__#/opt/hackme#g' \
 sed 's#__INSTALL_DIR__#/opt/hackme#g' \
   "${ROOT}/scripts/release/linux/hackme-dashboard.desktop.template" \
   >"${PKG}/usr/share/applications/hackme-dashboard.desktop"
-# Ensure Exec exists even if start script missing in odd trees
-if [[ ! -f "${PKG}/opt/hackme/start_hackme_miner.sh" ]]; then
-  sed -i 's#/opt/hackme/start_hackme_miner.sh#/opt/hackme/hackme#' \
-    "${PKG}/usr/share/applications/hackme.desktop"
+# Prefer desktop launcher; fall back only if it somehow missing
+if [[ ! -f "${PKG}/opt/hackme/hackme_desktop_launch.sh" ]]; then
+  if [[ -f "${PKG}/opt/hackme/start_hackme_miner.sh" ]]; then
+    sed -i 's#/opt/hackme/hackme_desktop_launch.sh#/opt/hackme/start_hackme_miner.sh#g' \
+      "${PKG}/usr/share/applications/hackme.desktop" \
+      "${PKG}/usr/share/applications/hackme-dashboard.desktop" 2>/dev/null || true
+  fi
 fi
+chmod 0644 "${PKG}/usr/share/applications/hackme.desktop" \
+           "${PKG}/usr/share/applications/hackme-dashboard.desktop"
 
 # Hard deny secrets in package
 rm -f "${PKG}/opt/hackme/pool.miner.token" \
@@ -104,17 +113,23 @@ cat >"${PKG}/usr/share/doc/hackme-node/README.Debian" <<EOF
 hackme-node
 ===========
 
-Binaries live in /opt/hackme. Configure /opt/hackme/.env (never packaged), then:
+Binaries live in /opt/hackme. App menu launches use a per-user state dir
+(~/.local/share/hackme + ~/.config/hackme) so icons work without root write
+access under /opt/hackme.
 
-  bash /opt/hackme/start_hackme_miner.sh
+  HackMe            — start node + open http://127.0.0.1:8080
+  HackMe Dashboard  — same (open browser)
 
-App menu: HackMe / HackMe Dashboard (branded icon).
+Optional pool mining: place pool.miner.token in ~/.config/hackme/ (from downloads).
+
+CLI:
+
+  bash /opt/hackme/hackme_desktop_launch.sh
+  bash /opt/hackme/start_hackme_miner.sh   # tarball/writable install path
 
 Self-update (L1, until apt L3):
 
   bash /opt/hackme/update_hackme_miner.sh
-
-Dashboard: http://127.0.0.1:8080 — Updates button calls GET /api/updates/check
 EOF
 
 POSTINST="${STAGE}/postinst.sh"
@@ -122,16 +137,25 @@ cat >"$POSTINST" <<'EOF'
 #!/bin/sh
 set -e
 mkdir -p /opt/hackme/data /opt/hackme/logs
-chmod 0755 /opt/hackme/hackme /opt/hackme/update_hackme_miner.sh /opt/hackme/start_hackme_miner.sh 2>/dev/null || true
-chmod 0755 /opt/hackme/install_menu_entry.sh 2>/dev/null || true
+chmod 0755 /opt/hackme/hackme \
+  /opt/hackme/update_hackme_miner.sh \
+  /opt/hackme/start_hackme_miner.sh \
+  /opt/hackme/hackme_desktop_launch.sh \
+  /opt/hackme/install_menu_entry.sh 2>/dev/null || true
+# Refresh menu entries from packaged templates (idempotent)
+if [ -x /opt/hackme/install_menu_entry.sh ]; then
+  INSTALL_DIR=/opt/hackme PAYLOAD_DIR=/opt/hackme \
+    /opt/hackme/install_menu_entry.sh >/dev/null 2>&1 || true
+fi
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 fi
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
   gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
 fi
-echo "hackme-node: binaries in /opt/hackme — configure .env then: bash /opt/hackme/start_hackme_miner.sh"
-echo "hackme-node: menu: HackMe / HackMe Dashboard"
+echo "hackme-node: menu HackMe / HackMe Dashboard → http://127.0.0.1:8080"
+echo "hackme-node: user data in ~/.local/share/hackme (no root needed)"
+echo "hackme-node: optional mining token → ~/.config/hackme/pool.miner.token"
 echo "hackme-node: updates (L1): bash /opt/hackme/update_hackme_miner.sh"
 EOF
 chmod +x "$POSTINST"
