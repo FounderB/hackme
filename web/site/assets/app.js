@@ -380,8 +380,8 @@
     const liveEl = document.getElementById("site-live-status");
     const relEl = document.getElementById("site-release-channel");
     if (domainEl) domainEl.textContent = window.location.hostname || "hackme.tech";
-    if (liveEl) liveEl.textContent = "probing API...";
-    if (relEl) relEl.textContent = `${CONFIG.releaseChannel} (${CONFIG.releaseChannelNote})`;
+    if (liveEl) liveEl.textContent = "checking…";
+    if (relEl) relEl.textContent = CONFIG.releaseChannel || RELEASE_VER;
     return { liveEl };
   }
 

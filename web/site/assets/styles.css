@@ -1916,3 +1916,83 @@ h4 { font-size: 1.02rem; }
     transition: none !important;
   }
 }
+
+/* Home — calmer first screen, clearer path cards */
+.page-home .home-hero {
+  padding: clamp(1.75rem, 3.5vw, 2.75rem);
+  border-color: rgba(77, 228, 255, 0.22);
+}
+.page-home .home-hero h1 {
+  margin-top: 0.35rem;
+  margin-bottom: 0.85rem;
+  max-width: 14ch;
+  background: linear-gradient(105deg, #f2fbff 10%, #7fe7ff 55%, #6effad 120%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.page-home .home-hero .hero-copy {
+  max-width: 46ch;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: #a8bdd9;
+}
+.page-home .home-hero .cta-row {
+  margin-top: 1.4rem;
+  gap: 0.75rem;
+}
+.page-home .home-hero-meta {
+  margin-top: 1.35rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 28rem;
+}
+.page-home .home-hero-meta .meta-chip {
+  background: rgba(6, 12, 24, 0.55);
+  border-color: rgba(120, 170, 220, 0.22);
+}
+.page-home .audience-switch {
+  margin-top: 0.15rem;
+  margin-bottom: 0.25rem;
+  padding: 0.85rem;
+  gap: 0.75rem;
+  border-color: rgba(120, 170, 220, 0.2);
+}
+.page-home .audience-card {
+  min-height: 6.5rem;
+  padding: 1rem 1.1rem;
+  gap: 0.35rem;
+}
+.page-home .audience-card strong {
+  font-size: 1.08rem;
+  letter-spacing: -0.01em;
+}
+.page-home .audience-desc {
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: #93a8c4;
+}
+.page-home .lane-card {
+  min-height: 12rem;
+  padding: 1.2rem;
+  transition: border-color 0.2s var(--ease-out), transform 0.2s var(--ease-out), background 0.2s ease;
+}
+.page-home .lane-card:hover {
+  transform: translateY(-2px);
+  background: rgba(12, 20, 36, 0.78);
+}
+.page-home .lane-card p {
+  flex: 1;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #93a8c4;
+}
+.page-home .home-pool .table-wrap {
+  border-radius: 0.85rem;
+  border: 1px solid rgba(120, 170, 220, 0.16);
+  overflow: auto;
+  background: rgba(4, 8, 16, 0.45);
+}
+.page-home .home-pool-foot {
+  margin-top: 0.85rem;
+  font-size: 0.88rem;
+}
