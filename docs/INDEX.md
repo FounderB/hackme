@@ -67,6 +67,7 @@
 | [BITCOIN30_SERIES.md](BITCOIN30_SERIES.md) | 30-day Bitcoin Core WASM fuzz |
 | [OSS_CVE_HUNT.md](OSS_CVE_HUNT.md) | OSS CVE wave pipeline (56-target catalog; C + Rust Phase A) |
 | [OSS_CVE_LIBHEIF_SERIES.md](OSS_CVE_LIBHEIF_SERIES.md) | **libheif** OSS CVE Watch · **14/14 CLEAN** (series closed) |
+| [../web/site/reports/hunt-watch-2026sep/](../web/site/reports/hunt-watch-2026sep/) | **Hunt Watch 2026sep** — 12-day Hunt Standard ledger (complete) |
 | [../web/site/reports/oss-cve-watch/](../web/site/reports/oss-cve-watch/) | **nghttp2 OSS CVE Watch** — 14-day ledger (complete) |
 | [TELEGRAM_BOT.md](TELEGRAM_BOT.md) | Operator bot + news channel bot |
 | [../web/site/research.html](../web/site/research.html) | Public research hub |

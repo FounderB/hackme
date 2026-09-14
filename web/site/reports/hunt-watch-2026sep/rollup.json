@@ -1,0 +1,554 @@
+{
+  "series": "2026sep",
+  "generated_at": "2026-09-14T18:37:06Z",
+  "days_present": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+  ],
+  "targets_completed": 50,
+  "total_iterations": 192507336,
+  "total_crashes": 1437,
+  "by_verdict": {
+    "CLEAN": 43,
+    "CVE_CANDIDATE": 2,
+    "INFORMATIONAL": 5
+  },
+  "engine": "hunt_standard",
+  "branch": "feature/hunt-mvp",
+  "known_issues": [
+    {
+      "target": "centijson",
+      "verdict": "INFORMATIONAL",
+      "sanitizer": "ubsan/null-deref (memcpy)",
+      "status": "fixed_upstream",
+      "detail": "Empty-string input \"\" triggered UBSan at value.c:438 on an older shallow tip. Maintainer pointed to 7d4ab62 (guard memcpy when len==0). Retested on current master: CLEAN.",
+      "links": [
+        "https://github.com/mity/centijson/issues/16",
+        "https://github.com/mity/centijson/commit/7d4ab62"
+      ]
+    },
+    {
+      "target": "jsonparser",
+      "verdict": "INFORMATIONAL",
+      "sanitizer": "ubsan/null-pointer-offset",
+      "status": "known_open_duplicate",
+      "detail": "3-byte input {\"\" hit json.c:437. Upstream closed our #186 as duplicate of open #166 (2022).",
+      "links": [
+        "https://github.com/json-parser/json-parser/issues/186",
+        "https://github.com/json-parser/json-parser/issues/166"
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "day": 1,
+      "day_dir": "day01-20260902T094649Z",
+      "target": "cfgpack",
+      "verdict": "CLEAN",
+      "iterations": 1000000,
+      "exec_per_sec": 156.1730114288183,
+      "crashes": 0,
+      "elapsed_sec": 6403.155006432
+    },
+    {
+      "day": 1,
+      "day_dir": "day01-20260902T094649Z",
+      "target": "cj5",
+      "verdict": "CLEAN",
+      "iterations": 1000000,
+      "exec_per_sec": 146.50793677304083,
+      "crashes": 0,
+      "elapsed_sec": 6825.568785049
+    },
+    {
+      "day": 1,
+      "day_dir": "day01-20260902T094649Z",
+      "target": "cmp",
+      "verdict": "CLEAN",
+      "iterations": 1000000,
+      "exec_per_sec": 154.05911446962494,
+      "crashes": 0,
+      "elapsed_sec": 6491.014851297
+    },
+    {
+      "day": 2,
+      "day_dir": "day02-20260902T154318Z",
+      "target": "heatshrink",
+      "verdict": "CLEAN",
+      "iterations": 4418284,
+      "exec_per_sec": 153.41263259424073,
+      "crashes": 0,
+      "elapsed_sec": 28800.001181688
+    },
+    {
+      "day": 2,
+      "day_dir": "day02-20260902T154318Z",
+      "target": "inih",
+      "verdict": "CLEAN",
+      "iterations": 4262702,
+      "exec_per_sec": 148.01047860435884,
+      "crashes": 0,
+      "elapsed_sec": 28800.00146067
+    },
+    {
+      "day": 2,
+      "day_dir": "day02-20260902T154318Z",
+      "target": "uriparser",
+      "verdict": "CLEAN",
+      "iterations": 4231081,
+      "exec_per_sec": 146.91252885113337,
+      "crashes": 0,
+      "elapsed_sec": 28800.001150939
+    },
+    {
+      "day": 3,
+      "day_dir": "day03-20260903T162556Z",
+      "target": "jsmn",
+      "verdict": "CLEAN",
+      "iterations": 4644504,
+      "exec_per_sec": 161.26749839635153,
+      "crashes": 0,
+      "elapsed_sec": 28800.000286388
+    },
+    {
+      "day": 3,
+      "day_dir": "day03-20260903T162556Z",
+      "target": "parson",
+      "verdict": "CLEAN",
+      "iterations": 4277667,
+      "exec_per_sec": 148.53009917214612,
+      "crashes": 0,
+      "elapsed_sec": 28800.000968438
+    },
+    {
+      "day": 3,
+      "day_dir": "day03-20260903T162556Z",
+      "target": "tomlc99",
+      "verdict": "CLEAN",
+      "iterations": 4093739,
+      "exec_per_sec": 142.1437052332422,
+      "crashes": 0,
+      "elapsed_sec": 28800.002035142
+    },
+    {
+      "day": 4,
+      "day_dir": "day04-20260904T162601Z",
+      "target": "mjson",
+      "verdict": "CLEAN",
+      "iterations": 4663636,
+      "exec_per_sec": 161.9318036184351,
+      "crashes": 0,
+      "elapsed_sec": 28800.000344522
+    },
+    {
+      "day": 4,
+      "day_dir": "day04-20260904T162601Z",
+      "target": "sheredom",
+      "verdict": "CVE_CANDIDATE",
+      "iterations": 1492190,
+      "exec_per_sec": 51.81208525403208,
+      "crashes": 13,
+      "elapsed_sec": 28800.037533403
+    },
+    {
+      "day": 4,
+      "day_dir": "day04-20260904T162601Z",
+      "target": "yyjson",
+      "verdict": "CLEAN",
+      "iterations": 3911484,
+      "exec_per_sec": 135.81541627957859,
+      "crashes": 0,
+      "elapsed_sec": 28800.000082083
+    },
+    {
+      "day": 4,
+      "day_dir": "day04-20260905T162608Z",
+      "target": "mjson",
+      "verdict": "CLEAN",
+      "iterations": 4490973,
+      "exec_per_sec": 155.9365515232796,
+      "crashes": 0,
+      "elapsed_sec": 28800.002027296
+    },
+    {
+      "day": 4,
+      "day_dir": "day04-20260905T162608Z",
+      "target": "sheredom",
+      "verdict": "CVE_CANDIDATE",
+      "iterations": 2516752,
+      "exec_per_sec": 87.38721805773275,
+      "crashes": 13,
+      "elapsed_sec": 28800.001372481
+    },
+    {
+      "day": 4,
+      "day_dir": "day04-20260905T162608Z",
+      "target": "yyjson",
+      "verdict": "CLEAN",
+      "iterations": 3840344,
+      "exec_per_sec": 133.34527070974687,
+      "crashes": 0,
+      "elapsed_sec": 28800.001526558
+    },
+    {
+      "day": 5,
+      "day_dir": "day05-20260905T162606Z",
+      "target": "expat",
+      "verdict": "CLEAN",
+      "iterations": 3601642,
+      "exec_per_sec": 125.05700794871575,
+      "crashes": 0,
+      "elapsed_sec": 28800.001367992
+    },
+    {
+      "day": 5,
+      "day_dir": "day05-20260905T162606Z",
+      "target": "miniz",
+      "verdict": "CLEAN",
+      "iterations": 4139137,
+      "exec_per_sec": 143.72002976421552,
+      "crashes": 0,
+      "elapsed_sec": 28800.000993533
+    },
+    {
+      "day": 5,
+      "day_dir": "day05-20260905T162606Z",
+      "target": "zlib",
+      "verdict": "CLEAN",
+      "iterations": 4489921,
+      "exec_per_sec": 155.90002933626056,
+      "crashes": 0,
+      "elapsed_sec": 28800.000994969
+    },
+    {
+      "day": 5,
+      "day_dir": "day05-20260906T162611Z",
+      "target": "expat",
+      "verdict": "CLEAN",
+      "iterations": 3440674,
+      "exec_per_sec": 119.46784106279635,
+      "crashes": 0,
+      "elapsed_sec": 28800.001484847
+    },
+    {
+      "day": 5,
+      "day_dir": "day05-20260906T162611Z",
+      "target": "miniz",
+      "verdict": "CLEAN",
+      "iterations": 4166425,
+      "exec_per_sec": 144.66752889763123,
+      "crashes": 0,
+      "elapsed_sec": 28800.001159543
+    },
+    {
+      "day": 5,
+      "day_dir": "day05-20260906T162611Z",
+      "target": "zlib",
+      "verdict": "CLEAN",
+      "iterations": 4480776,
+      "exec_per_sec": 155.58249527083237,
+      "crashes": 0,
+      "elapsed_sec": 28800.00087542
+    },
+    {
+      "day": 6,
+      "day_dir": "day06-20260906T162611Z",
+      "target": "cjson",
+      "verdict": "CLEAN",
+      "iterations": 4140557,
+      "exec_per_sec": 143.76933581831258,
+      "crashes": 0,
+      "elapsed_sec": 28800.000893324
+    },
+    {
+      "day": 6,
+      "day_dir": "day06-20260906T162611Z",
+      "target": "libucl",
+      "verdict": "INFORMATIONAL",
+      "iterations": 2840056,
+      "exec_per_sec": 98.6130492957293,
+      "crashes": 450,
+      "elapsed_sec": 28800.001828186
+    },
+    {
+      "day": 6,
+      "day_dir": "day06-20260906T162611Z",
+      "target": "md4c",
+      "verdict": "CLEAN",
+      "iterations": 4111356,
+      "exec_per_sec": 142.75540711992855,
+      "crashes": 0,
+      "elapsed_sec": 28800.001925994
+    },
+    {
+      "day": 6,
+      "day_dir": "day06-20260907T162616Z",
+      "target": "cjson",
+      "verdict": "CLEAN",
+      "iterations": 3917650,
+      "exec_per_sec": 136.0295103198949,
+      "crashes": 0,
+      "elapsed_sec": 28800.000755623
+    },
+    {
+      "day": 6,
+      "day_dir": "day06-20260907T162616Z",
+      "target": "libucl",
+      "verdict": "INFORMATIONAL",
+      "iterations": 2785394,
+      "exec_per_sec": 96.7150632937526,
+      "crashes": 438,
+      "elapsed_sec": 28800.001831565
+    },
+    {
+      "day": 6,
+      "day_dir": "day06-20260907T162616Z",
+      "target": "md4c",
+      "verdict": "CLEAN",
+      "iterations": 3958879,
+      "exec_per_sec": 137.46106848496814,
+      "crashes": 0,
+      "elapsed_sec": 28800.001655981
+    },
+    {
+      "day": 7,
+      "day_dir": "day07-20260907T162616Z",
+      "target": "cfgpack",
+      "verdict": "INFORMATIONAL",
+      "iterations": 4350157,
+      "exec_per_sec": 151.04711193127696,
+      "crashes": 4,
+      "elapsed_sec": 28800.00116771
+    },
+    {
+      "day": 7,
+      "day_dir": "day07-20260907T162616Z",
+      "target": "cj5",
+      "verdict": "CLEAN",
+      "iterations": 4222055,
+      "exec_per_sec": 146.59912053591253,
+      "crashes": 0,
+      "elapsed_sec": 28800.002241253
+    },
+    {
+      "day": 7,
+      "day_dir": "day07-20260907T162616Z",
+      "target": "cmp",
+      "verdict": "CLEAN",
+      "iterations": 4409912,
+      "exec_per_sec": 153.12193250805282,
+      "crashes": 0,
+      "elapsed_sec": 28800.002245061
+    },
+    {
+      "day": 7,
+      "day_dir": "day07-20260908T162621Z",
+      "target": "cfgpack",
+      "verdict": "CLEAN",
+      "iterations": 4272124,
+      "exec_per_sec": 148.33762721372355,
+      "crashes": 0,
+      "elapsed_sec": 28800.002266753
+    },
+    {
+      "day": 7,
+      "day_dir": "day07-20260908T162621Z",
+      "target": "cj5",
+      "verdict": "CLEAN",
+      "iterations": 4086088,
+      "exec_per_sec": 141.87803571595668,
+      "crashes": 0,
+      "elapsed_sec": 28800.004027265
+    },
+    {
+      "day": 7,
+      "day_dir": "day07-20260908T162621Z",
+      "target": "cmp",
+      "verdict": "CLEAN",
+      "iterations": 4432895,
+      "exec_per_sec": 153.9199493591361,
+      "crashes": 0,
+      "elapsed_sec": 28800.002978541
+    },
+    {
+      "day": 8,
+      "day_dir": "day08-20260908T162621Z",
+      "target": "heatshrink",
+      "verdict": "CLEAN",
+      "iterations": 4269630,
+      "exec_per_sec": 148.25103486290675,
+      "crashes": 0,
+      "elapsed_sec": 28800.001321733
+    },
+    {
+      "day": 8,
+      "day_dir": "day08-20260908T162621Z",
+      "target": "inih",
+      "verdict": "CLEAN",
+      "iterations": 3920199,
+      "exec_per_sec": 136.1180121408749,
+      "crashes": 0,
+      "elapsed_sec": 28800.00183916
+    },
+    {
+      "day": 8,
+      "day_dir": "day08-20260908T162621Z",
+      "target": "uriparser",
+      "verdict": "CLEAN",
+      "iterations": 3982525,
+      "exec_per_sec": 138.2821132228742,
+      "crashes": 0,
+      "elapsed_sec": 28800.001006502
+    },
+    {
+      "day": 8,
+      "day_dir": "day08-20260909T162627Z",
+      "target": "heatshrink",
+      "verdict": "CLEAN",
+      "iterations": 4251313,
+      "exec_per_sec": 147.61502599946581,
+      "crashes": 0,
+      "elapsed_sec": 28800.001701828
+    },
+    {
+      "day": 9,
+      "day_dir": "day09-20260909T162629Z",
+      "target": "jsmn",
+      "verdict": "CLEAN",
+      "iterations": 4480886,
+      "exec_per_sec": 155.58630369922938,
+      "crashes": 0,
+      "elapsed_sec": 28800.002914538
+    },
+    {
+      "day": 9,
+      "day_dir": "day09-20260910T171248Z",
+      "target": "cj5",
+      "verdict": "CLEAN",
+      "iterations": 4652971,
+      "exec_per_sec": 161.56148988253278,
+      "crashes": 0,
+      "elapsed_sec": 28800.000565624
+    },
+    {
+      "day": 9,
+      "day_dir": "day09-20260910T171248Z",
+      "target": "jsmn",
+      "verdict": "CLEAN",
+      "iterations": 4688390,
+      "exec_per_sec": 162.79131351211984,
+      "crashes": 0,
+      "elapsed_sec": 28800.001049509
+    },
+    {
+      "day": 9,
+      "day_dir": "day09-20260910T171248Z",
+      "target": "tomlc99",
+      "verdict": "CLEAN",
+      "iterations": 3813891,
+      "exec_per_sec": 132.42675935202067,
+      "crashes": 0,
+      "elapsed_sec": 28800.002496941
+    },
+    {
+      "day": 10,
+      "day_dir": "day10-20260911T171435Z",
+      "target": "mjson",
+      "verdict": "CLEAN",
+      "iterations": 4575509,
+      "exec_per_sec": 158.8718255942534,
+      "crashes": 0,
+      "elapsed_sec": 28800.002661803
+    },
+    {
+      "day": 10,
+      "day_dir": "day10-20260911T171435Z",
+      "target": "parson",
+      "verdict": "CLEAN",
+      "iterations": 4303441,
+      "exec_per_sec": 149.4250169162858,
+      "crashes": 0,
+      "elapsed_sec": 28800.003431895
+    },
+    {
+      "day": 10,
+      "day_dir": "day10-20260911T171435Z",
+      "target": "yyjson",
+      "verdict": "CLEAN",
+      "iterations": 3687959,
+      "exec_per_sec": 128.05411766380922,
+      "crashes": 0,
+      "elapsed_sec": 28800.003211785
+    },
+    {
+      "day": 11,
+      "day_dir": "day11-20260912T171440Z",
+      "target": "expat",
+      "verdict": "CLEAN",
+      "iterations": 3800700,
+      "exec_per_sec": 131.96874316382664,
+      "crashes": 0,
+      "elapsed_sec": 28800.001491882
+    },
+    {
+      "day": 11,
+      "day_dir": "day11-20260912T171440Z",
+      "target": "libucl",
+      "verdict": "INFORMATIONAL",
+      "iterations": 3060888,
+      "exec_per_sec": 106.28081843495463,
+      "crashes": 485,
+      "elapsed_sec": 28800.004037166
+    },
+    {
+      "day": 11,
+      "day_dir": "day11-20260912T171440Z",
+      "target": "miniz",
+      "verdict": "CLEAN",
+      "iterations": 4082534,
+      "exec_per_sec": 141.75463821802597,
+      "crashes": 0,
+      "elapsed_sec": 28800.002958075
+    },
+    {
+      "day": 12,
+      "day_dir": "day12-20260913T171446Z",
+      "target": "cfgpack",
+      "verdict": "INFORMATIONAL",
+      "iterations": 4359696,
+      "exec_per_sec": 151.37830216804682,
+      "crashes": 34,
+      "elapsed_sec": 28800.005929253
+    },
+    {
+      "day": 12,
+      "day_dir": "day12-20260913T171446Z",
+      "target": "cjson",
+      "verdict": "CLEAN",
+      "iterations": 4209586,
+      "exec_per_sec": 146.16617844712874,
+      "crashes": 0,
+      "elapsed_sec": 28800.000415436
+    },
+    {
+      "day": 12,
+      "day_dir": "day12-20260913T171446Z",
+      "target": "cmp",
+      "verdict": "CLEAN",
+      "iterations": 4678164,
+      "exec_per_sec": 162.43623712282783,
+      "crashes": 0,
+      "elapsed_sec": 28800.002283127
+    }
+  ]
+}

@@ -1,8 +1,18 @@
 {
-  "updated": "2026-09-14T17:30:00Z",
+  "updated": "2026-09-14T23:40:00Z",
   "interval_ms": 6200,
   "pool_poll_ms": 30000,
   "slides": [
+    {
+      "kind": "series",
+      "badge": "Hunt",
+      "title": "Hunt Watch 12/12 · ~192.5M iter · ledger live",
+      "detail": "Hunt Standard ASAN+UBSan · 43 CLEAN · 2 CVE_CANDIDATE — not libFuzzer",
+      "cta": "Open ledger",
+      "href": "/reports/hunt-watch-2026sep/",
+      "accent": "gold",
+      "stats": ["12/12", "192.5M", "Hunt"]
+    },
     {
       "kind": "exchange",
       "badge": "D0",

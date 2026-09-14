@@ -4,6 +4,7 @@ Factual pass/fail snapshots for releases and research series.
 
 | Document | What it records |
 |----------|-----------------|
+| [HUNT_WATCH_2026SEP_SERIES_VERDICT.md](HUNT_WATCH_2026SEP_SERIES_VERDICT.md) | **Hunt Watch 2026sep** — 12/12 CLOSED · ~192.5M Hunt Standard · public ledger |
 | [OSS_CVE_WATCH_NGHTTP2_SERIES_VERDICT.md](OSS_CVE_WATCH_NGHTTP2_SERIES_VERDICT.md) | **OSS CVE Watch Days 1–14** — nghttp2 series CLEAN · ~14.32B exec |
 | [../HACKME_RC17.md](../HACKME_RC17.md) | **Current channel rc17** — cutover (exchange · SUP · Hunt); artifacts still rc16 until SHA |
 | [../HACKME_RC16.md](../HACKME_RC16.md) | Prior published channel — self-update + signed apt + ISO |
