@@ -202,3 +202,7 @@ docs/HUB_ADAPTER_STATUS_TEMPLATE.md
 
 # Brand upload assets for FB/Reddit/CG (local only — do not commit binaries)
 web/site/assets/social/
+
+# Local social drafts (never commit)
+docs/ops/*_SOCIAL.md
+docs/ops/*SOCIAL*.md
