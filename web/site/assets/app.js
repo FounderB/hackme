@@ -227,9 +227,9 @@
     const artNote = document.getElementById("dl-artifact-note");
     if (artNote && CONFIG.publishedArtifactVer) {
       artNote.textContent =
-        "Installers resolve to last published " +
+        "Installers are published at " +
         CONFIG.publishedArtifactVer +
-        " until the rc17 SHA256SUMS land.";
+        " — verify SHA256SUMS before install.";
     }
     const ghTag = document.getElementById("dl-github-release");
     if (ghTag && CONFIG.publishedArtifactVer) {

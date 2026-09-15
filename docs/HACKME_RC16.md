@@ -1,6 +1,6 @@
 # HackMe 0.1.0-rc16 — self-update channel + signed apt
 
-**Status:** LAST PUBLISHED ARTIFACTS · superseded as channel by **[0.1.0-rc17](HACKME_RC17.md)** · installers still resolve here until rc17 SHA256SUMS land · [downloads](https://hackme.tech/downloads.html) · [GitHub](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16) · [latest.json](https://hackme.tech/dist/latest.json)
+**Status:** PRIOR / SUPERSEDED by **[0.1.0-rc17](HACKME_RC17.md)** · historical self-update + apt + ISO channel · [downloads](https://hackme.tech/downloads.html) · [GitHub](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16) · current feed: [latest.json](https://hackme.tech/dist/latest.json)
 
 ## Highlights
 

@@ -11,7 +11,7 @@ Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · prior [HACKME_RC16.md](HACKME_RC1
 | Hub UI (`dashboard.html`) | `0.1.0-rc17` — Exchange tab, SUP wallet, Hunt/Dig copy |
 | `main.go` / `CURRENT_VERSION` | `0.1.0-rc17` |
 | Public downloads | **0.1.0-rc17** Win/Linux/deb/fuzz/ISO + SHA256SUMS |
-| News / ticker | Honest cutover note — **no fake LIVE ISO SHA** |
+| News / ticker | rc17 LIVE — installers published |
 
 ## Ships in the cut window
 
@@ -33,4 +33,4 @@ Files under `dist/docs/` (`HMC_Listing_Pack.pdf`, `SUP_Companion_Overview.pdf`, 
 
 ## Operator note
 
-Do **not** restart production hub early. Follow [RC17_CUTOVER.md](RC17_CUTOVER.md). After bundle publish, flip `PUBLISHED_ARTIFACT_VER` in `web/site/assets/app.js` to `0.1.0-rc17` and publish `latest.json`.
+Cutover complete for published artifacts: `PUBLISHED_ARTIFACT_VER` is `0.1.0-rc17` and `latest.json` points at the rc17 bundle. Ops detail: [RC17_CUTOVER.md](RC17_CUTOVER.md).

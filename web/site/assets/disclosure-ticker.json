@@ -70,20 +70,6 @@
       ]
     },
     {
-      "kind": "release",
-      "badge": "Installers",
-      "title": "Download 0.1.0-rc16 — last published binaries",
-      "detail": "Self-update · signed apt hackme-node · Windows / Linux / HackMe OS",
-      "cta": "Get build",
-      "href": "/downloads.html#start",
-      "accent": "success",
-      "stats": [
-        "rc16",
-        "apt",
-        "verified"
-      ]
-    },
-    {
       "kind": "win",
       "badge": "Upstream",
       "title": "cfgpack int64 UBSan → fixed in days",

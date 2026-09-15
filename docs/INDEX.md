@@ -23,9 +23,9 @@
 | [HMS_PUBLIC_ROADMAP.md](HMS_PUBLIC_ROADMAP.md) | HackMe Storage (HMS) — prelaunch |
 | [HMS_BACKEND.md](HMS_BACKEND.md) | HMS coordinator + workers |
 | [SUPPORT_COIN_UTILITY.md](SUPPORT_COIN_UTILITY.md) | HackMe Support (SUP) accrual |
-| [HACKME_RC17.md](HACKME_RC17.md) | **Current** channel (rc17 cutover — Exchange · SUP · Hunt); installers still last published **rc16** until SHA |
+| [HACKME_RC17.md](HACKME_RC17.md) | **Current** channel **0.1.0-rc17** LIVE — Exchange · SUP · Hunt; installers published |
 | [RC17_CUTOVER.md](RC17_CUTOVER.md) | Cutover deploy plan — hub exchange embed + SUP (ops window) |
-| [HACKME_RC16.md](HACKME_RC16.md) | **Last published artifacts** — self-update + signed apt + ISO |
+| [HACKME_RC16.md](HACKME_RC16.md) | Prior / superseded by rc17 — self-update + signed apt + ISO |
 | [HACKME_RC15.md](HACKME_RC15.md) | Previous rc15 — B2B fuzz Phase 2 + pool anticheat |
 | [HACKME_RC14.md](HACKME_RC14.md) | Previous rc14x channel |
 | [YEAR_PLAN_2026_2027.md](YEAR_PLAN_2026_2027.md) | Year plan stub · feature freeze before exchange |
@@ -122,7 +122,8 @@
 |-----|--------|
 | [OPERATIONS_MONITORING.md](OPERATIONS_MONITORING.md) | Metrics, alerts, pool health (`run_pool_health_check.sh`) |
 | [VPS_CAPACITY.md](VPS_CAPACITY.md) | Hub sizing & multi-coin layout |
-| [HACKME_RC16.md](HACKME_RC16.md) | **Current** Win/Linux/fuzz/ISO channel |
+| [HACKME_RC17.md](HACKME_RC17.md) | **Current** Win/Linux/fuzz/ISO channel |
+| [HACKME_RC16.md](HACKME_RC16.md) | Prior / superseded by rc17 |
 | [HACKME_RC15.md](HACKME_RC15.md) | Previous rc15 channel |
 | [HACKME_RC14.md](HACKME_RC14.md) | Previous rc14x channel |
 | [HACKME_RC12W.md](HACKME_RC12W.md) | Historical prior RC |

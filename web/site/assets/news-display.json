@@ -36,10 +36,10 @@
     {
       "id": "2026-09-14-rc17-cutover-channel",
       "date": "2026-09-14",
-      "title": "0.1.0-rc17 — cutover channel (paper exchange · SUP · Hunt)",
-      "summary": "rc17 channel bump for hub UI + cutover prep: paper Exchange desk (D0), SUP wallet send/activity routes, Hunt ASAN escrow pool, Dig customer-first. Download binaries stay on last published 0.1.0-rc16 until SHA256SUMS for rc17 are published — no fake LIVE ISO hashes.",
-      "impact": "Operators: prepare nginx SUP allowlist + exchange static; do not restart production hub early. Miners: keep using rc16 installers via downloads until the rc17 bundle lands.",
-      "action": "Cutover plan: https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/RC17_CUTOVER.md · Downloads: https://hackme.tech/downloads.html · Last published: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16",
+      "title": "0.1.0-rc17 — cutover channel (superseded — installers now on rc17)",
+      "summary": "Historical cutover-day note (2026-09-14): hub UI bumped to rc17 for paper Exchange desk (D0), SUP wallet send/activity routes, Hunt ASAN escrow pool, Dig customer-first. Superseded: installers are now published on 0.1.0-rc17 (see 2026-09-15 LIVE release).",
+      "impact": "Installers now resolve to 0.1.0-rc17 — upgrade via downloads / self-update / apt. This item records the cutover window only; do not stay on rc16.",
+      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17 · Cutover plan (historical): https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/RC17_CUTOVER.md",
       "tags": [
         "release",
         "rc17",
@@ -48,7 +48,7 @@
         "sup",
         "hunt"
       ],
-      "status": "published"
+      "status": "superseded"
     },
     {
       "id": "2026-08-27-release-rc16-update-channel",
