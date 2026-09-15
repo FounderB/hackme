@@ -15,10 +15,14 @@ if [[ "$GO_VER" != "$CUR_VER" ]]; then
   echo "[version-gate] FAIL main.go != CURRENT_VERSION" >&2
   fail=$((fail + 1))
 fi
-JS_ISO="$(grep -oE 'ISO_CHANNEL = "[^"]+"' "$ROOT/web/site/assets/app.js" | sed 's/.*"\([^"]*\)".*/\1/')"
+# ISO channel may be a string literal or aliased to PUBLISHED_ARTIFACT_VER (honest until SHA).
+JS_ISO="$(grep -oE 'ISO_CHANNEL = "[^"]+"' "$ROOT/web/site/assets/app.js" | sed 's/.*"\([^"]*\)".*/\1/' || true)"
+if [[ -z "$JS_ISO" ]] && grep -qE 'ISO_CHANNEL = PUBLISHED_ARTIFACT_VER' "$ROOT/web/site/assets/app.js"; then
+  JS_ISO="$(grep -oE 'PUBLISHED_ARTIFACT_VER = "[^"]+"' "$ROOT/web/site/assets/app.js" | sed 's/.*"\([^"]*\)".*/\1/')"
+fi
 CUR_ISO="$(tr -d ' \n\r' <"$ROOT/scripts/release/CURRENT_ISO_VERSION" 2>/dev/null || echo 0.1.0-rc11l)"
 if [[ -n "$JS_ISO" && "$JS_ISO" != "$CUR_ISO" ]]; then
-  echo "[version-gate] FAIL app.js ISO_CHANNEL != CURRENT_ISO_VERSION" >&2
+  echo "[version-gate] FAIL app.js ISO_CHANNEL ($JS_ISO) != CURRENT_ISO_VERSION ($CUR_ISO)" >&2
   fail=$((fail + 1))
 fi
 if [[ "$fail" -gt 0 ]]; then exit 1; fi
