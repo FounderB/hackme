@@ -1,6 +1,6 @@
 # HackMe 0.1.0-rc17 — cutover channel
 
-**Status:** CUTOVER PREP · UI/channel bumped · **artifacts still 0.1.0-rc16 until SHA256SUMS publish**
+**Status:** LIVE · artifacts **0.1.0-rc17** published · [downloads](https://hackme.tech/downloads.html) · [GitHub](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17)
 
 Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · prior [HACKME_RC16.md](HACKME_RC16.md) · [downloads](https://hackme.tech/downloads.html)
 
@@ -10,7 +10,7 @@ Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · prior [HACKME_RC16.md](HACKME_RC1
 |-------|--------|
 | Hub UI (`dashboard.html`) | `0.1.0-rc17` — Exchange tab, SUP wallet, Hunt/Dig copy |
 | `main.go` / `CURRENT_VERSION` | `0.1.0-rc17` |
-| Public downloads | Channel label **rc17**; installer links resolve to **last published rc16** until cutover bundle |
+| Public downloads | **0.1.0-rc17** Win/Linux/deb/fuzz/ISO + SHA256SUMS |
 | News / ticker | Honest cutover note — **no fake LIVE ISO SHA** |
 
 ## Ships in the cut window

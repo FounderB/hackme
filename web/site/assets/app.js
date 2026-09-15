@@ -1,9 +1,9 @@
 (() => {
-  /** Channel label (UI / news). Artifact URLs use PUBLISHED_ARTIFACT_VER until rc17 GH tag exists. */
+  /** Channel label (UI / news). Artifact URLs use PUBLISHED_ARTIFACT_VER. */
   const RELEASE_VER = "0.1.0-rc17";
-  /** Last published downloadables on GitHub / dist (do not break installs before cutover publish). */
-  const PUBLISHED_ARTIFACT_VER = "0.1.0-rc16";
-  /** HackMe OS ISO — last published until rc17 ISO SHA lands. */
+  /** Published downloadables on GitHub / dist. */
+  const PUBLISHED_ARTIFACT_VER = "0.1.0-rc17";
+  /** HackMe OS ISO channel follows PUBLISHED_ARTIFACT_VER. */
   const ISO_CHANNEL = PUBLISHED_ARTIFACT_VER;
 
   /** Sub-1 TH/s → GH/s (matches dashboard / explorer pool strip). */
@@ -40,7 +40,7 @@
     newsDisplay: "/assets/news-display.json",
     newsArchive: "/assets/news.json",
     releaseChannel: RELEASE_VER,
-    releaseChannelNote: "rc17 cutover — ecosystem · paper exchange · SUP · Hunt; installers still " + PUBLISHED_ARTIFACT_VER + " until SHA",
+    releaseChannelNote: "rc17 LIVE — paper exchange · SUP · Hunt · Dig; installers " + PUBLISHED_ARTIFACT_VER,
     publishedArtifactVer: PUBLISHED_ARTIFACT_VER,
     releaseBase: `/dist/release_${PUBLISHED_ARTIFACT_VER}`,
     // Primary downloads: GitHub Releases (Cloudflare /dist often stalls or truncates large files).

@@ -1,6 +1,45 @@
 {
   "items": [
     {
+      "id": "2026-09-15-release-rc17-live",
+      "date": "2026-09-15",
+      "title": "0.1.0-rc17 LIVE — paper Exchange · SUP · Hunt · Dig · installers published",
+      "summary": "rc17 download channel is live: Windows installer, Linux tarball, signed apt deb, Dig/Hunt fuzz CLI, and HackMe OS ISO with SHA256SUMS. Paper Exchange desk on exchange.hackme.tech; hub #exchange + SUP activity on the public pool. Hunt Watch 12/12 ledger published.",
+      "impact": "Miners and operators should verify SHA256SUMS before upgrade. Installers now resolve to 0.1.0-rc17 (supersedes rc16 as published channel). Hub runtime already on rc17 from cutover.",
+      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17 · Exchange: https://exchange.hackme.tech/ · Hunt ledger: https://hackme.tech/reports/hunt-watch-2026sep/",
+      "tags": [
+        "release",
+        "rc17",
+        "exchange",
+        "sup",
+        "hunt",
+        "iso"
+      ],
+      "status": "published",
+      "telegram": {
+        "headline": "0.1.0-rc17 LIVE — downloads published",
+        "lead": "Paper Exchange · SUP · Hunt · Dig. Win/Linux/deb/fuzz/ISO + SHA.",
+        "bullets": [
+          "Installers flipped to 0.1.0-rc17 — verify SHA256SUMS",
+          "exchange.hackme.tech paper desk + hub #exchange",
+          "SUP activity public · Hunt ASAN escrow",
+          "HackMe OS ISO included"
+        ],
+        "footer": "hackme.tech/downloads.html · not financial advice"
+      },
+      "discord": {
+        "title": "0.1.0-rc17 LIVE",
+        "body": "**HackMe 0.1.0-rc17 published**\n\n• Paper Exchange + SUP + Hunt/Dig\n• Win/Linux/deb/fuzz/ISO + SHA256SUMS\n• https://hackme.tech/downloads.html",
+        "ping": "#announcements"
+      },
+      "links": {
+        "downloads": "https://hackme.tech/downloads.html",
+        "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17",
+        "exchange": "https://exchange.hackme.tech/",
+        "news": "https://hackme.tech/news.html"
+      }
+    },
+    {
       "id": "2026-09-14-hunt-watch-2026sep-finale",
       "date": "2026-09-14",
       "title": "Hunt Watch 12/12 · ~192.5M Hunt Standard · public ledger",
