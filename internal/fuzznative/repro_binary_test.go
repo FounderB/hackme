@@ -54,7 +54,7 @@ func TestEvalReproAsanBinaryDemoStackCrash(t *testing.T) {
 	input := []byte{0x10, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47}
 	res, ok := evalReproAsanBinary("demo", "demo_stack_overflow", input, nil, root)
 	if !ok {
-		t.Fatalf("asan binary unavailable: %s", res.Note)
+		t.Skipf("asan binary unavailable: %s", res.Note)
 	}
 	if res.Status != StatusNativeCrash {
 		t.Fatalf("expected native_crash, got %s note=%s", res.Status, res.Note)
@@ -72,7 +72,7 @@ func TestEvalReproAsanBinaryDemoStackClean(t *testing.T) {
 	input := []byte{0x04, 0x41, 0x42, 0x43, 0x44, 0, 0, 0}
 	res, ok := evalReproAsanBinary("demo", "demo_stack_overflow", input, nil, root)
 	if !ok {
-		t.Fatalf("asan binary unavailable: %s", res.Note)
+		t.Skipf("asan binary unavailable: %s", res.Note)
 	}
 	if res.Status != StatusRejected {
 		t.Fatalf("expected rejected (CLEAN), got %s note=%s", res.Status, res.Note)

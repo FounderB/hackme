@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "mpack.h"
+#include "mpack/mpack.h"
 
 int main(void) {
 	static char buf[65537];

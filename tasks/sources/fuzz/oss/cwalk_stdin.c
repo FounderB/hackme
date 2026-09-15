@@ -11,7 +11,7 @@ int main(void) {
 		return 0;
 	}
 	buf[n] = '\0';
-	(void)cwalk_path_normalize(buf, out, sizeof(out));
-	(void)cwalk_path_get_absolute("/", buf, out, sizeof(out));
+	(void)cwk_path_normalize(buf, out, sizeof(out));
+	(void)cwk_path_get_absolute("/", buf, out, sizeof(out));
 	return 0;
 }
