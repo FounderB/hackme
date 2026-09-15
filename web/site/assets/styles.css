@@ -1253,30 +1253,66 @@ h4 { font-size: 1.02rem; }
 .nav-more-menu {
   position: fixed;
   z-index: 80;
-  min-width: 11rem;
+  min-width: 11.5rem;
   max-width: min(18rem, calc(100vw - 1.5rem));
   max-height: min(70vh, 28rem);
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 0.45rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--line);
-  background: rgba(8, 14, 27, 0.98);
-  box-shadow: var(--shadow);
+  padding: 0.4rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(120, 170, 220, 0.22);
+  background: linear-gradient(165deg, rgba(12, 20, 36, 0.98), rgba(6, 10, 20, 0.98));
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px rgba(77, 228, 255, 0.06) inset,
+    0 18px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px) saturate(1.1);
   display: grid;
-  gap: 0.15rem;
+  gap: 0.12rem;
   box-sizing: border-box;
+  /* Dark thin scrollbar — kill the default white “pipe” */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(77, 228, 255, 0.45) rgba(255, 255, 255, 0.04);
+}
+.nav-more-menu::-webkit-scrollbar {
+  width: 6px;
+}
+.nav-more-menu::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.nav-more-menu::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 0.35rem 0;
+  border-radius: 999px;
+}
+.nav-more-menu::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(77, 228, 255, 0.55), rgba(45, 180, 220, 0.35));
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+.nav-more-menu::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(120, 240, 255, 0.75), rgba(77, 228, 255, 0.5));
+  background-clip: padding-box;
 }
 .nav-more-menu a {
-  padding: 0.45rem 0.55rem;
-  border-radius: 0.45rem;
+  padding: 0.48rem 0.65rem;
+  border-radius: 0.5rem;
   font-size: 0.88rem;
   white-space: nowrap;
+  color: var(--muted);
+  transition: background 0.15s ease, color 0.15s ease;
 }
 .nav-more-menu a:hover {
-  background: rgba(77, 228, 255, 0.1);
+  background: rgba(77, 228, 255, 0.12);
   color: var(--text);
+}
+.nav-more-menu a[aria-current="page"] {
+  color: var(--text);
+  background: rgba(77, 228, 255, 0.08);
 }
 
 .cta-row-single {
