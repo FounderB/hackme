@@ -27,24 +27,24 @@ type fuzzReproBlock struct {
 }
 
 type fuzzProductTopIssue struct {
-	ID          string         `json:"id"`
-	Severity    string         `json:"severity"`
-	FindingType string         `json:"finding_type"`
-	Title       string         `json:"title"`
-	Impact      string         `json:"impact"`
-	ReproCmd    string         `json:"repro_cmd"`
-	Artifact    string         `json:"artifact_path"`
-	InputSHA256 string         `json:"input_sha256,omitempty"`
-	TriageClass        string         `json:"triage_class"`
-	TriageNote         string         `json:"triage_note"`
-	FindingFamily      string         `json:"finding_family,omitempty"`
-	FamilyCount        int            `json:"family_member_count,omitempty"`
-	SanitizerClass     string         `json:"sanitizer_class,omitempty"`
-	SanitizerSubtype   string         `json:"sanitizer_subtype,omitempty"`
-	SanitizerLabel     string         `json:"sanitizer_label,omitempty"`
-	GuardPack          string         `json:"guard_pack,omitempty"`
-	Explain     string         `json:"explain,omitempty"`
-	Repro       fuzzReproBlock `json:"repro"`
+	ID               string         `json:"id"`
+	Severity         string         `json:"severity"`
+	FindingType      string         `json:"finding_type"`
+	Title            string         `json:"title"`
+	Impact           string         `json:"impact"`
+	ReproCmd         string         `json:"repro_cmd"`
+	Artifact         string         `json:"artifact_path"`
+	InputSHA256      string         `json:"input_sha256,omitempty"`
+	TriageClass      string         `json:"triage_class"`
+	TriageNote       string         `json:"triage_note"`
+	FindingFamily    string         `json:"finding_family,omitempty"`
+	FamilyCount      int            `json:"family_member_count,omitempty"`
+	SanitizerClass   string         `json:"sanitizer_class,omitempty"`
+	SanitizerSubtype string         `json:"sanitizer_subtype,omitempty"`
+	SanitizerLabel   string         `json:"sanitizer_label,omitempty"`
+	GuardPack        string         `json:"guard_pack,omitempty"`
+	Explain          string         `json:"explain,omitempty"`
+	Repro            fuzzReproBlock `json:"repro"`
 }
 
 func findingInputHex(f fuzzFinding) string {
@@ -259,14 +259,14 @@ func buildFindingFamilySummary(findings []fuzzFinding) map[string]any {
 		collapseRatio = 1.0 - float64(familyCount)/float64(raw)
 	}
 	return map[string]any{
-		"family_count":     familyCount,
-		"raw_input_count":  raw,
-		"crash_inputs":     crashInputs,
-		"hygiene_inputs":   hygieneInputs,
-		"collapse_ratio":   collapseRatio,
-		"by_family":        byFamily,
-		"top_families":     top,
-		"honesty_note":     "Cite family_count, not raw_input_count — many inputs often share one root cause.",
+		"family_count":    familyCount,
+		"raw_input_count": raw,
+		"crash_inputs":    crashInputs,
+		"hygiene_inputs":  hygieneInputs,
+		"collapse_ratio":  collapseRatio,
+		"by_family":       byFamily,
+		"top_families":    top,
+		"honesty_note":    "Cite family_count, not raw_input_count — many inputs often share one root cause.",
 	}
 }
 
@@ -478,16 +478,16 @@ func buildDigDepthCard(cfg map[string]any) map[string]any {
 	pack := cfgString(cfg, "guard_pack")
 	pkg := fuzzingcli.DigPackageFromDepthTier(fuzzengine.ParseDepthTier(cfg))
 	return map[string]any{
-		"package":              fuzzingcli.B2BPackageDisplayName(pkg),
-		"guard_pack":           pack,
-		"depth_profile":        cfgString(cfg, "dig_depth_profile"),
-		"mutator_profile":      cfgString(cfg, "dig_mutator_profile"),
-		"power_mut_cap":        fuzzengine.PowerMutCap(cfg),
-		"mutation_rounds":      fuzzengine.MutationRounds(cfg),
-		"guided_scheduling":    fuzzengine.GuidedSchedulingEnabled(cfg),
-		"corpus_persist_ns":    fuzzengine.CorpusPersistNamespace(cfg),
+		"package":               fuzzingcli.B2BPackageDisplayName(pkg),
+		"guard_pack":            pack,
+		"depth_profile":         cfgString(cfg, "dig_depth_profile"),
+		"mutator_profile":       cfgString(cfg, "dig_mutator_profile"),
+		"power_mut_cap":         fuzzengine.PowerMutCap(cfg),
+		"mutation_rounds":       fuzzengine.MutationRounds(cfg),
+		"guided_scheduling":     fuzzengine.GuidedSchedulingEnabled(cfg),
+		"corpus_persist_ns":     fuzzengine.CorpusPersistNamespace(cfg),
 		"external_seeds_merged": intFromCfg(cfg, "dig_external_seeds_merged"),
-		"coverage_kind":        fuzzengine.CoverageKind(cfg),
+		"coverage_kind":         fuzzengine.CoverageKind(cfg),
 	}
 }
 

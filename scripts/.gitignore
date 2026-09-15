@@ -350,7 +350,6 @@ tests/coordinator_stress.env
 tests/customer_readiness_gate.sh
 tests/customer_real_network_phasing.sh
 tests/desktop_mode_stop_gate.sh
-tests/e2e_stack.sh
 tests/economics_confidence_gate.sh
 tests/ephemeral_hackme_node.sh
 tests/export_sim_arch_matrix.go

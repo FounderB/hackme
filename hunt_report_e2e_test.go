@@ -21,13 +21,13 @@ func seedHuntCampaignWithFinding(
 	t.Helper()
 	seedFuzzCampaignWithReportToken(t, a, campaignID, reportToken)
 	cfg := map[string]any{
-		"work_kind":          "hunt_shard",
-		"campaign_type":      "hunt",
-		"upstream_target_id": "jsmn",
-		"escrow_split":       fuzzescrow.EscrowSplit5050,
-		"check_semantics":    "native_crash",
-		"depth_tier":         "oss_cve",
-		"hunt_package":       "hunt_lite",
+		"work_kind":              "hunt_shard",
+		"campaign_type":          "hunt",
+		"upstream_target_id":     "jsmn",
+		"escrow_split":           fuzzescrow.EscrowSplit5050,
+		"check_semantics":        "native_crash",
+		"depth_tier":             "oss_cve",
+		"hunt_package":           "hunt_lite",
 		"bounty_requires_native": true,
 	}
 	cfgJSON, err := json.Marshal(cfg)

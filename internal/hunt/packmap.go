@@ -12,13 +12,13 @@ import (
 
 // PackSuggestion maps inventory/repo signals to Dig guard packs or Hunt paths.
 type PackSuggestion struct {
-	PackID      string  `json:"pack_id"`
-	Title       string  `json:"title"`
-	Score       int     `json:"score"`
-	Reason      string  `json:"reason"`
-	Product     string  `json:"product"` // dig | hunt
-	WizardHint  string  `json:"wizard_hint,omitempty"`
-	DefaultPkg  string  `json:"default_package,omitempty"`
+	PackID     string `json:"pack_id"`
+	Title      string `json:"title"`
+	Score      int    `json:"score"`
+	Reason     string `json:"reason"`
+	Product    string `json:"product"` // dig | hunt
+	WizardHint string `json:"wizard_hint,omitempty"`
+	DefaultPkg string `json:"default_package,omitempty"`
 }
 
 type packRule struct {

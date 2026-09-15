@@ -138,7 +138,7 @@ func TestReplayShardDetectsIntentionalCrash(t *testing.T) {
 	}
 	rep, err := ReplayShard(context.Background(), ReplayShardOpts{
 		RepoRoot: root, HarnessHash: build.HarnessHash,
-		Spec: HarnessSpec{Source: "inventory", HarnessHash: build.HarnessHash, SourceRel: "fuzz_target.c"},
+		Spec:  HarnessSpec{Source: "inventory", HarnessHash: build.HarnessHash, SourceRel: "fuzz_target.c"},
 		Input: []byte("crash"), MaxInput: 256, ExecPer: 2,
 	})
 	if err != nil {

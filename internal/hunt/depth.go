@@ -12,9 +12,9 @@ const (
 	huntLocalIterStandard = 200_000
 	huntLocalIterHeavy    = 500_000
 
-	huntLocalSecLite     = 3_600    // 1h
-	huntLocalSecStandard = 28_800   // 8h
-	huntLocalSecHeavy    = 43_200   // 12h
+	huntLocalSecLite     = 3_600  // 1h
+	huntLocalSecStandard = 28_800 // 8h
+	huntLocalSecHeavy    = 43_200 // 12h
 
 	huntLocalTickIter = 2_000
 )

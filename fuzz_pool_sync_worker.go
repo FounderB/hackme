@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"hackme/internal/fuzzengine"
-	"hackme/internal/poolsync"
 	"hackme/internal/poolfuzz"
+	"hackme/internal/poolsync"
 )
 
 type poolSyncJob struct {

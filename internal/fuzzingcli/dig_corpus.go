@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	digSeedMaxBytes  = 65536
-	defaultDigSeeds  = 256
+	digSeedMaxBytes = 65536
+	defaultDigSeeds = 256
 )
 
 // DigSeedDir is the on-disk import path for external Dig research seeds per guard pack.

@@ -21,15 +21,15 @@ type HarnessBuildRequest struct {
 
 // HarnessBuildResult is output from inventory harness build + optional smoke.
 type HarnessBuildResult struct {
-	HarnessHash       string   `json:"harness_hash"`
-	BinaryPath        string   `json:"binary_path"`
-	SourceRel         string   `json:"source_rel"`
-	Language          string   `json:"language,omitempty"`
-	CompanionSources  []string `json:"companion_sources,omitempty"`
-	IncludeDirs       []string `json:"include_dirs,omitempty"`
-	PinSHA            string   `json:"pin_sha,omitempty"`
-	BuildOK           bool     `json:"build_ok"`
-	Note              string   `json:"note,omitempty"`
+	HarnessHash      string   `json:"harness_hash"`
+	BinaryPath       string   `json:"binary_path"`
+	SourceRel        string   `json:"source_rel"`
+	Language         string   `json:"language,omitempty"`
+	CompanionSources []string `json:"companion_sources,omitempty"`
+	IncludeDirs      []string `json:"include_dirs,omitempty"`
+	PinSHA           string   `json:"pin_sha,omitempty"`
+	BuildOK          bool     `json:"build_ok"`
+	Note             string   `json:"note,omitempty"`
 }
 
 // InventoryHarnessHash fingerprints a pinned inventory harness (full source bytes).

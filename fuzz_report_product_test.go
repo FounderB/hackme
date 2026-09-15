@@ -123,8 +123,8 @@ func TestBuildHumanSummaryAndVerdict(t *testing.T) {
 		"guard_pack":        "secrets",
 		"guided_scheduling": true,
 		"power_mut_cap":     8,
-		"mutation_rounds":     6,
-		"exec_per_unit":       64,
+		"mutation_rounds":   6,
+		"exec_per_unit":     64,
 	}, 256, 8, 3, 0, 0)
 	if !strings.Contains(dig, "Dig · Audit") || !strings.Contains(dig, "pack=secrets") {
 		t.Fatalf("dig summary=%s", dig)

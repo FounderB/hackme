@@ -1,8 +1,8 @@
 package hunt
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -32,13 +32,13 @@ func SourceLanguage(sourceRel string) string {
 
 // inventoryCompilePlan describes one ASAN inventory harness build.
 type inventoryCompilePlan struct {
-	Language         string
-	MainAbs          string
-	CompanionAbs     []string
-	IncludeDirs      []string
-	Compiler         string
-	StdFlag          string
-	WrapperIsC       bool
+	Language     string
+	MainAbs      string
+	CompanionAbs []string
+	IncludeDirs  []string
+	Compiler     string
+	StdFlag      string
+	WrapperIsC   bool
 }
 
 func planInventoryCompile(pinRoot, sourceRel string) (*inventoryCompilePlan, error) {

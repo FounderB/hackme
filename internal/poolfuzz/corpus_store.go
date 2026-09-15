@@ -240,13 +240,13 @@ func (s *Service) CorpusHealthSnapshot(ctx context.Context, campaignID string, c
 	}
 	div := fuzzengine.MeasureGuidedDiversity(cfg, seeds, minInt(500, 50+len(seeds)*3))
 	return map[string]any{
-		"ok":            true,
-		"seed_count":    len(seeds),
+		"ok":              true,
+		"seed_count":      len(seeds),
 		"rare_edge_seeds": rare,
-		"hot_seeds":     hot,
-		"unique_edges":  len(rarity),
-		"diversity":     div,
-		"engine":        fuzzengine.Version,
+		"hot_seeds":       hot,
+		"unique_edges":    len(rarity),
+		"diversity":       div,
+		"engine":          fuzzengine.Version,
 	}
 }
 

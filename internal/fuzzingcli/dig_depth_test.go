@@ -48,12 +48,12 @@ func TestFinalizeDigCampaignConfigMergesSeeds(t *testing.T) {
 
 func TestDigDepthProfile(t *testing.T) {
 	cfg := map[string]any{
-		"depth_tier":         "wasm_native",
-		"guard_pack":         "filter_utf8",
-		"guided_scheduling":  true,
-		"power_mut_cap":      8,
-		"mutation_rounds":    6,
-		"exec_per_unit":      64,
+		"depth_tier":          "wasm_native",
+		"guard_pack":          "filter_utf8",
+		"guided_scheduling":   true,
+		"power_mut_cap":       8,
+		"mutation_rounds":     6,
+		"exec_per_unit":       64,
 		"dig_mutator_profile": "utf8_display_filter",
 	}
 	got := DigDepthProfile(cfg, "audit", "filter_utf8")

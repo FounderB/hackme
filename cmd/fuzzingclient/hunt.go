@@ -177,11 +177,11 @@ func doHunt(base string, args []string) error {
 		status := fs.String("status", "running", "planned|running")
 		_ = fs.Parse(args[1:])
 		payload := map[string]any{
-			"package":           strings.TrimSpace(*pkg),
-			"title":             strings.TrimSpace(*title),
-			"pool_distributed":  *pool,
-			"template_accept":   *templateAccept,
-			"status":            strings.TrimSpace(*status),
+			"package":          strings.TrimSpace(*pkg),
+			"title":            strings.TrimSpace(*title),
+			"pool_distributed": *pool,
+			"template_accept":  *templateAccept,
+			"status":           strings.TrimSpace(*status),
 		}
 		if *budgetHMC > 0 {
 			payload["budget_hmc"] = *budgetHMC

@@ -11,8 +11,8 @@ func TestCorpusPersistNamespacePack(t *testing.T) {
 
 func TestCorpusPersistNamespaceOverride(t *testing.T) {
 	ns := CorpusPersistNamespace(map[string]any{
-		"guard_pack":          "secrets",
-		"corpus_persist_key":  "acme:prod",
+		"guard_pack":         "secrets",
+		"corpus_persist_key": "acme:prod",
 	})
 	if ns != "acme:prod" {
 		t.Fatalf("override ns=%q", ns)

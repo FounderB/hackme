@@ -219,7 +219,7 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 			if len(out) < growCap {
 				n := 1 + int(mix%4)
 				for j := 0; j < n && len(out) < growCap && len(out) < maxLen; j++ {
-					idx := int((mix>>uint(8*(j+1))) % uint64(len(out)+1))
+					idx := int((mix >> uint(8*(j+1))) % uint64(len(out)+1))
 					b := byte(mix >> uint(8*j))
 					out = insertToken(out, idx, []byte{b}, maxLen)
 				}
