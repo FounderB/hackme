@@ -437,11 +437,10 @@ func (s *Service) EnsureWorkItems(ctx context.Context, campaignID string, now in
 	return nil
 }
 
-// Tick tops up queues for pool campaigns (coordinator calls periodically).
-// EnsureWorkItems runs across the runnable set; heavier reconcile/progress is
-// round-robin batched so claim/submit writers are not starved every 5s.
+// Tick tops up queues for a rotating batch of pool campaigns (coordinator calls periodically).
+// Batching EnsureWorkItems + progress avoids parking claim/submit behind full-fleet sweeps.
 func (s *Service) Tick(ctx context.Context) error {
-	const progressBatch = 24
+	const batch = 24
 	rows, err := s.DB.QueryContext(ctx,
 		`SELECT id FROM fuzz_campaigns WHERE status IN ('planned','running') ORDER BY created_at ASC LIMIT 200`)
 	if err != nil {
@@ -476,9 +475,6 @@ func (s *Service) Tick(ctx context.Context) error {
 			continue
 		}
 		pool = append(pool, campCfg{id: id, cfg: cfg})
-		if err := s.EnsureWorkItems(ctx, id, now); err != nil {
-			return err
-		}
 	}
 	if len(pool) == 0 {
 		if pins, err := fuzznative.LoadPins(""); err == nil {
@@ -488,14 +484,17 @@ func (s *Service) Tick(ctx context.Context) error {
 		return nil
 	}
 	start := 0
-	n := progressBatch
-	if len(pool) <= progressBatch {
+	n := batch
+	if len(pool) <= batch {
 		n = len(pool)
 	} else {
 		start = int(s.tickRR.Add(1) % uint64(len(pool)))
 	}
 	for i := 0; i < n; i++ {
 		c := pool[(start+i)%len(pool)]
+		if err := s.EnsureWorkItems(ctx, c.id, now); err != nil {
+			return err
+		}
 		if err := s.reconcileActiveCampaignWork(ctx, c.id, now); err != nil {
 			return err
 		}
