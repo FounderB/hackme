@@ -15,29 +15,7 @@
         "hunt",
         "iso"
       ],
-      "status": "published",
-      "telegram": {
-        "headline": "0.1.0-rc17 LIVE — downloads published",
-        "lead": "Paper Exchange · SUP · Hunt · Dig. Win/Linux/deb/fuzz/ISO + SHA.",
-        "bullets": [
-          "Installers flipped to 0.1.0-rc17 — verify SHA256SUMS",
-          "exchange.hackme.tech paper desk + hub #exchange",
-          "SUP activity public · Hunt ASAN escrow",
-          "HackMe OS ISO included"
-        ],
-        "footer": "hackme.tech/downloads.html · not financial advice"
-      },
-      "discord": {
-        "title": "0.1.0-rc17 LIVE",
-        "body": "**HackMe 0.1.0-rc17 published**\n\n• Paper Exchange + SUP + Hunt/Dig\n• Win/Linux/deb/fuzz/ISO + SHA256SUMS\n• https://hackme.tech/downloads.html",
-        "ping": "#announcements"
-      },
-      "links": {
-        "downloads": "https://hackme.tech/downloads.html",
-        "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17",
-        "exchange": "https://exchange.hackme.tech/",
-        "news": "https://hackme.tech/news.html"
-      }
+      "status": "published"
     },
     {
       "id": "2026-09-14-hunt-watch-2026sep-finale",

@@ -39,10 +39,11 @@
 | `hackme-fuzzing-0.1.0-rc17-windows-amd64.exe` | `715863e38fee4c21d2c1d70f3c9e0e6620c3ca802b37d48b7375b9c475286076` |
 | `hackme-fuzzing-build-0.1.0-rc17-linux-amd64` | `ce40465f561cf250c29f1e71cafe0e68785cf6940c4a815f90085f884cb1f73f` |
 | `hackme-fuzzing-build-0.1.0-rc17-windows-amd64.exe` | `e0f872b44f3e4e840c34ebae7b10d35d242af102ffb8902cd3351c28674b3de0` |
-| `hackme-node_0.1.0-rc17_amd64.deb` | `521fb2bc39d4bff7b2c8c6381d256a194082e18e36d6b3724aa5e806e3b3cfe5` |
+| `hackme-node_0.1.0-rc17_amd64.deb` | `ea485acdb94f7aeeb1a54885a9c470bd1271181660e0fe28bdccaa1f9d720676` |
 | `HackMe-OS-0.1.0-rc17-amd64.iso` | `d5b19bf5caea71dfa772d836bee0b4165facad2510243714b69b31d052aa59e8` |
 
 Also attached: `SHA256SUMS.txt`, `SHA256SUMS-iso.txt`, `latest.json`, `RELEASE_MANIFEST.json`.
+
 
 ## Verify
 
