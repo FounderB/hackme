@@ -975,16 +975,7 @@ h4 { font-size: 1.02rem; }
   .nav-more {
     margin-left: auto;
   }
-  .nav-more-menu {
-    position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 3.5rem);
-    left: max(0.75rem, env(safe-area-inset-left, 0px));
-    right: max(0.75rem, env(safe-area-inset-right, 0px));
-    min-width: 0;
-    max-height: min(70vh, 26rem);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
+  /* Placement handled by site-shell.js (viewport clamp). */
   .cta-row .btn {
     width: 100%;
   }
@@ -1258,12 +1249,16 @@ h4 { font-size: 1.02rem; }
 }
 .nav-more summary::-webkit-details-marker { display: none; }
 .nav-more[open] summary { color: var(--text); }
+/* Fixed + JS clamp keeps the panel inside the viewport (was clipping off the right edge). */
 .nav-more-menu {
-  position: absolute;
-  top: calc(100% + 0.35rem);
-  right: 0;
-  z-index: 60;
+  position: fixed;
+  z-index: 80;
   min-width: 11rem;
+  max-width: min(18rem, calc(100vw - 1.5rem));
+  max-height: min(70vh, 28rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 0.45rem;
   border-radius: 0.75rem;
   border: 1px solid var(--line);
@@ -1271,11 +1266,13 @@ h4 { font-size: 1.02rem; }
   box-shadow: var(--shadow);
   display: grid;
   gap: 0.15rem;
+  box-sizing: border-box;
 }
 .nav-more-menu a {
   padding: 0.45rem 0.55rem;
   border-radius: 0.45rem;
   font-size: 0.88rem;
+  white-space: nowrap;
 }
 .nav-more-menu a:hover {
   background: rgba(77, 228, 255, 0.1);

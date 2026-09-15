@@ -101,10 +101,57 @@
     `;
   }
 
+  function placeNavMoreMenu(details) {
+    const menu = details.querySelector(".nav-more-menu");
+    const summary = details.querySelector("summary");
+    if (!menu || !summary || !details.open) return;
+    const pad = 12;
+    const gap = 6;
+    const rect = summary.getBoundingClientRect();
+    // Measure with temporary visibility if needed
+    const prevVis = menu.style.visibility;
+    menu.style.visibility = "hidden";
+    menu.style.left = "0";
+    menu.style.right = "auto";
+    menu.style.top = "0";
+    const mw = Math.min(menu.offsetWidth || 176, window.innerWidth - pad * 2);
+    const mh = menu.offsetHeight || 0;
+    menu.style.visibility = prevVis || "";
+    // Prefer align to summary right edge; clamp fully into viewport
+    let left = rect.right - mw;
+    left = Math.max(pad, Math.min(left, window.innerWidth - pad - mw));
+    let top = rect.bottom + gap;
+    if (top + mh > window.innerHeight - pad && rect.top - gap - mh >= pad) {
+      top = rect.top - gap - mh;
+    }
+    top = Math.max(pad, Math.min(top, window.innerHeight - pad - Math.min(mh, window.innerHeight - pad * 2)));
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.right = "auto";
+    menu.style.top = `${Math.round(top)}px`;
+    menu.style.maxWidth = `${Math.round(window.innerWidth - pad * 2)}px`;
+  }
+
   function wireNavMoreDismiss() {
     document.querySelectorAll(".nav-more").forEach((details) => {
       if (details.dataset.navWired === "1") return;
       details.dataset.navWired = "1";
+      const reposition = () => placeNavMoreMenu(details);
+      details.addEventListener("toggle", () => {
+        if (details.open) {
+          // rAF: layout after open
+          requestAnimationFrame(reposition);
+        }
+      });
+      window.addEventListener("resize", () => {
+        if (details.open) reposition();
+      });
+      window.addEventListener(
+        "scroll",
+        () => {
+          if (details.open) reposition();
+        },
+        { passive: true }
+      );
       document.addEventListener("click", (ev) => {
         if (!details.open) return;
         const t = ev.target;
