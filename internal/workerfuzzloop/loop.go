@@ -240,6 +240,12 @@ func Run(ctx context.Context, cfg Config, st *Stats) error {
 	if cfg.Hybrid && cfg.Priv == nil {
 		return errors.New("hybrid signer required but no key loaded")
 	}
+	// Hunt harness MaterializeHarness reads these env vars for auth + relative URLs.
+	_ = os.Setenv("HACKME_POOL_COORDINATOR_URL", base)
+	_ = os.Setenv("HACKME_COORDINATOR_URL", base)
+	_ = os.Setenv("COORD_URL", base)
+	_ = os.Setenv("HACKME_COORDINATOR_WORKER_TOKEN", cfg.Token)
+	_ = os.Setenv("COORD_TOKEN", cfg.Token)
 
 	sem := make(chan struct{}, cfg.Concurrency)
 	for {

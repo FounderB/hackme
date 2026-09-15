@@ -256,6 +256,9 @@ func extractCoordAdminSecret(r *http.Request) string {
 	if s := strings.TrimSpace(r.Header.Get("X-Hackme-Admin-Token")); s != "" {
 		return s
 	}
+	if s := strings.TrimSpace(r.Header.Get("X-Hackme-Worker-Token")); s != "" {
+		return s
+	}
 	const p = "Bearer "
 	a := r.Header.Get("Authorization")
 	if len(a) > len(p) && strings.EqualFold(a[:len(p)], p) {

@@ -42,22 +42,25 @@ func (a *app) publishHuntHarnessForConfig(ctx context.Context, cfg map[string]an
 	return nil
 }
 
-func (a *app) syncHuntHarnessToCoordinator(ctx context.Context, cfg map[string]any) {
+func (a *app) syncHuntHarnessToCoordinator(ctx context.Context, cfg map[string]any) error {
 	if cfg == nil {
-		return
+		return nil
 	}
 	hash := strings.TrimSpace(toString(cfg["harness_hash"]))
 	if hash == "" {
-		return
+		return nil
 	}
 	coord := poolsync.ResolveCoordinatorURL()
 	token := poolsync.AdminToken()
 	if coord == "" || token == "" {
-		return
+		return fmt.Errorf("hunt harness sync: coordinator url/token not configured")
 	}
 	data, err := hunt.GetHarnessArtifact(ctx, a.db, hash)
 	if err != nil {
-		return
+		return fmt.Errorf("hunt harness sync: local artifact: %w", err)
 	}
-	_ = poolsync.UploadHuntHarness(ctx, coord, token, hash, data, strings.TrimSpace(toString(cfg["hunt_source_rel"])))
+	if err := poolsync.UploadHuntHarness(ctx, coord, token, hash, data, strings.TrimSpace(toString(cfg["hunt_source_rel"]))); err != nil {
+		return err
+	}
+	return nil
 }

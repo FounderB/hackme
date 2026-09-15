@@ -86,9 +86,13 @@ func ResolveCoordinatorURL() string {
 	if loop == "" {
 		loop = "http://127.0.0.1:18081"
 	}
-	// Only substitute when configured URL looks like the public reverse-proxy path.
+	// Substitute when configured URL is a reverse-proxy front (public CF path or local :18083 nginx).
+	// Admin routes like POST /api/fuzz/pool/hunt/harness are not on the miner allowlist for :18083.
 	low := strings.ToLower(u)
-	if !strings.Contains(low, "hackme.tech") && !strings.Contains(low, "/pool/coordinator") {
+	proxyFront := strings.Contains(low, "hackme.tech") ||
+		strings.Contains(low, "/pool/coordinator") ||
+		strings.Contains(low, ":18083")
+	if !proxyFront {
 		return u
 	}
 	if coordHealthOK(loop) {

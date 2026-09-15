@@ -214,7 +214,12 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg = marshalMapJSON(cfgMap)
 		_, _ = a.db.ExecContext(r.Context(), `UPDATE fuzz_campaigns SET config_json=? WHERE id=?`, cfg, id)
-		a.syncHuntHarnessToCoordinator(r.Context(), cfgMap)
+		if syncErr := a.syncHuntHarnessToCoordinator(r.Context(), cfgMap); syncErr != nil {
+			writeAPIError(w, http.StatusBadGateway, "harness_pool_sync_failed", syncErr.Error(), map[string]any{
+				"harness_hash": cfgMap["harness_hash"],
+			})
+			return
+		}
 		a.syncCorpusNamespaceToCoordinator(r.Context(), cfgMap)
 		resp["pool_distributed"] = true
 		resp["harness_fetch_path"] = cfgMap["harness_fetch_path"]
@@ -434,9 +439,14 @@ func (a *app) handleHuntHarnessPublish(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, "publish_failed", err.Error(), nil)
 		return
 	}
-	a.syncHuntHarnessToCoordinator(r.Context(), map[string]any{
+	if syncErr := a.syncHuntHarnessToCoordinator(r.Context(), map[string]any{
 		"harness_hash": hash, "hunt_source_rel": req.SourceRel,
-	})
+	}); syncErr != nil {
+		writeAPIError(w, http.StatusBadGateway, "harness_pool_sync_failed", syncErr.Error(), map[string]any{
+			"harness_hash": hash,
+		})
+		return
+	}
 	writeJSON(w, map[string]any{
 		"ok": true, "harness_hash": hash,
 		"harness_fetch_path": hunt.HarnessFetchURL(hash),

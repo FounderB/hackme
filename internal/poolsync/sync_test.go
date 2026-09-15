@@ -50,6 +50,17 @@ func TestResolveCoordinatorURLSkipsLoopbackWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestResolveCoordinatorURLPrefersLoopbackFor18083(t *testing.T) {
+	t.Setenv("HACKME_POOL_COORDINATOR_URL", "http://127.0.0.1:18083")
+	t.Setenv("HACKME_POOL_SYNC_PREFER_LOOPBACK", "1")
+	t.Setenv("HACKME_POOL_SYNC_LOOPBACK_URL", "http://127.0.0.1:18081")
+	// Without a live coordinator, health check fails and URL stays on :18083.
+	got := ResolveCoordinatorURL()
+	if got != "http://127.0.0.1:18083" && got != "http://127.0.0.1:18081" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestRegisterOnceRejectsNonOK(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "busy", http.StatusServiceUnavailable)

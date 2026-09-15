@@ -32,10 +32,17 @@ func RunHuntShard(ctx context.Context, cr ClaimResp, timeoutMS int) (checkResult
 		return 0, 0, "missing upstream_target_id", 0
 	}
 	repoRoot := hunt.RepoRoot()
+	// WASM Dig timeouts (often 0.5–2s) are far too short for ASAN harness fetch+exec.
+	huntMS := timeoutMS
+	if v := EnvInt("HACKME_WORKER_HUNT_TIMEOUT_MS", 0); v > 0 {
+		huntMS = v
+	} else if huntMS < 180000 {
+		huntMS = 180000
+	}
 	runCtx := ctx
-	if timeoutMS > 0 {
+	if huntMS > 0 {
 		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutMS)*time.Millisecond)
+		runCtx, cancel = context.WithTimeout(ctx, time.Duration(huntMS)*time.Millisecond)
 		defer cancel()
 	}
 	maxB := cr.MaxInputBytes

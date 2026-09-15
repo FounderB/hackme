@@ -41,7 +41,8 @@ done
 
 bash "$ROOT/scripts/ops/build_scan_smoke_guards.sh" >/dev/null
 WASM="$ROOT/tasks/artifacts/security/rust_bounds_smoke_guard.wasm"
-HASH="gate-smoke-$(date +%s)"
+# Must be hex — PutHarnessArtifact rejects non-hex ids (path-safe cache keys).
+HASH="$(sha256sum "$WASM" | awk '{print $1}')"
 B64="$(base64 -w0 "$WASM")"
 
 echo "[hunt-harness-gate] POST harness publish"

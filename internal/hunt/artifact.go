@@ -164,6 +164,9 @@ func fetchHarnessHTTP(ctx context.Context, rawURL string) ([]byte, error) {
 			base = strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_URL"))
 		}
 		if base == "" {
+			base = strings.TrimSpace(os.Getenv("COORD_URL"))
+		}
+		if base == "" {
 			return nil, fmt.Errorf("hunt artifact: relative fetch needs HACKME_POOL_COORDINATOR_URL")
 		}
 		rawURL = strings.TrimRight(base, "/") + rawURL
@@ -183,12 +186,19 @@ func fetchHarnessHTTP(ctx context.Context, rawURL string) ([]byte, error) {
 			if !sameCoordinatorHost(coord, u) {
 				attachBearer = false
 			}
+		} else if coord := strings.TrimSpace(os.Getenv("COORD_URL")); coord != "" {
+			if !sameCoordinatorHost(coord, u) {
+				attachBearer = false
+			}
 		}
 	}
 	if attachBearer {
 		token := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_WORKER_TOKEN"))
 		if token == "" {
 			token = strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_WORKER_TOKEN"))
+		}
+		if token == "" {
+			token = strings.TrimSpace(os.Getenv("COORD_TOKEN"))
 		}
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
@@ -233,6 +243,16 @@ func SafeHarnessFetchURL(raw string) bool {
 		return false
 	}
 	if coord := strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_URL")); coord != "" {
+		if sameCoordinatorHost(coord, u) {
+			return true
+		}
+	}
+	if coord := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_URL")); coord != "" {
+		if sameCoordinatorHost(coord, u) {
+			return true
+		}
+	}
+	if coord := strings.TrimSpace(os.Getenv("COORD_URL")); coord != "" {
 		if sameCoordinatorHost(coord, u) {
 			return true
 		}

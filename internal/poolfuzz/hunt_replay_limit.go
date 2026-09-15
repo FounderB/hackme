@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const defaultHuntReplayMaxParallel = 3
+const defaultHuntReplayMaxParallel = 2
 
 var (
 	huntReplaySlots     chan struct{}

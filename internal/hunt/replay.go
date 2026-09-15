@@ -207,8 +207,17 @@ func resolveHarnessBinary(ctx context.Context, opts ReplayShardOpts) (string, er
 		hash = strings.TrimSpace(opts.HarnessHash)
 	}
 	if hash != "" {
-		if p, err := MaterializeHarness(ctx, opts.RepoRoot, hash, opts.HarnessFetchURL, nil); err == nil && p != "" {
+		p, err := MaterializeHarness(ctx, opts.RepoRoot, hash, opts.HarnessFetchURL, nil)
+		if err == nil && p != "" {
 			return p, nil
+		}
+		// Pool Hunt shards publish a harness_hash — do not silently fall back to a
+		// multi-minute local ASAN rebuild when fetch/auth fails (workers hang / lease stick).
+		if strings.TrimSpace(opts.HarnessFetchURL) != "" || poolHarnessFetchConfigured() {
+			if err != nil {
+				return "", fmt.Errorf("hunt harness fetch failed for %s: %w", hash, err)
+			}
+			return "", fmt.Errorf("hunt harness fetch failed for %s: empty path", hash)
 		}
 	}
 	if spec.Source == "" {
@@ -225,4 +234,13 @@ func resolveHarnessBinary(ctx context.Context, opts ReplayShardOpts) (string, er
 		spec.HarnessHash = opts.HarnessHash
 	}
 	return EnsureHarness(ctx, opts.RepoRoot, spec)
+}
+
+func poolHarnessFetchConfigured() bool {
+	for _, k := range []string{"HACKME_POOL_COORDINATOR_URL", "HACKME_COORDINATOR_URL", "COORD_URL"} {
+		if strings.TrimSpace(os.Getenv(k)) != "" {
+			return true
+		}
+	}
+	return false
 }

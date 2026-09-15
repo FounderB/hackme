@@ -175,7 +175,11 @@ func (a *app) runPoolSyncJob(job poolSyncJob) {
 		return
 	}
 	if poolfuzz.IsHuntCampaign(cfg) {
-		a.syncHuntHarnessToCoordinator(ctx, cfg)
+		if herr := a.syncHuntHarnessToCoordinator(ctx, cfg); herr != nil {
+			log.Printf("pool sync: campaign %s harness upload failed: %v", job.campaign.ID, herr)
+			a.poolSyncMarkFailed(job.campaign.ID, herr)
+			return
+		}
 	}
 	if fuzzengine.CorpusPersistEnabled(cfg) {
 		a.syncCorpusNamespaceToCoordinator(ctx, cfg)

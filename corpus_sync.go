@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
+	"log"
 
 	"hackme/internal/fuzzengine"
-	"hackme/internal/poolsync"
 	"hackme/internal/poolfuzz"
+	"hackme/internal/poolsync"
 )
 
 func (a *app) syncCorpusNamespaceToCoordinator(ctx context.Context, cfg map[string]any) {
@@ -31,5 +32,9 @@ func (a *app) syncCorpusNamespaceToCoordinator(ctx context.Context, cfg map[stri
 
 func (a *app) publishDigPoolArtifacts(ctx context.Context, cfg map[string]any) {
 	a.syncCorpusNamespaceToCoordinator(ctx, cfg)
-	a.syncHuntHarnessToCoordinator(ctx, cfg)
+	if poolfuzz.IsHuntCampaign(cfg) {
+		if err := a.syncHuntHarnessToCoordinator(ctx, cfg); err != nil {
+			log.Printf("publishDigPoolArtifacts: hunt harness sync: %v", err)
+		}
+	}
 }

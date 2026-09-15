@@ -55,11 +55,12 @@ func huntReplayAsyncEnabled() bool {
 func huntReplayWorkerCount() int {
 	v := strings.TrimSpace(os.Getenv("HACKME_POOL_HUNT_REPLAY_WORKERS"))
 	if v == "" {
-		return 6
+		// Default 2: ASAN replay is CPU+SQLite heavy; 6 starved fuzz claim/submit under load.
+		return 2
 	}
 	n, err := strconv.Atoi(v)
 	if err != nil || n < 1 {
-		return 6
+		return 2
 	}
 	if n > 32 {
 		return 32
