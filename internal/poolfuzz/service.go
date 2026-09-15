@@ -31,6 +31,13 @@ type Service struct {
 	schedCachedAt  time.Time
 	schedCustomers []string
 	schedRest      []string
+
+	// emptyClaimUntil is a short negative cache when Claim finds no work (cuts
+	// stampede of SELECT sweeps under 429 no_fuzz_work).
+	emptyClaimMu    sync.Mutex
+	emptyClaimUntil time.Time
+
+	tickRR atomic.Uint64 // round-robin cursor for Tick campaign batches
 }
 
 type Campaign struct {
@@ -424,13 +431,19 @@ func (s *Service) EnsureWorkItems(ctx context.Context, campaignID string, now in
 			return err
 		}
 	}
+	if toCreate > 0 {
+		s.clearEmptyClaimCache()
+	}
 	return nil
 }
 
-// Tick tops up queues for all pool campaigns (coordinator calls periodically).
+// Tick tops up queues for pool campaigns (coordinator calls periodically).
+// EnsureWorkItems runs across the runnable set; heavier reconcile/progress is
+// round-robin batched so claim/submit writers are not starved every 5s.
 func (s *Service) Tick(ctx context.Context) error {
+	const progressBatch = 24
 	rows, err := s.DB.QueryContext(ctx,
-		`SELECT id FROM fuzz_campaigns WHERE status IN ('planned','running') ORDER BY created_at ASC LIMIT 100`)
+		`SELECT id FROM fuzz_campaigns WHERE status IN ('planned','running') ORDER BY created_at ASC LIMIT 200`)
 	if err != nil {
 		return err
 	}
@@ -439,25 +452,54 @@ func (s *Service) Tick(ctx context.Context) error {
 	if _, err := s.RepairZombiePoolCampaigns(ctx, 10); err != nil {
 		return err
 	}
+	var ids []string
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
 			return err
 		}
-		cfg := map[string]any{}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	type campCfg struct {
+		id  string
+		cfg map[string]any
+	}
+	var pool []campCfg
+	for _, id := range ids {
 		var cfgJSON string
 		_ = s.DB.QueryRowContext(ctx, `SELECT config_json FROM fuzz_campaigns WHERE id=?`, id).Scan(&cfgJSON)
-		cfg = parseConfigJSON(cfgJSON)
+		cfg := parseConfigJSON(cfgJSON)
 		if !poolDistributed(cfg) {
 			continue
 		}
-		if err := s.reconcileActiveCampaignWork(ctx, id, now); err != nil {
-			return err
-		}
+		pool = append(pool, campCfg{id: id, cfg: cfg})
 		if err := s.EnsureWorkItems(ctx, id, now); err != nil {
 			return err
 		}
-		if _, err := s.recomputeProgress(ctx, id, now); err != nil {
+	}
+	if len(pool) == 0 {
+		if pins, err := fuzznative.LoadPins(""); err == nil {
+			_, _ = fuzznative.ProcessPending(ctx, s.DB, pins, 5)
+		}
+		_ = s.flushDeferredBounties(ctx)
+		return nil
+	}
+	start := 0
+	n := progressBatch
+	if len(pool) <= progressBatch {
+		n = len(pool)
+	} else {
+		start = int(s.tickRR.Add(1) % uint64(len(pool)))
+	}
+	for i := 0; i < n; i++ {
+		c := pool[(start+i)%len(pool)]
+		if err := s.reconcileActiveCampaignWork(ctx, c.id, now); err != nil {
+			return err
+		}
+		if _, err := s.recomputeProgress(ctx, c.id, now); err != nil {
 			return err
 		}
 	}
@@ -465,7 +507,7 @@ func (s *Service) Tick(ctx context.Context) error {
 		_, _ = fuzznative.ProcessPending(ctx, s.DB, pins, 5)
 	}
 	_ = s.flushDeferredBounties(ctx)
-	return rows.Err()
+	return nil
 }
 
 const claimCandidateLimit = 512 // retained for tests / callers; claim path is campaign-RR now
@@ -482,8 +524,13 @@ func (s *Service) Claim(ctx context.Context, workerID string, now int64) (Claime
 	if workerID == "" {
 		return out, false, fmt.Errorf("poolfuzz: worker_id required")
 	}
-	// Tick runs on the coordinator background ticker (every ~3s). Calling it on every
-	// claim path is campaign-RR now; lease duration is computed per campaign in claimOnePendingInCampaign.
+	s.emptyClaimMu.Lock()
+	if time.Now().Before(s.emptyClaimUntil) {
+		s.emptyClaimMu.Unlock()
+		return out, false, nil
+	}
+	s.emptyClaimMu.Unlock()
+
 	customers, rest, err := s.runnablePoolCampaignIDsByTier(ctx, now)
 	if err != nil {
 		return out, false, err
@@ -513,7 +560,7 @@ func (s *Service) Claim(ctx context.Context, workerID string, now int64) (Claime
 		rows, err := s.DB.QueryContext(ctx, `
 			SELECT id, campaign_id, input_n FROM fuzz_work_items
 			 WHERE status='leased' AND lease_until < ?
-			 ORDER BY lease_until ASC LIMIT 8`, now)
+			 ORDER BY lease_until ASC LIMIT 16`, now)
 		if err != nil {
 			return out, false, err
 		}
@@ -559,6 +606,7 @@ func (s *Service) Claim(ctx context.Context, workerID string, now int64) (Claime
 			if aff == 0 {
 				continue
 			}
+			s.clearEmptyClaimCache()
 			work, err := s.buildClaimedWork(ctx, e.camp, int64(e.id), e.inputN, cfg, workerID)
 			if err != nil {
 				return out, false, err
@@ -569,25 +617,79 @@ func (s *Service) Claim(ctx context.Context, workerID string, now int64) (Claime
 
 	// Phase 4: RR among other + bootstrap.
 	if len(rest) == 0 {
+		s.noteEmptyClaim()
 		return out, false, nil
 	}
 	start := int(s.claimRR.Add(1) % uint64(len(rest)))
 	for i := 0; i < len(rest); i++ {
 		cid := rest[(start+i)%len(rest)]
 		if work, ok, err := s.claimOnePendingInCampaign(ctx, workerID, cid, now); err != nil || ok {
+			if ok {
+				s.clearEmptyClaimCache()
+			}
 			return work, ok, err
 		}
 	}
+	s.noteEmptyClaim()
 	return out, false, nil
 }
 
-// claimOnePendingInCampaign leases the oldest pending row in one campaign (index-friendly).
+func (s *Service) noteEmptyClaim() {
+	s.emptyClaimMu.Lock()
+	s.emptyClaimUntil = time.Now().Add(350 * time.Millisecond)
+	s.emptyClaimMu.Unlock()
+}
+
+func (s *Service) clearEmptyClaimCache() {
+	s.emptyClaimMu.Lock()
+	s.emptyClaimUntil = time.Time{}
+	s.emptyClaimMu.Unlock()
+}
+
+// ReleaseWorkLease returns a leased item to pending (auth reject / worker give-up).
+func (s *Service) ReleaseWorkLease(ctx context.Context, campaignID string, itemID int64, workerID string) error {
+	campaignID = strings.TrimSpace(campaignID)
+	workerID = strings.TrimSpace(workerID)
+	if campaignID == "" || itemID <= 0 || workerID == "" {
+		return fmt.Errorf("poolfuzz: release lease requires campaign_id, item_id, worker_id")
+	}
+	now := time.Now().Unix()
+	res, err := s.DB.ExecContext(ctx, `
+		UPDATE fuzz_work_items
+		   SET status='pending', lease_owner='', lease_until=0, updated_at=?
+		 WHERE id=? AND campaign_id=? AND status='leased' AND lease_owner=?`,
+		now, itemID, campaignID, workerID)
+	if err != nil {
+		return err
+	}
+	if aff, _ := res.RowsAffected(); aff > 0 {
+		s.clearEmptyClaimCache()
+	}
+	return nil
+}
+
+// claimOnePendingInCampaign leases the oldest pending row in one campaign under BEGIN IMMEDIATE.
 func (s *Service) claimOnePendingInCampaign(ctx context.Context, workerID, campaignID string, now int64) (ClaimedWork, bool, error) {
 	var out ClaimedWork
+	conn, err := s.DB.Conn(ctx)
+	if err != nil {
+		return out, false, err
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return out, false, err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
+		}
+	}()
+
 	var itemID int64
 	var inputN uint64
 	var title, ownerRef, cfgJSON string
-	err := s.DB.QueryRowContext(ctx, `
+	err = conn.QueryRowContext(ctx, `
 		SELECT w.id, w.input_n, c.title, COALESCE(c.owner_ref,''), c.config_json
 		  FROM fuzz_work_items w
 		  JOIN fuzz_campaigns c ON c.id = w.campaign_id
@@ -596,6 +698,10 @@ func (s *Service) claimOnePendingInCampaign(ctx context.Context, workerID, campa
 		 ORDER BY w.id ASC
 		 LIMIT 1`, campaignID).Scan(&itemID, &inputN, &title, &ownerRef, &cfgJSON)
 	if err == sql.ErrNoRows {
+		if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+			return out, false, err
+		}
+		committed = true
 		return out, false, nil
 	}
 	if err != nil {
@@ -603,10 +709,14 @@ func (s *Service) claimOnePendingInCampaign(ctx context.Context, workerID, campa
 	}
 	cfg := parseConfigJSON(cfgJSON)
 	if !poolDistributed(cfg) || IsInternalGateCampaign(campaignID, title, ownerRef, cfg) {
+		if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+			return out, false, err
+		}
+		committed = true
 		return out, false, nil
 	}
 	leaseSec := leaseSecondsForConfig(cfg)
-	res, err := s.DB.ExecContext(ctx,
+	res, err := conn.ExecContext(ctx,
 		`UPDATE fuzz_work_items
 		 SET status='leased', lease_owner=?, lease_until=?, updated_at=?
 		 WHERE id=? AND campaign_id=? AND status='pending'`,
@@ -616,8 +726,18 @@ func (s *Service) claimOnePendingInCampaign(ctx context.Context, workerID, campa
 	}
 	aff, _ := res.RowsAffected()
 	if aff == 0 {
+		if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+			return out, false, err
+		}
+		committed = true
 		return out, false, nil
 	}
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return out, false, err
+	}
+	committed = true
+	s.clearEmptyClaimCache()
+
 	work, err := s.buildClaimedWork(ctx, campaignID, itemID, inputN, cfg, workerID)
 	if err != nil {
 		_, _ = s.DB.ExecContext(ctx,

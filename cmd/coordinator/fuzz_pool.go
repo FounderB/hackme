@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -575,6 +576,8 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			wm.mu.Unlock()
 			if locked != "" && !strings.EqualFold(locked, payoutAddr) {
 				wm.markSubmitOutcome(req.WorkerID, ipKey, "payout_address_locked", now)
+				// Free the shard so other workers can progress (was holding lease until expiry).
+				_ = pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, req.WorkerID)
 				w.WriteHeader(http.StatusForbidden)
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"ok":                       false,
@@ -737,8 +740,14 @@ func startPoolFuzzTicker(ctx context.Context, pf *poolfuzz.Service) {
 		return
 	}
 	poolfuzz.StartHuntReplayWorkers(ctx, pf)
+	tickEvery := 5 * time.Second
+	if v := strings.TrimSpace(os.Getenv("HACKME_POOL_TICK_SEC")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 2 && n <= 60 {
+			tickEvery = time.Duration(n) * time.Second
+		}
+	}
 	go func() {
-		t := time.NewTicker(3 * time.Second)
+		t := time.NewTicker(tickEvery)
 		defer t.Stop()
 		for {
 			select {

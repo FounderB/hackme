@@ -48,10 +48,24 @@ func TestLeaseSecondsForHuntShardUsesIterations(t *testing.T) {
 	}
 	sec := leaseSecondsForConfig(cfg)
 	wantMin := int64((128*huntExecTimeoutMS)/1000 + 60)
-	if sec < wantMin {
+	if wantMin > 360 {
+		wantMin = 360
+	}
+	if sec < wantMin && wantMin < 360 {
 		t.Fatalf("hunt lease %d too short for 128 iter (want >= %d)", sec, wantMin)
 	}
-	if sec > 600 {
-		t.Fatal("lease must be capped at 600s")
+	if sec > 360 {
+		t.Fatalf("hunt lease must be capped at 360s, got %d", sec)
+	}
+}
+
+func TestLeaseSecondsHuntHeavyCappedAt360(t *testing.T) {
+	cfg := map[string]any{
+		"work_kind":            "hunt_shard",
+		"iterations_per_shard": 256,
+		"pool_distributed":     true,
+	}
+	if sec := leaseSecondsForConfig(cfg); sec != 360 {
+		t.Fatalf("heavy hunt lease=%d want 360", sec)
 	}
 }

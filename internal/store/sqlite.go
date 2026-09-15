@@ -6,13 +6,38 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
 
 // CurrentSchemaVersion is the value written to PRAGMA user_version after migrate() completes.
 // Bump when adding a new migration step (and document in README / MASTER_PLAN).
-const CurrentSchemaVersion = 17
+const CurrentSchemaVersion = 18
+
+// sqliteDSN builds a shared coordinator/node DSN tuned for pool claim/submit under load.
+// cache_size(-131072) ≈ 128MiB page cache; temp_store=MEMORY; mmap_size=256MiB.
+func sqliteDSN(dbPath string) string {
+	return fmt.Sprintf(
+		"file:%s?_pragma=busy_timeout(60000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=wal_autocheckpoint(500)&_pragma=cache_size(-131072)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)",
+		filepath.ToSlash(dbPath),
+	)
+}
+
+// TuneSQLitePool caps Go connection fan-out so WAL writers do not stampede into SQLITE_BUSY.
+// role "fuzz" stays tighter (claim/submit/replay share one DB); "main" allows a few readers.
+func TuneSQLitePool(db *sql.DB, role string) {
+	if db == nil {
+		return
+	}
+	maxOpen, maxIdle := 4, 4
+	if strings.EqualFold(strings.TrimSpace(role), "fuzz") {
+		maxOpen, maxIdle = 2, 2
+	}
+	db.SetMaxOpenConns(maxOpen)
+	db.SetMaxIdleConns(maxIdle)
+	db.SetConnMaxLifetime(5 * time.Minute)
+}
 
 // Open opens SQLite at path (directories created as needed).
 func Open(dbPath string) (*sql.DB, error) {
@@ -22,8 +47,7 @@ func Open(dbPath string) (*sql.DB, error) {
 	// 60s busy_timeout: coordinator settle outbox ACK under fuzz load previously hit SQLITE_BUSY at 5s.
 	// wal_autocheckpoint(500) ≈ ~2MiB: keeps -wal from ballooning under pool claim/submit writers
 	// (must be in DSN so every pooled connection inherits it).
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(60000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=wal_autocheckpoint(500)", filepath.ToSlash(dbPath))
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", sqliteDSN(dbPath))
 	if err != nil {
 		return nil, err
 	}
@@ -31,6 +55,7 @@ func Open(dbPath string) (*sql.DB, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	TuneSQLitePool(db, "main")
 	if err := migrate(db); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -44,8 +69,7 @@ func OpenFuzz(dbPath string) (*sql.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil && filepath.Dir(dbPath) != "." {
 		return nil, err
 	}
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(60000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=wal_autocheckpoint(500)", filepath.ToSlash(dbPath))
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", sqliteDSN(dbPath))
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +77,7 @@ func OpenFuzz(dbPath string) (*sql.DB, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	TuneSQLitePool(db, "fuzz")
 	if err := migrateFuzzOnly(db); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -553,6 +578,7 @@ func migrateFuzzCampaigns(db *sql.DB) error {
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_fuzz_work_items_campaign_input ON fuzz_work_items(campaign_id, input_n)`,
 		`CREATE INDEX IF NOT EXISTS idx_fuzz_work_items_campaign_status ON fuzz_work_items(campaign_id, status, updated_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_fuzz_work_items_lease_reclaim ON fuzz_work_items(status, lease_until)`,
 		`CREATE TABLE IF NOT EXISTS fuzz_coverage_seen (
 			campaign_id TEXT NOT NULL,
 			kind TEXT NOT NULL,

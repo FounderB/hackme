@@ -50,8 +50,14 @@ func leaseSecondsForConfig(cfg map[string]any) int64 {
 	if sec < 30 {
 		return 30
 	}
-	if sec > 600 {
-		return 600
+	// Hunt ASAN shards: keep leases ≤6m so dead/misconfigured workers free shards
+	// for reclaim (was 10m; fleet lease pile-up starved bootstrap progress).
+	maxSec := int64(600)
+	if IsHuntCampaign(cfg) {
+		maxSec = 360
+	}
+	if sec > maxSec {
+		return maxSec
 	}
 	return sec
 }

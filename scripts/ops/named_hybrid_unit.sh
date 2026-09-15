@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# One named display unit: cosmetic PoH (worker_loop + FORCE GH) + fuzz dig under the SAME worker_id.
+# One named hybrid unit: cosmetic PoH + dig/hunt under the SAME worker_id.
+# Dig = WASM property claims; Hunt = ASAN hunt_shard claims (rc17).
 # Used by start_test_named_fleet.sh. Does not use *-fuzz sybil ids.
 set -euo pipefail
 
@@ -24,8 +25,9 @@ fi
 POH_LOG="${LOG_DIR}/${WORKER_ID}.log"
 FUZZ_LOG="${LOG_DIR}/${WORKER_ID}.fuzz.log"
 LOCK_DIR="${LOG_DIR}/locks"
-mkdir -p "$LOG_DIR" "$LOCK_DIR"
-FUZZ_TIMEOUT_MS="${WORKERFUZZ_TIMEOUT_MS:-1500}"
+mkdir -p "$LOG_DIR" "$LOCK_DIR" "$ROOT/.cache/hunt-harness"
+# Dig WASM timeout (short). Hunt uses HACKME_WORKER_HUNT_TIMEOUT_MS floor (≥180s in workerfuzzloop).
+FUZZ_TIMEOUT_MS="${WORKERFUZZ_TIMEOUT_MS:-2500}"
 
 # Only reclaim fuzz lock for this worker_id (PoH loop has no instance lock).
 pkill -f "bin/workerfuzz .* -worker ${WORKER_ID}( |$)" 2>/dev/null || true
@@ -66,17 +68,23 @@ if [[ "$ENABLE_FUZZ" == "1" || "$ENABLE_FUZZ" == "true" || "$ENABLE_FUZZ" == "ye
       export WORKER_ID
       export HACKME_MINER_ED25519_SEED_HEX="$SEED_HEX"
       export HACKME_WORKER_LOCK_DIR="$LOCK_DIR"
-      export WORKERFUZZ_HTTP_TIMEOUT_SEC="${WORKERFUZZ_HTTP_TIMEOUT_SEC:-90}"
+      # Hunt/dig shared env — look like a real hybrid miner.
+      export HACKME_REPO_ROOT="${HACKME_REPO_ROOT:-$ROOT}"
+      export HACKME_COORDINATOR_URL="${HACKME_COORDINATOR_URL:-$COORD_URL}"
+      export HACKME_POOL_COORDINATOR_URL="${HACKME_POOL_COORDINATOR_URL:-$COORD_URL}"
+      export HACKME_WORKER_HUNT_SHARDS="${HACKME_WORKER_HUNT_SHARDS:-1}"
+      export HACKME_WORKER_HUNT_TIMEOUT_MS="${HACKME_WORKER_HUNT_TIMEOUT_MS:-180000}"
+      export WORKERFUZZ_HTTP_TIMEOUT_SEC="${WORKERFUZZ_HTTP_TIMEOUT_SEC:-120}"
       export HACKME_WORKER_HYBRID_FUZZ_CONCURRENCY="${HACKME_WORKER_HYBRID_FUZZ_CONCURRENCY:-1}"
-      export HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS="${HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS:-600}"
+      export HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS="${HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS:-1200}"
       exec "$FUZZ_BIN" -coord "$COORD_URL" -token "$TOKEN" -worker "$WORKER_ID" \
         -timeout-ms "$FUZZ_TIMEOUT_MS"
     ) >>"$FUZZ_LOG" 2>&1 &
     PIDS+=($!)
-    echo "[hybrid-unit] fuzz pid=${PIDS[1]} id=${WORKER_ID} (same id, not *-fuzz)"
+    echo "[hybrid-unit] dig/hunt pid=${PIDS[1]} id=${WORKER_ID} (hybrid, not *-fuzz)"
   fi
 else
-  echo "[hybrid-unit] fuzz off for ${WORKER_ID}"
+  echo "[hybrid-unit] fuzz/hunt off for ${WORKER_ID}"
 fi
 
 # Exit if any child dies (systemd Restart= will bring the unit back).
