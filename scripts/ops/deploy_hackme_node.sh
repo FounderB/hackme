@@ -95,6 +95,7 @@ RSYNC_EXCLUDES=(
   --exclude '.env' --exclude '.env.*'
   --exclude '.cargo/' --exclude '.npm-global/' --exclude '.rustup/'
   --exclude '.secrets/' --exclude 'apt/'
+  --exclude 'web/exchange/'
 )
 if [[ "$SYNC_DIST" != "1" ]]; then
   RSYNC_EXCLUDES+=(--exclude 'dist/')

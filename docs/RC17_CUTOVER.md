@@ -1,6 +1,6 @@
 # rc17 cutover plan (local prep — deploy at cut only)
 
-**Status:** CUTOVER DAY · 15 Sep 2026 · D0 exchange + SUP wallet + Hunt · **deploy only in the maintenance window**
+**Status:** CUTOVER LIVE · 15 Sep 2026 · D0 exchange + SUP wallet + Hunt · hub **0.1.0-rc17**
 
 Related: [HACKME_RC16.md](HACKME_RC16.md) · [exchange D0 checklist](https://github.com/jokeez/hackme-exchange/blob/main/docs/D0_CHECKLIST.md) · [HUB_TAB](https://github.com/jokeez/hackme-exchange/blob/main/docs/HUB_TAB.md)
 
