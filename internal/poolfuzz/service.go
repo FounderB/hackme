@@ -668,40 +668,17 @@ func (s *Service) ReleaseWorkLease(ctx context.Context, campaignID string, itemI
 	return nil
 }
 
-// claimOnePendingInCampaign leases the oldest pending row in one campaign under BEGIN IMMEDIATE.
+// claimOnePendingInCampaign leases the oldest pending row in one campaign.
+// Uses a single atomic UPDATE…WHERE id=(SELECT…) so empty campaigns do not
+// pay BEGIN IMMEDIATE (that stampeded claim latency under no_fuzz_work).
 func (s *Service) claimOnePendingInCampaign(ctx context.Context, workerID, campaignID string, now int64) (ClaimedWork, bool, error) {
 	var out ClaimedWork
-	conn, err := s.DB.Conn(ctx)
-	if err != nil {
-		return out, false, err
-	}
-	defer conn.Close()
-	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
-		return out, false, err
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
-		}
-	}()
-
-	var itemID int64
-	var inputN uint64
 	var title, ownerRef, cfgJSON string
-	err = conn.QueryRowContext(ctx, `
-		SELECT w.id, w.input_n, c.title, COALESCE(c.owner_ref,''), c.config_json
-		  FROM fuzz_work_items w
-		  JOIN fuzz_campaigns c ON c.id = w.campaign_id
-		 WHERE w.campaign_id = ?
-		   AND w.status = 'pending'
-		 ORDER BY w.id ASC
-		 LIMIT 1`, campaignID).Scan(&itemID, &inputN, &title, &ownerRef, &cfgJSON)
+	err := s.DB.QueryRowContext(ctx, `
+		SELECT title, COALESCE(owner_ref,''), config_json
+		  FROM fuzz_campaigns
+		 WHERE id=? AND status IN ('planned','running')`, campaignID).Scan(&title, &ownerRef, &cfgJSON)
 	if err == sql.ErrNoRows {
-		if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
-			return out, false, err
-		}
-		committed = true
 		return out, false, nil
 	}
 	if err != nil {
@@ -709,35 +686,37 @@ func (s *Service) claimOnePendingInCampaign(ctx context.Context, workerID, campa
 	}
 	cfg := parseConfigJSON(cfgJSON)
 	if !poolDistributed(cfg) || IsInternalGateCampaign(campaignID, title, ownerRef, cfg) {
-		if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
-			return out, false, err
-		}
-		committed = true
 		return out, false, nil
 	}
 	leaseSec := leaseSecondsForConfig(cfg)
-	res, err := conn.ExecContext(ctx,
-		`UPDATE fuzz_work_items
-		 SET status='leased', lease_owner=?, lease_until=?, updated_at=?
-		 WHERE id=? AND campaign_id=? AND status='pending'`,
-		workerID, now+leaseSec, now, itemID, campaignID)
+	res, err := s.DB.ExecContext(ctx, `
+		UPDATE fuzz_work_items
+		   SET status='leased', lease_owner=?, lease_until=?, updated_at=?
+		 WHERE id = (
+		   SELECT id FROM fuzz_work_items
+		    WHERE campaign_id=? AND status='pending'
+		    ORDER BY id ASC LIMIT 1
+		 )
+		   AND campaign_id=? AND status='pending'`,
+		workerID, now+leaseSec, now, campaignID, campaignID)
 	if err != nil {
 		return out, false, err
 	}
 	aff, _ := res.RowsAffected()
 	if aff == 0 {
-		if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
-			return out, false, err
-		}
-		committed = true
 		return out, false, nil
 	}
-	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+	var itemID int64
+	var inputN uint64
+	err = s.DB.QueryRowContext(ctx, `
+		SELECT id, input_n FROM fuzz_work_items
+		 WHERE campaign_id=? AND status='leased' AND lease_owner=?
+		 ORDER BY updated_at DESC, id DESC LIMIT 1`,
+		campaignID, workerID).Scan(&itemID, &inputN)
+	if err != nil {
 		return out, false, err
 	}
-	committed = true
 	s.clearEmptyClaimCache()
-
 	work, err := s.buildClaimedWork(ctx, campaignID, itemID, inputN, cfg, workerID)
 	if err != nil {
 		_, _ = s.DB.ExecContext(ctx,
