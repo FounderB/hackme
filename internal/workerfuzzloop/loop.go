@@ -46,6 +46,15 @@ type ClaimResp struct {
 	CheckSemantics       string           `json:"check_semantics,omitempty"`
 	CorpusSeeds          []map[string]any `json:"corpus_seeds,omitempty"`
 	CorpusSnapshotSHA256 string           `json:"corpus_snapshot_sha256,omitempty"`
+	TaskClass            string           `json:"task_class,omitempty"`
+	WorkKind             string           `json:"work_kind,omitempty"`
+	HarnessHash          string           `json:"harness_hash,omitempty"`
+	UpstreamTargetID     string           `json:"upstream_target_id,omitempty"`
+	HuntSource           string           `json:"hunt_source,omitempty"`
+	HuntPinPath          string           `json:"hunt_pin_path,omitempty"`
+	HuntSourceRel        string           `json:"hunt_source_rel,omitempty"`
+	HarnessFetchURL      string           `json:"harness_fetch_url,omitempty"`
+	HuntDetectLeaks      bool             `json:"hunt_detect_leaks,omitempty"`
 }
 
 // Config drives a supervised fuzz dig loop.
@@ -310,7 +319,19 @@ func runOne(ctx context.Context, cfg Config, base string, st *Stats) {
 		return
 	}
 	st.ClaimsOK.Add(1)
-	checkRet, durMS, trap, execDone := RunSegmentCheck(ctx, cr, cfg.TimeoutMS)
+	var checkRet int32
+	var durMS int
+	var trap string
+	var execDone int
+	if IsHuntClaim(cr) {
+		if err := HuntClaimMissingFields(cr); err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %v\n", cfg.LogPrefix, err)
+			return
+		}
+		checkRet, durMS, trap, execDone = RunHuntShard(ctx, cr, cfg.TimeoutMS)
+	} else {
+		checkRet, durMS, trap, execDone = RunSegmentCheck(ctx, cr, cfg.TimeoutMS)
+	}
 	nonce := uint64(time.Now().UnixNano())
 	if err := Submit(ctx, cfg.HTTPClient, base, cfg.Token, cfg.WorkerID, cfg.MinerAddr, cfg.Priv, cfg.PubHex, cfg.Hybrid, nonce, cr, checkRet, durMS, trap, execDone); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: submit: %v\n", cfg.LogPrefix, err)
@@ -319,10 +340,10 @@ func runOne(ctx context.Context, cfg Config, base string, st *Stats) {
 	st.SubmitsOK.Add(1)
 	checkSem := fuzzengine.ParseCheckSemantics(map[string]any{"check_semantics": cr.CheckSemantics})
 	pass, finding := fuzzengine.EvalCheck(checkSem, checkRet, nil)
-	if finding && trap == "" {
+	if finding && trap == "" && !IsHuntClaim(cr) {
 		st.Findings.Add(1)
 		fmt.Fprintf(os.Stderr, "%s: FINDING campaign=%s input=0x%x semantics=%s\n", cfg.LogPrefix, cr.CampaignID, cr.ActualInput, checkSem)
-	} else if pass {
+	} else if pass || IsHuntClaim(cr) {
 		fmt.Fprintf(os.Stderr, "%s: ok campaign=%s input=0x%x\n", cfg.LogPrefix, cr.CampaignID, cr.ActualInput)
 	}
 }
@@ -568,7 +589,7 @@ func Submit(ctx context.Context, cl *http.Client, base, token, workerID, minerAd
 	}
 	defer res.Body.Close()
 	b, _ := io.ReadAll(io.LimitReader(res.Body, 2<<20))
-	if res.StatusCode != 200 {
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("HTTP %d %s", res.StatusCode, shortHTTPBody(res.StatusCode, b))
 	}
 	return nil

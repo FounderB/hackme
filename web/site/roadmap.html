@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ecosystem Roadmap — HackMe Network</title>
-  <meta name="description" content="Current HackMe roadmap: HMC pool and orders live at 0.1.0-rc16, SUP on-chain accrual, HMS prelaunch, listing path. Updated late August 2026." />
+  <meta name="description" content="Current HackMe roadmap: 0.1.0-rc17 cutover (paper exchange, SUP wallet, Hunt), HMC pool live, HMS prelaunch. Updated mid September 2026." />
   <link rel="canonical" href="https://hackme.tech/roadmap.html" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20260815roadmap" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260914dev1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
 </head>
 <body>
@@ -19,12 +19,12 @@
 
   <main class="container">
     <section class="hero glass hero-small">
-      <p class="kicker">Ecosystem roadmap · late August 2026</p>
+      <p class="kicker">Ecosystem roadmap · mid September 2026</p>
       <h1>What shipped · what&apos;s next</h1>
       <p class="hero-copy">
-        One honest timeline for the network: <strong>HMC</strong> (useful-PoW + pool), <strong>SUP</strong> (loyalty accrual),
-        <strong>HMS</strong> (storage prelaunch). Release <code>0.1.0-rc16</code> is live. Feature freeze before exchange —
-        growth is traction and listing, not more protocol churn.
+        One honest timeline: <strong>HMC</strong> (useful-PoW + pool), <strong>SUP</strong> (loyalty + wallet send),
+        <strong>HMS</strong> (storage prelaunch), paper <strong>Exchange</strong> desk.
+        Channel <code>0.1.0-rc17</code> cutover — growth is traction and listing, not protocol churn.
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="./listing.html">Listing readiness</a>
@@ -33,9 +33,10 @@
         <a class="btn btn-secondary" href="./downloads.html">Downloads</a>
       </div>
       <div class="pill-row" style="margin-top:1rem">
-        <span class="pill live">rc16 live</span>
+        <span class="pill live">rc17 cutover</span>
         <span class="pill">Pool + settlement</span>
-        <span class="pill">SUP on-chain</span>
+        <span class="pill">SUP wallet</span>
+        <span class="pill">Paper exchange</span>
         <span class="pill prelaunch">HMS prelaunch</span>
       </div>
     </section>
@@ -85,21 +86,21 @@
         <span class="roadmap-badge shipped">Live</span>
         <div>
           <strong>Public pool · hybrid strict · on-chain transfers</strong>
-          <p>Coordinator, explorer, Windows/Linux/ISO downloads at <code>0.1.0-rc16</code>. Settlement timers + wallet canonical sync.</p>
+          <p>Coordinator, explorer, Windows/Linux/ISO channel <code>0.1.0-rc17</code> (artifacts still on last published rc16 until SHA). Settlement + wallet sync.</p>
         </div>
       </div>
       <div class="roadmap-milestone shipped">
         <span class="roadmap-badge shipped">Live</span>
         <div>
           <strong>B2B security orders on the pool</strong>
-          <p>Local-node escrow → wasm gate → customer-first dig (rc16). Site path: <a href="./orders.html">orders</a> · packages on <a href="./developers.html">developers</a>.</p>
+          <p>Local-node escrow → wasm Dig + Hunt ASAN · customer-first (rc17). Site path: <a href="./orders.html">orders</a> · packages on <a href="./developers.html">developers</a>.</p>
         </div>
       </div>
       <div class="roadmap-milestone shipped">
         <span class="roadmap-badge shipped">Done</span>
         <div>
           <strong>OSS CVE Watch · research series closed</strong>
-          <p>nghttp2 14/14 CLEAN · libheif 14/14 CLEAN. Ledger on <a href="./research.html">research</a> / <a href="./reports/oss-cve/index.html">reports</a>.</p>
+          <p>Hunt Watch 12/12 · nghttp2 14/14 CLEAN · libheif 14/14 CLEAN. Ledger on <a href="./research.html">research</a> / <a href="./reports/hunt-watch-2026sep/">Hunt</a> / <a href="./reports/oss-cve/index.html">OSS</a>.</p>
         </div>
       </div>
       <div class="roadmap-milestone shipped">
@@ -210,17 +211,17 @@
       <div class="eco-link-grid">
         <a class="eco-link-card" href="./listing.html"><strong>Listing hub</strong><span>Readiness scores · memo · packs</span></a>
         <a class="eco-link-card" href="./token-transparency.html"><strong>Transparency</strong><span>Live HMC / SUP supply APIs</span></a>
-        <a class="eco-link-card" href="./downloads.html"><strong>Downloads</strong><span>rc16 node · miner · ISO</span></a>
+        <a class="eco-link-card" href="./downloads.html"><strong>Downloads</strong><span>rc17 channel · rc16 artifacts</span></a>
       </div>
     </section>
   </main>
 
   <footer class="footer">
     <p>HackMe Network</p>
-    <p class="muted">Roadmap updated 24 Aug 2026 · ops detail stays on GitHub</p>
+    <p class="muted">Roadmap updated 15 Sep 2026 · ops detail stays on GitHub</p>
     <div class="footer-nav"></div>
   </footer>
-  <script src="./assets/site-shell.js?v=20260824iso"></script>
-  <script src="./assets/app.js?v=20260824iso"></script>
+  <script src="./assets/site-shell.js?v=20260914dev1"></script>
+  <script src="./assets/app.js?v=20260914dev1"></script>
 </body>
 </html>

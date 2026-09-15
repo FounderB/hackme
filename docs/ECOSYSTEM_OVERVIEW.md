@@ -15,12 +15,13 @@
 | Page | Purpose |
 |------|---------|
 | [coins.html](https://hackme.tech/coins.html) | Ecosystem registry + live pool strip |
+| [exchange.hackme.tech](https://exchange.hackme.tech/) | Paper Exchange desk (D0) · also hub `#exchange` |
 | [coin-hmc.html](https://hackme.tech/coin-hmc.html) | HMC listing package (investor-readable) |
 | [coin-sup.html](https://hackme.tech/coin-sup.html) | SUP utility + emission |
 | [coin-hms.html](https://hackme.tech/coin-hms.html) | HMS prelaunch preview |
 | [token-transparency.html](https://hackme.tech/token-transparency.html) | Live supply / treasury / APIs |
 | [roadmap.html](https://hackme.tech/roadmap.html) | Shipped milestones + next quarters |
-| [listing.html](https://hackme.tech/listing.html) | Exchange readiness hub (all tickers) |
+| [listing.html](https://hackme.tech/listing.html) | CEX listing readiness hub (all tickers) — not the paper desk |
 | [economics-model.html](https://hackme.tech/economics-model.html) | Three-layer HMC economics |
 
 ## Canonical docs (GitHub)
@@ -38,7 +39,7 @@
 
 ## Differentiation (one paragraph)
 
-HackMe combines **useful Proof-of-History mining** (WASM-gated work), a **coordinator-backed fair pool** (hybrid PoH + fuzz, Ed25519 submit — not blind Stratum shares), and a **B2B security-audit layer** (`hackme-fuzzing wizard` + packs on local node, escrow + `fuzz_report_v2`). HMC is the settlement rail; SUP rewards long-horizon honest miners; HMS extends the same stack to storage economics.
+HackMe combines **useful Proof-of-History mining** (WASM-gated work), a **coordinator-backed fair pool** (hybrid PoH + fuzz, Ed25519 submit — not blind Stratum shares), and a **B2B security-audit layer** (`hackme-fuzzing wizard` Dig packs + **Hunt** ASAN repo campaigns on local node, escrow + `fuzz_report_v2` / Hunt reports). HMC is the settlement rail; SUP rewards long-horizon honest miners; HMS extends the same stack to storage economics.
 
 ## Listing readiness (honest)
 
@@ -46,7 +47,7 @@ HackMe combines **useful Proof-of-History mining** (WASM-gated work), a **coordi
 |-----------|-------|--------|
 | Technology / transparency | Strong public APIs, docs, explorer | Maintain + per-ticker PDF packs |
 | Operational discipline | Settlement timers, public APIs, release channel docs | Scale soak + HA narrative |
-| Market / traction | Pool live + OSS CVE Watch | Volume on first PoW CEX (post-summer) |
+| Market / traction | Pool live · Hunt Watch 12/12 · OSS CVE Watch (nghttp2/libheif) | Volume on first PoW CEX (post-summer) |
 | Liquidity | None listed yet | MM plan after first listing |
 | Legal | Risk disclosures on site | Entity + counsel before Tier-1 |
 

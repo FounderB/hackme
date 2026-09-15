@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 # Public-pool miner — extract tarball, run this script. No manual token or pool URL.
+# Apt installs: /opt/hackme is often root-owned — delegate to hackme_desktop_launch.sh
+# which keeps state under ~/.local/share/hackme.
 set -euo pipefail
 
 INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$INSTALL_DIR"
+
+# Menu / apt path: not writable install dir → XDG desktop launcher.
+if [[ ! -w "$INSTALL_DIR" && -x "$INSTALL_DIR/hackme_desktop_launch.sh" ]]; then
+  exec "$INSTALL_DIR/hackme_desktop_launch.sh" "$@"
+fi
 
 ENV_FILE="${ENV_FILE:-$INSTALL_DIR/.env}"
 BASE_URL="${BASE_URL:-http://127.0.0.1:8080}"
@@ -25,14 +32,35 @@ if [[ ! -x "$INSTALL_DIR/hackme" ]]; then
   exit 1
 fi
 
+if [[ ! -w "$INSTALL_DIR" ]]; then
+  echo "[miner] $INSTALL_DIR is not writable by $(id -un)." >&2
+  echo "[miner] Use: bash $INSTALL_DIR/hackme_desktop_launch.sh" >&2
+  echo "[miner] Or: sudo chown -R $(id -un):$(id -gn) $INSTALL_DIR/data $INSTALL_DIR/logs && place .env here" >&2
+  exit 1
+fi
+
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "[miner] first run — configuring pool access..."
-  bash "$INSTALL_DIR/setup_hackme_miner.sh"
+  if [[ -f "$INSTALL_DIR/pool.miner.token" ]]; then
+    bash "$INSTALL_DIR/setup_hackme_miner.sh"
+  elif [[ -x "$INSTALL_DIR/hackme_desktop_launch.sh" ]]; then
+    echo "[miner] no pool.miner.token — starting dashboard via desktop launcher (mining optional)" >&2
+    exec "$INSTALL_DIR/hackme_desktop_launch.sh"
+  else
+    echo "[miner] pool.miner.token missing — download from https://hackme.tech/downloads.html" >&2
+    exit 1
+  fi
 fi
 
 if [[ ! -f "$INSTALL_DIR/pool.miner.token" ]]; then
-  echo "[miner] pool.miner.token missing — download from https://hackme.tech/downloads.html" >&2
-  exit 1
+  # Allow dashboard-only if env already has no pool token requirement.
+  if ! grep -q '^HACKME_POOL_COORDINATOR_TOKEN=.\+' "$ENV_FILE" 2>/dev/null; then
+    if [[ -x "$INSTALL_DIR/hackme_desktop_launch.sh" ]]; then
+      exec "$INSTALL_DIR/hackme_desktop_launch.sh"
+    fi
+    echo "[miner] pool.miner.token missing — download from https://hackme.tech/downloads.html" >&2
+    exit 1
+  fi
 fi
 
 set -a

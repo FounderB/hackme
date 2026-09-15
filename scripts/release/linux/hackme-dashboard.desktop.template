@@ -2,10 +2,12 @@
 Version=1.0
 Type=Application
 Name=HackMe Dashboard
-Comment=Open local HackMe dashboard in the browser
-Exec=xdg-open http://127.0.0.1:8080/
+Comment=Open the local HackMe dashboard (starts the node if needed)
+Exec=__INSTALL_DIR__/hackme_desktop_launch.sh --open
+TryExec=__INSTALL_DIR__/hackme
 Icon=hackme
 Terminal=false
-Categories=Network;Development;
-Keywords=hackme;dashboard;
+Categories=Network;
+Keywords=hackme;dashboard;browser;
 StartupNotify=false
+Path=__INSTALL_DIR__

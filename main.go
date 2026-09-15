@@ -56,7 +56,7 @@ var embeddedFaviconICO []byte
 
 // Build metadata (overridden by -ldflags in release builds).
 var (
-	Version   = "0.1.0-rc16"
+	Version   = "0.1.0-rc17"
 	Commit    = "nogit"
 	BuildDate = "unknown"
 )
@@ -547,6 +547,8 @@ func main() {
 	mux.HandleFunc("/api/integrator", a.handleIntegratorAPI)
 	mux.HandleFunc("/api/fuzz/campaigns", a.handleFuzzCampaigns)
 	mux.HandleFunc("/api/fuzz/campaigns/", a.handleFuzzCampaigns)
+	mux.HandleFunc("/api/hunt", a.handleHuntAPI)
+	mux.HandleFunc("/api/hunt/", a.handleHuntAPI)
 	mux.HandleFunc("/proof/", a.handleProofPretty)
 	mux.HandleFunc("/api/fuzz/pool/settle", a.handleFuzzPoolSettle)
 	mux.HandleFunc("/api/fuzz/escrow/cleanup-stale", a.handleFuzzEscrowCleanupStale)
@@ -591,6 +593,9 @@ func main() {
 	requireAdmin := true
 	if v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_REQUIRE_ADMIN_TOKEN"))); v != "" {
 		requireAdmin = v == "1" || v == "true" || v == "yes" || v == "on"
+	}
+	if !bindAddrAllowsBeginnerSolo(addr) && strings.TrimSpace(os.Getenv("HACKME_P2P_TOKEN")) == "" {
+		log.Fatal("security: public bind " + addr + " requires HACKME_P2P_TOKEN for /api/p2p/* routes")
 	}
 	if requireAdmin && !adminAuthEnabled() {
 		log.Fatal("security: HACKME_ADMIN_TOKEN is required (set HACKME_ADMIN_TOKEN or explicitly disable with HACKME_REQUIRE_ADMIN_TOKEN=0)")
@@ -3492,6 +3497,10 @@ func (a *app) handleMiningLogs(w http.ResponseWriter, r *http.Request) {
 func (a *app) handleMiningLogsStream(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	allowStream := envBool("HACKME_DESKTOP_MODE", false) && requestFromLoopback(r)
+	if !allowStream && !requireAdminAuthStrict(w, r) {
 		return
 	}
 	if !a.miner.Running() {

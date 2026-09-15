@@ -1,6 +1,83 @@
 {
   "items": [
     {
+      "id": "2026-09-14-hunt-watch-2026sep-finale",
+      "date": "2026-09-14",
+      "title": "Hunt Watch 12/12 · ~192.5M Hunt Standard · public ledger",
+      "summary": "The 12-day Hunt Watch (2026sep) is closed: 50 target runs, 192,507,336 iterations on Hunt Standard (ASAN+UBSan subprocess — not libFuzzer). Verdicts: 43 CLEAN · 2 CVE_CANDIDATE · 5 INFORMATIONAL. Honest product-lane ledger — separate from the nghttp2/libheif OSS CVE Watch series.",
+      "impact": "Public proof that Hunt ships as a multi-target sanitizer audit with a publishable report. CLEAN on mature parsers is expected; CVE_CANDIDATE means sanitizer-class triage, not a CVE ID claim.",
+      "action": "Ledger: https://hackme.tech/reports/hunt-watch-2026sep/ · Research: https://hackme.tech/research.html · Order Hunt: https://hackme.tech/orders.html",
+      "tags": [
+        "research",
+        "hunt",
+        "watch",
+        "asan",
+        "ledger"
+      ],
+      "status": "published",
+      "telegram": {
+        "headline": "Hunt Watch 12/12 — ledger live",
+        "lead": "12 days · Hunt Standard (ASAN+UBSan) · ~192.5M iter · not libFuzzer.",
+        "bullets": [
+          "50 target runs · 43 CLEAN · 2 CVE_CANDIDATE · 5 INFORMATIONAL",
+          "Product lane — separate from nghttp2/libheif libFuzzer watches",
+          "CLEAN on mature parsers = honest outcome, not a miss",
+          "Full day strip + signals on the public ledger"
+        ],
+        "footer": "hackme.tech/reports/hunt-watch-2026sep/ · not a CVE claim"
+      },
+      "discord": {
+        "title": "Hunt Watch 12/12 — public ledger",
+        "body": "**Hunt Watch 2026sep closed**\n\n• ~192.5M Hunt Standard iterations (ASAN+UBSan)\n• 43 CLEAN · 2 CVE_CANDIDATE · 5 INFORMATIONAL\n• Not libFuzzer — product-lane ledger\n\nhttps://hackme.tech/reports/hunt-watch-2026sep/",
+        "ping": "#announcements"
+      },
+      "links": {
+        "ledger": "https://hackme.tech/reports/hunt-watch-2026sep/",
+        "research": "https://hackme.tech/research.html",
+        "orders": "https://hackme.tech/orders.html",
+        "news": "https://hackme.tech/news.html"
+      }
+    },
+    {
+      "id": "2026-09-14-rc17-cutover-channel",
+      "date": "2026-09-14",
+      "title": "0.1.0-rc17 — cutover channel (paper exchange · SUP · Hunt)",
+      "summary": "rc17 channel bump for hub UI + cutover prep: paper Exchange desk (D0), SUP wallet send/activity routes, Hunt ASAN escrow pool, Dig customer-first. Download binaries stay on last published 0.1.0-rc16 until SHA256SUMS for rc17 are published — no fake LIVE ISO hashes.",
+      "impact": "Operators: prepare nginx SUP allowlist + exchange static; do not restart production hub early. Miners: keep using rc16 installers via downloads until the rc17 bundle lands.",
+      "action": "Cutover plan: https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/RC17_CUTOVER.md · Downloads: https://hackme.tech/downloads.html · Last published: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16",
+      "tags": [
+        "release",
+        "rc17",
+        "cutover",
+        "exchange",
+        "sup",
+        "hunt"
+      ],
+      "status": "published",
+      "telegram": {
+        "headline": "0.1.0-rc17 channel — cutover window",
+        "lead": "Paper exchange · SUP wallet · Hunt. Installers still 0.1.0-rc16 until SHA lands.",
+        "bullets": [
+          "Hub #exchange → exchange.hackme.tech paper desk",
+          "SUP send/activity + Hunt ASAN escrow",
+          "No fake ISO SHA — artifacts flip at cutover",
+          "Stay on rc16 binaries until downloads show new SUMS"
+        ],
+        "footer": "hackme.tech/downloads.html · RC17_CUTOVER.md · not financial advice"
+      },
+      "discord": {
+        "title": "0.1.0-rc17 channel — cutover (not fake LIVE)",
+        "body": "**HackMe 0.1.0-rc17 channel**\n\n• Paper Exchange + SUP wallet + Hunt\n• Installers still **0.1.0-rc16** until SHA256SUMS\n• Cutover: docs/RC17_CUTOVER.md\n\nhttps://hackme.tech/downloads.html",
+        "ping": "#announcements"
+      },
+      "links": {
+        "downloads": "https://hackme.tech/downloads.html",
+        "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16",
+        "news": "https://hackme.tech/news.html",
+        "cutover": "https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/RC17_CUTOVER.md"
+      }
+    },
+    {
       "id": "2026-08-27-release-rc16-update-channel",
       "date": "2026-08-27",
       "title": "0.1.0-rc16 — self-update channel + signed apt + branded Linux menu",
@@ -384,83 +461,8 @@
         "hub": "https://hackme.tech/reports/oss-cve-watch-libheif/",
         "research": "https://hackme.tech/research.html"
       }
-    },
-    {
-      "id": "2026-08-01-oss-cve-watch-libheif-day08-libfuzzer",
-      "date": "2026-08-01",
-      "title": "OSS CVE Watch · libheif Day 8/14 · 178.64M libFuzzer exec · CLEAN",
-      "summary": "libheif Day 8: 23.1h libFuzzer, 178,639,548 exec at ~2,147/s. Corpus 2996, 7274 coverage edges. ASAN=0 — CLEAN.",
-      "impact": "Cumulative Days 1–8: ~1222.96M exec on persistent HEIF/AVIF corpus.",
-      "action": "Day 8: https://hackme.tech/reports/oss-cve-watch-libheif/day08.html",
-      "tags": [
-        "research",
-        "oss-cve",
-        "fuzzing",
-        "libheif",
-        "day08"
-      ],
-      "status": "published",
-      "telegram": {
-        "headline": "OSS CVE Watch · libheif Day 8/14 · CLEAN",
-        "lead": "178.6M libFuzzer exec · ~23.1h ASAN · corpus 2996 · 0 crashes",
-        "bullets": [
-          "Day 8 libheif: ~178.6M executions @ ~2,147/s · 23.1h",
-          "ASAN=0 · verdict CLEAN",
-          "Persistent HEIF/AVIF corpus: 2996 inputs · 7274 coverage edges",
-          "Ledger: https://hackme.tech/reports/oss-cve-watch-libheif/day08.html",
-          "Series Days 1–8 cumulative ~1223.0M exec on the same corpus"
-        ],
-        "footer": "hackme.tech/reports/oss-cve-watch-libheif/ · research · not a CVE claim"
-      },
-      "discord": {
-        "title": "OSS CVE Watch · libheif Day 8 CLEAN",
-        "body": "**libheif Day 8/14 — CLEAN**\n\n• **~178.6M** libFuzzer exec · ~23.1h · ~2,147/s\n• Corpus **2996** · **7274** edges · **ASAN=0**\n• [Day 8 ledger](https://hackme.tech/reports/oss-cve-watch-libheif/day08.html)\n",
-        "ping": "#announcements"
-      },
-      "links": {
-        "day08": "https://hackme.tech/reports/oss-cve-watch-libheif/day08.html",
-        "hub": "https://hackme.tech/reports/oss-cve-watch-libheif/",
-        "research": "https://hackme.tech/research.html"
-      }
-    },
-    {
-      "id": "2026-07-28-oss-cve-watch-libheif-day07-libfuzzer",
-      "date": "2026-07-28",
-      "title": "OSS CVE Watch · libheif Day 7/14 · 228.61M libFuzzer exec · CLEAN",
-      "summary": "libheif Day 7: 27.1h libFuzzer, 228,614,810 exec at ~2,342/s. Corpus 2901, 7243 coverage edges. ASAN=0 — CLEAN.",
-      "impact": "Cumulative Days 1–7: ~1044.32M exec on persistent HEIF/AVIF corpus.",
-      "action": "Day 7: https://hackme.tech/reports/oss-cve-watch-libheif/day07.html",
-      "tags": [
-        "research",
-        "oss-cve",
-        "fuzzing",
-        "libheif",
-        "day07"
-      ],
-      "status": "published",
-      "telegram": {
-        "headline": "OSS CVE Watch · libheif Day 7/14 · CLEAN",
-        "lead": "228.6M libFuzzer exec · ~27.1h ASAN · corpus 2901 · 0 crashes",
-        "bullets": [
-          "Day 7 libheif: ~228.6M executions @ ~2,342/s · 27.1h",
-          "ASAN=0 · verdict CLEAN",
-          "Persistent HEIF/AVIF corpus: 2901 inputs · 7243 coverage edges",
-          "Ledger: https://hackme.tech/reports/oss-cve-watch-libheif/day07.html",
-          "Series Days 1–7 cumulative ~1044.3M exec on the same corpus"
-        ],
-        "footer": "hackme.tech/reports/oss-cve-watch-libheif/ · research · not a CVE claim"
-      },
-      "discord": {
-        "title": "OSS CVE Watch · libheif Day 7 CLEAN",
-        "body": "**libheif Day 7/14 — CLEAN**\n\n• **~228.6M** libFuzzer exec · ~27.1h · ~2,342/s\n• Corpus **2901** · **7243** edges · **ASAN=0**\n• [Day 7 ledger](https://hackme.tech/reports/oss-cve-watch-libheif/day07.html)\n",
-        "ping": "#announcements"
-      },
-      "links": {
-        "day07": "https://hackme.tech/reports/oss-cve-watch-libheif/day07.html",
-        "hub": "https://hackme.tech/reports/oss-cve-watch-libheif/",
-        "research": "https://hackme.tech/research.html"
-      }
     }
   ],
-  "feed": "recent"
+  "feed": "recent",
+  "_generated": ""
 }

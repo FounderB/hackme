@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HackMe Downloads · 0.1.0-rc16</title>
-  <meta name="description" content="Download HackMe 0.1.0-rc16: Windows Setup, Linux tarball, HackMe OS ISO, signed apt. Verify SHA256 before install." />
+  <title>HackMe Downloads · 0.1.0-rc17</title>
+  <meta name="description" content="HackMe 0.1.0-rc17 channel: paper exchange, SUP wallet, Hunt. Download last published Win/Linux/ISO (0.1.0-rc16) until rc17 SHA lands. Verify SHA256." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260914dev1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="/assets/favicon.png" type="image/png" />
   <style>
@@ -34,7 +34,7 @@
       transform: translateY(-2px);
     }
     .dl-pick .card h3 {
-      font-family: "Space Grotesk", Inter, sans-serif;
+      font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
       letter-spacing: 0.02em;
       margin: 0;
     }
@@ -89,37 +89,40 @@
   <main class="container">
     <section class="hero glass hero-small" id="start">
       <p class="kicker">Downloads</p>
-      <h1>Get HackMe · mine in minutes</h1>
+      <h1>Get the miner</h1>
       <p class="hero-copy">
-        Channel <strong id="dl-release-ver">0.1.0-rc16</strong>
-        · verify SHA256 ·
-        <a href="https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16" target="_blank" rel="noreferrer">GitHub release</a>
+        Channel <strong id="dl-release-ver">0.1.0-rc17</strong>
+        · always verify SHA256 ·
+        <a id="dl-github-release" href="https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16" target="_blank" rel="noreferrer">GitHub 0.1.0-rc16</a>
+      </p>
+      <p id="dl-artifact-note" class="subtle" style="margin-top:0.55rem;max-width:40rem">
+        Installers still point to the last published build (<strong>0.1.0-rc16</strong>) until new SHA256SUMS are out.
       </p>
       <div class="dl-meta-row" aria-label="Release facts">
-        <span class="dl-chip">Status <strong>LIVE</strong></span>
-        <span class="dl-chip">Self-update <strong>L1</strong></span>
+        <span class="dl-chip">Channel <strong>rc17</strong></span>
+        <span class="dl-chip">Installers <strong>rc16</strong></span>
+        <span class="dl-chip">Self-update <strong>on</strong></span>
         <span class="dl-chip">Apt <strong>hackme-node</strong></span>
-        <span class="dl-chip">ISO <strong>rc16</strong></span>
       </div>
 
       <div class="dl-pick">
         <article class="card glass">
           <h3>Windows</h3>
-          <p class="subtle">Setup (no admin) + pool token. Watchdog keeps the worker alive.</p>
+          <p class="subtle">One-click Setup. Watchdog keeps the worker running.</p>
           <a id="download-win" class="btn btn-primary btn-block" href="#">Download Setup (.exe)</a>
           <a id="download-win-zip" class="btn btn-secondary btn-block" href="#">Portable ZIP</a>
         </article>
         <article class="card glass">
           <h3>Linux</h3>
-          <p class="subtle">Tarball with <code>hackme</code> + GPU workers, or <code>.deb</code> into <code>/opt/hackme</code>.</p>
+          <p class="subtle">Tarball with miners, or <code>.deb</code> into <code>/opt/hackme</code>.</p>
           <a id="download-linux" class="btn btn-primary btn-block" href="#">Download Linux Bundle</a>
-          <a id="download-linux-deb" class="btn btn-secondary btn-block" href="#">Download .deb (hackme-node)</a>
+          <a id="download-linux-deb" class="btn btn-secondary btn-block" href="#">Download .deb</a>
           <p class="subtle" style="font-size:0.82rem">Tar: <code>cd linux &amp;&amp; bash start_hackme_miner.sh</code><br>
-            Deb: <code>sudo apt install ./hackme-node_*.deb</code> · or full apt → <a href="#apt">#apt</a></p>
+            Deb: <code>sudo apt install ./hackme-node_*.deb</code> · apt repo → <a href="#apt">#apt</a></p>
         </article>
         <article class="card glass" id="hackme-os">
           <h3>HackMe OS</h3>
-          <p class="subtle">Live USB — wallet + mining auto. Flash whole disk, verify ISO SHA.</p>
+          <p class="subtle">Bootable USB — wallet + mining. Verify ISO SHA before flash.</p>
           <a id="download-iso" class="btn btn-primary btn-block" href="#">Download ISO</a>
           <a id="download-iso-sha" class="btn btn-secondary btn-block" href="#">SHA256SUMS (ISO)</a>
           <p id="download-iso-status" class="subtle" style="font-size:0.82rem">Checking availability…</p>
@@ -163,12 +166,12 @@ sudo apt update &amp;&amp; sudo apt install hackme-node</code></pre>
       <div class="panel-head">
         <p class="kicker" style="color:#00d1ff">B2B · Local node</p>
         <h2>Orders stay on your PC</h2>
-        <p class="subtle">Run the same node as miners. Dashboard <code>http://127.0.0.1:8080</code> → Wallet → Market. Pool only executes work.</p>
+        <p class="subtle">Run the same node as miners. Dashboard <code>http://127.0.0.1:8080</code> → Wallet → Market. Paper Exchange: <a href="http://127.0.0.1:8080/#exchange"><code>#exchange</code></a> (embeds <a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a>). Pool only executes work.</p>
       </div>
       <ol class="check-list" style="margin-top:0.85rem">
         <li>Install Windows / Linux / apt / ISO above.</li>
         <li>Open dashboard → <strong>Developer token</strong> → Issue.</li>
-        <li>Create order in <strong>#orders</strong>, or CLI: <code>hackme-fuzzing wizard --pack secrets --package audit</code>.</li>
+        <li>Create order in <strong>#orders</strong>, or CLI: <code>hackme-fuzzing wizard --pack secrets --package audit</code> · CI scan: <code>wizard --wasm guard.wasm --package scan</code>.</li>
       </ol>
       <p class="dl-muted-links subtle">
         <a href="./orders.html">Orders path</a> ·
@@ -240,7 +243,7 @@ chmod +x hackme-fuzzing-*
     <div class="footer-nav"></div>
   </footer>
 
-  <script src="./assets/site-shell.js?v=20260827rc16b"></script>
-  <script src="./assets/app.js?v=20260827rc16b"></script>
+  <script src="./assets/site-shell.js?v=20260914dev1"></script>
+  <script src="./assets/app.js?v=20260914dev1"></script>
 </body>
 </html>

@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HackMe Research — Multi-chain L1 &amp; Security Reports</title>
-  <meta name="description" content="Public security research: L1 live prod fuzz, Bitcoin 30-Day series, OSS case studies (mkpool), upstream WASM — honest scope, fuzz_report_v2 ledgers." />
+  <title>HackMe Research — Hunt Watch, L1 &amp; Security Ledgers</title>
+  <meta name="description" content="Public security research: Hunt Watch 12/12 (~192.5M Hunt Standard), OSS CVE Watch (nghttp2/libheif), Bitcoin 30-Day, L1 live prod fuzz — honest ledgers, not CVE claims." />
   <link rel="canonical" href="https://hackme.tech/research.html" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20260717site" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260914dev1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
 </head>
 <body>
   <div class="bg-glow bg-glow-a" aria-hidden="true"></div>
@@ -28,15 +28,41 @@
       <p class="kicker">Security research · Ecosystem</p>
       <h1>Research hub</h1>
       <p class="hero-copy">
-        Public ledgers for <strong>live prod fuzz</strong>, the <strong>Bitcoin 30-Day</strong> series,
-        and <strong>OSS case studies</strong> — all in <code>fuzz_report_v2</code> or campaign HTML.
+        Public ledgers for <strong>Hunt Watch</strong> (ASAN/UBSan product lane),
+        the <strong>Bitcoin 30-Day</strong> series, <strong>OSS CVE Watch</strong> (libFuzzer),
+        and <strong>live prod fuzz</strong> — honest scope, published HTML.
         Customer audits stay <strong>token-gated</strong> on your local node — see <a href="./developers.html">Developers</a>.
       </p>
       <div class="pill-row">
+        <span class="pill">Hunt Watch 12/12</span>
         <span class="pill">5-chain L1 WASM</span>
         <span class="pill">Bitcoin30 series</span>
         <span class="pill">OSS parser fuzz</span>
         <span class="pill">0 critical · honest triage</span>
+      </div>
+    </section>
+
+    <section class="panel glass research-section">
+      <div class="research-section-head">
+        <div>
+          <h2>Hunt Watch · 2026sep</h2>
+          <p class="subtle">Series complete · 12/12 days · Hunt Standard (ASAN+UBSan) · not libFuzzer</p>
+        </div>
+        <a class="btn btn-secondary" href="./reports/hunt-watch-2026sep/" style="font-size:0.82rem;padding:0.45rem 0.9rem">Series ledger</a>
+      </div>
+      <div class="research-grid">
+        <a class="research-card research-card-featured" href="./reports/hunt-watch-2026sep/">
+          <span class="research-tag series">12/12 · complete</span>
+          <h3>Multi-target Hunt Standard marathon</h3>
+          <p>50 target runs · ~192.5M iterations · 43 CLEAN · 2 CVE_CANDIDATE · 5 INFORMATIONAL. Product-lane ledger — separate from nghttp2/libheif libFuzzer watches.</p>
+          <div class="research-stats notranslate"><span><b>~192.5M</b> iter</span><span><b>43</b> CLEAN</span><span><b>2</b> signal</span></div>
+        </a>
+        <a class="research-card" href="./reports/hunt-watch-2026sep/#signals">
+          <span class="research-tag series">Highlights</span>
+          <h3>sheredom · libucl · cfgpack</h3>
+          <p>CVE_CANDIDATE / INFORMATIONAL sanitizer classes — public triage notes, not CVE IDs. Full table on the ledger.</p>
+          <div class="research-stats notranslate"><span>ASAN+UBSan</span><span>honest scope</span></div>
+        </a>
       </div>
     </section>
 
@@ -271,7 +297,7 @@
     <p class="muted">Ecosystem: mine · fuzz · research · explore.</p>
     <div class="footer-nav"></div>
   </footer>
-  <script src="./assets/site-shell.js?v=20260824iso"></script>
-  <script src="./assets/app.js?v=20260824iso"></script>
+  <script src="./assets/site-shell.js?v=20260914dev1"></script>
+  <script src="./assets/app.js?v=20260914dev1"></script>
 </body>
 </html>

@@ -14,11 +14,26 @@ func (s *Service) deriveGuidedPoolInputs(ctx context.Context, campaignID string,
 	if err != nil {
 		return 0, nil, nil, err
 	}
-	u, b := fuzzengine.GuidedInputForWork(inputN, cfg, seeds)
+	rarity, _ := s.loadEdgeHitCounts(ctx, campaignID)
+	if rarity == nil {
+		rarity = fuzzengine.BuildEdgeHitCounts(seeds)
+	}
+	u, b := fuzzengine.GuidedInputForWorkWithRarity(inputN, cfg, seeds, rarity)
 	return u, b, seeds, nil
 }
 
 func (s *Service) expectedInputsForSubmit(ctx context.Context, campaignID string, itemID int64, inputN uint64, cfg map[string]any) (uint64, []byte, error) {
+	if IsHuntCampaign(cfg) {
+		u, b, locked, err := s.loadExpectedInputs(ctx, campaignID, itemID)
+		if err != nil {
+			return 0, nil, err
+		}
+		if !locked {
+			b = HuntShardInputBytes(campaignID, inputN, cfg)
+			u = fuzzengine.PackInputBytesToU64(b)
+		}
+		return u, b, nil
+	}
 	if !fuzzengine.GuidedSchedulingEnabled(cfg) {
 		u, b := derivePoolInputs(inputN, cfg)
 		return u, b, nil
@@ -62,6 +77,9 @@ func (s *Service) LockGuidedWorkItem(ctx context.Context, campaignID string, ite
 }
 
 func (s *Service) buildClaimedWork(ctx context.Context, campaignID string, itemID int64, inputN uint64, cfg map[string]any, workerID string) (ClaimedWork, error) {
+	if IsHuntCampaign(cfg) {
+		return s.buildHuntClaimedWork(ctx, campaignID, itemID, inputN, cfg, workerID)
+	}
 	wasmHex := wasmHexFromConfig(cfg)
 	sem := fuzzengine.ParseCheckSemantics(cfg)
 	var actualU uint64

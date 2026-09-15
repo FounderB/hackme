@@ -1,6 +1,83 @@
 {
   "items": [
     {
+      "id": "2026-09-14-hunt-watch-2026sep-finale",
+      "date": "2026-09-14",
+      "title": "Hunt Watch 12/12 · ~192.5M Hunt Standard · public ledger",
+      "summary": "The 12-day Hunt Watch (2026sep) is closed: 50 target runs, 192,507,336 iterations on Hunt Standard (ASAN+UBSan subprocess — not libFuzzer). Verdicts: 43 CLEAN · 2 CVE_CANDIDATE · 5 INFORMATIONAL. Honest product-lane ledger — separate from the nghttp2/libheif OSS CVE Watch series.",
+      "impact": "Public proof that Hunt ships as a multi-target sanitizer audit with a publishable report. CLEAN on mature parsers is expected; CVE_CANDIDATE means sanitizer-class triage, not a CVE ID claim.",
+      "action": "Ledger: https://hackme.tech/reports/hunt-watch-2026sep/ · Research: https://hackme.tech/research.html · Order Hunt: https://hackme.tech/orders.html",
+      "tags": [
+        "research",
+        "hunt",
+        "watch",
+        "asan",
+        "ledger"
+      ],
+      "status": "published",
+      "telegram": {
+        "headline": "Hunt Watch 12/12 — ledger live",
+        "lead": "12 days · Hunt Standard (ASAN+UBSan) · ~192.5M iter · not libFuzzer.",
+        "bullets": [
+          "50 target runs · 43 CLEAN · 2 CVE_CANDIDATE · 5 INFORMATIONAL",
+          "Product lane — separate from nghttp2/libheif libFuzzer watches",
+          "CLEAN on mature parsers = honest outcome, not a miss",
+          "Full day strip + signals on the public ledger"
+        ],
+        "footer": "hackme.tech/reports/hunt-watch-2026sep/ · not a CVE claim"
+      },
+      "discord": {
+        "title": "Hunt Watch 12/12 — public ledger",
+        "body": "**Hunt Watch 2026sep closed**\n\n• ~192.5M Hunt Standard iterations (ASAN+UBSan)\n• 43 CLEAN · 2 CVE_CANDIDATE · 5 INFORMATIONAL\n• Not libFuzzer — product-lane ledger\n\nhttps://hackme.tech/reports/hunt-watch-2026sep/",
+        "ping": "#announcements"
+      },
+      "links": {
+        "ledger": "https://hackme.tech/reports/hunt-watch-2026sep/",
+        "research": "https://hackme.tech/research.html",
+        "orders": "https://hackme.tech/orders.html",
+        "news": "https://hackme.tech/news.html"
+      }
+    },
+    {
+      "id": "2026-09-14-rc17-cutover-channel",
+      "date": "2026-09-14",
+      "title": "0.1.0-rc17 — cutover channel (paper exchange · SUP · Hunt)",
+      "summary": "rc17 channel bump for hub UI + cutover prep: paper Exchange desk (D0), SUP wallet send/activity routes, Hunt ASAN escrow pool, Dig customer-first. Download binaries stay on last published 0.1.0-rc16 until SHA256SUMS for rc17 are published — no fake LIVE ISO hashes.",
+      "impact": "Operators: prepare nginx SUP allowlist + exchange static; do not restart production hub early. Miners: keep using rc16 installers via downloads until the rc17 bundle lands.",
+      "action": "Cutover plan: https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/RC17_CUTOVER.md · Downloads: https://hackme.tech/downloads.html · Last published: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16",
+      "tags": [
+        "release",
+        "rc17",
+        "cutover",
+        "exchange",
+        "sup",
+        "hunt"
+      ],
+      "status": "published",
+      "telegram": {
+        "headline": "0.1.0-rc17 channel — cutover window",
+        "lead": "Paper exchange · SUP wallet · Hunt. Installers still 0.1.0-rc16 until SHA lands.",
+        "bullets": [
+          "Hub #exchange → exchange.hackme.tech paper desk",
+          "SUP send/activity + Hunt ASAN escrow",
+          "No fake ISO SHA — artifacts flip at cutover",
+          "Stay on rc16 binaries until downloads show new SUMS"
+        ],
+        "footer": "hackme.tech/downloads.html · RC17_CUTOVER.md · not financial advice"
+      },
+      "discord": {
+        "title": "0.1.0-rc17 channel — cutover (not fake LIVE)",
+        "body": "**HackMe 0.1.0-rc17 channel**\n\n• Paper Exchange + SUP wallet + Hunt\n• Installers still **0.1.0-rc16** until SHA256SUMS\n• Cutover: docs/RC17_CUTOVER.md\n\nhttps://hackme.tech/downloads.html",
+        "ping": "#announcements"
+      },
+      "links": {
+        "downloads": "https://hackme.tech/downloads.html",
+        "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16",
+        "news": "https://hackme.tech/news.html",
+        "cutover": "https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/RC17_CUTOVER.md"
+      }
+    },
+    {
       "id": "2026-08-27-release-rc16-update-channel",
       "date": "2026-08-27",
       "title": "0.1.0-rc16 — self-update channel + signed apt + branded Linux menu",

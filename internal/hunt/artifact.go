@@ -1,0 +1,312 @@
+package hunt
+
+import (
+	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+)
+
+const maxHarnessArtifactBytes = 32 << 20 // 32 MiB
+
+var harnessHashRe = regexp.MustCompile(`(?i)^[a-f0-9]{8,128}$`)
+
+// ValidHarnessHash rejects path traversal / non-hex ids used in cache filenames.
+func ValidHarnessHash(hash string) bool {
+	hash = strings.TrimSpace(hash)
+	return harnessHashRe.MatchString(hash)
+}
+
+// PutHarnessArtifact stores a published Hunt harness binary keyed by hash.
+func PutHarnessArtifact(ctx context.Context, db *sql.DB, hash string, data []byte, sourceRel string) error {
+	if db == nil {
+		return fmt.Errorf("hunt artifact: no database")
+	}
+	hash = strings.TrimSpace(hash)
+	if !ValidHarnessHash(hash) {
+		return fmt.Errorf("hunt artifact: invalid harness hash")
+	}
+	if len(data) == 0 {
+		return fmt.Errorf("hunt artifact: empty binary")
+	}
+	if len(data) > maxHarnessArtifactBytes {
+		return fmt.Errorf("hunt artifact: exceeds %d bytes", maxHarnessArtifactBytes)
+	}
+	now := time.Now().Unix()
+	var existing []byte
+	err := db.QueryRowContext(ctx,
+		`SELECT binary_blob FROM hunt_harness_artifacts WHERE harness_hash=?`, hash).Scan(&existing)
+	if err == nil {
+		if !bytesEqual(existing, data) {
+			return fmt.Errorf("hunt artifact: harness_hash %s already bound to different binary", hash)
+		}
+		return nil
+	}
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	_, err = db.ExecContext(ctx,
+		`INSERT INTO hunt_harness_artifacts (harness_hash, binary_blob, byte_size, source_rel, created_at)
+		 VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT(harness_hash) DO UPDATE SET
+		   binary_blob=excluded.binary_blob,
+		   byte_size=excluded.byte_size,
+		   source_rel=CASE WHEN excluded.source_rel != '' THEN excluded.source_rel ELSE hunt_harness_artifacts.source_rel END,
+		   created_at=excluded.created_at`,
+		hash, data, len(data), strings.TrimSpace(sourceRel), now)
+	return err
+}
+
+func bytesEqual(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	var v byte
+	for i := range a {
+		v |= a[i] ^ b[i]
+	}
+	return v == 0
+}
+
+// GetHarnessArtifact loads a published harness binary.
+func GetHarnessArtifact(ctx context.Context, db *sql.DB, hash string) ([]byte, error) {
+	if db == nil {
+		return nil, fmt.Errorf("hunt artifact: no database")
+	}
+	hash = strings.TrimSpace(hash)
+	if !ValidHarnessHash(hash) {
+		return nil, fmt.Errorf("hunt artifact: invalid harness hash")
+	}
+	var blob []byte
+	err := db.QueryRowContext(ctx,
+		`SELECT binary_blob FROM hunt_harness_artifacts WHERE harness_hash=?`, hash).
+		Scan(&blob)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("hunt artifact: %s not found", hash)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return blob, nil
+}
+
+// PublishHarnessFile reads a local harness binary into the artifact store.
+func PublishHarnessFile(ctx context.Context, db *sql.DB, hash, path, sourceRel string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return PutHarnessArtifact(ctx, db, hash, data, sourceRel)
+}
+
+// MaterializeHarness writes a harness to repo cache, loading from DB or HTTP fetch URL when needed.
+func MaterializeHarness(ctx context.Context, repoRoot, hash, fetchURL string, db *sql.DB) (string, error) {
+	hash = strings.TrimSpace(hash)
+	if !ValidHarnessHash(hash) {
+		return "", fmt.Errorf("hunt artifact: invalid harness hash")
+	}
+	if repoRoot == "" {
+		repoRoot = RepoRoot()
+	}
+	cachePath := huntHarnessCachePath(repoRoot, hash)
+	if st, err := osStat(cachePath); err == nil && st {
+		harnessCache.Store(hash, cachePath)
+		return cachePath, nil
+	}
+	var data []byte
+	var err error
+	if db != nil {
+		data, err = GetHarnessArtifact(ctx, db, hash)
+		if err != nil && strings.TrimSpace(fetchURL) == "" {
+			return "", err
+		}
+	}
+	if len(data) == 0 && strings.TrimSpace(fetchURL) != "" {
+		data, err = fetchHarnessHTTP(ctx, fetchURL)
+		if err != nil {
+			return "", err
+		}
+	}
+	if len(data) == 0 {
+		return "", fmt.Errorf("hunt artifact: %s not available locally", hash)
+	}
+	if err := os.MkdirAll(filepath.Dir(cachePath), 0o755); err != nil {
+		return "", err
+	}
+	tmp := cachePath + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmp, cachePath); err != nil {
+		_ = os.Remove(tmp)
+		return "", err
+	}
+	harnessCache.Store(hash, cachePath)
+	return cachePath, nil
+}
+
+func fetchHarnessHTTP(ctx context.Context, rawURL string) ([]byte, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if strings.HasPrefix(rawURL, "/api/fuzz/pool/hunt/harness/") {
+		base := strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_URL"))
+		if base == "" {
+			base = strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_URL"))
+		}
+		if base == "" {
+			return nil, fmt.Errorf("hunt artifact: relative fetch needs HACKME_POOL_COORDINATOR_URL")
+		}
+		rawURL = strings.TrimRight(base, "/") + rawURL
+	}
+	if !SafeHarnessFetchURL(rawURL) {
+		return nil, fmt.Errorf("hunt artifact: fetch url not allowed")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	u, _ := url.Parse(rawURL)
+	_, harnessOK := harnessFetchPathHash(u)
+	attachBearer := harnessOK
+	if attachBearer {
+		if coord := strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_URL")); coord != "" {
+			if !sameCoordinatorHost(coord, u) {
+				attachBearer = false
+			}
+		}
+	}
+	if attachBearer {
+		token := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_WORKER_TOKEN"))
+		if token == "" {
+			token = strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_WORKER_TOKEN"))
+		}
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(io.LimitReader(res.Body, 512))
+		return nil, fmt.Errorf("hunt artifact fetch HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(b)))
+	}
+	data, err := io.ReadAll(io.LimitReader(res.Body, maxHarnessArtifactBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxHarnessArtifactBytes {
+		return nil, fmt.Errorf("hunt artifact: fetch exceeds max size")
+	}
+	return data, nil
+}
+
+// SafeHarnessFetchURL allows relative coordinator harness paths, same-host coordinator
+// absolute URLs (incl. :port and /pool/coordinator prefix), or https public hosts
+// with the harness path (blocks SSRF/private IPs).
+func SafeHarnessFetchURL(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	if strings.HasPrefix(raw, "/") {
+		_, ok := harnessFetchPathHash(&url.URL{Path: raw})
+		return ok
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+		return false
+	}
+	if _, ok := harnessFetchPathHash(u); !ok {
+		return false
+	}
+	if coord := strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_URL")); coord != "" {
+		if sameCoordinatorHost(coord, u) {
+			return true
+		}
+	}
+	if u.Scheme != "https" {
+		return false
+	}
+	host := u.Hostname()
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" || strings.HasSuffix(host, ".local") {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+			return false
+		}
+	}
+	return true
+}
+
+func harnessFetchPathHash(u *url.URL) (string, bool) {
+	if u == nil {
+		return "", false
+	}
+	p := path.Clean(u.Path)
+	for _, prefix := range []string{
+		"/api/fuzz/pool/hunt/harness/",
+		"/pool/coordinator/api/fuzz/pool/hunt/harness/",
+	} {
+		if !strings.HasPrefix(p, prefix) {
+			continue
+		}
+		h := strings.Trim(strings.TrimPrefix(p, prefix), "/")
+		if ValidHarnessHash(h) && !strings.Contains(h, "/") && !strings.Contains(h, "..") {
+			return h, true
+		}
+	}
+	return "", false
+}
+
+func sameCoordinatorHost(coordURL string, u *url.URL) bool {
+	cu, err := url.Parse(strings.TrimSpace(coordURL))
+	if err != nil || cu.Host == "" || u == nil || u.Host == "" {
+		return false
+	}
+	if !strings.EqualFold(cu.Hostname(), u.Hostname()) {
+		return false
+	}
+	return urlPortOrDefault(cu) == urlPortOrDefault(u)
+}
+
+func urlPortOrDefault(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	if p := u.Port(); p != "" {
+		return p
+	}
+	if u.Scheme == "https" {
+		return "443"
+	}
+	return "80"
+}
+
+// HarnessFetchURL builds coordinator-relative fetch path for workers.
+func HarnessFetchURL(hash string) string {
+	hash = strings.TrimSpace(hash)
+	if !ValidHarnessHash(hash) {
+		return ""
+	}
+	return "/api/fuzz/pool/hunt/harness/" + hash
+}
+
+// ContentFingerprint returns sha256 hex of harness bytes (ops / integrity checks).
+func ContentFingerprint(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}

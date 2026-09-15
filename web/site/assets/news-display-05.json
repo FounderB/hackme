@@ -1,6 +1,36 @@
 {
   "items": [
     {
+      "id": "2026-05-19-bitcointalk-ann-live",
+      "date": "2026-05-19",
+      "title": "Bitcointalk ANN is live — official pool thread",
+      "summary": "The HackMe pool announcement is published on Bitcoin Forum (Pools / Altcoins): topic 5583373. Links to hackme.tech, downloads, GitHub source, economics, and miner quick start.",
+      "impact": "Miners can discuss setup, WORKER_PAYOUT_MAP, and economics in the official thread. Site Contacts now links to the live forum URL.",
+      "action": "Thread: https://bitcointalk.org/index.php?topic=5583373.0 — join mining via https://hackme.tech/downloads.html",
+      "tags": [
+        "community",
+        "announcement",
+        "mining",
+        "pool"
+      ],
+      "status": "published"
+    },
+    {
+      "id": "2026-05-18-public-pool-fair-economics",
+      "date": "2026-05-18",
+      "title": "Public pool economics: fair attempt-based accrual for all miners",
+      "summary": "Official pool policy updated: payout_found_only=0 with reward_auto and hybrid signer strict — miners accrue HMC for accepted work (capped per batch), not only on rare found hits. Settlement loop verified; see economics-model.html and docs/MINER_POOL_ECONOMICS.md.",
+      "impact": "New and existing miners see Unpaid worker accrual grow with hashrate/submits. Found bonus still applies. Block subsidy remains on the producing node wallet; pool paycheck = coordinator accrual + settlement.",
+      "action": "Set WORKER_PAYOUT_MAP=your-worker-id=HMC-your-address. Read https://hackme.tech/economics-model.html — verify SHA256 on Downloads. GitHub: https://github.com/jokeez/hackme",
+      "tags": [
+        "economics",
+        "mining",
+        "pool",
+        "transparency"
+      ],
+      "status": "published"
+    },
+    {
       "id": "2026-05-18-open-source-github",
       "date": "2026-05-18",
       "title": "🚀 Open source: HackMe stack on GitHub (Apache-2.0)",
@@ -222,35 +252,6 @@
         "mining",
         "ops",
         "release"
-      ],
-      "status": "deployed"
-    },
-    {
-      "id": "2026-05-05-predeploy-gate-and-canonical-ops-pass",
-      "date": "2026-05-05",
-      "title": "Predeploy Gate Added, Canonical Ops Pass Confirmed",
-      "summary": "A new one-command predeploy gate is now live with practical checks for test suite, canonical proxy parity, wallet source consistency, and worker-mode health. Public stack deployment completed successfully after gate pass.",
-      "impact": "Operators can validate follower and worker readiness before rollout with a deterministic PASS/FAIL flow, reducing drift between local dashboards and canonical chain reality.",
-      "action": "Run scripts/ops/predeploy_gate.sh before each public deployment and monitor worker-mode health and canonical parity in regular operations.",
-      "tags": [
-        "release",
-        "ops",
-        "explorer",
-        "mining"
-      ],
-      "status": "deployed"
-    },
-    {
-      "id": "2026-05-04-telegram-channel-bot-live",
-      "date": "2026-05-04",
-      "title": "Telegram Channel Bot is Live",
-      "summary": "Official HackMe channel automation is now active: new News entries are published directly to Telegram with status, impact, action, and deep links.",
-      "impact": "Community updates now ship in real time without waiting for manual reposts, improving communication reliability for miners and operators.",
-      "action": "Follow the official channel and use the News page as the source of truth for release and operations updates.",
-      "tags": [
-        "ops",
-        "news",
-        "community"
       ],
       "status": "deployed"
     }

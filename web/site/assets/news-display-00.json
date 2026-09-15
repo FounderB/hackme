@@ -1,6 +1,39 @@
 {
   "items": [
     {
+      "id": "2026-09-14-hunt-watch-2026sep-finale",
+      "date": "2026-09-14",
+      "title": "Hunt Watch 12/12 · ~192.5M Hunt Standard · public ledger",
+      "summary": "The 12-day Hunt Watch (2026sep) is closed: 50 target runs, 192,507,336 iterations on Hunt Standard (ASAN+UBSan subprocess — not libFuzzer). Verdicts: 43 CLEAN · 2 CVE_CANDIDATE · 5 INFORMATIONAL. Honest product-lane ledger — separate from the nghttp2/libheif OSS CVE Watch series.",
+      "impact": "Public proof that Hunt ships as a multi-target sanitizer audit with a publishable report. CLEAN on mature parsers is expected; CVE_CANDIDATE means sanitizer-class triage, not a CVE ID claim.",
+      "action": "Ledger: https://hackme.tech/reports/hunt-watch-2026sep/ · Research: https://hackme.tech/research.html · Order Hunt: https://hackme.tech/orders.html",
+      "tags": [
+        "research",
+        "hunt",
+        "watch",
+        "asan",
+        "ledger"
+      ],
+      "status": "published"
+    },
+    {
+      "id": "2026-09-14-rc17-cutover-channel",
+      "date": "2026-09-14",
+      "title": "0.1.0-rc17 — cutover channel (paper exchange · SUP · Hunt)",
+      "summary": "rc17 channel bump for hub UI + cutover prep: paper Exchange desk (D0), SUP wallet send/activity routes, Hunt ASAN escrow pool, Dig customer-first. Download binaries stay on last published 0.1.0-rc16 until SHA256SUMS for rc17 are published — no fake LIVE ISO hashes.",
+      "impact": "Operators: prepare nginx SUP allowlist + exchange static; do not restart production hub early. Miners: keep using rc16 installers via downloads until the rc17 bundle lands.",
+      "action": "Cutover plan: https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/RC17_CUTOVER.md · Downloads: https://hackme.tech/downloads.html · Last published: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16",
+      "tags": [
+        "release",
+        "rc17",
+        "cutover",
+        "exchange",
+        "sup",
+        "hunt"
+      ],
+      "status": "published"
+    },
+    {
       "id": "2026-08-27-release-rc16-update-channel",
       "date": "2026-08-27",
       "title": "0.1.0-rc16 — self-update channel + signed apt + branded Linux menu",
@@ -243,38 +276,6 @@
         "fuzzing",
         "libheif",
         "day05"
-      ],
-      "status": "published"
-    },
-    {
-      "id": "2026-07-25-oss-cve-watch-libheif-day04-libfuzzer",
-      "date": "2026-07-25",
-      "title": "OSS CVE Watch · libheif Day 4/14 · 175.71M libFuzzer exec · CLEAN",
-      "summary": "libheif Day 4: ~23.4h libFuzzer across 54 sessions, 175,710,789 exec at ~2,085/s. Corpus 2589, 7073 coverage edges. ASAN=0 — CLEAN.",
-      "impact": "Cumulative Days 1–4: ~431.73M exec on persistent HEIF/AVIF corpus.",
-      "action": "Day 4: https://hackme.tech/reports/oss-cve-watch-libheif/day04.html",
-      "tags": [
-        "research",
-        "oss-cve",
-        "fuzzing",
-        "libheif",
-        "day04"
-      ],
-      "status": "published"
-    },
-    {
-      "id": "2026-07-24-oss-cve-watch-libheif-day03-libfuzzer",
-      "date": "2026-07-24",
-      "title": "OSS CVE Watch · libheif Day 3/14 · 139.61M libFuzzer exec · CLEAN",
-      "summary": "libheif Day 3: ~19.1h libFuzzer across 42 sessions, 139,612,677 exec at ~2,035/s. Corpus 2421, 7038 coverage edges. ASAN=0 — CLEAN.",
-      "impact": "Cumulative Days 1–3: ~256.02M exec on persistent HEIF/AVIF corpus.",
-      "action": "Day 3: https://hackme.tech/reports/oss-cve-watch-libheif/day03.html",
-      "tags": [
-        "research",
-        "oss-cve",
-        "fuzzing",
-        "libheif",
-        "day03"
       ],
       "status": "published"
     }

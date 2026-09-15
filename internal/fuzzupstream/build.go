@@ -21,11 +21,18 @@ var buildMu sync.Mutex
 
 // BuildTarget clones upstream (if needed) and compiles ASAN stdin fuzz driver.
 func BuildTarget(ctx context.Context, repoRoot string, t Target) (binPath, clonePath string, err error) {
-	if _, err := exec.LookPath("clang"); err != nil {
-		return "", "", fmt.Errorf("fuzzupstream: clang required")
-	}
 	if repoRoot == "" {
 		repoRoot = "."
+	}
+	if TargetLanguage(t) == "rust" {
+		return buildTargetRust(ctx, repoRoot, t)
+	}
+	return buildTargetC(ctx, repoRoot, t)
+}
+
+func buildTargetC(ctx context.Context, repoRoot string, t Target) (binPath, clonePath string, err error) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		return "", "", fmt.Errorf("fuzzupstream: clang required")
 	}
 	cacheDir := filepath.Join(repoRoot, ".cache", "oss-cve-clones")
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
@@ -38,7 +45,7 @@ func BuildTarget(ctx context.Context, repoRoot string, t Target) (binPath, clone
 	if err := injectOSSCveBuildStubs(repoRoot, t.ID, clonePath); err != nil {
 		return "", "", err
 	}
-	driverSrc := filepath.Join(repoRoot, "tasks", "sources", "fuzz", "oss", t.Driver+".c")
+	driverSrc := DriverSourcePath(repoRoot, t)
 	if _, err := os.Stat(driverSrc); err != nil {
 		return "", "", fmt.Errorf("fuzzupstream: driver %s: %w", driverSrc, err)
 	}
@@ -301,7 +308,27 @@ func buildTimeout(t Target) time.Duration {
 	switch t.ID {
 	case "libxml2", "duktape", "nghttp2":
 		return 300 * time.Second
+	case "serde_json", "memchr", "quick_xml":
+		return 600 * time.Second
 	default:
+		if TargetLanguage(t) == "rust" {
+			return 600 * time.Second
+		}
 		return 120 * time.Second
 	}
+}
+
+// InjectOSSCveBuildStubs applies target-specific clone stubs before OSS builds.
+func InjectOSSCveBuildStubs(repoRoot, targetID, clonePath string) error {
+	return injectOSSCveBuildStubs(repoRoot, targetID, clonePath)
+}
+
+// IncludeDir resolves manifest include_dirs relative to clone or repo tasks/.
+func IncludeDir(repoRoot, clonePath, inc string) string {
+	return includeDir(repoRoot, clonePath, inc)
+}
+
+// ExpandUpstreamSrc expands manifest upstream_src globs under a clone directory.
+func ExpandUpstreamSrc(clonePath string, patterns []string) []string {
+	return expandUpstreamSrc(clonePath, patterns)
 }

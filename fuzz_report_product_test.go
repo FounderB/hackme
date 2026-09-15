@@ -12,6 +12,27 @@ import (
 	"time"
 )
 
+func TestBuildFindingReproHuntTrimmed(t *testing.T) {
+	f := fuzzFinding{
+		FindingType: "native_crash",
+		Severity:    "critical",
+		ReproCmd:    "./harness.bin < crash.bin",
+		InputSHA256: "abc",
+		Detail: map[string]any{
+			"input_hex":              "63726173",
+			"input_hex_original_len": 847,
+			"hunt_trimmed":           true,
+		},
+	}
+	repro := buildFindingRepro(f)
+	if !repro.Trimmed || repro.OriginalInputLen != 847 {
+		t.Fatalf("repro=%+v", repro)
+	}
+	if repro.InputHex == "" {
+		t.Fatalf("missing input_hex")
+	}
+}
+
 func TestMoneySpentFromCampaignIgnoresBudget(t *testing.T) {
 	c := fuzzCampaign{
 		Config:  map[string]any{"budget_hmc": 5.0, "escrow_budget_hmc": 5.0},
@@ -37,12 +58,15 @@ func TestPartitionFindingsCrashFirst(t *testing.T) {
 		{ID: "3", FindingType: "property_violation", Severity: "medium", Title: "prop"},
 		{ID: "4", FindingType: "hang", Severity: "high", Title: "hung", ReproCmd: "cmd", InputSHA256: "cc"},
 	}
-	top, noise, crashN, noiseN := partitionFindingsCrashFirst(findings, 5, 25)
-	if crashN != 2 || noiseN != 2 {
-		t.Fatalf("counts crash=%d noise=%d", crashN, noiseN)
+	top, hygiene, noise, crashN, hygieneN, noiseN := partitionFindingsCrashFirst(findings, 5, 25)
+	if crashN != 2 || noiseN != 2 || hygieneN != 0 {
+		t.Fatalf("counts crash=%d hygiene=%d noise=%d", crashN, hygieneN, noiseN)
 	}
 	if len(top) != 2 {
 		t.Fatalf("top len=%d want 2", len(top))
+	}
+	if len(hygiene) != 0 {
+		t.Fatalf("hygiene len=%d want 0", len(hygiene))
 	}
 	for _, it := range top {
 		if it.FindingType == "security_violation" || it.FindingType == "property_violation" {
@@ -51,6 +75,15 @@ func TestPartitionFindingsCrashFirst(t *testing.T) {
 	}
 	if len(noise) != 2 {
 		t.Fatalf("noise len=%d", len(noise))
+	}
+
+	findingsHygiene := []fuzzFinding{
+		{ID: "s1", FindingType: "sanitizer_informational", Severity: "info", Title: "ubsan",
+			Detail: map[string]any{"sanitizer_class": "ubsan", "sanitizer_subtype": "shift-overflow", "sanitizer_label": "UBSan · shift-overflow"}},
+	}
+	_, hygiene2, _, _, hygieneN2, _ := partitionFindingsCrashFirst(findingsHygiene, 5, 25)
+	if hygieneN2 != 1 || len(hygiene2) != 1 || hygiene2[0].SanitizerSubtype != "shift-overflow" {
+		t.Fatalf("hygiene=%+v count=%d", hygiene2, hygieneN2)
 	}
 	var packNoise *fuzzProductTopIssue
 	for i := range noise {
@@ -84,6 +117,17 @@ func TestBuildHumanSummaryAndVerdict(t *testing.T) {
 	line := buildHumanSummaryLine(1000, 12, 4, 0, 0)
 	if !strings.Contains(line, "1000 runs") || !strings.Contains(line, "no critical") {
 		t.Fatalf("bad summary: %s", line)
+	}
+	dig := buildDigHumanSummary(map[string]any{
+		"depth_tier":        "wasm_native",
+		"guard_pack":        "secrets",
+		"guided_scheduling": true,
+		"power_mut_cap":     8,
+		"mutation_rounds":     6,
+		"exec_per_unit":       64,
+	}, 256, 8, 3, 0, 0)
+	if !strings.Contains(dig, "Dig · Audit") || !strings.Contains(dig, "pack=secrets") {
+		t.Fatalf("dig summary=%s", dig)
 	}
 	card := buildVerdictCard(1000, 0, 0, true, 1.5)
 	if card["gate"] != "PASS" {

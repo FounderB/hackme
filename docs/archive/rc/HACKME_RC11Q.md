@@ -1,6 +1,6 @@
 # HackMe 0.1.0-rc11q — superseded by rc11s
 
-> **Historical.** Current download channel: [HACKME_RC16.md](../../HACKME_RC16.md) (`0.1.0-rc16`). Intermediate: [HACKME_RC12W.md](../../HACKME_RC12W.md).
+> **Historical.** Current channel: [HACKME_RC17.md](../../HACKME_RC17.md). Last published: [HACKME_RC16.md](../../HACKME_RC16.md). Intermediate: [HACKME_RC12W.md](../../HACKME_RC12W.md).
 
 ## What rc11q shipped
 

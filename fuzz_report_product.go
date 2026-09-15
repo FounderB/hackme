@@ -12,15 +12,18 @@ import (
 
 const fuzzTopIssueLimit = 5
 const fuzzCoverageNoiseLimit = 25
+const fuzzSanitizerHygieneLimit = 25
 
 type fuzzReproBlock struct {
-	InputSHA256 string `json:"input_sha256"`
-	InputHex    string `json:"input_hex,omitempty"`
-	InputN      string `json:"input_n,omitempty"`
-	Command     string `json:"command"`
-	Artifact    string `json:"artifact_path,omitempty"`
-	Ready       bool   `json:"ready"`
-	Gap         string `json:"gap,omitempty"`
+	InputSHA256      string `json:"input_sha256"`
+	InputHex         string `json:"input_hex,omitempty"`
+	InputN           string `json:"input_n,omitempty"`
+	OriginalInputLen int    `json:"original_input_len,omitempty"`
+	Trimmed          bool   `json:"trimmed,omitempty"`
+	Command          string `json:"command"`
+	Artifact         string `json:"artifact_path,omitempty"`
+	Ready            bool   `json:"ready"`
+	Gap              string `json:"gap,omitempty"`
 }
 
 type fuzzProductTopIssue struct {
@@ -32,9 +35,14 @@ type fuzzProductTopIssue struct {
 	ReproCmd    string         `json:"repro_cmd"`
 	Artifact    string         `json:"artifact_path"`
 	InputSHA256 string         `json:"input_sha256,omitempty"`
-	TriageClass string         `json:"triage_class"`
-	TriageNote  string         `json:"triage_note"`
-	GuardPack   string         `json:"guard_pack,omitempty"`
+	TriageClass        string         `json:"triage_class"`
+	TriageNote         string         `json:"triage_note"`
+	FindingFamily      string         `json:"finding_family,omitempty"`
+	FamilyCount        int            `json:"family_member_count,omitempty"`
+	SanitizerClass     string         `json:"sanitizer_class,omitempty"`
+	SanitizerSubtype   string         `json:"sanitizer_subtype,omitempty"`
+	SanitizerLabel     string         `json:"sanitizer_label,omitempty"`
+	GuardPack          string         `json:"guard_pack,omitempty"`
 	Explain     string         `json:"explain,omitempty"`
 	Repro       fuzzReproBlock `json:"repro"`
 }
@@ -102,14 +110,52 @@ func buildFindingRepro(f fuzzFinding) fuzzReproBlock {
 		gap = "crash-class finding missing required repro fields: " + strings.Join(missing, "+")
 	}
 	return fuzzReproBlock{
-		InputSHA256: inSHA,
-		InputHex:    inHex,
-		InputN:      inN,
-		Command:     cmd,
-		Artifact:    art,
-		Ready:       ready,
-		Gap:         gap,
+		InputSHA256:      inSHA,
+		InputHex:         inHex,
+		InputN:           inN,
+		OriginalInputLen: findingOriginalInputLen(f),
+		Trimmed:          findingTrimmed(f),
+		Command:          cmd,
+		Artifact:         art,
+		Ready:            ready,
+		Gap:              gap,
 	}
+}
+
+func findingOriginalInputLen(f fuzzFinding) int {
+	if f.Detail == nil {
+		return 0
+	}
+	if v := f.Detail["input_hex_original_len"]; v != nil {
+		switch t := v.(type) {
+		case float64:
+			return int(t)
+		case int:
+			return t
+		case int64:
+			return int(t)
+		}
+	}
+	return 0
+}
+
+func findingTrimmed(f fuzzFinding) bool {
+	if f.Detail == nil {
+		return false
+	}
+	if v, ok := f.Detail["hunt_trimmed"].(bool); ok {
+		return v
+	}
+	if s := strings.TrimSpace(toString(f.Detail["hunt_trimmed"])); s == "true" || s == "1" {
+		return true
+	}
+	orig := findingOriginalInputLen(f)
+	if orig > 0 {
+		if hx := strings.TrimSpace(findingInputHex(f)); hx != "" {
+			return len(hx)/2 < orig
+		}
+	}
+	return false
 }
 
 func toProductTopIssue(f fuzzFinding) fuzzProductTopIssue {
@@ -126,20 +172,123 @@ func toProductTopIssue(f fuzzFinding) fuzzProductTopIssue {
 		}
 	}
 	return fuzzProductTopIssue{
-		ID:          f.ID,
-		Severity:    f.Severity,
-		FindingType: f.FindingType,
-		Title:       fuzzengine.RedactSensitiveString(f.Title),
-		Impact:      severityImpact(f.Severity),
-		ReproCmd:    f.ReproCmd,
-		Artifact:    f.Artifact,
-		InputSHA256: f.InputSHA256,
-		TriageClass: triage.Class,
-		TriageNote:  triage.Note,
-		GuardPack:   packID,
-		Explain:     explain,
-		Repro:       repro,
+		ID:               f.ID,
+		Severity:         f.Severity,
+		FindingType:      f.FindingType,
+		Title:            fuzzengine.RedactSensitiveString(f.Title),
+		Impact:           severityImpact(f.Severity),
+		ReproCmd:         f.ReproCmd,
+		Artifact:         f.Artifact,
+		InputSHA256:      f.InputSHA256,
+		TriageClass:      triage.Class,
+		TriageNote:       triage.Note,
+		FindingFamily:    findingFamilyKey(f),
+		SanitizerClass:   findingSanitizerField(f, "sanitizer_class"),
+		SanitizerSubtype: findingSanitizerField(f, "sanitizer_subtype"),
+		SanitizerLabel:   findingSanitizerField(f, "sanitizer_label"),
+		GuardPack:        packID,
+		Explain:          explain,
+		Repro:            repro,
 	}
+}
+
+func findingFamilyKey(f fuzzFinding) string {
+	if fuzzengine.IsCrashClass(f.FindingType) || f.FindingType == "sanitizer_informational" {
+		return fuzzengine.StableFindingKeyFromDetail(f.FindingType, f.Detail)
+	}
+	return ""
+}
+
+// buildFindingFamilySummary rolls unique inputs into root-cause families (Hunt honesty).
+// Counts are deduped by (family_key, input_sha256) so duplicate rows for the same input
+// do not inflate raw_input_count / by_family member counts.
+func buildFindingFamilySummary(findings []fuzzFinding) map[string]any {
+	byFamily := map[string]int{}
+	seen := map[string]struct{}{}
+	crashInputs := 0
+	hygieneInputs := 0
+	for i, f := range findings {
+		key := findingFamilyKey(f)
+		if key == "" {
+			continue
+		}
+		sha := strings.TrimSpace(strings.ToLower(f.InputSHA256))
+		uniq := sha
+		if uniq == "" {
+			uniq = strings.TrimSpace(f.ID)
+			if uniq == "" {
+				uniq = fmt.Sprintf("row-%d", i)
+			}
+		}
+		dedupe := key + "|" + uniq
+		if _, ok := seen[dedupe]; ok {
+			continue
+		}
+		seen[dedupe] = struct{}{}
+		byFamily[key]++
+		if fuzzengine.IsCrashClass(f.FindingType) {
+			crashInputs++
+		} else if f.FindingType == "sanitizer_informational" {
+			hygieneInputs++
+		}
+	}
+	familyCount := len(byFamily)
+	// Top families by member count (stable sort by key for determinism).
+	type pair struct {
+		K string
+		N int
+	}
+	pairs := make([]pair, 0, len(byFamily))
+	for k, n := range byFamily {
+		pairs = append(pairs, pair{K: k, N: n})
+	}
+	for i := 1; i < len(pairs); i++ {
+		j := i
+		for j > 0 && (pairs[j].N > pairs[j-1].N || (pairs[j].N == pairs[j-1].N && pairs[j].K < pairs[j-1].K)) {
+			pairs[j], pairs[j-1] = pairs[j-1], pairs[j]
+			j--
+		}
+	}
+	top := make([]map[string]any, 0, 8)
+	for i := 0; i < len(pairs) && i < 8; i++ {
+		top = append(top, map[string]any{"family": pairs[i].K, "inputs": pairs[i].N})
+	}
+	collapseRatio := 0.0
+	raw := crashInputs + hygieneInputs
+	if raw > 0 {
+		collapseRatio = 1.0 - float64(familyCount)/float64(raw)
+	}
+	return map[string]any{
+		"family_count":     familyCount,
+		"raw_input_count":  raw,
+		"crash_inputs":     crashInputs,
+		"hygiene_inputs":   hygieneInputs,
+		"collapse_ratio":   collapseRatio,
+		"by_family":        byFamily,
+		"top_families":     top,
+		"honesty_note":     "Cite family_count, not raw_input_count — many inputs often share one root cause.",
+	}
+}
+
+// annotateTopIssuesWithFamilyCounts stamps FamilyCount on display issues.
+func annotateTopIssuesWithFamilyCounts(issues []fuzzProductTopIssue, familySummary map[string]any) {
+	byFamily, _ := familySummary["by_family"].(map[string]int)
+	if byFamily == nil {
+		return
+	}
+	for i := range issues {
+		if issues[i].FindingFamily == "" {
+			continue
+		}
+		issues[i].FamilyCount = byFamily[issues[i].FindingFamily]
+	}
+}
+
+func findingSanitizerField(f fuzzFinding, key string) string {
+	if f.Detail == nil {
+		return ""
+	}
+	return strings.TrimSpace(toString(f.Detail[key]))
 }
 
 func findingGuardPack(f fuzzFinding) string {
@@ -166,8 +315,8 @@ func findingExplainPreview(f fuzzFinding, repro fuzzReproBlock) string {
 	return fuzzengine.RedactSensitiveString(f.Title)
 }
 
-// partitionFindingsCrashFirst splits findings into crash-class top issues and coverage-noise appendix.
-func partitionFindingsCrashFirst(findings []fuzzFinding, topLimit, noiseLimit int) (top []fuzzProductTopIssue, noise []fuzzProductTopIssue, crashCount, noiseCount int) {
+// partitionFindingsCrashFirst splits findings into crash top issues, sanitizer hygiene, and coverage noise.
+func partitionFindingsCrashFirst(findings []fuzzFinding, topLimit, noiseLimit int) (top []fuzzProductTopIssue, sanitizerHygiene []fuzzProductTopIssue, noise []fuzzProductTopIssue, crashCount, hygieneCount, noiseCount int) {
 	if topLimit <= 0 {
 		topLimit = fuzzTopIssueLimit
 	}
@@ -175,6 +324,7 @@ func partitionFindingsCrashFirst(findings []fuzzFinding, topLimit, noiseLimit in
 		noiseLimit = fuzzCoverageNoiseLimit
 	}
 	top = make([]fuzzProductTopIssue, 0, topLimit)
+	sanitizerHygiene = make([]fuzzProductTopIssue, 0, fuzzSanitizerHygieneLimit)
 	noise = make([]fuzzProductTopIssue, 0, noiseLimit)
 	for _, f := range findings {
 		switch {
@@ -182,6 +332,15 @@ func partitionFindingsCrashFirst(findings []fuzzFinding, topLimit, noiseLimit in
 			crashCount++
 			if len(top) < topLimit {
 				top = append(top, toProductTopIssue(f))
+			}
+		case f.FindingType == "sanitizer_informational":
+			hygieneCount++
+			if len(sanitizerHygiene) < fuzzSanitizerHygieneLimit {
+				n := toProductTopIssue(f)
+				if n.SanitizerLabel == "" && n.SanitizerSubtype != "" {
+					n.SanitizerLabel = strings.ToUpper(n.SanitizerClass) + " · " + n.SanitizerSubtype
+				}
+				sanitizerHygiene = append(sanitizerHygiene, n)
 			}
 		case fuzzengine.IsCoverageNoise(f.FindingType):
 			noiseCount++
@@ -194,14 +353,41 @@ func partitionFindingsCrashFirst(findings []fuzzFinding, topLimit, noiseLimit in
 				noise = append(noise, n)
 			}
 		default:
-			// Non-crash, non-noise: still keep out of top; park in appendix if room.
 			noiseCount++
 			if len(noise) < noiseLimit {
 				noise = append(noise, toProductTopIssue(f))
 			}
 		}
 	}
-	return top, noise, crashCount, noiseCount
+	return top, sanitizerHygiene, noise, crashCount, hygieneCount, noiseCount
+}
+
+// buildSanitizerHygieneSummary aggregates informational sanitizer subtypes for Hunt reports.
+func buildSanitizerHygieneSummary(findings []fuzzFinding) map[string]any {
+	bySubtype := map[string]int{}
+	byClass := map[string]int{}
+	total := 0
+	for _, f := range findings {
+		if f.FindingType != "sanitizer_informational" {
+			continue
+		}
+		total++
+		class := findingSanitizerField(f, "sanitizer_class")
+		sub := findingSanitizerField(f, "sanitizer_subtype")
+		if class == "" {
+			class = "unknown"
+		}
+		if sub == "" {
+			sub = "unknown"
+		}
+		byClass[class]++
+		bySubtype[class+"/"+sub]++
+	}
+	return map[string]any{
+		"total":      total,
+		"by_class":   byClass,
+		"by_subtype": bySubtype,
+	}
 }
 
 // collapseCrashFindingsForReport keeps one representative row per stable crash bucket for display.
@@ -260,6 +446,69 @@ func buildHumanSummaryLine(runsDone, edges, paths, crashCount, criticalCrash int
 	cov := fmt.Sprintf("%d edges · %d paths", edges, paths)
 	bugs := fmt.Sprintf("%d crash-class", crashCount)
 	return fmt.Sprintf("%d runs · coverage %s · bugs/crashes %s · %s", runsDone, cov, bugs, critNote)
+}
+
+func buildDigHumanSummary(cfg map[string]any, runsDone, edges, paths, crashCount, criticalCrash int) string {
+	base := buildHumanSummaryLine(runsDone, edges, paths, crashCount, criticalCrash)
+	profile := strings.TrimSpace(cfgString(cfg, "dig_depth_profile"))
+	if profile == "" {
+		profile = fuzzingcli.DigDepthProfile(cfg, fuzzingcli.DigPackageFromDepthTier(fuzzengine.ParseDepthTier(cfg)), cfgString(cfg, "guard_pack"))
+	}
+	if profile != "" {
+		return base + " · " + profile
+	}
+	return base
+}
+
+func cfgString(cfg map[string]any, key string) string {
+	if cfg == nil {
+		return ""
+	}
+	v, ok := cfg[key]
+	if !ok || v == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(v))
+}
+
+func buildDigDepthCard(cfg map[string]any) map[string]any {
+	if cfg == nil {
+		return nil
+	}
+	pack := cfgString(cfg, "guard_pack")
+	pkg := fuzzingcli.DigPackageFromDepthTier(fuzzengine.ParseDepthTier(cfg))
+	return map[string]any{
+		"package":              fuzzingcli.B2BPackageDisplayName(pkg),
+		"guard_pack":           pack,
+		"depth_profile":        cfgString(cfg, "dig_depth_profile"),
+		"mutator_profile":      cfgString(cfg, "dig_mutator_profile"),
+		"power_mut_cap":        fuzzengine.PowerMutCap(cfg),
+		"mutation_rounds":      fuzzengine.MutationRounds(cfg),
+		"guided_scheduling":    fuzzengine.GuidedSchedulingEnabled(cfg),
+		"corpus_persist_ns":    fuzzengine.CorpusPersistNamespace(cfg),
+		"external_seeds_merged": intFromCfg(cfg, "dig_external_seeds_merged"),
+		"coverage_kind":        fuzzengine.CoverageKind(cfg),
+	}
+}
+
+func intFromCfg(cfg map[string]any, key string) int {
+	if cfg == nil {
+		return 0
+	}
+	v, ok := cfg[key]
+	if !ok || v == nil {
+		return 0
+	}
+	switch x := v.(type) {
+	case int:
+		return x
+	case int64:
+		return int(x)
+	case float64:
+		return int(x)
+	default:
+		return 0
+	}
 }
 
 func buildVerdictCard(runsDone, crashCount, criticalCrash int, gatePass bool, moneySpent float64) map[string]any {

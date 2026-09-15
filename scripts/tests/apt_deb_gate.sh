@@ -20,7 +20,24 @@ if grep -E 'pool\.miner\.token|/\.env$' "$LIST" >/dev/null; then
 fi
 grep -q 'update_hackme_miner.sh' "$LIST" || { echo "[gate] FAIL updater missing in deb" >&2; exit 1; }
 grep -q 'usr/share/applications/hackme.desktop' "$LIST" || { echo "[gate] FAIL desktop entry missing" >&2; exit 1; }
+grep -q 'hackme_desktop_launch.sh' "$LIST" || { echo "[gate] FAIL desktop launcher missing in deb" >&2; exit 1; }
 grep -q 'usr/share/icons/hicolor/.*/apps/hackme.png' "$LIST" || { echo "[gate] FAIL icon missing" >&2; exit 1; }
+# Desktop Exec must point at the XDG launcher (not bare xdg-open / unwritable start alone)
+DESKTOP_TMP="$(mktemp -d)"
+trap 'rm -f "$LIST"; rm -rf "$DESKTOP_TMP"' EXIT
+dpkg-deb -x "$DEB" "$DESKTOP_TMP"
+grep -q 'hackme_desktop_launch.sh' "$DESKTOP_TMP/usr/share/applications/hackme.desktop" || {
+  echo "[gate] FAIL hackme.desktop Exec not desktop launcher" >&2
+  exit 1
+}
+grep -q 'hackme_desktop_launch.sh' "$DESKTOP_TMP/usr/share/applications/hackme-dashboard.desktop" || {
+  echo "[gate] FAIL dashboard.desktop Exec not desktop launcher" >&2
+  exit 1
+}
+[[ -x "$DESKTOP_TMP/opt/hackme/hackme_desktop_launch.sh" ]] || {
+  echo "[gate] FAIL launcher not executable in package" >&2
+  exit 1
+}
 
 bash "$ROOT/scripts/release/apt/build_local_apt_repo.sh"
 [[ -f "$ROOT/dist/apt/repo/dists/unstable/Release" ]] || { echo "[gate] FAIL apt Release" >&2; exit 1; }

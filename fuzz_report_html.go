@@ -131,6 +131,8 @@ func renderFuzzReportHTML(report map[string]any) string {
 		}
 	}
 	issueRows := renderFuzzIssueRows(report)
+	familySection := renderFuzzFamilySection(report)
+	sanitizerSection := renderFuzzSanitizerHygieneSection(report)
 	noiseRows := renderFuzzNoiseRows(report)
 	reproSection := renderFuzzReproSection(report)
 	engineNote := renderFuzzEngineNote(report)
@@ -139,6 +141,7 @@ func renderFuzzReportHTML(report map[string]any) string {
 		humanSummary = html.EscapeString(toString(sum["human_summary"]))
 	}
 	assurance := html.EscapeString(toString(report["assurance_note"]))
+	digDepthBlock := renderDigDepthBlock(report)
 	gateReasons := toStringSlice(gate["reasons"])
 	gateReasonHTML := ""
 	for _, r := range gateReasons {
@@ -252,6 +255,7 @@ a{color:#00d1ff}
 <p class="lbl">Human summary</p>
 <p class="human">%s</p>
 <p class="muted">%s</p>
+%s
 <p class="lbl" style="margin-top:1rem">Campaign</p>
 <p class="title">%s</p>
 <p class="muted">%s · %s · status %s</p>
@@ -266,6 +270,7 @@ a{color:#00d1ff}
 <div class="stat"><b>Crash dup</b>%s</div>
 <div class="stat"><b>Critical</b>%s</div>
 <div class="stat"><b>Coverage noise</b>%s</div>
+<div class="stat"><b>Sanitizer hygiene</b>%s</div>
 <div class="stat"><b>Edges / paths</b>%s / %s</div>
 <div class="stat"><b>Budget runs</b>%s</div>
 </div>
@@ -275,6 +280,8 @@ a{color:#00d1ff}
 <p class="lbl">Top issues (crash / hang / ASan / memory only)</p>
 <table><thead><tr><th>Severity</th><th>Type</th><th>Triage</th><th>Title</th><th>Repro</th></tr></thead><tbody>%s</tbody></table>
 </div>
+%s
+%s
 %s
 <div class="card noise">
 <p class="lbl">Appendix · coverage noise (detector / property)</p>
@@ -307,6 +314,7 @@ a{color:#00d1ff}
 		verdictHTML,
 		humanSummary,
 		assurance,
+		digDepthBlock,
 		html.EscapeString(title),
 		html.EscapeString(toString(c["id"])),
 		html.EscapeString(toString(c["campaign_type"])),
@@ -325,6 +333,7 @@ a{color:#00d1ff}
 		html.EscapeString(toString(sum["crash_duplicate_count"])),
 		html.EscapeString(toString(sum["critical_count"])),
 		html.EscapeString(toString(sum["coverage_noise_count"])),
+		html.EscapeString(toString(sum["sanitizer_hygiene_count"])),
 		html.EscapeString(toString(sum["coverage_edges"])),
 		html.EscapeString(toString(sum["coverage_paths"])),
 		html.EscapeString(toString(c["budget_runs"])),
@@ -332,7 +341,9 @@ a{color:#00d1ff}
 		html.EscapeString(toString(window["query_limit"])),
 		html.EscapeString(toString(window["full_campaign_findings"])),
 		issueRows,
+		familySection,
 		reproSection,
+		sanitizerSection,
 		noiseRows,
 		fpBlock,
 		baseBlock,
@@ -393,6 +404,98 @@ func renderFuzzIssueRows(report map[string]any) string {
 	return b.String()
 }
 
+func renderFuzzFamilySection(report map[string]any) string {
+	fam, ok := report["finding_families"].(map[string]any)
+	if !ok || fam == nil {
+		return ""
+	}
+	count := intFromAny(fam["family_count"])
+	raw := intFromAny(fam["raw_input_count"])
+	if count == 0 && raw == 0 {
+		return `<div class="card"><p class="lbl">Finding families (root cause)</p><p class="muted">No crash/sanitizer families in this sample.</p></div>`
+	}
+	collapse := toString(fam["collapse_ratio"])
+	note := html.EscapeString(toString(fam["honesty_note"]))
+	rows := ""
+	if top, ok := fam["top_families"].([]map[string]any); ok {
+		for _, t := range top {
+			rows += fmt.Sprintf(`<tr><td><code>%s</code></td><td>%s</td></tr>`,
+				html.EscapeString(toString(t["family"])),
+				html.EscapeString(toString(t["inputs"])))
+		}
+	} else if top, ok := fam["top_families"].([]any); ok {
+		for _, it := range top {
+			m, _ := it.(map[string]any)
+			if m == nil {
+				continue
+			}
+			rows += fmt.Sprintf(`<tr><td><code>%s</code></td><td>%s</td></tr>`,
+				html.EscapeString(toString(m["family"])),
+				html.EscapeString(toString(m["inputs"])))
+		}
+	}
+	if rows == "" {
+		rows = `<tr><td colspan="2" class="muted">—</td></tr>`
+	}
+	return fmt.Sprintf(
+		`<div class="card"><p class="lbl">Finding families (root cause)</p>`+
+			`<p><b>%d</b> families from <b>%d</b> inputs · collapse %s</p>`+
+			`<p class="muted">%s</p>`+
+			`<table><thead><tr><th>Family key</th><th>Inputs</th></tr></thead><tbody>%s</tbody></table></div>`,
+		count, raw, html.EscapeString(collapse), note, rows,
+	)
+}
+
+func renderFuzzSanitizerHygieneSection(report map[string]any) string {
+	rows := renderFuzzSanitizerHygieneRows(report)
+	summaryNote := ""
+	if sm, ok := report["sanitizer_summary"].(map[string]any); ok {
+		parts := []string{}
+		if bySub, ok := sm["by_subtype"].(map[string]int); ok {
+			for k, n := range bySub {
+				parts = append(parts, fmt.Sprintf("%s×%d", k, n))
+			}
+		}
+		if len(parts) > 0 {
+			summaryNote = `<p class="muted">Subtype rollup: ` + html.EscapeString(strings.Join(parts, " · ")) + `</p>`
+		}
+	}
+	if rows == "" {
+		return `<div class="card"><p class="lbl">Sanitizer hygiene (UBSan / LSan · informational)</p><p class="muted">No UBSan/LSan informational signals in this sample.</p></div>`
+	}
+	return `<div class="card"><p class="lbl">Sanitizer hygiene (UBSan / LSan · informational)</p>` + summaryNote +
+		`<table><thead><tr><th>Severity</th><th>Class</th><th>Subtype</th><th>Title</th><th>Note</th></tr></thead><tbody>` +
+		rows + `</tbody></table></div>`
+}
+
+func renderFuzzSanitizerHygieneRows(report map[string]any) string {
+	arr, ok := report["sanitizer_hygiene"].([]fuzzProductTopIssue)
+	if !ok || len(arr) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, i := range arr {
+		label := strings.TrimSpace(i.SanitizerLabel)
+		if label == "" && i.SanitizerSubtype != "" {
+			label = strings.ToUpper(i.SanitizerClass) + " · " + i.SanitizerSubtype
+		}
+		note := strings.TrimSpace(i.TriageNote)
+		if note == "" {
+			note = "Informational sanitizer signal — not bounty-eligible"
+		}
+		b.WriteString(fmt.Sprintf(
+			`<tr><td>%s</td><td><code>%s</code></td><td><code>%s</code></td><td>%s</td><td class="muted">%s</td></tr>`,
+			html.EscapeString(i.Severity),
+			html.EscapeString(i.SanitizerClass),
+			html.EscapeString(i.SanitizerSubtype),
+			html.EscapeString(i.Title),
+			html.EscapeString(note),
+		))
+		_ = label
+	}
+	return b.String()
+}
+
 func renderFuzzNoiseRows(report map[string]any) string {
 	arr, ok := report["coverage_noise"].([]fuzzProductTopIssue)
 	if !ok || len(arr) == 0 {
@@ -431,7 +534,18 @@ func renderFuzzReproSection(report map[string]any) string {
 			inputLine += fmt.Sprintf(`<p class="muted">input_sha256: <code>%s</code></p>`, html.EscapeString(i.Repro.InputSHA256))
 		}
 		if i.Repro.InputHex != "" {
-			inputLine += fmt.Sprintf(`<p class="muted">input_hex: <code>%s</code></p>`, html.EscapeString(i.Repro.InputHex))
+			trimNote := ""
+			if i.Repro.Trimmed || i.Repro.OriginalInputLen > len(i.Repro.InputHex)/2 {
+				was := i.Repro.OriginalInputLen
+				if was <= 0 {
+					was = len(i.Repro.InputHex) / 2
+				}
+				trimNote = fmt.Sprintf(` · trimmed to %d bytes`, len(i.Repro.InputHex)/2)
+				if was > len(i.Repro.InputHex)/2 {
+					trimNote = fmt.Sprintf(` · trimmed %d→%d bytes (same ASAN)`, was, len(i.Repro.InputHex)/2)
+				}
+			}
+			inputLine += fmt.Sprintf(`<p class="muted">input_hex%s: <code>%s</code></p>`, trimNote, html.EscapeString(i.Repro.InputHex))
 		} else if i.Repro.InputN != "" {
 			inputLine += fmt.Sprintf(`<p class="muted">input: <code>%s</code></p>`, html.EscapeString(i.Repro.InputN))
 		}
@@ -459,6 +573,12 @@ func renderFuzzReproSection(report map[string]any) string {
 }
 
 func renderFuzzEngineNote(report map[string]any) string {
+	campaignType := ""
+	if raw, ok := report["campaign"].(fuzzCampaign); ok {
+		campaignType = raw.CampaignType
+	} else if m, ok := report["campaign"].(map[string]any); ok {
+		campaignType = toString(m["campaign_type"])
+	}
 	scopeBlock := `<div class="card scope"><p class="lbl">Scope &amp; honesty</p>
 <p>This report covers <strong>WASM sandbox</strong> execution of your linked guard module
 (<code>check(i64)→i32</code> or <code>check_bytes(ptr,len)→i32</code> when <code>input_mode=bytes</code>), not a full upstream node audit.
@@ -466,10 +586,20 @@ func renderFuzzEngineNote(report map[string]any) string {
 This report is derived from the fetched evidence window for this request (<code>?limit=...</code>), so shown rows may represent only part of the full campaign history.
 Use <code>repro</code> (input → command) locally, then validate crash-class issues against native builds before claiming 0-day.
 Public L1 research (qa-assets corpus) lives at <a href="https://hackme.tech/reports/l1-crypto-stack-v3.html">l1-crypto-stack-v3</a> and is separate from this token-gated campaign.</p></div>`
+	if strings.EqualFold(strings.TrimSpace(campaignType), "hunt") {
+		scopeBlock = `<div class="card scope"><p class="lbl">Scope &amp; honesty · Hunt</p>
+<p>This report covers <strong>native Hunt shards</strong> on your catalog or inventory harness
+(<code>LLVMFuzzerTestOneInput</code>) with profile <strong>ASAN+UBSan+LSan</strong>, verified by coordinator replay on pool workers — not WASM guards.
+<strong>Top issues are crash-first</strong> (<code>native_crash</code> / ASAN memory safety). The <strong>Sanitizer hygiene</strong> appendix lists UBSan/LSan subtypes
+(<code>shift-overflow</code>, <code>null-deref</code>, <code>direct-leak</code>, …) — informational, not bounty-eligible.
+<strong>CLEAN</strong> means no qualifying crash-class finding in the fetched evidence window — not a CVE guarantee.
+Hunt uses <strong>50/50 escrow</strong> (runs pool + bounty pool). Severity-tier bounty: critical 100% · high 60% of remaining bounty slice.
+Use repro blocks to replay inputs locally before external disclosure.</p></div>`
+	}
 	meta := ""
 	if m, ok := report["fuzz_engine"].(map[string]any); ok {
 		parts := []string{}
-		for _, k := range []string{"semantics", "sandbox", "worker", "check_semantics", "depth_tier", "input_mode", "max_input_bytes", "guard_pack", "version"} {
+		for _, k := range []string{"semantics", "sandbox", "worker", "check_semantics", "depth_tier", "input_mode", "max_input_bytes", "guard_pack", "version", "power_mut_cap", "dig_mutator_profile", "dig_depth_profile", "corpus_persist_namespace"} {
 			if v := strings.TrimSpace(toString(m[k])); v != "" {
 				parts = append(parts, k+"="+v)
 			}
@@ -479,4 +609,26 @@ Public L1 research (qa-assets corpus) lives at <a href="https://hackme.tech/repo
 		}
 	}
 	return scopeBlock + meta
+}
+
+func renderDigDepthBlock(report map[string]any) string {
+	m, ok := report["dig_depth"].(map[string]any)
+	if !ok || len(m) == 0 {
+		return ""
+	}
+	profile := html.EscapeString(toString(m["depth_profile"]))
+	pack := html.EscapeString(toString(m["guard_pack"]))
+	pkg := html.EscapeString(toString(m["package"]))
+	mut := html.EscapeString(toString(m["mutator_profile"]))
+	ns := html.EscapeString(toString(m["corpus_persist_ns"]))
+	return fmt.Sprintf(`<div class="card"><p class="lbl">Dig depth profile</p>
+<p><strong>%s</strong> · pack <code>%s</code></p>
+<p class="muted">%s</p>
+<p class="muted">mutator=%s · guided=%s · corpus_ns=%s · ext_seeds=%s · coverage=%s</p></div>`,
+		pkg, pack, profile, mut,
+		html.EscapeString(toString(m["guided_scheduling"])),
+		ns,
+		html.EscapeString(toString(m["external_seeds_merged"])),
+		html.EscapeString(toString(m["coverage_kind"])),
+	)
 }

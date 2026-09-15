@@ -11,15 +11,30 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"hackme/internal/fuzzengine"
 )
 
 // RunInput executes bin with stdin data; returns crash info.
 func RunInput(ctx context.Context, binPath string, input []byte, maxInput int) (crash bool, sanitizer, tail string, err error) {
-	if maxInput <= 0 {
-		maxInput = 65536
+	opts := DefaultRunInputOpts()
+	if maxInput > 0 {
+		opts.MaxInput = maxInput
 	}
-	if len(input) > maxInput {
-		input = input[:maxInput]
+	crash, info, tail, err := RunInputDetailed(ctx, binPath, input, opts)
+	if info.Raw != "" {
+		sanitizer = info.Raw
+	}
+	return crash, sanitizer, tail, err
+}
+
+// RunInputDetailed executes bin with stdin data and returns normalized sanitizer info.
+func RunInputDetailed(ctx context.Context, binPath string, input []byte, opts RunInputOpts) (crash bool, info SanitizerInfo, tail string, err error) {
+	if opts.MaxInput <= 0 {
+		opts.MaxInput = 65536
+	}
+	if len(input) > opts.MaxInput {
+		input = input[:opts.MaxInput]
 	}
 	runCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -27,7 +42,7 @@ func RunInput(ctx context.Context, binPath string, input []byte, maxInput int) (
 	cmd.Stdin = bytes.NewReader(input)
 	cmd.Env = []string{
 		"PATH=/usr/bin:/bin",
-		"ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:allocator_may_return_null=1:print_stacktrace=1",
+		"ASAN_OPTIONS=" + asanOptions(opts.DetectLeaks),
 		"UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1",
 		"HOME=/tmp",
 	}
@@ -41,115 +56,70 @@ func RunInput(ctx context.Context, binPath string, input []byte, maxInput int) (
 	} else {
 		tail = strings.TrimSpace(blob)
 	}
-	sanitizer = detectSanitizer(blob)
-	crash = sanitizer != ""
+	info = ClassifySanitizer(blob)
+	crash = info.Raw != "" || info.Class != ""
+	if crash && info.Raw == "" {
+		info = ClassifySanitizer(blob + "\nSUMMARY: AddressSanitizer: signal")
+	}
 	if crash {
-		return true, sanitizer, tail, nil
+		return true, info, tail, nil
 	}
 	if runErr != nil {
-		if _, ok := runErr.(*exec.ExitError); ok && strings.Contains(blob, "Sanitizer") {
-			return true, "signal", tail, nil
+		if runCtx.Err() == context.DeadlineExceeded {
+			return false, SanitizerInfo{}, tail, fmt.Errorf("fuzzupstream: exec timeout: %w", runErr)
 		}
+		if _, ok := runErr.(*exec.ExitError); ok && strings.Contains(blob, "Sanitizer") {
+			info = ClassifySanitizer(blob)
+			if info.Raw == "" {
+				info.Raw = "signal"
+			}
+			return true, info, tail, nil
+		}
+		if _, ok := runErr.(*exec.ExitError); ok {
+			// Non-sanitizer exit: treat as clean (no crash), not as verifier failure.
+			return false, SanitizerInfo{}, tail, nil
+		}
+		// Start/permission/not-found and other infra errors must not fail-open as CLEAN.
+		return false, SanitizerInfo{}, tail, runErr
 	}
-	return false, "", tail, nil
+	return false, SanitizerInfo{}, tail, nil
 }
 
 func detectSanitizer(blob string) string {
-	for _, sig := range []string{
-		"heap-buffer-overflow",
-		"stack-buffer-overflow",
-		"use-after-free",
-		"double-free",
-		"SEGV on unknown address",
-		"SUMMARY: AddressSanitizer",
-		"SUMMARY: UndefinedBehaviorSanitizer",
-		"runtime error:",
-	} {
-		if strings.Contains(blob, sig) {
-			return sig
-		}
+	info, ok := ClassifySanitizerOutput(blob)
+	if !ok {
+		return ""
 	}
-	return ""
+	if info.Raw != "" {
+		return info.Raw
+	}
+	return info.Subtype
 }
 
-func IsSecuritySanitizer(san string) bool {
-	if san == "" {
-		return false
-	}
-	if strings.Contains(san, "UndefinedBehaviorSanitizer") || strings.Contains(san, "runtime error:") {
-		return false
-	}
-	return strings.Contains(san, "AddressSanitizer") ||
-		strings.Contains(san, "heap-buffer-overflow") ||
-		strings.Contains(san, "stack-buffer-overflow") ||
-		strings.Contains(san, "use-after-free") ||
-		strings.Contains(san, "double-free") ||
-		strings.Contains(san, "SEGV on unknown address")
-}
-
-// Mutate applies 1–4 random mutations to a copy of input.
+// Mutate applies staged mutations via fuzzengine havoc (interesting, dict-ops).
 func Mutate(input []byte, maxLen int, rnd []byte) []byte {
-	if maxLen <= 0 {
-		maxLen = 65536
+	return MutateWithDict(input, maxLen, rnd, nil)
+}
+
+// MutateWithDict applies mutations with optional domain dictionary and corpus autodict.
+func MutateWithDict(input []byte, maxLen int, rnd []byte, dict []byte) []byte {
+	return huntMutateInput(input, maxLen, rnd, dict, nil)
+}
+
+func huntMutateInput(seed []byte, maxInput int, rnd []byte, dict []byte, corpus [][]byte) []byte {
+	if maxInput <= 0 {
+		maxInput = 65536
 	}
-	out := make([]byte, len(input))
-	copy(out, input)
-	if len(out) == 0 {
-		out = []byte{0}
+	if len(rnd) < 8 {
+		rnd = append(rnd, randomBytes(8-len(rnd))...)
 	}
-	ops := 1 + int(rnd[0]%4)
-	for i := 0; i < ops; i++ {
-		if len(rnd) < i+2 {
-			break
-		}
-		switch rnd[i+1] % 7 {
-		case 0: // bitflip
-			if len(out) > 0 {
-				p := int(rnd[i+1]) % len(out)
-				out[p] ^= 1 << (rnd[i+1] % 8)
-			}
-		case 1: // insert byte
-			if len(out) < maxLen {
-				p := int(rnd[i+1]) % (len(out) + 1)
-				out = append(out, 0)
-				copy(out[p+1:], out[p:])
-				out[p] = rnd[i+1]
-			}
-		case 2: // delete byte
-			if len(out) > 1 {
-				p := int(rnd[i+1]) % len(out)
-				out = append(out[:p], out[p+1:]...)
-			}
-		case 3: // append interesting
-			interesting := [][]byte{{'{'}, {'['}, {'"'}, {'`'}, {'\n'}, {0xff}, {0x00}}
-			ch := interesting[int(rnd[i+1])%len(interesting)]
-			if len(out)+len(ch) <= maxLen {
-				out = append(out, ch...)
-			}
-		case 4: // resize
-			n := int(rnd[i+1]%32) + 1
-			if n > maxLen {
-				n = maxLen
-			}
-			out = make([]byte, n)
-			for j := range out {
-				out[j] = rnd[(i+j)%len(rnd)]
-			}
-		case 5: // duplicate slice
-			if len(out) > 0 && len(out)*2 <= maxLen {
-				out = append(out, out...)
-			}
-		default: // random byte replace
-			if len(out) > 0 {
-				p := int(rnd[i+1]) % len(out)
-				out[p] = rnd[i+1]
-			}
-		}
+	stage := fuzzengine.MutationStage(int(rnd[0]) % (fuzzengine.StageDeterministicMax + 12))
+	salt := uint64(rnd[1]) | uint64(rnd[2])<<8 | uint64(rnd[3])<<16 | uint64(rnd[4])<<24
+	cfg := map[string]any{}
+	if len(dict) > 0 {
+		cfg["mutator_dict"] = dict
 	}
-	if len(out) > maxLen {
-		out = out[:maxLen]
-	}
-	return out
+	return fuzzengine.MutateBytesForHunt(seed, stage, salt, maxInput, cfg, corpus)
 }
 
 func randomBytes(n int) []byte {
@@ -158,8 +128,21 @@ func randomBytes(n int) []byte {
 	return b
 }
 
+// HuntRunOptions configures one upstream Hunt mutational session.
+type HuntRunOptions struct {
+	DetectLeaks bool
+	MutatorDict []byte
+}
+
 // Hunt runs mutational fuzz on a built upstream binary.
 func Hunt(ctx context.Context, repoRoot string, t Target, binPath string, seeds [][]byte, budget int, maxInput int, timeLimitSec int) (*HuntReport, error) {
+	return HuntWithOptions(ctx, repoRoot, t, binPath, seeds, budget, maxInput, timeLimitSec, HuntRunOptions{
+		DetectLeaks: DetectLeaksEnabled(),
+	})
+}
+
+// HuntWithOptions runs mutational fuzz with sanitizer and mutator dictionary options.
+func HuntWithOptions(ctx context.Context, repoRoot string, t Target, binPath string, seeds [][]byte, budget int, maxInput int, timeLimitSec int, opts HuntRunOptions) (*HuntReport, error) {
 	if budget <= 0 {
 		budget = 60000
 	}
@@ -171,6 +154,7 @@ func Hunt(ctx context.Context, repoRoot string, t Target, binPath string, seeds 
 		TargetID:   t.ID,
 		Title:      t.Title,
 		Repo:       t.Repo,
+		Language:   TargetLanguage(t),
 		BinaryPath: binPath,
 		Crashes:    []CrashFinding{},
 	}
@@ -179,6 +163,7 @@ func Hunt(ctx context.Context, repoRoot string, t Target, binPath string, seeds 
 	}
 	seenCrash := map[string]bool{}
 	deadline := time.Now().Add(time.Duration(timeLimitSec) * time.Second)
+	execErrors := 0
 
 	for i := 0; i < budget; i++ {
 		if ctx.Err() != nil {
@@ -189,14 +174,33 @@ func Hunt(ctx context.Context, repoRoot string, t Target, binPath string, seeds 
 		}
 		seed := seeds[i%len(seeds)]
 		rnd := randomBytes(16)
-		input := Mutate(seed, maxInput, rnd)
-		crash, san, tail, err := RunInput(ctx, binPath, input, maxInput)
+		corpus := make([][]byte, 0, len(seeds))
+		for _, s := range seeds {
+			if len(s) > 0 {
+				corpus = append(corpus, s)
+			}
+		}
+		input := huntMutateInput(seed, maxInput, rnd, opts.MutatorDict, corpus)
+		runOpts := DefaultRunInputOpts()
+		if maxInput > 0 {
+			runOpts.MaxInput = maxInput
+		}
+		runOpts.DetectLeaks = opts.DetectLeaks
+		crash, info, tail, err := RunInputDetailed(ctx, binPath, input, runOpts)
 		if err != nil {
+			execErrors++
 			continue
 		}
 		rep.Iterations++
 		if !crash {
 			continue
+		}
+		origLen := len(input)
+		if len(input) > 1 {
+			tr := TrimCrashInput(ctx, binPath, input, runOpts, info)
+			if len(tr.Input) > 0 {
+				input = tr.Input
+			}
 		}
 		key := hex.EncodeToString(input)
 		if len(key) > 64 {
@@ -207,23 +211,31 @@ func Hunt(ctx context.Context, repoRoot string, t Target, binPath string, seeds 
 		}
 		seenCrash[key] = true
 		cf := CrashFinding{
-			TargetID:   t.ID,
-			Title:      t.Title,
-			Repo:       t.Repo,
-			InputHex:   hex.EncodeToString(input),
-			InputLen:   len(input),
-			Sanitizer:  san,
-			Tail:       tail,
-			Iteration:  i,
-			CWE:        t.CWE,
-			Disclosure: "HOLD — responsible disclosure to upstream maintainer before publish",
+			TargetID:         t.ID,
+			Title:            t.Title,
+			Repo:             t.Repo,
+			InputHex:         hex.EncodeToString(input),
+			InputLen:         len(input),
+			OriginalInputLen: origLen,
+			Trimmed:          len(input) < origLen,
+			Sanitizer:        info.Raw,
+			SanitizerClass:   info.Class,
+			SanitizerSubtype: info.Subtype,
+			SanitizerLabel:   info.Label,
+			Tail:             tail,
+			Iteration:        i,
+			CWE:              t.CWE,
+			Disclosure:       "HOLD — responsible disclosure to upstream maintainer before publish",
 		}
 		rep.Crashes = append(rep.Crashes, cf)
 	}
 	rep.ElapsedSec = time.Since(start).Seconds()
+	if rep.Iterations == 0 && execErrors > 0 {
+		return rep, fmt.Errorf("fuzzupstream: hunt produced 0 successful execs (%d infra errors)", execErrors)
+	}
 	sec := 0
 	for _, c := range rep.Crashes {
-		if IsSecuritySanitizer(c.Sanitizer) {
+		if c.SanitizerClass == "asan" || IsSecuritySanitizer(c.Sanitizer) {
 			sec++
 		}
 	}

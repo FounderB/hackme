@@ -1,47 +1,37 @@
 {
-  "updated": "2026-08-27T11:00:00Z",
-  "interval_ms": 6500,
+  "updated": "2026-09-14T23:40:00Z",
+  "interval_ms": 6200,
   "pool_poll_ms": 30000,
   "slides": [
     {
+      "kind": "series",
+      "badge": "Hunt",
+      "title": "Hunt Watch 12/12 · ~192.5M iter · ledger live",
+      "detail": "Hunt Standard ASAN+UBSan · 43 CLEAN · 2 CVE_CANDIDATE — not libFuzzer",
+      "cta": "Open ledger",
+      "href": "/reports/hunt-watch-2026sep/",
+      "accent": "gold",
+      "stats": ["12/12", "192.5M", "Hunt"]
+    },
+    {
+      "kind": "exchange",
+      "badge": "D0",
+      "title": "Paper Exchange live — HMC spot · pool oracle",
+      "detail": "exchange.hackme.tech · also hub #exchange on your local node",
+      "cta": "Open desk",
+      "href": "https://exchange.hackme.tech/",
+      "accent": "cyan",
+      "stats": ["D0", "paper", "HMC"]
+    },
+    {
       "kind": "release",
-      "badge": "Shipped",
-      "title": "0.1.0-rc16 — self-update + signed apt",
-      "detail": "latest.json · update_hackme_miner · apt hackme-node · Windows banner",
+      "badge": "Channel",
+      "title": "0.1.0-rc17 — ecosystem cutover",
+      "detail": "Paper exchange · SUP wallet · Hunt · Dig — installers still last published rc16 until SHA",
       "cta": "Downloads",
       "href": "/downloads.html#start",
-      "accent": "success",
-      "stats": ["rc16", "apt", "LIVE"]
-    },
-    {
-      "kind": "win",
-      "badge": "Upstream win",
-      "title": "cfgpack int64 UBSan → fixed in days",
-      "detail": "Reported #1 · merge b5e7cff · not CVE-class · real maintainer fix",
-      "cta": "Case study",
-      "href": "/reports/oss-cve/cases/cfgpack.html",
-      "accent": "success",
-      "stats": ["#1 closed", "b5e7cff", "UBSan"]
-    },
-    {
-      "kind": "series",
-      "badge": "Finale",
-      "title": "libheif 14/14 CLEAN · ~2.57B exec",
-      "detail": "ASAN=0 across the full series · day reports public",
-      "cta": "Day 14",
-      "href": "/reports/oss-cve-watch-libheif/day14.html",
       "accent": "cyan",
-      "stats": ["14/14", "~2.57B", "ASAN=0"]
-    },
-    {
-      "kind": "series",
-      "badge": "Double ledger",
-      "title": "Two research series closed · nghttp2 + libheif",
-      "detail": "Honest CLEAN ledgers — not marketing fuzz theatre",
-      "cta": "Research",
-      "href": "/research.html",
-      "accent": "gold",
-      "stats": ["nghttp2", "libheif", "14/14"]
+      "stats": ["rc17", "cutover", "honest"]
     },
     {
       "kind": "pool",
@@ -54,24 +44,54 @@
       "live_pool": true
     },
     {
-      "kind": "case",
-      "badge": "In disclosure",
-      "title": "centijson · awaiting maintainer",
-      "detail": "Coordinated hold · PoC withheld until triage",
+      "kind": "ecosystem",
+      "badge": "Coins",
+      "title": "HMC · SUP · HMS — multi-asset network",
+      "detail": "Primary useful-PoW · support coin · storage prelaunch",
+      "cta": "Registry",
+      "href": "/coins.html",
+      "accent": "gold",
+      "stats": ["HMC", "SUP", "HMS"]
+    },
+    {
+      "kind": "release",
+      "badge": "Installers",
+      "title": "Download 0.1.0-rc16 — last published binaries",
+      "detail": "Self-update · signed apt hackme-node · Windows / Linux / HackMe OS",
+      "cta": "Get build",
+      "href": "/downloads.html#start",
+      "accent": "success",
+      "stats": ["rc16", "apt", "verified"]
+    },
+    {
+      "kind": "win",
+      "badge": "Upstream",
+      "title": "cfgpack int64 UBSan → fixed in days",
+      "detail": "Reported #1 · merge b5e7cff · real maintainer fix",
       "cta": "Case",
-      "href": "/reports/oss-cve/cases/centijson.html",
-      "accent": "medium",
-      "stats": ["hold", "medium"]
+      "href": "/reports/oss-cve/cases/cfgpack.html",
+      "accent": "success",
+      "stats": ["#1", "b5e7cff"]
+    },
+    {
+      "kind": "series",
+      "badge": "Research",
+      "title": "libheif 14/14 CLEAN · ~2.57B exec",
+      "detail": "ASAN=0 across the series · day reports public",
+      "cta": "Day 14",
+      "href": "/reports/oss-cve-watch-libheif/day14.html",
+      "accent": "gold",
+      "stats": ["14/14", "ASAN=0"]
     },
     {
       "kind": "b2b",
-      "badge": "For teams",
-      "title": "Run security audits on your local node",
-      "detail": "fuzz_report_v2 · CI gate · pool WASM campaigns",
-      "cta": "Developers",
-      "href": "/developers.html",
-      "accent": "violet",
-      "stats": ["B2B", "WASM"]
+      "badge": "Fuzz",
+      "title": "Dig + Hunt on your local node",
+      "detail": "WASM Dig · ASAN Hunt · report + CI gate",
+      "cta": "Order",
+      "href": "/orders.html",
+      "accent": "cyan",
+      "stats": ["Dig", "Hunt"]
     }
   ]
 }

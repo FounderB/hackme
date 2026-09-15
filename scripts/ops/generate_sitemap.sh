@@ -21,6 +21,9 @@ report_globs = [
     "reports/fuzz-depth-v3.html",
     "reports/bitcoin-core-5module.html",
     "reports/oss-cve/index.html",
+    "reports/hunt-watch-2026sep/index.html",
+    "reports/oss-cve-watch/index.html",
+    "reports/oss-cve-watch-libheif/index.html",
 ]
 for pat in report_globs:
     pages.extend(sorted(root.glob(pat)))

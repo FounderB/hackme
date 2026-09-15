@@ -22,7 +22,8 @@ Three layers on one stack:
 
 1. **Chain (HMC)** — PoH blocks, transfers, emission
 2. **Coordinator pool** — fair attempt accounting, hybrid signatures
-3. **Orders / fuzz** — B2B escrow for WASM security campaigns
+3. **Orders / fuzz** — Dig (WASM) + Hunt (ASAN) escrow campaigns on the same network
+4. **Paper Exchange + SUP wallet** — rc17 cutover desk (not live CEX custody)
 
 ## Slide 4 — Ecosystem map
 
@@ -34,7 +35,8 @@ Three layers on one stack:
 
 ## Slide 5 — Technology proof
 
-- Live pool + explorer + downloads (**0.1.0-rc16**)
+- Live pool + explorer + downloads (**0.1.0-rc17** channel · **rc16** installers until SHA)
+- Hunt Watch 2026sep: **12/12 CLOSED** (~192.5M Hunt Standard · ASAN+UBSan) · [ledger](https://hackme.tech/reports/hunt-watch-2026sep/)
 - OSS CVE Watch: nghttp2 14/14 CLEAN · libheif 14/14 CLEAN (~2.57B series exec · ASAN=0)
 - Operator gates: miner launch, SUP verdict, site consistency
 - Private bounty B1–B5 patched (desktop rebind, fleet settle, CF IP, fuzz PoP)
@@ -67,7 +69,7 @@ Three layers on one stack:
 ## Slide 10 — Roadmap
 
 - Q3 2026: own exchange paper soft (~15 Sep) · order clients · B2B integrators
-- Research ledgers closed (Bitcoin30 W1 · nghttp2 14/14 · libheif 14/14) — architecture + pool narrative next
+- Research ledgers closed (Hunt Watch 12/12 · Bitcoin30 · nghttp2 14/14 · libheif 14/14) — architecture + pool narrative next
 - Later: foreign PoW CEX if gates · aggregators, MM, legal entity for Tier-1
 
 ## Slide 11 — Risks

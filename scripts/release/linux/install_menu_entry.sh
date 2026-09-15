@@ -81,17 +81,30 @@ TPL_DASH="${PAYLOAD_DIR}/hackme-dashboard.desktop.template"
 [[ -f "$TPL_MAIN" ]] || TPL_MAIN="${HERE}/hackme.desktop.template"
 [[ -f "$TPL_DASH" ]] || TPL_DASH="${HERE}/hackme-dashboard.desktop.template"
 
-# Prefer start script; fall back to binary
-if [[ ! -x "${INSTALL_DIR}/start_hackme_miner.sh" ]]; then
+# Desktop launcher (XDG user state) is preferred for apt + menu clicks.
+if [[ -x "${INSTALL_DIR}/hackme_desktop_launch.sh" ]]; then
+  render_desktop "$TPL_MAIN" "${APP_DIR}/hackme.desktop"
+  render_desktop "$TPL_DASH" "${APP_DIR}/hackme-dashboard.desktop"
+elif [[ -x "${INSTALL_DIR}/start_hackme_miner.sh" ]]; then
   if [[ -f "$TPL_MAIN" ]]; then
-    sed "s#__INSTALL_DIR__/start_hackme_miner.sh#${INSTALL_DIR}/hackme#g" "$TPL_MAIN" \
-      | sed "s#__INSTALL_DIR__#${INSTALL_DIR}#g" >"${APP_DIR}/hackme.desktop"
+    sed "s#__INSTALL_DIR__/hackme_desktop_launch.sh\\( --open\\)\\?#${INSTALL_DIR}/start_hackme_miner.sh#g; s#__INSTALL_DIR__#${INSTALL_DIR}#g" \
+      "$TPL_MAIN" >"${APP_DIR}/hackme.desktop"
     chmod 0644 "${APP_DIR}/hackme.desktop"
   fi
+  if [[ -f "$TPL_DASH" ]]; then
+    # Dashboard without desktop launcher: open browser only (may be empty if node down).
+    sed "s#__INSTALL_DIR__/hackme_desktop_launch.sh --open#/usr/bin/xdg-open http://127.0.0.1:8080/#g; s#__INSTALL_DIR__#${INSTALL_DIR}#g" \
+      "$TPL_DASH" >"${APP_DIR}/hackme-dashboard.desktop"
+    chmod 0644 "${APP_DIR}/hackme-dashboard.desktop"
+  fi
 else
-  render_desktop "$TPL_MAIN" "${APP_DIR}/hackme.desktop"
+  if [[ -f "$TPL_MAIN" ]]; then
+    sed "s#__INSTALL_DIR__/hackme_desktop_launch.sh\\( --open\\)\\?#${INSTALL_DIR}/hackme#g; s#__INSTALL_DIR__#${INSTALL_DIR}#g" \
+      "$TPL_MAIN" >"${APP_DIR}/hackme.desktop"
+    chmod 0644 "${APP_DIR}/hackme.desktop"
+  fi
+  render_desktop "$TPL_DASH" "${APP_DIR}/hackme-dashboard.desktop"
 fi
-render_desktop "$TPL_DASH" "${APP_DIR}/hackme-dashboard.desktop"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$APP_DIR" >/dev/null 2>&1 || true

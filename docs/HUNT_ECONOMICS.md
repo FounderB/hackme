@@ -1,8 +1,8 @@
 # Hunt economics — 50/50 split (spec)
 
-**Status:** product spec · **not yet wired in code** (Dig/Scan still use 20/80 via `internal/fuzzescrow`)  
-**Updated:** 2026-08-30  
-**Related:** [FUZZ_ESCROW_20_80.md](FUZZ_ESCROW_20_80.md) · [ORDER_ECONOMICS.md](ORDER_ECONOMICS.md) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md)
+**Status:** shipped on **0.1.0-rc17** channel (Dig/Scan still 20/80)  
+**Updated:** 2026-09-14  
+**Related:** [FUZZ_ESCROW_20_80.md](FUZZ_ESCROW_20_80.md) · [ORDER_ECONOMICS.md](ORDER_ECONOMICS.md) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) · [HACKME_RC17.md](HACKME_RC17.md)
 
 ---
 
@@ -45,7 +45,7 @@ crash_bonus = min(0.01 × bounty_pool_hmc, 0.05 HMC)
 
 - Paid **once** per campaign to the miner who submitted the first **unique crash-class** finding.  
 - Deducted from the **bounty pool**; main bounty (50% slice) remains unlockable on full qualifying finding.  
-- **0** for detector noise, harness_runtime, UBSan-only informational.  
+- **0** for detector noise, harness_runtime, UBSan/LSan informational (`sanitizer_informational` finding type — see report hygiene appendix with subtypes).  
 - **Dig/Scan** keep existing cap **0.01 HMC** until explicitly migrated.
 
 **Examples (50/50):**
@@ -60,11 +60,11 @@ crash_bonus = min(0.01 × bounty_pool_hmc, 0.05 HMC)
 
 ## Packages (initial)
 
-| Tier | Budget HMC | Shards (target) | Wall | Min / shard | Notes |
-|------|------------|-----------------|------|-------------|-------|
-| **Hunt Lite** | **20** | 800–1500 | 6–24h | **≥ 0.002** | MVP — reuse existing fuzz target only |
-| **Hunt Standard** | **60** | 3000–5000 | 1–3d | **≥ 0.003** | + template harness after Accept |
-| **Hunt Heavy** | **150+** | pool-scale | 3d+ | dynamic | Phase 3 — only when median Dig &lt;6h |
+| Tier | Budget HMC | Shards (target) | Exec/shard | Overnight local | Wall | Min / shard | Notes |
+|------|------------|-----------------|------------|-----------------|------|-------------|-------|
+| **Hunt Lite** | **20** | **1200** | **32** | **20k iter · 1h** | 6–24h | **≥ 0.002** | MVP — catalog + inventory |
+| **Hunt Standard** | **60** | **4000** | **128** | **200k iter · 8h** | 1–3d | **≥ 0.003** | + template harness after Accept |
+| **Hunt Heavy** | **150+** | **12000** | **256** | **500k iter · 12h** | 3d+ | dynamic | Pool-scale depth |
 
 **Minimum campaign budget (Hunt):** **15 HMC** (Lite floor in UI), **50 HMC** (Standard).
 
@@ -106,7 +106,8 @@ First **qualifying** finding wins the bounty slice (same idempotency model as Di
 
 Default Hunt: **fuzz escrow only** (`create_poh_order: false`).
 
-Optional hybrid: `create_poh_order: true`, `reward_hmc: 0.02–0.05` — for rigs running PoH + Hunt shards. Not required for MVP.
+Optional hybrid: `create_poh_order: true`, `reward_hmc: 0.02–0.05` — for rigs running PoH + Hunt shards.  
+Coordinator attach uses the dedicated **order gate** WASM (not Hunt ASAN / Dig detectors). Override with `poh_wasm_check_hex` if needed.
 
 ---
 
@@ -131,14 +132,30 @@ Hunt Lite · 20 HMC · 50/50 split
 
 ---
 
-## Implementation checklist (code — later)
+## Implementation checklist (code)
 
-- [ ] `fuzzescrow.ComputeHuntSplitUnits` — 50/50 + Hunt min shard units  
-- [ ] `campaign_type: hunt` or package `hunt_lite` / `hunt_standard` in create API  
-- [ ] `UniqueCrashBonusMaxUnits` override for Hunt: **5_000_000** (0.05 HMC)  
-- [ ] Coordinator: CPU shard work kind + repro challenge  
-- [ ] UI: pre-pay block + escrow fields (`runs_remaining_hmc`, `locked_bounty_hmc`)  
-- [ ] Docs cross-link from [FUZZ_ESCROW_20_80.md](FUZZ_ESCROW_20_80.md)
+- [x] `fuzzescrow.ComputeHuntSplitUnits` — 50/50 + Hunt min shard units  
+- [x] `campaign_type: hunt` in create API (`POST /api/hunt/campaigns`)  
+- [x] `UniqueCrashBonusMaxUnits` override for Hunt: **5_000_000** (0.05 HMC) via `escrow_split`  
+- [x] Node: `GET /api/hunt/targets`, `POST /api/hunt/inventory`, `POST /api/hunt/campaigns`  
+- [x] Coordinator: CPU shard work kind `hunt_shard` — claim/submit + **coordinator ASAN replay** (`evalHuntSubmitCheck`)  
+- [x] Worker: `RunHuntShard` ASAN on catalog harness (`hunt.ReplayShard` + `.cache/hunt-harness/`)  
+- **L1 mutating shards:** anchor at claim + `iterations_per_shard` (Lite 32 · Standard 128 · Heavy 256) (`hunt.ShardSegmentExecInput`); coordinator replays full chain; fake-crash reject unchanged  
+- **L2 corpus-guided:** `hunt_corpus_guided` + frozen `corpus_seeds` at claim; pool corpus bootstrap/observe; namespace persist `hunt:{target_id}`  
+- **Overnight local:** `hunt_local_runner` + autorunner ticks (`hunt.LocalAutorunTick`) — hours-scale without pool rewrite  
+- **Domain mutator dict:** `ApplyHuntMutatorDict` per catalog target (JSON/XML/INI/TOML/msgpack)  
+	- [x] **Sanitizer profile:** default `asan+ubsan+lsan` (`hunt_detect_leaks: true`); UBSan/LSan → `sanitizer_informational` hygiene appendix (not bounty)  
+- [x] UI: Hunt card + **pre-pay scope block** `#hunt-scope-contract`  
+- [x] Gate: `scripts/tests/hunt_pool_smoke_gate.sh` (fake crash reject + worker smoke)  
+- [x] Benchmark: `scripts/tests/hunt_standard128_live_benchmark.sh` + [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md)  
+- [x] Inventory C/C++: multi-file `clang++` harness, companion sources, CMake `build_hints` — `scripts/tests/hunt_inventory_cpp_gate.sh`
+- [x] Inventory Rust Phase A: `.rs` detect + catalog `language=rust` ASAN (`serde_json`, **`memchr`**, **`quick_xml`**) via cargo nightly — `scripts/tests/hunt_inventory_rust_gate.sh` · [HUNT_RUST_PHASE_A.md](HUNT_RUST_PHASE_A.md)
+- [x] Hunt gates (also): `hunt_report_gate.sh`, `hunt_harness_publish_gate.sh`, `hunt_mutator_trim_gate.sh`, `hunt_l2_seeds_ab_gate.sh`, `hunt_corpus_import_gate.sh`, `hunt_async_swarm_gate.sh`, `hunt_replay_async_gate.sh`
+- [x] Customer repo pin → harness build (`POST /api/hunt/repo/pin`, `/harness/build`, `/template/preview`)  
+- [x] Harness publish API + coordinator worker fetch (`/harness/publish`, `/api/fuzz/pool/hunt/harness/{hash}`)  
+- [x] CLI: `hackme-fuzzing hunt pin|inventory|build|create`  
+- [x] Dashboard: inventory mode + template Accept  
+- [x] Docs cross-link from [FUZZ_ESCROW_20_80.md](FUZZ_ESCROW_20_80.md) · HTTP tables in [API.md](API.md)#hunt-campaigns-phase-2
 
 ---
 
@@ -146,4 +163,5 @@ Hunt Lite · 20 HMC · 50/50 split
 
 - 50/50 does **not** guarantee miners profit if pool is tiny or ETA is weeks — cap budgets + live ETA.  
 - 50/50 does **not** promise CVE — only fair pay for compute + crash jackpot lane.  
+- Hunt is **not** positioned as a libFuzzer replacement — see [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md) (libFuzzer wins exec/s; Hunt wins fleet + deliverable).  
 - Foreign CEX price of HMC does not change these **in-ecosystem** unit rules.

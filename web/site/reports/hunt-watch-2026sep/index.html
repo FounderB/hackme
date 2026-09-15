@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>HackMe Hunt Watch · 2026sep · 12-day ASAN ledger</title>
+<meta name="description" content="Hunt Standard 12-day watch: 50 target runs, 192,507,336 iterations, 43 CLEAN · 2 CVE_CANDIDATE · 5 INFORMATIONAL. Not libFuzzer."/>
+<link rel="canonical" href="https://hackme.tech/reports/hunt-watch-2026sep/"/>
+<meta name="robots" content="index,follow"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#0a1024;--ink:#e8eef8;--muted:#8b9bb8;--line:rgba(120,150,200,.18);
+  --ok:#3dffa8;--warn:#ffb020;--signal:#ff7a59;--accent:#6ea8ff;--card:rgba(12,22,48,.72)
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"IBM Plex Mono",ui-monospace,monospace;color:var(--ink);line-height:1.55;
+  background:
+    radial-gradient(1100px 520px at 12% -8%,rgba(80,130,255,.18),transparent 55%),
+    radial-gradient(900px 480px at 92% 8%,rgba(61,255,168,.07),transparent 50%),
+    linear-gradient(180deg,#0c1231 0%,var(--bg) 45%,#070b18 100%)}
+.wrap{max-width:960px;margin:0 auto;padding:2.4rem 1.2rem 4rem}
+.nav{font-size:.75rem;color:var(--muted);margin:0 0 1.4rem}
+.nav a{color:var(--accent);text-decoration:none}
+.nav a:hover{text-decoration:underline}
+.hero{position:relative;overflow:hidden;padding:2rem 1.5rem 1.75rem;border:1px solid rgba(110,168,255,.28);
+  border-radius:22px;background:linear-gradient(155deg,rgba(80,130,255,.12),rgba(8,12,28,.65));
+  box-shadow:0 24px 60px rgba(0,0,0,.35);margin-bottom:1.5rem}
+.hero::after{content:"";position:absolute;inset:auto -20% -40% 40%;height:180px;
+  background:radial-gradient(circle,rgba(61,255,168,.12),transparent 65%);pointer-events:none}
+.tag{font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 .55rem}
+h1{font-family:Syne,sans-serif;font-size:clamp(1.45rem,4.2vw,2.15rem);margin:0;letter-spacing:-.03em;line-height:1.15}
+.lead{margin:.75rem 0 0;color:#b7c6de;font-size:.88rem;max-width:46rem}
+.badge{display:inline-flex;align-items:center;gap:.4rem;margin-top:1.1rem;padding:.42rem 1rem;
+  border-radius:999px;border:1.5px solid var(--ok);color:var(--ok);font-weight:700;font-size:.76rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:.7rem;margin:1.35rem 0 1.6rem}
+.stat{border:1px solid var(--line);border-radius:14px;padding:.95rem .85rem;background:var(--card);backdrop-filter:blur(8px)}
+.stat b{display:block;font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:.35rem}
+.stat .v{font-size:clamp(.95rem,2.5vw,1.28rem);font-weight:700}
+.stat .v.ok{color:var(--ok)} .stat .v.signal{color:var(--signal)} .stat .v.warn{color:var(--warn)}
+.policy{border:1px solid rgba(255,176,32,.32);border-radius:14px;padding:1rem 1.1rem;font-size:.8rem;
+  color:#e0c9a0;background:rgba(255,176,32,.06);margin:0 0 1.6rem}
+h2{font-family:Syne,sans-serif;font-size:1.12rem;margin:1.8rem 0 .7rem;letter-spacing:-.02em}
+.days{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:.5rem;margin:.4rem 0 1.4rem}
+.daychip{display:flex;justify-content:space-between;align-items:center;gap:.35rem;padding:.55rem .6rem;
+  border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.02);font-size:.72rem}
+.pill{font-size:.58rem;padding:.14rem .4rem;border-radius:999px;border:1px solid rgba(255,255,255,.18);letter-spacing:.04em}
+.pill.done{border-color:rgba(61,255,168,.45);color:var(--ok)}
+.pill.info{border-color:rgba(255,176,32,.45);color:var(--warn)}
+.pill.signal{border-color:rgba(255,122,89,.55);color:var(--signal)}
+.hl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.75rem;margin:0 0 1.5rem}
+.hl{border:1px solid var(--line);border-radius:14px;padding:1rem 1.05rem;background:var(--card)}
+.hl-tag{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.hl h3{margin:.35rem 0 .4rem;font-family:Syne,sans-serif;font-size:1rem}
+.hl p{margin:0;font-size:.78rem;color:#a9bbd4}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:rgba(0,0,0,.18)}
+table{width:100%;border-collapse:collapse;font-size:.8rem;margin:0}
+th,td{border-bottom:1px solid var(--line);padding:.55rem .55rem;text-align:left;white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em}
+tr:last-child td{border-bottom:0}
+td.ok{color:var(--ok)} td.warn{color:var(--warn)} td.signal{color:var(--signal);font-weight:700}
+.card{border:1px solid var(--line);border-radius:14px;padding:1.05rem 1.15rem;margin:0 0 .85rem;background:var(--card)}
+.card h3{margin:0 0 .45rem;font-family:Syne,sans-serif;font-size:1rem}
+.tag-inline{font-size:.65rem;border:1px solid var(--accent);color:var(--accent);padding:.12rem .42rem;border-radius:999px;margin-left:.35rem;vertical-align:middle}
+.links a,.card a{color:var(--accent)}
+.sub{color:var(--muted);font-size:.82rem;margin:.15rem 0 1rem}
+footer{margin-top:2.4rem;padding-top:1.2rem;border-top:1px solid var(--line);color:var(--muted);font-size:.74rem}
+footer a{color:var(--accent)}
+code{font-size:.86em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="nav"><a href="../../research.html">Research</a> · <a href="../../orders.html">Order Hunt</a> · <a href="../oss-cve-watch/">nghttp2 libFuzzer lane</a></p>
+  <section class="hero">
+    <p class="tag">Hunt product lane · 2026sep · Sep 2–14 2026</p>
+    <h1>Hunt Watch · 12/12 closed</h1>
+    <p class="lead">
+      Multi-target <strong>Hunt Standard</strong> marathon — ASAN + UBSan subprocess depth,
+      not in-process libFuzzer. Honest public ledger for the Hunt product
+      (separate from the nghttp2 / libheif OSS CVE Watch research lane).
+    </p>
+    <span class="badge">SERIES COMPLETE</span>
+  </section>
+  <div class="stats">
+    <div class="stat"><b>Target runs</b><div class="v">50</div></div>
+    <div class="stat"><b>Iterations</b><div class="v">192,507,336</div></div>
+    <div class="stat"><b>CLEAN</b><div class="v ok">43</div></div>
+    <div class="stat"><b>CVE_CANDIDATE</b><div class="v signal">2</div></div>
+    <div class="stat"><b>INFORMATIONAL</b><div class="v warn">5</div></div>
+    <div class="stat"><b>Crash artifacts</b><div class="v">1,437</div></div>
+  </div>
+  <div class="policy">
+    <strong>Honest scope.</strong> Hunt ≠ “faster than libFuzzer.” Value = fleetable sanitizer audit + verified report.
+    CLEAN on mature parsers is expected. <code>CVE_CANDIDATE</code> = sanitizer class worth triage — not a published CVE ID.
+    Engine: <code>hunt_standard</code> · generated 2026-09-14T18:37:06Z.
+  </div>
+  <h2>Day strip</h2>
+  <div class="days"><div class="daychip done" title="cfgpack, cj5, cmp"><span>Day 01</span><span class="pill done">CLEAN</span></div><div class="daychip done" title="heatshrink, inih, uriparser"><span>Day 02</span><span class="pill done">CLEAN</span></div><div class="daychip done" title="jsmn, parson, tomlc99"><span>Day 03</span><span class="pill done">CLEAN</span></div><div class="daychip signal" title="mjson, sheredom, yyjson"><span>Day 04</span><span class="pill signal">SIGNAL</span></div><div class="daychip done" title="expat, miniz, zlib"><span>Day 05</span><span class="pill done">CLEAN</span></div><div class="daychip info" title="cjson, libucl, md4c"><span>Day 06</span><span class="pill info">INFO</span></div><div class="daychip info" title="cfgpack, cj5, cmp"><span>Day 07</span><span class="pill info">INFO</span></div><div class="daychip done" title="heatshrink, inih, uriparser"><span>Day 08</span><span class="pill done">CLEAN</span></div><div class="daychip done" title="cj5, jsmn, tomlc99"><span>Day 09</span><span class="pill done">CLEAN</span></div><div class="daychip done" title="mjson, parson, yyjson"><span>Day 10</span><span class="pill done">CLEAN</span></div><div class="daychip info" title="expat, libucl, miniz"><span>Day 11</span><span class="pill info">INFO</span></div><div class="daychip info" title="cfgpack, cjson, cmp"><span>Day 12</span><span class="pill info">INFO</span></div></div>
+  <h2 id="signals">Signals worth reading</h2>
+  <div class="hl-grid"><article class="hl"><span class="hl-tag">Candidate signal</span><h3><code>sheredom</code></h3><p>CVE_CANDIDATE · 1,492,190 iter · 13 crash artifacts · unique sanitizer class — not a CVE ID.</p></article><article class="hl"><span class="hl-tag">Informational</span><h3><code>libucl</code></h3><p>INFORMATIONAL · 2,840,056 iter · 450 crash artifacts · unique sanitizer class — not a CVE ID.</p></article><article class="hl"><span class="hl-tag">Informational</span><h3><code>cfgpack</code></h3><p>INFORMATIONAL · 4,350,157 iter · 4 crash artifacts · unique sanitizer class — not a CVE ID.</p></article></div>
+  <h2>Full day rotation</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Day</th><th>Target</th><th>Verdict</th><th>Iter</th><th>exec/s</th><th>Crashes</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>cfgpack</code></td><td class="ok">CLEAN</td><td>1,000,000</td><td>156.2</td><td>0</td></tr><tr><td>1</td><td><code>cj5</code></td><td class="ok">CLEAN</td><td>1,000,000</td><td>146.5</td><td>0</td></tr><tr><td>1</td><td><code>cmp</code></td><td class="ok">CLEAN</td><td>1,000,000</td><td>154.1</td><td>0</td></tr><tr><td>2</td><td><code>heatshrink</code></td><td class="ok">CLEAN</td><td>4,418,284</td><td>153.4</td><td>0</td></tr><tr><td>2</td><td><code>inih</code></td><td class="ok">CLEAN</td><td>4,262,702</td><td>148.0</td><td>0</td></tr><tr><td>2</td><td><code>uriparser</code></td><td class="ok">CLEAN</td><td>4,231,081</td><td>146.9</td><td>0</td></tr><tr><td>3</td><td><code>jsmn</code></td><td class="ok">CLEAN</td><td>4,644,504</td><td>161.3</td><td>0</td></tr><tr><td>3</td><td><code>parson</code></td><td class="ok">CLEAN</td><td>4,277,667</td><td>148.5</td><td>0</td></tr><tr><td>3</td><td><code>tomlc99</code></td><td class="ok">CLEAN</td><td>4,093,739</td><td>142.1</td><td>0</td></tr><tr><td>4</td><td><code>mjson</code></td><td class="ok">CLEAN</td><td>4,663,636</td><td>161.9</td><td>0</td></tr><tr><td>4</td><td><code>sheredom</code></td><td class="signal">CVE_CANDIDATE</td><td>1,492,190</td><td>51.8</td><td>13</td></tr><tr><td>4</td><td><code>yyjson</code></td><td class="ok">CLEAN</td><td>3,911,484</td><td>135.8</td><td>0</td></tr><tr><td>4</td><td><code>mjson</code></td><td class="ok">CLEAN</td><td>4,490,973</td><td>155.9</td><td>0</td></tr><tr><td>4</td><td><code>sheredom</code></td><td class="signal">CVE_CANDIDATE</td><td>2,516,752</td><td>87.4</td><td>13</td></tr><tr><td>4</td><td><code>yyjson</code></td><td class="ok">CLEAN</td><td>3,840,344</td><td>133.3</td><td>0</td></tr><tr><td>5</td><td><code>expat</code></td><td class="ok">CLEAN</td><td>3,601,642</td><td>125.1</td><td>0</td></tr><tr><td>5</td><td><code>miniz</code></td><td class="ok">CLEAN</td><td>4,139,137</td><td>143.7</td><td>0</td></tr><tr><td>5</td><td><code>zlib</code></td><td class="ok">CLEAN</td><td>4,489,921</td><td>155.9</td><td>0</td></tr><tr><td>5</td><td><code>expat</code></td><td class="ok">CLEAN</td><td>3,440,674</td><td>119.5</td><td>0</td></tr><tr><td>5</td><td><code>miniz</code></td><td class="ok">CLEAN</td><td>4,166,425</td><td>144.7</td><td>0</td></tr><tr><td>5</td><td><code>zlib</code></td><td class="ok">CLEAN</td><td>4,480,776</td><td>155.6</td><td>0</td></tr><tr><td>6</td><td><code>cjson</code></td><td class="ok">CLEAN</td><td>4,140,557</td><td>143.8</td><td>0</td></tr><tr><td>6</td><td><code>libucl</code></td><td class="warn">INFORMATIONAL</td><td>2,840,056</td><td>98.6</td><td>450</td></tr><tr><td>6</td><td><code>md4c</code></td><td class="ok">CLEAN</td><td>4,111,356</td><td>142.8</td><td>0</td></tr><tr><td>6</td><td><code>cjson</code></td><td class="ok">CLEAN</td><td>3,917,650</td><td>136.0</td><td>0</td></tr><tr><td>6</td><td><code>libucl</code></td><td class="warn">INFORMATIONAL</td><td>2,785,394</td><td>96.7</td><td>438</td></tr><tr><td>6</td><td><code>md4c</code></td><td class="ok">CLEAN</td><td>3,958,879</td><td>137.5</td><td>0</td></tr><tr><td>7</td><td><code>cfgpack</code></td><td class="warn">INFORMATIONAL</td><td>4,350,157</td><td>151.0</td><td>4</td></tr><tr><td>7</td><td><code>cj5</code></td><td class="ok">CLEAN</td><td>4,222,055</td><td>146.6</td><td>0</td></tr><tr><td>7</td><td><code>cmp</code></td><td class="ok">CLEAN</td><td>4,409,912</td><td>153.1</td><td>0</td></tr><tr><td>7</td><td><code>cfgpack</code></td><td class="ok">CLEAN</td><td>4,272,124</td><td>148.3</td><td>0</td></tr><tr><td>7</td><td><code>cj5</code></td><td class="ok">CLEAN</td><td>4,086,088</td><td>141.9</td><td>0</td></tr><tr><td>7</td><td><code>cmp</code></td><td class="ok">CLEAN</td><td>4,432,895</td><td>153.9</td><td>0</td></tr><tr><td>8</td><td><code>heatshrink</code></td><td class="ok">CLEAN</td><td>4,269,630</td><td>148.3</td><td>0</td></tr><tr><td>8</td><td><code>inih</code></td><td class="ok">CLEAN</td><td>3,920,199</td><td>136.1</td><td>0</td></tr><tr><td>8</td><td><code>uriparser</code></td><td class="ok">CLEAN</td><td>3,982,525</td><td>138.3</td><td>0</td></tr><tr><td>8</td><td><code>heatshrink</code></td><td class="ok">CLEAN</td><td>4,251,313</td><td>147.6</td><td>0</td></tr><tr><td>9</td><td><code>jsmn</code></td><td class="ok">CLEAN</td><td>4,480,886</td><td>155.6</td><td>0</td></tr><tr><td>9</td><td><code>cj5</code></td><td class="ok">CLEAN</td><td>4,652,971</td><td>161.6</td><td>0</td></tr><tr><td>9</td><td><code>jsmn</code></td><td class="ok">CLEAN</td><td>4,688,390</td><td>162.8</td><td>0</td></tr><tr><td>9</td><td><code>tomlc99</code></td><td class="ok">CLEAN</td><td>3,813,891</td><td>132.4</td><td>0</td></tr><tr><td>10</td><td><code>mjson</code></td><td class="ok">CLEAN</td><td>4,575,509</td><td>158.9</td><td>0</td></tr><tr><td>10</td><td><code>parson</code></td><td class="ok">CLEAN</td><td>4,303,441</td><td>149.4</td><td>0</td></tr><tr><td>10</td><td><code>yyjson</code></td><td class="ok">CLEAN</td><td>3,687,959</td><td>128.1</td><td>0</td></tr><tr><td>11</td><td><code>expat</code></td><td class="ok">CLEAN</td><td>3,800,700</td><td>132.0</td><td>0</td></tr><tr><td>11</td><td><code>libucl</code></td><td class="warn">INFORMATIONAL</td><td>3,060,888</td><td>106.3</td><td>485</td></tr><tr><td>11</td><td><code>miniz</code></td><td class="ok">CLEAN</td><td>4,082,534</td><td>141.8</td><td>0</td></tr><tr><td>12</td><td><code>cfgpack</code></td><td class="warn">INFORMATIONAL</td><td>4,359,696</td><td>151.4</td><td>34</td></tr><tr><td>12</td><td><code>cjson</code></td><td class="ok">CLEAN</td><td>4,209,586</td><td>146.2</td><td>0</td></tr><tr><td>12</td><td><code>cmp</code></td><td class="ok">CLEAN</td><td>4,678,164</td><td>162.4</td><td>0</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h2>Known issues (obscure pilot)</h2>
+  <p class="sub">Disclosure appendix — separate from the CLEAN day ledger above.</p>
+  <div class="card"><h3>centijson <span class="tag-inline">fixed_upstream</span></h3><p><code>ubsan/null-deref (memcpy)</code> · find verdict <strong>INFORMATIONAL</strong></p><p>Empty-string input "" triggered UBSan at value.c:438 on an older shallow tip. Maintainer pointed to 7d4ab62 (guard memcpy when len==0). Retested on current master: CLEAN.</p><p class="links"><a href="https://github.com/mity/centijson/issues/16" rel="noopener noreferrer">16</a> · <a href="https://github.com/mity/centijson/commit/7d4ab62" rel="noopener noreferrer">7d4ab62</a></p></div><div class="card"><h3>jsonparser <span class="tag-inline">known_open_duplicate</span></h3><p><code>ubsan/null-pointer-offset</code> · find verdict <strong>INFORMATIONAL</strong></p><p>3-byte input {"" hit json.c:437. Upstream closed our #186 as duplicate of open #166 (2022).</p><p class="links"><a href="https://github.com/json-parser/json-parser/issues/186" rel="noopener noreferrer">186</a> · <a href="https://github.com/json-parser/json-parser/issues/166" rel="noopener noreferrer">166</a></p></div>
+  <footer>
+    Not a CVE lottery. Hunt = verified sanitizer audit + report.
+    Re-export: <code>SERIES=2026sep python3 scripts/ops/export_hunt_watch_rollup.py</code>
+    · <a href="https://hackme.tech/research.html">Research hub</a>
+    · <a href="https://hackme.tech/orders.html">Order Hunt</a>
+  </footer>
+</div>
+</body>
+</html>

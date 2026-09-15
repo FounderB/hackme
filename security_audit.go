@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -377,6 +378,11 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 	if req.PublicProof != nil && *req.PublicProof {
 		cfgMap["public_proof"] = true
 	}
+	repoRoot := strings.TrimSpace(os.Getenv("HACKME_REPO_ROOT"))
+	if repoRoot == "" {
+		repoRoot = "."
+	}
+	cfgMap = fuzzingcli.FinalizeDigCampaignConfig(cfgMap, fuzzingcli.DigPackageFromDepthTier(depthTier), strings.TrimSpace(req.GuardPack), repoRoot)
 	cfgMap = normalizeFuzzCampaignConfig(cfgMap, "property")
 	cfg := marshalMapJSON(cfgMap)
 
@@ -425,7 +431,7 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 	resp["customer_report_header"] = "X-Hackme-Report-Token"
 	resp["fuzz_engine"] = fuzzEngineMetaFromConfig(cfgMap)
 	resp["depth_tier"] = string(depthTier)
-	resp["report_url"] = "/api/fuzz/campaigns/" + campaignID + "/report.html"
+	mergeDeliverableURLs(resp, campaignID)
 	if publicProofEnabled(cfgMap) {
 		resp["public_proof"] = true
 		resp["proof_url"] = "/proof/" + campaignID

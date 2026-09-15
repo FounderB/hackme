@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HackMe Fuzz Marketplace — Pool campaigns</title>
   <meta name="description" content="Public pool fuzz campaigns: coverage runs (20% budget) and bounty for real findings (80%)." />
-  <link rel="stylesheet" href="./assets/styles.css" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260914dev1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
 </head>
 <body>
@@ -24,15 +24,15 @@
     </nav>
     <section class="hero glass hero-small">
       <p class="kicker">Campaign board · pool marketplace</p>
-      <h1>Pool campaigns (20/80 escrow)</h1>
+      <h1>Pool campaigns</h1>
       <p class="hero-copy">
-        <strong>20%</strong> of budget pays miners per verified run (coverage).
-        <strong>80%</strong> is the bounty pool — first qualifying finding takes it (minus 5% platform fee on payout).
-        Unused bounty is refunded when the campaign completes.
-        <strong>Pool tiers:</strong> Scan 1 exec/unit · Audit 64 · Deep <strong>64 cap</strong> on hub (512 local autorunner).
+        <strong>Dig</strong> escrow is <strong>20/80</strong> (runs / bounty).
+        <strong>Hunt</strong> escrow is <strong>50/50</strong> — see <a href="./fuzz-guide.html">fuzz guide</a>.
+        Dig pool tiers: Scan 1 · Audit 64 · Deep <strong>64 cap</strong> on hub.
+        Create Dig with <code>wizard</code>; create Hunt with <code>hackme-fuzzing hunt …</code>.
       </p>
       <button type="button" class="btn btn-secondary" id="btn-refresh">Refresh</button>
-      <a class="btn btn-secondary" href="./developers.html">Create a campaign (wizard)</a>
+      <a class="btn btn-secondary" href="./developers.html">Packages &amp; CLI</a>
     </section>
     <section class="panel glass">
       <div class="panel-head">
@@ -143,7 +143,7 @@
     document.getElementById('btn-refresh').addEventListener('click', load);
     load();
   </script>
-  <script src="./assets/site-shell.js?v=20260824iso"></script>
-  <script src="./assets/app.js?v=20260824iso"></script>
+  <script src="./assets/site-shell.js?v=20260914dev1"></script>
+  <script src="./assets/app.js?v=20260914dev1"></script>
 </body>
 </html>

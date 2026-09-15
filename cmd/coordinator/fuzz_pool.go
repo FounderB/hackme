@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -473,6 +474,30 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		if sha := strings.TrimSpace(work.CorpusSnapshotSHA256); sha != "" {
 			payload["corpus_snapshot_sha256"] = sha
 		}
+		if work.TaskClass == "hunt" || work.WorkKind == "hunt_shard" {
+			payload["task_class"] = "hunt"
+			payload["work_kind"] = "hunt_shard"
+			payload["harness_hash"] = work.HarnessHash
+			payload["upstream_target_id"] = work.UpstreamTargetID
+			payload["per_shard_hmc"] = work.PerRunHMC
+			if src := strings.TrimSpace(work.HuntSource); src != "" {
+				payload["hunt_source"] = src
+			}
+			if p := strings.TrimSpace(work.HuntPinPath); p != "" {
+				payload["hunt_pin_path"] = p
+			}
+			if rel := strings.TrimSpace(work.HuntSourceRel); rel != "" {
+				payload["hunt_source_rel"] = rel
+			}
+			if u := strings.TrimSpace(work.HarnessFetchURL); u != "" {
+				payload["harness_fetch_url"] = u
+			}
+			payload["hunt_detect_leaks"] = work.HuntDetectLeaks
+			payload["shard_spec"] = map[string]any{
+				"iterations_per_shard": work.IterationsPerShard,
+				"check_semantics":      work.CheckSemantics,
+			}
+		}
 		_ = json.NewEncoder(w).Encode(payload)
 	})
 
@@ -564,7 +589,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		if h := strings.TrimSpace(req.InputBytesHex); h != "" {
 			inputBytes, _ = hex.DecodeString(h)
 		}
-		if err := pf.Submit(r.Context(), poolfuzz.SubmitRequest{
+		out, err := pf.SubmitWithOutcome(r.Context(), poolfuzz.SubmitRequest{
 			WorkerID:        req.WorkerID,
 			MinerAddress:    payoutAddr,
 			WorkID:          req.WorkID,
@@ -577,7 +602,8 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			DurationMS:      req.DurationMS,
 			Trap:            strings.TrimSpace(req.Trap),
 			SegmentExecDone: req.SegmentExecDone,
-		}); err != nil {
+		})
+		if err != nil {
 			wm.markSubmitOutcome(req.WorkerID, ipKey, "fuzz_submit_failed", now)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -601,7 +627,108 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			wm.touchWorkerSeen(req.WorkerID)
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "accepted": true})
+		resp := map[string]any{"ok": true, "accepted": true}
+		if out.Async {
+			w.WriteHeader(http.StatusAccepted)
+			resp["async"] = true
+			resp["replay_status"] = out.ReplayStatus
+			if out.QueueID > 0 {
+				resp["queue_id"] = out.QueueID
+			}
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	mux.HandleFunc("/api/fuzz/work/replay-status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !coordinatorWorkPOSTAuthed(r, adminToken, workerToken, allowInsecure) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
+			http.Error(w, "coordinator authentication required", http.StatusUnauthorized)
+			return
+		}
+		cid := strings.TrimSpace(r.URL.Query().Get("campaign_id"))
+		itemStr := strings.TrimSpace(r.URL.Query().Get("item_id"))
+		if cid == "" || itemStr == "" {
+			http.Error(w, "campaign_id and item_id required", http.StatusBadRequest)
+			return
+		}
+		itemID, err := strconv.ParseInt(itemStr, 10, 64)
+		if err != nil || itemID <= 0 {
+			http.Error(w, "invalid item_id", http.StatusBadRequest)
+			return
+		}
+		st, err := pf.HuntReplayStatus(r.Context(), cid, itemID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(st)
+	})
+
+	mux.HandleFunc("/api/fuzz/pool/hunt/harness", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			if adminToken == "" && allowInsecure {
+				// loopback dev
+			} else if adminToken == "" || !coordAdminOK(r, adminToken) {
+				w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
+				http.Error(w, "admin authentication required", http.StatusUnauthorized)
+				return
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, 36<<20)
+			var req struct {
+				HarnessHash string `json:"harness_hash"`
+				SourceRel   string `json:"source_rel"`
+				BinaryB64   string `json:"binary_b64"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid json", http.StatusBadRequest)
+				return
+			}
+			data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(req.BinaryB64))
+			if err != nil {
+				http.Error(w, "invalid binary_b64", http.StatusBadRequest)
+				return
+			}
+			if err := huntPutHarnessArtifact(r.Context(), pf.DB, req.HarnessHash, data, req.SourceRel); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "harness_hash": strings.TrimSpace(req.HarnessHash), "byte_size": len(data)})
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/fuzz/pool/hunt/harness/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !coordinatorWorkPOSTAuthed(r, adminToken, workerToken, allowInsecure) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
+			http.Error(w, "coordinator authentication required", http.StatusUnauthorized)
+			return
+		}
+		hash := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/fuzz/pool/hunt/harness/"), "/")
+		if hash == "" {
+			http.Error(w, "harness hash required", http.StatusBadRequest)
+			return
+		}
+		data, err := huntGetHarnessArtifact(r.Context(), pf.DB, hash)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Cache-Control", "private, max-age=3600")
+		_, _ = w.Write(data)
 	})
 }
 
@@ -609,6 +736,7 @@ func startPoolFuzzTicker(ctx context.Context, pf *poolfuzz.Service) {
 	if pf == nil {
 		return
 	}
+	poolfuzz.StartHuntReplayWorkers(ctx, pf)
 	go func() {
 		t := time.NewTicker(3 * time.Second)
 		defer t.Stop()
@@ -619,6 +747,10 @@ func startPoolFuzzTicker(ctx context.Context, pf *poolfuzz.Service) {
 			case <-t.C:
 				if err := pf.Tick(ctx); err != nil {
 					// best-effort
+				}
+				// Drain settle HTTP off the submit/finalize hot path when enqueue-only.
+				if rs, ok := pf.Settler.(*poolfuzz.RelaySettler); ok && rs != nil && rs.SkipInlineHTTP {
+					_, _, _ = rs.DrainPendingSettleHTTP(ctx, 64)
 				}
 			}
 		}

@@ -1,6 +1,6 @@
 # rc17 cutover plan (local prep — deploy at cut only)
 
-**Status:** PREP · bundle with D0 exchange + SUP wallet · **no early hub restart**
+**Status:** CUTOVER LIVE · 15 Sep 2026 · D0 exchange + SUP wallet + Hunt · hub **0.1.0-rc17**
 
 Related: [HACKME_RC16.md](HACKME_RC16.md) · [exchange D0 checklist](https://github.com/jokeez/hackme-exchange/blob/main/docs/D0_CHECKLIST.md) · [HUB_TAB](https://github.com/jokeez/hackme-exchange/blob/main/docs/HUB_TAB.md)
 
@@ -51,4 +51,4 @@ cd ../hackme-exchange-demo && npx tsx scripts/lab-smoke.ts   # API on :18443
 
 - **Production hub** — leave on rc16 runtime (code in git may be ahead; no restart)
 - **D0 static** — can be prepared locally; DNS flip only in cut window
-- **Lab dev** — `localStorage.setItem('hackme.exchange.origin', 'http://127.0.0.1:5199')`
+- **Lab / desktop hub** — `#exchange` prefers `http://127.0.0.1:5199` when reachable; buttons Local / Public; override via `localStorage.hackme.exchange.origin`

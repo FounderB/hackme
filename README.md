@@ -17,7 +17,7 @@
 
 <br/>
 
-[![Release](https://img.shields.io/badge/release-0.1.0--rc16-00d1ff?style=for-the-badge&logo=semanticweb&logoColor=white)](https://hackme.tech/downloads.html)
+[![Release](https://img.shields.io/badge/release-0.1.0--rc17-00d1ff?style=for-the-badge&logo=semanticweb&logoColor=white)](https://hackme.tech/downloads.html)
 [![Pool live](https://img.shields.io/badge/pool-LIVE-39ff14?style=for-the-badge&logo=serverless&logoColor=white)](https://hackme.tech/pool/coordinator/api/pool/stats)
 [![Security](https://img.shields.io/badge/audit-16%2F16_PASS_(2026--08--28)-39ff14?style=for-the-badge&logo=shield&logoColor=white)](docs/SECURITY_AUDIT_REDTEAM.md)
 [![CI](https://github.com/jokeez/hackme/actions/workflows/ci.yml/badge.svg)](https://github.com/jokeez/hackme/actions/workflows/ci.yml)
@@ -93,7 +93,7 @@ flowchart TB
 | **B2B fuzz / PoH** | **Live** | Dashboard `#orders` · `workerfuzz` on hub · bootstrap PoH path (`pool_distributed` + `create_poh_order`) completing deep orders |
 | **OSS CVE Watch · nghttp2** | **14/14 complete** | [day14.html](https://hackme.tech/reports/oss-cve-watch/day14.html) CLEAN · ~14.32B exec · ASAN=0 |
 | **OSS CVE Watch · libheif** | **14/14 complete** | [day14.html](https://hackme.tech/reports/oss-cve-watch-libheif/day14.html) CLEAN · ~2.57B exec · ASAN=0 |
-| **Win / Linux / fuzz / ISO** | **rc16** | SHA256 + apt + self-update on [downloads](https://hackme.tech/downloads.html) |
+| **Win / Linux / fuzz / ISO** | **rc17** channel · **rc16** artifacts | SHA256 + apt + self-update on [downloads](https://hackme.tech/downloads.html) |
 | **Security gate** | **16/16 PASS** (2026-08-28) | `security_full_audit.sh` + `redteam_hard_mode.sh` — [SECURITY_AUDIT_REDTEAM.md](docs/SECURITY_AUDIT_REDTEAM.md) |
 | **HMS storage** | Preview | Prelaunch — not a miner lane yet |
 
@@ -173,17 +173,19 @@ bash scripts/tests/verify_hackme_iso.sh your.iso
 
 **Packs:** `secrets` · `script_bounds` · `filter_utf8` (FluxTap-class filter POC) · `parser_expat`
 
+**Hunt** (ASAN on pool, **50/50** escrow) — Lite / Standard / Heavy on **0.1.0-rc17** channel: `hackme-fuzzing hunt …` · [HUNT_ECONOMICS.md](docs/HUNT_ECONOMICS.md) · [HUNT_RUST_PHASE_A.md](docs/HUNT_RUST_PHASE_A.md) (`serde_json`, `memchr`, `quick_xml`).
+
 ```bash
 hackme-fuzzing wizard --pack filter_utf8 --package audit   # local node only
 ```
 
 - [developers.html](https://hackme.tech/developers.html) · [fuzz-guide.html](https://hackme.tech/fuzz-guide.html) — public landing  
-- [FUZZ_PRODUCT_GUIDE.md](docs/FUZZ_PRODUCT_GUIDE.md) — packages, coverage, pool anticheat  
-- [CUSTOMER_FUZZ_DELIVERABLES.md](docs/CUSTOMER_FUZZ_DELIVERABLES.md) — reports & repro  
+- [FUZZ_PRODUCT_GUIDE.md](docs/FUZZ_PRODUCT_GUIDE.md) — Dig + Hunt packages, coverage, pool anticheat  
+- [CUSTOMER_FUZZ_DELIVERABLES.md](docs/CUSTOMER_FUZZ_DELIVERABLES.md) — Dig reports & repro  
 - Hybrid pool: `workerpoh` + fuzz claim/submit; coordinator **replays** segments (not miner attestation)  
-- **20%** pool fee on escrow campaigns funds worker payouts
+- Dig escrow fee **20%** on pool campaigns; Hunt uses **50/50** — see economics docs
 
-**Coverage honesty:** `wasm_edge_bitmap` @ WASM mem offset **8192** is guided scheduling — **not** AFL/libFuzzer edges (OSS research uses libFuzzer separately).
+**Coverage honesty:** `wasm_edge_bitmap` @ WASM mem offset **8192** is guided scheduling — **not** AFL/libFuzzer edges (OSS research + Hunt catalog ASAN use native sanitizers separately).
 
 ---
 
@@ -215,7 +217,7 @@ bash scripts/tests/public_site_smoke.sh
 bash scripts/tests/version_consistency_gate.sh
 ```
 
-Release bundle: `VERSION=0.1.0-rc16 bash scripts/release/make_release_bundle.sh` — [scripts/release/README.md](scripts/release/README.md)
+Release bundle: `VERSION=0.1.0-rc17 bash scripts/release/make_release_bundle.sh` — [scripts/release/README.md](scripts/release/README.md)
 
 ---
 
