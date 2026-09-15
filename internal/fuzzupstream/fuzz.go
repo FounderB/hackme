@@ -38,7 +38,11 @@ func RunInputDetailed(ctx context.Context, binPath string, input []byte, opts Ru
 	}
 	runCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, binPath)
+	safeBin, verr := ValidateBinPath(binPath)
+	if verr != nil {
+		return false, SanitizerInfo{}, "", verr
+	}
+	cmd := exec.CommandContext(runCtx, safeBin)
 	cmd.Stdin = bytes.NewReader(input)
 	cmd.Env = []string{
 		"PATH=/usr/bin:/bin",

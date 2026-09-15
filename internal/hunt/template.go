@@ -3,7 +3,6 @@ package hunt
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -64,9 +63,9 @@ func resolveSourceFile(repoRoot, pinPath, sourceRel string) (string, error) {
 	if pinPath == "" || sourceRel == "" {
 		return "", fmt.Errorf("hunt: pin path and source required")
 	}
-	abs := filepath.Clean(filepath.Join(pinPath, sourceRel))
-	if !strings.HasPrefix(abs, filepath.Clean(pinPath)+string(os.PathSeparator)) && abs != filepath.Clean(pinPath) {
-		return "", fmt.Errorf("hunt: source escapes pin root")
+	abs, err := SafeJoinUnder(pinPath, sourceRel)
+	if err != nil {
+		return "", err
 	}
 	st, err := os.Stat(abs)
 	if err != nil {

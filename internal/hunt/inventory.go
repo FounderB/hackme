@@ -70,7 +70,7 @@ func ScanInventory(repoRoot, rawPath string, maxFiles, maxDepth int) (*Inventory
 			return nil
 		}
 		scanned++
-		hit, err := fileHasFuzzEntry(path)
+		hit, err := fileHasFuzzEntry(root, path)
 		if err != nil || !hit {
 			return nil
 		}
@@ -109,13 +109,21 @@ func resolveInventoryRoot(repoRoot, rawPath string) (string, error) {
 		return "", errors.New("hunt inventory: path required")
 	}
 	var abs string
+	var err error
 	if filepath.IsAbs(rawPath) {
 		abs = filepath.Clean(rawPath)
 	} else {
 		if repoRoot == "" {
 			repoRoot = "."
 		}
-		abs = filepath.Clean(filepath.Join(repoRoot, rawPath))
+		abs, err = SafeJoinUnder(repoRoot, rawPath)
+		if err != nil {
+			return "", err
+		}
+	}
+	abs, err = filepath.Abs(abs)
+	if err != nil {
+		return "", err
 	}
 	for _, prefix := range blockedPathPrefixes {
 		if abs == prefix || strings.HasPrefix(abs, prefix+string(os.PathSeparator)) {
@@ -142,7 +150,11 @@ func isSourceFile(path string) bool {
 	}
 }
 
-func fileHasFuzzEntry(path string) (bool, error) {
+func fileHasFuzzEntry(root, path string) (bool, error) {
+	path, err := MustUnderRoot(root, path)
+	if err != nil {
+		return false, err
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return false, err
@@ -160,7 +172,11 @@ func fileHasFuzzEntry(path string) (bool, error) {
 }
 
 // fileHasMain reports standalone programs that must not be linked as companions.
-func fileHasMain(path string) (bool, error) {
+func fileHasMain(root, path string) (bool, error) {
+	path, err := MustUnderRoot(root, path)
+	if err != nil {
+		return false, err
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return false, err

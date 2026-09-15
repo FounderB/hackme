@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"hackme/internal/fuzzengine"
 )
 
 // ListPublicCampaigns returns redacted pool campaigns for the marketplace UI.
+// Hot path: prefer summary_json / one escrow JOIN — avoid N+1 COUNT scans under claim load.
 func (s *Service) ListPublicCampaigns(ctx context.Context, limit int) ([]map[string]any, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("poolfuzz: no database")
@@ -21,12 +23,18 @@ func (s *Service) ListPublicCampaigns(ctx context.Context, limit int) ([]map[str
 	if limit > maxPublicCampaigns {
 		limit = maxPublicCampaigns
 	}
-	rows, err := s.DB.QueryContext(ctx,
-		`SELECT id, campaign_type, status, title, owner_ref, budget_runs, summary_json, config_json, created_at, completed_at
-		 FROM fuzz_campaigns
-		 WHERE json_extract(config_json, '$.pool_distributed') IN (1, 'true', '1')
-		   AND status IN ('planned', 'running')
-		 ORDER BY created_at DESC
+	// Bound list work so marketplace never parks behind SQLite claim storms.
+	listCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	rows, err := s.DB.QueryContext(listCtx,
+		`SELECT c.id, c.campaign_type, c.status, c.title, c.owner_ref, c.budget_runs,
+		        c.summary_json, c.config_json, c.created_at, c.completed_at,
+		        COALESCE(e.status, '')
+		 FROM fuzz_campaigns c
+		 LEFT JOIN fuzz_campaign_escrow e ON e.campaign_id = c.id
+		 WHERE json_extract(c.config_json, '$.pool_distributed') IN (1, 'true', '1')
+		   AND c.status IN ('planned', 'running')
+		 ORDER BY c.created_at DESC
 		 LIMIT ?`, limit*4)
 	if err != nil {
 		return nil, err
@@ -34,10 +42,10 @@ func (s *Service) ListPublicCampaigns(ctx context.Context, limit int) ([]map[str
 	defer rows.Close()
 	out := make([]map[string]any, 0, limit)
 	for rows.Next() {
-		var id, ctype, status, title, ownerRef, summaryJSON, cfgJSON string
+		var id, ctype, status, title, ownerRef, summaryJSON, cfgJSON, escrowStatus string
 		var budgetRuns int
 		var createdAt, completedAt int64
-		if err := rows.Scan(&id, &ctype, &status, &title, &ownerRef, &budgetRuns, &summaryJSON, &cfgJSON, &createdAt, &completedAt); err != nil {
+		if err := rows.Scan(&id, &ctype, &status, &title, &ownerRef, &budgetRuns, &summaryJSON, &cfgJSON, &createdAt, &completedAt, &escrowStatus); err != nil {
 			return nil, err
 		}
 		cfg := parseConfigJSON(cfgJSON)
@@ -45,10 +53,12 @@ func (s *Service) ListPublicCampaigns(ctx context.Context, limit int) ([]map[str
 			continue
 		}
 		summary := parseConfigJSON(summaryJSON)
-		var findings int
-		_ = s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM fuzz_findings WHERE campaign_id=?`, id).Scan(&findings)
-		runsDone := runsDoneForCampaign(ctx, s.DB, id, summary)
-		escrowStatus := escrowStatusForCampaign(ctx, s.DB, id)
+		// Marketplace list must stay cheap: trust summary / escrow, not live COUNT(*).
+		runsDone := intFromJSON(summary["runs_done"])
+		findings := intFromJSON(summary["unique_crashes"])
+		if findings <= 0 {
+			findings = intFromJSON(summary["findings"])
+		}
 		if !IsActivelyDiggable(status, escrowStatus, runsDone, budgetRuns) {
 			continue
 		}
@@ -56,7 +66,6 @@ func (s *Service) ListPublicCampaigns(ctx context.Context, limit int) ([]map[str
 		if v, ok := cfg["budget_hmc"]; ok {
 			budgetHMC = floatFromJSON(v)
 		}
-		crashClass := crashClassFindingsCount(ctx, s.DB, id)
 		item := map[string]any{
 			"id":             id,
 			"campaign_type":  ctype,
@@ -65,7 +74,7 @@ func (s *Service) ListPublicCampaigns(ctx context.Context, limit int) ([]map[str
 			"budget_runs":    budgetRuns,
 			"budget_hmc":     budgetHMC,
 			"runs_done":      runsDone,
-			"unique_crashes": crashClass,
+			"unique_crashes": findings,
 			"findings":       findings,
 			"pool":           true,
 			"created_at":     createdAt,

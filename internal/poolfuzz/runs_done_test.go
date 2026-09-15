@@ -79,6 +79,13 @@ func TestRunsDoneForCampaignPrefersWorkItems(t *testing.T) {
 	if got != 3 {
 		t.Fatalf("runs_done=%d want 3", got)
 	}
+	// Marketplace list prefers summary_json (hot-path); seed it then list.
+	_, err = db.ExecContext(ctx,
+		`UPDATE fuzz_campaigns SET summary_json=? WHERE id=?`,
+		`{"runs_done":3}`, cid)
+	if err != nil {
+		t.Fatal(err)
+	}
 	items, err := svc.ListPublicCampaigns(ctx, 10)
 	if err != nil {
 		t.Fatal(err)

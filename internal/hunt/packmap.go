@@ -174,7 +174,11 @@ func inventoryContentSample(root, rel string) string {
 	if root == "" || rel == "" {
 		return inventoryMarker
 	}
-	b, err := os.ReadFile(filepath.Join(root, rel))
+	path, err := SafeJoinUnder(root, rel)
+	if err != nil {
+		return inventoryMarker
+	}
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return inventoryMarker
 	}

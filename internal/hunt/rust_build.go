@@ -48,7 +48,13 @@ func BuildInventoryRustHarness(ctx context.Context, repoRoot string, req Harness
 		return nil, err
 	}
 	hash := InventoryHarnessHash(req.Pin.CommitSHA, sourceRel, content)
-	cachePath := filepath.Join(repoRoot, ".cache", "hunt-harness", hash+".bin")
+	if err := ValidateHexHash(hash); err != nil {
+		return nil, err
+	}
+	cachePath, err := SafeCacheFile(repoRoot, "hunt-harness", hash, "bin")
+	if err != nil {
+		return nil, err
+	}
 	if st, err := os.Stat(cachePath); err == nil && st.Mode().IsRegular() {
 		harnessCache.Store(hash, cachePath)
 		return &HarnessBuildResult{
@@ -81,7 +87,18 @@ func BuildInventoryRustHarness(ctx context.Context, repoRoot string, req Harness
 	if err := os.MkdirAll(filepath.Dir(cachePath), 0o755); err != nil {
 		return nil, err
 	}
-	in, err := os.ReadFile(binPath)
+	safeBin, err := filepath.Abs(filepath.Clean(binPath))
+	if err != nil {
+		return nil, err
+	}
+	// Harness binary must live under pin or system temp (cargo/rustc output).
+	if _, err := MustUnderRoot(req.Pin.Path, safeBin); err != nil {
+		tmpRoot := os.TempDir()
+		if _, err2 := MustUnderRoot(tmpRoot, safeBin); err2 != nil {
+			return nil, fmt.Errorf("hunt rust build: binary path not under pin/temp: %w", err)
+		}
+	}
+	in, err := os.ReadFile(safeBin)
 	if err != nil {
 		return nil, err
 	}
@@ -118,12 +135,15 @@ func planRustHarness(pinPath, sourceRel string, content []byte) (*rustHarnessPla
 	// Only treat as cargo-fuzz when the source itself lives under fuzz/fuzz_targets/.
 	// A sibling fuzz/Cargo.toml must not force cargo_fuzz for unrelated .rs files.
 	if strings.HasPrefix(slash, "fuzz/fuzz_targets/") {
-		if st, err := os.Stat(filepath.Join(pinPath, "fuzz", "Cargo.toml")); err == nil && !st.IsDir() {
-			plan.Mode = "cargo_fuzz"
-			if target := cargoFuzzTargetName(sourceRel); target != "" {
-				plan.FuzzTarget = target
+		cargoToml, err := SafeJoinUnder(pinPath, "fuzz", "Cargo.toml")
+		if err == nil {
+			if st, err := os.Stat(cargoToml); err == nil && !st.IsDir() {
+				plan.Mode = "cargo_fuzz"
+				if target := cargoFuzzTargetName(sourceRel); target != "" {
+					plan.FuzzTarget = target
+				}
+				return plan, nil
 			}
-			return plan, nil
 		}
 	}
 	if strings.Contains(src, inventoryMarkerRust) || strings.Contains(src, "libfuzzer_sys::fuzz_target") {
@@ -135,13 +155,23 @@ func planRustHarness(pinPath, sourceRel string, content []byte) (*rustHarnessPla
 }
 
 func findCargoRoot(pinPath, sourceRel string) string {
-	dir := filepath.Dir(filepath.Join(pinPath, sourceRel))
+	start, err := SafeJoinUnder(pinPath, filepath.Dir(sourceRel))
+	if err != nil {
+		return pinPath
+	}
+	dir := start
 	for i := 0; i < 8; i++ {
-		if _, err := os.Stat(filepath.Join(dir, "Cargo.toml")); err == nil {
-			return dir
+		cargoToml, err := SafeJoinUnder(dir, "Cargo.toml")
+		if err == nil {
+			if _, err := os.Stat(cargoToml); err == nil {
+				return dir
+			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
+			break
+		}
+		if _, err := MustUnderRoot(pinPath, parent); err != nil {
 			break
 		}
 		dir = parent
@@ -150,7 +180,11 @@ func findCargoRoot(pinPath, sourceRel string) string {
 }
 
 func readCargoPackageName(cargoRoot string) string {
-	b, err := os.ReadFile(filepath.Join(cargoRoot, "Cargo.toml"))
+	path, err := SafeJoinUnder(cargoRoot, "Cargo.toml")
+	if err != nil {
+		return "hunt_crate"
+	}
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return "hunt_crate"
 	}
@@ -189,10 +223,19 @@ func buildCargoFuzzHarness(ctx context.Context, plan *rustHarnessPlan) (binPath,
 	if err := cmd.Run(); err != nil {
 		return "", "", fmt.Errorf("hunt rust cargo fuzz build %s: %w (%s)", plan.FuzzTarget, err, strings.TrimSpace(stderr.String()))
 	}
-	candidates := []string{
-		filepath.Join(plan.CargoRoot, "fuzz", "target", plan.FuzzTarget+"/release", plan.FuzzTarget),
-		filepath.Join(plan.CargoRoot, "fuzz", "target", "x86_64-unknown-linux-gnu", "release", plan.FuzzTarget),
-		filepath.Join(plan.CargoRoot, "target", "release", plan.FuzzTarget),
+	candidates := []string{}
+	for _, parts := range [][]string{
+		{"fuzz", "target", plan.FuzzTarget, "release", plan.FuzzTarget},
+		{"fuzz", "target", "x86_64-unknown-linux-gnu", "release", plan.FuzzTarget},
+		{"target", "release", plan.FuzzTarget},
+	} {
+		if c, err := SafeJoinUnder(plan.CargoRoot, parts...); err == nil {
+			candidates = append(candidates, c)
+		}
+	}
+	// cargo-fuzz sometimes nests target name as "name/release/name"
+	if c, err := SafeJoinUnder(plan.CargoRoot, "fuzz", "target", plan.FuzzTarget+"/release", plan.FuzzTarget); err == nil {
+		candidates = append(candidates, c)
 	}
 	for _, c := range candidates {
 		if st, err := os.Stat(c); err == nil && !st.IsDir() {

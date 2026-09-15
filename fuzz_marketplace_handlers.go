@@ -9,7 +9,8 @@ import (
 	"hackme/internal/poolfuzz"
 )
 
-const fuzzMarketplaceCacheTTL = 12 * time.Second
+const fuzzMarketplaceCacheTTL = 45 * time.Second
+const fuzzMarketplaceStaleTTL = 10 * time.Minute
 
 func (a *app) fuzzMarketplaceCached() ([]map[string]any, bool) {
 	a.fuzzMarketMu.RLock()
@@ -22,7 +23,22 @@ func (a *app) fuzzMarketplaceCached() ([]map[string]any, bool) {
 	return out, true
 }
 
+func (a *app) fuzzMarketplaceStale() ([]map[string]any, bool) {
+	a.fuzzMarketMu.RLock()
+	defer a.fuzzMarketMu.RUnlock()
+	if len(a.fuzzMarketCache) == 0 || time.Since(a.fuzzMarketAt) > fuzzMarketplaceStaleTTL {
+		return nil, false
+	}
+	out := make([]map[string]any, len(a.fuzzMarketCache))
+	copy(out, a.fuzzMarketCache)
+	return out, true
+}
+
 func (a *app) fuzzMarketplaceStore(items []map[string]any) {
+	// Never overwrite a good cache with an empty timeout/failure result.
+	if len(items) == 0 {
+		return
+	}
 	a.fuzzMarketMu.Lock()
 	defer a.fuzzMarketMu.Unlock()
 	a.fuzzMarketCache = items
@@ -53,14 +69,24 @@ func (a *app) handleFuzzMarketplace(w http.ResponseWriter, r *http.Request) {
 	items, listErr := svc.ListPublicCampaigns(r.Context(), 50)
 	localWarn := ""
 	if listErr != nil {
-		// Local SQLite can be busy/corrupt on desktop; still serve the public pool list.
 		items = nil
 		localWarn = listErr.Error()
 	}
 
-	mergeCtx, mergeCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	mergeCtx, mergeCancel := context.WithTimeout(context.Background(), 12*time.Second)
 	items = a.mergeCoordinatorPoolMarketplace(mergeCtx, items)
 	mergeCancel()
+
+	if len(items) == 0 {
+		if stale, ok := a.fuzzMarketplaceStale(); ok {
+			resp := map[string]any{"ok": true, "campaigns": stale, "cached": true, "stale": true}
+			if localWarn != "" {
+				resp["local_warning"] = localWarn
+			}
+			writeJSON(w, resp)
+			return
+		}
+	}
 
 	a.fuzzMarketplaceStore(items)
 	resp := map[string]any{"ok": true, "campaigns": items}

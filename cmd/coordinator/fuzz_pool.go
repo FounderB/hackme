@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"hackme/internal/fuzzengine"
@@ -20,6 +21,12 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 	if pf == nil {
 		return
 	}
+	var (
+		listMu    sync.Mutex
+		listCache []map[string]any
+		listAt    time.Time
+	)
+	const listCacheTTL = 12 * time.Second
 	mux.HandleFunc("/api/fuzz/pool/campaigns/list", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -31,10 +38,36 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 				limit = n
 			}
 		}
+		force := strings.TrimSpace(r.URL.Query().Get("refresh")) == "1"
+		listMu.Lock()
+		if !force && len(listCache) > 0 && time.Since(listAt) < listCacheTTL {
+			cached := listCache
+			listMu.Unlock()
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.Header().Set("Cache-Control", "public, max-age=15")
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "campaigns": cached, "cached": true})
+			return
+		}
+		listMu.Unlock()
 		items, err := pf.ListPublicCampaigns(r.Context(), limit)
 		if err != nil {
+			listMu.Lock()
+			stale := listCache
+			listMu.Unlock()
+			if len(stale) > 0 {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.Header().Set("Cache-Control", "public, max-age=5")
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "campaigns": stale, "cached": true, "stale": true})
+				return
+			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		if len(items) > 0 {
+			listMu.Lock()
+			listCache = items
+			listAt = time.Now()
+			listMu.Unlock()
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=15")

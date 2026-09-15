@@ -89,11 +89,20 @@ func EnsureHarnessBinary(ctx context.Context, repoRoot, targetID, harnessHash st
 			}
 		}
 	}
-	cacheDir := filepath.Join(repoRoot, ".cache", "hunt-harness")
+	cacheDir, err := SafeJoinUnder(repoRoot, ".cache", "hunt-harness")
+	if err != nil {
+		return "", err
+	}
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", err
 	}
-	cachePath := filepath.Join(cacheDir, wantHash+".bin")
+	if err := ValidateHexHash(wantHash); err != nil {
+		return "", err
+	}
+	cachePath, err := SafeCacheFile(repoRoot, "hunt-harness", wantHash, "bin")
+	if err != nil {
+		return "", err
+	}
 	if st, err := os.Stat(cachePath); err == nil && st.Mode().IsRegular() {
 		harnessCache.Store(wantHash, cachePath)
 		return cachePath, nil
@@ -113,7 +122,11 @@ func EnsureHarnessBinary(ctx context.Context, repoRoot, targetID, harnessHash st
 	if err != nil {
 		return "", err
 	}
-	in, err := os.ReadFile(binPath)
+	safeBin, err := fuzzupstream.ValidateBinPath(binPath)
+	if err != nil {
+		return "", err
+	}
+	in, err := os.ReadFile(safeBin)
 	if err != nil {
 		return "", err
 	}

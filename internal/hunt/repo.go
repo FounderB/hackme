@@ -41,11 +41,17 @@ func PinRepo(ctx context.Context, repoRoot string, req RepoPinRequest) (*RepoPin
 	}
 	now := time.Now().Unix()
 	if gitURL != "" {
-		if !strings.HasPrefix(gitURL, "https://") && !strings.HasPrefix(gitURL, "git@") {
-			return nil, errors.New("hunt pin: git_url must be https:// or git@")
+		if err := ValidateGitURL(gitURL); err != nil {
+			return nil, err
+		}
+		if err := ValidateGitRef(ref); err != nil {
+			return nil, err
 		}
 		sum := sha256.Sum256([]byte(gitURL))
-		dest := filepath.Join(repoRoot, ".cache", "hunt-repos", hex.EncodeToString(sum[:8]))
+		dest, err := SafeJoinUnder(repoRoot, ".cache", "hunt-repos", hex.EncodeToString(sum[:8]))
+		if err != nil {
+			return nil, err
+		}
 		if err := cloneOrUpdate(ctx, gitURL, ref, dest); err != nil {
 			return nil, err
 		}
@@ -65,6 +71,13 @@ func PinRepo(ctx context.Context, repoRoot string, req RepoPinRequest) (*RepoPin
 }
 
 func cloneOrUpdate(ctx context.Context, gitURL, ref, dest string) error {
+	if err := ValidateGitURL(gitURL); err != nil {
+		return err
+	}
+	if err := ValidateGitRef(ref); err != nil {
+		return err
+	}
+	dest = filepath.Clean(dest)
 	if _, err := os.Stat(filepath.Join(dest, ".git")); err == nil {
 		return checkoutCloneRef(ctx, dest, ref)
 	}
@@ -73,10 +86,11 @@ func cloneOrUpdate(ctx context.Context, gitURL, ref, dest string) error {
 	}
 	cloneCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--branch", ref, gitURL, dest)
+	// Args are separate argv; URL/ref validated above (CodeQL command-injection).
+	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--branch", ref, "--", gitURL, dest)
 	if err := cmd.Run(); err != nil {
 		_ = os.RemoveAll(dest)
-		cmd2 := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", gitURL, dest)
+		cmd2 := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--", gitURL, dest)
 		if err2 := cmd2.Run(); err2 != nil {
 			return fmt.Errorf("hunt pin: git clone: %w", err)
 		}
@@ -89,6 +103,10 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 	if ref == "" {
 		return nil
 	}
+	if err := ValidateGitRef(ref); err != nil {
+		return err
+	}
+	dest = filepath.Clean(dest)
 	checkCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
 	refs := []string{ref}
@@ -98,8 +116,11 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 		refs = append(refs, "master")
 	}
 	for _, r := range refs {
+		if err := ValidateGitRef(r); err != nil {
+			continue
+		}
 		_ = exec.CommandContext(checkCtx, "git", "-C", dest, "fetch", "--depth", "1", "origin", r).Run()
-		if exec.CommandContext(checkCtx, "git", "-C", dest, "checkout", "--force", r).Run() == nil {
+		if exec.CommandContext(checkCtx, "git", "-C", dest, "checkout", "--force", "--", r).Run() == nil {
 			return nil
 		}
 	}

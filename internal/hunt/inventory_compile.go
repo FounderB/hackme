@@ -104,7 +104,11 @@ func collectCompanionSources(pinRoot, mainRel string) ([]string, error) {
 func collectCompanionSourcesInDir(pinRoot, dirRel, skipBase string) ([]string, error) {
 	searchDir := pinRoot
 	if dirRel != "" && dirRel != "." {
-		searchDir = filepath.Join(pinRoot, dirRel)
+		var err error
+		searchDir, err = SafeJoinUnder(pinRoot, dirRel)
+		if err != nil {
+			return nil, err
+		}
 	}
 	entries, err := os.ReadDir(searchDir)
 	if err != nil {
@@ -123,7 +127,10 @@ func collectCompanionSourcesInDir(pinRoot, dirRel, skipBase string) ([]string, e
 		if !isCompanionSourceFile(name) {
 			continue
 		}
-		abs := filepath.Join(searchDir, name)
+		abs, err := SafeJoinUnder(searchDir, name)
+		if err != nil {
+			continue
+		}
 		st, err := e.Info()
 		if err != nil {
 			continue
@@ -131,11 +138,11 @@ func collectCompanionSourcesInDir(pinRoot, dirRel, skipBase string) ([]string, e
 		if st.Size() > 512*1024 {
 			continue
 		}
-		hit, err := fileHasFuzzEntry(abs)
+		hit, err := fileHasFuzzEntry(pinRoot, abs)
 		if err != nil || hit {
 			continue
 		}
-		if mainHit, err := fileHasMain(abs); err != nil || mainHit {
+		if mainHit, err := fileHasMain(pinRoot, abs); err != nil || mainHit {
 			continue
 		}
 		rel := name
@@ -160,7 +167,11 @@ func collectParentCompanions(pinRoot, mainRel string) ([]string, error) {
 	parentRel := filepath.Dir(mainDir)
 	parentRoot := pinRoot
 	if parentRel != "." {
-		parentRoot = filepath.Join(pinRoot, parentRel)
+		var err error
+		parentRoot, err = SafeJoinUnder(pinRoot, parentRel)
+		if err != nil {
+			return nil, nil
+		}
 	}
 	entries, err := os.ReadDir(parentRoot)
 	if err != nil {
@@ -175,15 +186,18 @@ func collectParentCompanions(pinRoot, mainRel string) ([]string, error) {
 		if !isCompanionSourceFile(name) {
 			continue
 		}
-		abs := filepath.Join(parentRoot, name)
+		abs, err := SafeJoinUnder(parentRoot, name)
+		if err != nil {
+			continue
+		}
 		st, err := e.Info()
 		if err != nil || st.Size() > 1024*1024 {
 			continue
 		}
-		if hit, err := fileHasFuzzEntry(abs); err != nil || hit {
+		if hit, err := fileHasFuzzEntry(pinRoot, abs); err != nil || hit {
 			continue
 		}
-		if mainHit, err := fileHasMain(abs); err != nil || mainHit {
+		if mainHit, err := fileHasMain(pinRoot, abs); err != nil || mainHit {
 			continue
 		}
 		rel := name
@@ -212,6 +226,16 @@ func collectIncludeDirs(pinRoot, sourceRel string) []string {
 		if p == "" {
 			return
 		}
+		if _, err := MustUnderRoot(pinRoot, p); err != nil && p != filepath.Clean(pinRoot) {
+			// allow only under pin (or equal)
+			absPin, _ := filepath.Abs(filepath.Clean(pinRoot))
+			absP, err2 := filepath.Abs(p)
+			if err2 != nil || absP != absPin {
+				if err != nil {
+					return
+				}
+			}
+		}
 		if _, ok := seen[p]; ok {
 			return
 		}
@@ -220,13 +244,24 @@ func collectIncludeDirs(pinRoot, sourceRel string) []string {
 		}
 	}
 	add(pinRoot)
-	add(filepath.Dir(filepath.Join(pinRoot, sourceRel)))
-	for _, rel := range []string{"include", "src", "lib", "public"} {
-		add(filepath.Join(pinRoot, rel))
+	if dir, err := SafeJoinUnder(pinRoot, filepath.Dir(sourceRel)); err == nil {
+		add(dir)
 	}
-	mainDir := filepath.Dir(filepath.Join(pinRoot, sourceRel))
-	for _, rel := range []string{"include", "src", "../include"} {
-		add(filepath.Join(mainDir, rel))
+	for _, rel := range []string{"include", "src", "lib", "public"} {
+		if p, err := SafeJoinUnder(pinRoot, rel); err == nil {
+			add(p)
+		}
+	}
+	mainDir, err := SafeJoinUnder(pinRoot, filepath.Dir(sourceRel))
+	if err == nil {
+		for _, rel := range []string{"include", "src"} {
+			if p, err := SafeJoinUnder(mainDir, rel); err == nil {
+				add(p)
+			}
+		}
+		if p, err := SafeJoinUnder(pinRoot, filepath.Dir(sourceRel), "..", "include"); err == nil {
+			add(p)
+		}
 	}
 	out := make([]string, 0, len(seen))
 	for p := range seen {
@@ -298,6 +333,7 @@ func detectInventoryBuildHints(root string) []string {
 }
 
 func fileExists(path string) bool {
+	path = filepath.Clean(path)
 	st, err := os.Stat(path)
 	return err == nil && !st.IsDir()
 }
