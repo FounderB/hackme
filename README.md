@@ -11,104 +11,70 @@
 
 # HackMe Network
 
-### Useful Proof-of-Work · GPU mining pool · B2B security fuzz · public research ledgers
+**Useful Proof-of-Work** · public GPU pool · B2B Dig/Hunt fuzz · paper Exchange · research ledgers
 
-**Hash power that does real work** — WASM-gated useful PoW, coordinator accrual, on-chain settlement, and production fuzz campaigns on one stack.
+Hashrate settles on-chain. Security work is escrowed, distributed, and reported — not a slide deck.
 
 <br/>
 
-[![Release](https://img.shields.io/badge/release-0.1.0--rc17-00d1ff?style=for-the-badge&logo=semanticweb&logoColor=white)](https://hackme.tech/downloads.html)
-[![Pool live](https://img.shields.io/badge/pool-LIVE-39ff14?style=for-the-badge&logo=serverless&logoColor=white)](https://hackme.tech/pool/coordinator/api/pool/stats)
-[![Security](https://img.shields.io/badge/audit-16%2F16_PASS_(2026--08--28)-39ff14?style=for-the-badge&logo=shield&logoColor=white)](docs/SECURITY_AUDIT_REDTEAM.md)
+[![Release](https://img.shields.io/badge/release-0.1.0--rc17_LIVE-00d1ff?style=for-the-badge)](https://hackme.tech/downloads.html)
+[![Pool](https://img.shields.io/badge/pool-LIVE-39ff14?style=for-the-badge)](https://hackme.tech/pool/coordinator/api/pool/stats)
 [![CI](https://github.com/jokeez/hackme/actions/workflows/ci.yml/badge.svg)](https://github.com/jokeez/hackme/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/jokeez/hackme/actions/workflows/codeql.yml/badge.svg)](https://github.com/jokeez/hackme/actions/workflows/codeql.yml)
-[![License](https://img.shields.io/badge/license-AGPL--3.0-7fe7ff?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
-[![Site](https://img.shields.io/badge/hackme.tech-online-ff6b9d?style=for-the-badge&logo=firefoxbrowser&logoColor=white)](https://hackme.tech)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-7fe7ff?style=for-the-badge)](LICENSE)
 
 <br/>
 
-**[⬇ Downloads](https://hackme.tech/downloads.html)** · **[⚡ Quick start](docs/QUICK_START.md)** · **[⛏ Mine](docs/SETUP.md)** · **[🛡 Developers / Fuzz](https://hackme.tech/developers.html)** · **[📊 Pool stats](https://hackme.tech/pool/coordinator/api/pool/stats)** · **[🔬 Research](https://hackme.tech/research.html)** · **[📖 Docs](docs/INDEX.md)**
-
-<br/>
-
-| | |
-|:---:|:---|
-| **Coordinator** | `https://hackme.tech/pool/coordinator` |
-| **Explorer** | [explorer-lite.html](https://hackme.tech/explorer-lite.html) |
-| **Pool stats** | [api/pool/stats](https://hackme.tech/pool/coordinator/api/pool/stats) |
-| **Source** | [github.com/jokeez/hackme](https://github.com/jokeez/hackme) |
+**[Downloads](https://hackme.tech/downloads.html)** ·
+**[Quick start](docs/QUICK_START.md)** ·
+**[Mine](docs/SETUP.md)** ·
+**[Fuzz / Dig · Hunt](https://hackme.tech/developers.html)** ·
+**[Exchange](https://exchange.hackme.tech/)** ·
+**[Research](https://hackme.tech/research.html)** ·
+**[Docs](docs/INDEX.md)**
 
 </div>
 
 ---
 
-## Why HackMe
+## What it is
 
-Most “mining” is a lottery with no output. **HackMe ties hashrate to verifiable work:**
-
-| Pillar | What you get |
-|--------|----------------|
-| **⛏ Mine** | Public HTTP pool · NVIDIA CUDA / OpenCL / CPU · hybrid Ed25519 submits · **HMC** rewards + **SUP** loyalty lane |
-| **🛡 Fuzz** | B2B campaigns (`wasm_only` → `wasm_native`) · escrow · `fuzz_report_v2` · pool-distributed workers |
-| **🔬 Research** | Bitcoin30 series · OSS CVE hunt · [nghttp2 14/14 CLEAN](https://hackme.tech/reports/oss-cve-watch/day14.html) · [libheif 14/14 CLEAN](https://hackme.tech/reports/oss-cve-watch-libheif/day14.html) |
+| Lane | You get |
+|------|---------|
+| **Mine** | Public HTTP pool · CUDA / OpenCL / CPU · hybrid Ed25519 submits · **HMC** rewards · **SUP** loyalty |
+| **Dig** | Customer WASM packs (Scan / Audit / Deep) · **20/80** escrow · pool workers · deliverable report |
+| **Hunt** | ASAN/UBSan catalog & customer repos · Lite / Standard / Heavy · **50/50** escrow · coordinator replay |
+| **Exchange** | **Paper** trading desk at [exchange.hackme.tech](https://exchange.hackme.tech/) — no custody, no live matching |
+| **Research** | Public ledgers (Hunt Watch, OSS CVE Watch, Bitcoin30) — evidence, not hype |
 
 ```mermaid
-flowchart TB
-  subgraph rigs["Your rigs"]
-    GPU["workerpoh-cuda / OpenCL"]
-    ISO["HackMe OS USB"]
-    WIN["Windows one-click"]
-  end
-  subgraph hub["hackme.tech"]
-    COORD["Pool coordinator"]
-    NODE["Authority node + chain"]
-    FUZZ["B2B fuzz + escrow"]
-  end
-  subgraph value["Outcomes"]
-    HMC["HMC on-chain"]
-    SUP["SUP accrual"]
-    RPT["Security reports"]
-    LEDGER["Public research HTML"]
-  end
-  rigs --> COORD
-  COORD --> NODE
-  FUZZ --> COORD
-  COORD --> HMC
-  COORD --> SUP
-  FUZZ --> RPT
-  NODE --> LEDGER
+flowchart LR
+  Rigs["Miners / diggers"] --> Coord["Pool coordinator"]
+  Coord --> Chain["Authority node · HMC"]
+  Customer["Customer order"] --> DigHunt["Dig WASM / Hunt ASAN"]
+  DigHunt --> Coord
+  DigHunt --> Report["Report + escrow settle"]
+  Coord --> SUP["SUP accrual"]
 ```
 
-> **Fair economics:** payout follows **accepted work** (`reward_per_m` × attempts), not lottery blocks.  
-> Coordinator accrual → operator settlement → your `HMC-…` address. Details: [NETWORK_MODEL.md](docs/NETWORK_MODEL.md).
+Payout follows **accepted work**, not lottery blocks. Model: [NETWORK_MODEL.md](docs/NETWORK_MODEL.md).
 
 ---
 
-## Live stack (operator snapshot)
+## Status · 0.1.0-rc17 LIVE
 
-| Area | Status | Notes |
-|------|--------|-------|
-| **HMC pool** | **Live** | Auto `target_mod` · **~35 workers** · **~1005 GH/s** (operator snapshot 2026-08-29) · hybrid signer strict · public stats API live |
-| **Settlement** | **Live** | HMC + SUP systemd timers + autopilot on canonical host |
-| **B2B fuzz / PoH** | **Live** | Dashboard `#orders` · `workerfuzz` on hub · bootstrap PoH path (`pool_distributed` + `create_poh_order`) completing deep orders |
-| **OSS CVE Watch · nghttp2** | **14/14 complete** | [day14.html](https://hackme.tech/reports/oss-cve-watch/day14.html) CLEAN · ~14.32B exec · ASAN=0 |
-| **OSS CVE Watch · libheif** | **14/14 complete** | [day14.html](https://hackme.tech/reports/oss-cve-watch-libheif/day14.html) CLEAN · ~2.57B exec · ASAN=0 |
-| **Win / Linux / fuzz / ISO** | **rc17** channel · **rc17** artifacts | SHA256 + apt + self-update on [downloads](https://hackme.tech/downloads.html) |
-| **Security gate** | **16/16 PASS** (2026-08-28) | `security_full_audit.sh` + `redteam_hard_mode.sh` — [SECURITY_AUDIT_REDTEAM.md](docs/SECURITY_AUDIT_REDTEAM.md) |
-| **HMS storage** | Preview | Prelaunch — not a miner lane yet |
+| Area | State |
+|------|--------|
+| **Installers** | Win · Linux · `.deb` · Dig/Hunt CLI · HackMe OS ISO + **SHA256SUMS** |
+| **Pool** | Live public coordinator · auto `target_mod` · hybrid signer |
+| **Dig / Hunt** | Live product rails · verify SHA before upgrade |
+| **Paper Exchange** | Desk live · **not** a CEX, **not** financial advice |
+| **Hunt Watch 2026sep** | **12/12 closed** · [ledger](https://hackme.tech/reports/hunt-watch-2026sep/) |
+| **OSS CVE Watch** | nghttp2 **14/14** · libheif **14/14** CLEAN ledgers |
+| **HMS storage** | Preview only — not a miner lane |
 
-Pool health probe: `bash scripts/ops/run_pool_health_check.sh` → `reports/pool-health-<ts>/`. Threat model: **[docs/SECURITY.md](docs/SECURITY.md)**.
+Channel notes: [docs/HACKME_RC17.md](docs/HACKME_RC17.md) · release: [GitHub 0.1.0-rc17](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17)
 
----
-
-## Ecosystem lanes
-
-| Coin / lane | Role | Status | Start here |
-|-------------|------|--------|------------|
-| **HMC** | Primary PoW + pool settlement | **Live** | [OPEN_POOL_MINERS.md](docs/OPEN_POOL_MINERS.md) |
-| **SUP** | Support accrual while mining HMC | **Live** | [SUPPORT_COIN_UTILITY.md](docs/SUPPORT_COIN_UTILITY.md) |
-| **B2B fuzz** | Paid security campaigns | **Live** | [FUZZ_PRODUCT_GUIDE.md](docs/FUZZ_PRODUCT_GUIDE.md) |
-| **HMS** | Storage + seal epochs | Preview | [HMS_PUBLIC_ROADMAP.md](docs/HMS_PUBLIC_ROADMAP.md) |
+**Honesty:** Hunt/Dig **CLEAN ≠ CVE claim**. Customer value is **bugs in their target + report + escrow**, not “we mint CVEs.” libFuzzer often wins raw exec/s; Hunt wins fleet + deliverable — [HUNT_VS_LIBFUZZER.md](docs/HUNT_VS_LIBFUZZER.md).
 
 ---
 
@@ -121,15 +87,17 @@ Pool health probe: `bash scripts/ops/run_pool_health_check.sh` → `reports/pool
 ### Linux
 
 ```bash
+# Recommended: release tarball
+# https://hackme.tech/downloads.html  → verify SHA256
+
+# Or from source
 git clone https://github.com/jokeez/hackme.git
 cd hackme
 cp .env.desktop.example .env.desktop
 bash scripts/ops/desktop_mode_up.sh
 ```
 
-Open **http://127.0.0.1:8080** → **Workers** → start pool GPU.
-
-[Full setup →](docs/SETUP.md)
+Dashboard → **http://127.0.0.1:8080** · [SETUP.md](docs/SETUP.md)
 
 </td>
 <td width="33%" valign="top">
@@ -137,8 +105,8 @@ Open **http://127.0.0.1:8080** → **Workers** → start pool GPU.
 ### Windows
 
 1. [Download installer](https://hackme.tech/downloads.html)
-2. Verify **SHA256** on that page
-3. **Start HackMe Miner** from Start menu
+2. Verify **SHA256**
+3. Start **HackMe Miner**
 
 [Windows guide →](docs/MINER_WINDOWS_ONE_CLICK.md)
 
@@ -147,7 +115,7 @@ Open **http://127.0.0.1:8080** → **Workers** → start pool GPU.
 
 ### HackMe OS
 
-Flash **HackMe-OS** ISO from downloads → boot rig → wallet + mining autostart.
+Flash the **rc17** ISO → boot → wallet + mining.
 
 ```bash
 bash scripts/tests/verify_hackme_iso.sh your.iso
@@ -159,51 +127,62 @@ bash scripts/tests/verify_hackme_iso.sh your.iso
 </tr>
 </table>
 
-**GPU reference:** RTX 5060 Ti class ~30–40 GH/s · field RTX 5090 ~140 GH/s — see [GPU_MINING_BACKENDS.md](docs/GPU_MINING_BACKENDS.md).
+Pool join: set `HACKME_PUBLIC_AUTHORITY_BASE=https://hackme.tech` (see [OPEN_POOL_MINERS.md](docs/OPEN_POOL_MINERS.md)).  
+GPU backends: [GPU_MINING_BACKENDS.md](docs/GPU_MINING_BACKENDS.md).
 
 ---
 
-## B2B security fuzz
+## Dig & Hunt (customers)
 
-| Package | HMC | Runs | exec/unit | Pool |
-|---------|-----|------|-----------|------|
-| **scan** | ~1 | 64 | 1 | local |
-| **audit** | ~5 | 256 | 64 | yes |
-| **deep** | ~25 | 2048 | 512 local · **64 cap on hub** | yes |
-
-**Packs:** `secrets` · `script_bounds` · `filter_utf8` (FluxTap-class filter POC) · `parser_expat`
-
-**Hunt** (ASAN on pool, **50/50** escrow) — Lite / Standard / Heavy on **0.1.0-rc17** channel: `hackme-fuzzing hunt …` · [HUNT_ECONOMICS.md](docs/HUNT_ECONOMICS.md) · [HUNT_RUST_PHASE_A.md](docs/HUNT_RUST_PHASE_A.md) (`serde_json`, `memchr`, `quick_xml`).
+| Product | Escrow | What you buy |
+|---------|--------|----------------|
+| **Dig · Scan / Audit / Deep** | 20/80 | WASM campaign on *your* binary/guards · pool-distributed Dig |
+| **Hunt · Lite / Standard / Heavy** | 50/50 | ASAN depth tiers · shards on the fleet · coordinator replay |
 
 ```bash
-hackme-fuzzing wizard --pack filter_utf8 --package audit   # local node only
+hackme-fuzzing wizard --pack filter_utf8 --package audit
+hackme-fuzzing hunt … --package hunt_lite   # see docs
 ```
 
-- [developers.html](https://hackme.tech/developers.html) · [fuzz-guide.html](https://hackme.tech/fuzz-guide.html) — public landing  
-- [FUZZ_PRODUCT_GUIDE.md](docs/FUZZ_PRODUCT_GUIDE.md) — Dig + Hunt packages, coverage, pool anticheat  
-- [CUSTOMER_FUZZ_DELIVERABLES.md](docs/CUSTOMER_FUZZ_DELIVERABLES.md) — Dig reports & repro  
-- Hybrid pool: `workerpoh` + fuzz claim/submit; coordinator **replays** segments (not miner attestation)  
-- Dig escrow fee **20%** on pool campaigns; Hunt uses **50/50** — see economics docs
+| Dig package | ~HMC | Runs (guide) |
+|-------------|------|----------------|
+| Scan | 1 | 64 |
+| Audit | 5 | 256 |
+| Deep | 25 | 2048 (hub Deep often capped) |
 
-**Coverage honesty:** `wasm_edge_bitmap` @ WASM mem offset **8192** is guided scheduling — **not** AFL/libFuzzer edges (OSS research + Hunt catalog ASAN use native sanitizers separately).
+| Hunt package | ~HMC | Target shards × exec/shard |
+|--------------|------|----------------------------|
+| Lite | 20 | ~1200 × 32 |
+| Standard | 60 | ~4000 × 128 |
+| Heavy | 150+ | ~12000 × 256 |
+
+- Landing: [developers.html](https://hackme.tech/developers.html) · [fuzz-guide.html](https://hackme.tech/fuzz-guide.html)
+- [FUZZ_PRODUCT_GUIDE.md](docs/FUZZ_PRODUCT_GUIDE.md) · [HUNT_ECONOMICS.md](docs/HUNT_ECONOMICS.md) · [CUSTOMER_FUZZ_DELIVERABLES.md](docs/CUSTOMER_FUZZ_DELIVERABLES.md)
+
+Bootstrap smoke orders (tens of shards) prove the rail — they are **not** a paid Lite/Standard depth buy.
 
 ---
 
-## Research & transparency
+## Research
 
-| Series | Public hub |
-|--------|------------|
-| **Bitcoin Core 30-day fuzz** | [bitcoin30.html](https://hackme.tech/reports/bitcoin30.html) |
-| **OSS CVE matrix** | [oss-cve/](https://hackme.tech/reports/oss-cve/) |
-| **OSS CVE Watch · nghttp2** (complete) | [oss-cve-watch/](https://hackme.tech/reports/oss-cve-watch/) · [Day 14 finale · CLEAN](https://hackme.tech/reports/oss-cve-watch/day14.html) |
-| **OSS CVE Watch · libheif** (complete) | [oss-cve-watch-libheif/](https://hackme.tech/reports/oss-cve-watch-libheif/) · [Day 14 finale · CLEAN](https://hackme.tech/reports/oss-cve-watch-libheif/day14.html) |
-| **L1 / B2B case studies** | [research.html](https://hackme.tech/research.html) |
+| Series | Hub |
+|--------|-----|
+| **Hunt Watch 2026sep** | [hunt-watch-2026sep/](https://hackme.tech/reports/hunt-watch-2026sep/) |
+| **Bitcoin30** | [bitcoin30.html](https://hackme.tech/reports/bitcoin30.html) |
+| **OSS CVE · nghttp2** | [oss-cve-watch/](https://hackme.tech/reports/oss-cve-watch/) |
+| **OSS CVE · libheif** | [oss-cve-watch-libheif/](https://hackme.tech/reports/oss-cve-watch-libheif/) |
+| **Index** | [research.html](https://hackme.tech/research.html) |
 
-**nghttp2 series (closed):** Day 14 finale **3.03B** exec · 17.0h · ASAN=0 · Days 2–14 cum ≈ **14.32B** — [series verdict](docs/verdicts/OSS_CVE_WATCH_NGHTTP2_SERIES_VERDICT.md).
+---
 
-**libheif series (closed):** Days **1–14 CLEAN** · ~**2.57B** exec · ~325h ASAN · ASAN=0 — [runbook](docs/OSS_CVE_LIBHEIF_SERIES.md) · [finale](https://hackme.tech/reports/oss-cve-watch-libheif/day14.html).
+## Ecosystem
 
-Run locally: `DAY=8 bash scripts/ops/run_bitcoin30_day.sh` · [BITCOIN30_SERIES.md](docs/BITCOIN30_SERIES.md)
+| Asset | Role | Status |
+|-------|------|--------|
+| **HMC** | PoW + pool settlement | Live |
+| **SUP** | Support accrual while mining | Live |
+| **Paper Exchange** | Practice desk | Live (paper only) |
+| **HMS** | Storage / seal epochs | Preview |
 
 ---
 
@@ -217,63 +196,43 @@ bash scripts/tests/public_site_smoke.sh
 bash scripts/tests/version_consistency_gate.sh
 ```
 
-Release bundle: `VERSION=0.1.0-rc17 bash scripts/release/make_release_bundle.sh` — [scripts/release/README.md](scripts/release/README.md)
+Release: `VERSION=0.1.0-rc17 bash scripts/release/make_release_bundle.sh` — [scripts/release/README.md](scripts/release/README.md)
 
 ---
 
-## Configuration
-
-| File | Purpose |
-|------|---------|
-| `.env.desktop` | Local node + dashboard |
-| `hackme.env` | Windows miner (installer) |
-| `.secrets/*` | **Never commit** — tokens & seeds |
-| `WORKER_PAYOUT_MAP` | `worker_id=HMC-…` for settlement |
-
-→ [SECURITY_REPO.md](docs/SECURITY_REPO.md) before every push
-
----
-
-## Documentation map
-
-| Doc | Audience |
-|-----|----------|
-| [docs/INDEX.md](docs/INDEX.md) | Full map |
-| [docs/SETUP.md](docs/SETUP.md) | Miners |
-| [docs/API.md](docs/API.md) | Integrators |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design |
-| [docs/SECURITY.md](docs/SECURITY.md) | Threat model |
-
----
-
-## Security & trust
+## Config & trust
 
 | | |
 |--|--|
-| **Official site** | https://hackme.tech only |
-| **Downloads** | SHA256 on [downloads.html](https://hackme.tech/downloads.html) |
-| **Disclosure** | [contacts.html](https://hackme.tech/contacts.html) |
-| **Bug bounty** | [BUG_BOUNTY.md](docs/BUG_BOUNTY.md) |
+| Local desktop | `.env.desktop` (from `.env.desktop.example`) |
+| Secrets | `.secrets/*` — **never commit** · [SECURITY_REPO.md](docs/SECURITY_REPO.md) |
+| Official site | **https://hackme.tech** only |
+| Downloads | Always verify **SHA256** on [downloads.html](https://hackme.tech/downloads.html) |
+| Disclosure / bounty | [contacts.html](https://hackme.tech/contacts.html) · [BUG_BOUNTY.md](docs/BUG_BOUNTY.md) |
+| Threat model | [docs/SECURITY.md](docs/SECURITY.md) |
+
+Docs map: [docs/INDEX.md](docs/INDEX.md) · API: [docs/API.md](docs/API.md) · Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ---
 
 ## Contributing
 
-[CONTRIBUTING.md](CONTRIBUTING.md) — AGPL-3.0 · respect [TRADEMARK.md](TRADEMARK.md) · no secrets in git.
+[CONTRIBUTING.md](CONTRIBUTING.md) · AGPL-3.0 · [TRADEMARK.md](TRADEMARK.md) · no secrets in git.
 
 ---
 
 <div align="center">
 
-**HackMe Network** — useful work, open code, honest economics.
+**HackMe Network** — useful work, open code, honest scope.
 
 <br/>
 
 [![Telegram](https://img.shields.io/badge/Telegram-@hackme__tech-26A5E4?style=flat-square&logo=telegram)](https://t.me/hackme_tech)
 [![Bitcointalk](https://img.shields.io/badge/Bitcointalk-ANN-f7931a?style=flat-square)](https://bitcointalk.org/index.php?topic=5583373.0)
+[![GitHub](https://img.shields.io/badge/GitHub-jokeez%2Fhackme-181717?style=flat-square&logo=github)](https://github.com/jokeez/hackme)
 
 <br/>
 
-<sub>Copyright © 2026 HackMe contributors · <a href="LICENSE">AGPL-3.0</a></sub>
+<sub>Copyright © 2026 HackMe contributors · <a href="LICENSE">AGPL-3.0</a> · Not financial advice</sub>
 
 </div>

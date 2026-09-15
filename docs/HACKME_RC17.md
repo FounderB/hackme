@@ -29,7 +29,7 @@ Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · prior [HACKME_RC16.md](HACKME_RC1
 
 ## PDFs / listing packs
 
-Files under `dist/docs/` (`HMC_Listing_Pack.pdf`, `SUP_Companion_Overview.pdf`, `HackMe_Network_Pitch.pdf`, …) were last exported **Aug 2026** and may still say rc16 LIVE. Links on the site resolve; **regenerate after cutover publish** — see `DOCUMENTATION_EXPORT.md`.
+Listing PDFs under `dist/docs/` were regenerated for **rc17** (2026-09-15). Site links use `?v=20260915-rc17` — verify `SHA256SUMS-docs.txt` on [docs.html](https://hackme.tech/docs.html).
 
 ## Operator note
 
