@@ -30,9 +30,11 @@ func TuneSQLitePool(db *sql.DB, role string) {
 	if db == nil {
 		return
 	}
-	maxOpen, maxIdle := 4, 4
+	maxOpen, maxIdle := 12, 8
 	if strings.EqualFold(strings.TrimSpace(role), "fuzz") {
-		maxOpen, maxIdle = 2, 2
+		// Enough headroom for claim/submit + Tick + Hunt replay without
+		// parking HTTP handlers behind SetMaxOpenConns wait (was 2 → claim timeouts).
+		maxOpen, maxIdle = 8, 6
 	}
 	db.SetMaxOpenConns(maxOpen)
 	db.SetMaxIdleConns(maxIdle)
