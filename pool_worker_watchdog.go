@@ -106,9 +106,11 @@ func (a *app) startPoolWorkerWatchdog() {
 	}
 	interval := poolWorkerWatchdogInterval()
 	go func() {
-		time.Sleep(12 * time.Second)
+		// Fast first start so desktop miners do not need a manual Start Worker click.
+		time.Sleep(3 * time.Second)
 		log.Printf("pool worker watchdog: enabled (every %s, in-process)", interval)
 		var lastRestartUnix int64
+		first := true
 		for {
 			if miningPaused() {
 				time.Sleep(interval)
@@ -116,10 +118,11 @@ func (a *app) startPoolWorkerWatchdog() {
 			}
 			if !a.workerProcessRunning() {
 				now := time.Now().Unix()
-				if now-lastRestartUnix < 30 {
+				if !first && now-lastRestartUnix < 30 {
 					time.Sleep(interval)
 					continue
 				}
+				first = false
 				if err := a.restartPoolWorkerViaAPI(); err != nil {
 					log.Printf("pool worker watchdog: restart failed: %v", err)
 				} else {

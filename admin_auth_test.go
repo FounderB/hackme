@@ -104,7 +104,7 @@ func TestDesktopMutatingOriginOK(t *testing.T) {
 	}
 }
 
-func TestDesktopLocalAuthRequiresExposeFlag(t *testing.T) {
+func TestDesktopLocalAuthAlwaysReturnsTokenOnLoopback(t *testing.T) {
 	t.Setenv("HACKME_DESKTOP_MODE", "1")
 	t.Setenv("HACKME_ADMIN_TOKEN", "desktop-secret")
 	t.Setenv("HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN", "0")
@@ -120,8 +120,8 @@ func TestDesktopLocalAuthRequiresExposeFlag(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := body["admin_token"]; ok {
-		t.Fatal("admin_token must not be returned without HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN=1")
+	if body["admin_token"] != "desktop-secret" {
+		t.Fatalf("desktop loopback must return admin_token even without EXPOSE, got %#v", body["admin_token"])
 	}
 
 	t.Setenv("HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN", "1")
@@ -134,6 +134,26 @@ func TestDesktopLocalAuthRequiresExposeFlag(t *testing.T) {
 	_ = json.NewDecoder(rec.Body).Decode(&body)
 	if body["admin_token"] != "desktop-secret" {
 		t.Fatalf("expose=1 should return token, got %#v", body["admin_token"])
+	}
+}
+
+func TestRequireAdminAuthOrDesktopLoopback(t *testing.T) {
+	t.Setenv("HACKME_DESKTOP_MODE", "1")
+	t.Setenv("HACKME_ADMIN_TOKEN", "desktop-secret")
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/worker/start", nil)
+	req.RemoteAddr = "127.0.0.1:9"
+	req.Host = "127.0.0.1:8080"
+	// No admin header — must still pass on desktop loopback.
+	if !requireAdminAuthOrDesktopLoopback(rec, req) {
+		t.Fatal("desktop loopback should allow worker start without header")
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/worker/start", nil)
+	req.RemoteAddr = "203.0.113.9:9"
+	req.Host = "127.0.0.1:8080"
+	if requireAdminAuthOrDesktopLoopback(rec, req) {
+		t.Fatal("non-loopback without token must fail")
 	}
 }
 

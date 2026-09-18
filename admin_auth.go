@@ -83,6 +83,27 @@ func requireAdminAuthStrict(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+// desktopLoopbackAdminOK is true for same-machine desktop dashboard traffic.
+// Used so Start Worker / Mining controls keep working after restart even if the
+// browser still holds a stale sessionStorage token (common after env repair).
+func desktopLoopbackAdminOK(r *http.Request) bool {
+	return envBool("HACKME_DESKTOP_MODE", false) &&
+		requestFromLoopback(r) &&
+		requestHostIsLoopbackLiteral(r) &&
+		desktopMutatingOriginOK(r)
+}
+
+// requireAdminAuthOrDesktopLoopback accepts a valid admin token OR trusted desktop loopback.
+func requireAdminAuthOrDesktopLoopback(w http.ResponseWriter, r *http.Request) bool {
+	if adminRequestAuthed(r) {
+		return true
+	}
+	if desktopLoopbackAdminOK(r) && adminTokenFromEnv() != "" {
+		return true
+	}
+	return requireAdminAuthStrict(w, r)
+}
+
 // requestHostIsLoopbackLiteral is true when the HTTP Host is a literal loopback name.
 // Blocks DNS-rebinding: TCP may be 127.0.0.1 while Host is attacker-controlled.
 func requestHostIsLoopbackLiteral(r *http.Request) bool {
@@ -211,16 +232,20 @@ func handleDesktopLocalAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tok := adminTokenFromEnv()
-	// H2: never return the raw token unless explicitly opted in.
+	// Desktop miners: always return the token on loopback so the dashboard can
+	// re-sync after restart (stale sessionStorage was breaking Start Worker).
+	// EXPOSE=1 still controls HTML embed + the optional UI note.
 	expose := envBool("HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN", false)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	out := map[string]any{
 		"ok":                     true,
 		"admin_token_configured": tok != "",
-		"hint":                   "set HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN=1 to return admin_token on loopback Sync",
+		"desktop_mode":           true,
+		"hint":                   "loopback desktop always receives admin_token; rotate HACKME_ADMIN_TOKEN if this machine is shared",
 	}
-	if tok != "" && expose {
+	if tok != "" {
 		out["admin_token"] = tok
+		out["exposed"] = expose
 	}
 	_ = json.NewEncoder(w).Encode(out)
 }

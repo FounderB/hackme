@@ -2374,7 +2374,7 @@ func (a *app) handleWorkerStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireAdminAuthStrict(w, r) {
+	if !requireAdminAuthOrDesktopLoopback(w, r) {
 		return
 	}
 	if miningPaused() {
@@ -2743,7 +2743,7 @@ func (a *app) handleWorkerStop(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireAdminAuthStrict(w, r) {
+	if !requireAdminAuthOrDesktopLoopback(w, r) {
 		return
 	}
 	logAdminAction(r, "worker_stop")

@@ -4875,10 +4875,55 @@
 			}
 		}
 		function showAdminTokenExposeWarn() {
-			const emb = typeof window.__HACKME_EMBEDDED_ADMIN_TOKEN__ === 'string'
-				&& sanitizeAdminTokenForHTTP(window.__HACKME_EMBEDDED_ADMIN_TOKEN__);
+			// Desktop miners always sync the token from the node — not an error state.
 			const warn = $('admin-token-expose-warn');
-			if (warn) warn.classList.toggle('hidden', !emb);
+			if (warn) warn.classList.add('hidden');
+		}
+		async function syncDesktopAdminTokenFromNode() {
+			showAdminTokenExposeWarn();
+			let got = false;
+			try {
+				const emb = typeof window.__HACKME_EMBEDDED_ADMIN_TOKEN__ === 'string'
+					? sanitizeAdminTokenForHTTP(window.__HACKME_EMBEDDED_ADMIN_TOKEN__)
+					: '';
+				if (emb) {
+					const prev = adminTokenCurrent();
+					sessionStorage.setItem(adminTokenStorageKey, emb);
+					if (prev && prev !== emb) {
+						try { logLine('[admin] replaced stale session token with embedded node token'); } catch (_) {}
+					}
+					got = true;
+				}
+			} catch (_) {}
+			try {
+				const r = await fetch('/api/desktop/local-auth', { cache: 'no-store' });
+				if (r.ok) {
+					const j = await r.json();
+					const tok = sanitizeAdminTokenForHTTP(j && j.admin_token);
+					if (tok) {
+						const prev = adminTokenCurrent();
+						sessionStorage.setItem(adminTokenStorageKey, tok);
+						if (prev && prev !== tok) {
+							try { logLine('[admin] replaced stale session token with node token'); } catch (_) {}
+						} else if (!prev) {
+							try { logLine('[admin] loaded token from local desktop node'); } catch (_) {}
+						}
+						got = true;
+					}
+				}
+			} catch (_) {}
+			if (got) {
+				updateAdminTokenUI();
+				showAdminTokenExposeWarn();
+				return true;
+			}
+			return adminTokenCurrent().length > 0;
+		}
+		async function ensureDesktopAdminToken(forceResync) {
+			if (forceResync || !adminTokenCurrent()) {
+				await syncDesktopAdminTokenFromNode();
+			}
+			return adminTokenCurrent().length > 0;
 		}
 		function walletAlignmentLabel(code) {
 			switch (String(code || '')) {
@@ -5372,17 +5417,27 @@
 			}
 		}
 		async function postWorkerStartJSON() {
+			await ensureDesktopAdminToken(true);
 			const coord_url = await workerStartCoordURL();
 			const workerInput = $('desktop-worker-id');
 			const worker_id = String((workerInput && workerInput.value) || '').trim();
 			const payload = { coord_url };
 			if (worker_id) payload.worker_id = worker_id;
 			// Coordinator token must come from node env / .secrets — not the dashboard admin token.
-			return fetch('/api/worker/start', {
+			let r = await fetch('/api/worker/start', {
 				method: 'POST',
 				headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
 				body: JSON.stringify(payload),
 			});
+			if (r.status === 401) {
+				await ensureDesktopAdminToken(true);
+				r = await fetch('/api/worker/start', {
+					method: 'POST',
+					headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+					body: JSON.stringify(payload),
+				});
+			}
+			return r;
 		}
 
 		let workerDerived = { attemptsPerSec: 0, rangesPerSec: 0, sessionSubmitted: 0, sessionSec: 0, etaSec: null, progress: 0, totalAttempts: 0, payoutPerHour: 0, totalPayout: 0, acceptedAttemptsPerSec5s: 0, payoutDeltaPerMin5s: 0, ratesImputed: 0, isLocalSlice: false };
@@ -5499,8 +5554,7 @@
 			return '';
 		}
 		async function ensureWalletAdminToken() {
-			if (adminTokenCurrent()) return true;
-			await syncDesktopAdminTokenFromNode();
+			await ensureDesktopAdminToken(true);
 			return adminTokenCurrent().length > 0;
 		}
 		const developerTokenStorageKey = 'hackme_developer_token';
@@ -5919,57 +5973,6 @@
 			];
 			gated.forEach((id) => setButtonEnabled(id, tokenSet, 'Set admin token first'));
 		}
-		async function syncDesktopAdminTokenFromNode() {
-			showAdminTokenExposeWarn();
-			try {
-				const emb = typeof window.__HACKME_EMBEDDED_ADMIN_TOKEN__ === 'string'
-					? sanitizeAdminTokenForHTTP(window.__HACKME_EMBEDDED_ADMIN_TOKEN__)
-					: '';
-				if (emb) {
-					sessionStorage.setItem(adminTokenStorageKey, emb);
-					updateAdminTokenUI();
-					try { logLine('[admin] token loaded from embedded script (EXPOSE=1 — rotate after use)'); } catch (_) {}
-					void refreshWallet(true);
-					return true;
-				}
-			} catch (_) {}
-			if (!adminTokenCurrent()) {
-				try {
-					const r = await fetch('/api/desktop/local-auth', { cache: 'no-store' });
-					if (r.ok) {
-						const j = await r.json();
-						const tok = sanitizeAdminTokenForHTTP(j && j.admin_token);
-						if (tok) {
-							sessionStorage.setItem(adminTokenStorageKey, tok);
-							updateAdminTokenUI();
-							showAdminTokenExposeWarn();
-							try { logLine('[admin] loaded token from local desktop node (EXPOSE=1)'); } catch (_) {}
-							void refreshWallet(true);
-							return true;
-						}
-					}
-				} catch (_) {}
-				return false;
-			}
-			try {
-				const r = await fetchWithTimeout('/api/worker/status', { cache: 'no-store', headers: adminHeaders() }, 8000);
-				if (r.ok) return true;
-			} catch (_) {}
-			try {
-				const r = await fetch('/api/desktop/local-auth', { cache: 'no-store' });
-				if (!r.ok) return false;
-				const j = await r.json();
-				const tok = sanitizeAdminTokenForHTTP(j && j.admin_token);
-				if (!tok) return false;
-				sessionStorage.setItem(adminTokenStorageKey, tok);
-				updateAdminTokenUI();
-				try { logLine('[admin] re-synced token from local desktop node'); } catch (_) {}
-				void refreshWallet(true);
-				return true;
-			} catch (_) {
-				return false;
-			}
-		}
 		function saveAdminTokenFromInput() {
 			const input = $('admin-token-input');
 			if (!input) return;
@@ -6115,11 +6118,25 @@
 			const worker_id = String((workerInput && workerInput.value) || '').trim() || ('desktop-worker-' + Date.now());
 			if (note) note.textContent = 'wizard: starting worker mode...';
 			try {
-				await fetch('/api/worker/start', {
+				await ensureDesktopAdminToken(true);
+				let r = await fetch('/api/worker/start', {
 					method: 'POST',
 					headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
 					body: JSON.stringify({ coord_url, worker_id }),
 				});
+				if (r.status === 401) {
+					await ensureDesktopAdminToken(true);
+					r = await fetch('/api/worker/start', {
+						method: 'POST',
+						headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+						body: JSON.stringify({ coord_url, worker_id }),
+					});
+				}
+				if (!r.ok) {
+					const t = await r.text();
+					if (note) note.textContent = 'wizard: worker start HTTP ' + r.status + ' — ' + t.slice(0, 80);
+					return;
+				}
 				if (note) note.textContent = 'wizard: worker start requested';
 			} catch (e) {
 				const m = String(e && e.message ? e.message : e);
@@ -6135,15 +6152,11 @@
 			return prefix + ': HTTP ' + String(status);
 		}
 		async function ensureFuzzAdminToken() {
-			if (adminTokenCurrent()) {
-				if ($('fuzz-auth-hint')) $('fuzz-auth-hint').textContent = '';
-				return true;
-			}
-			await syncDesktopAdminTokenFromNode();
+			await ensureDesktopAdminToken(true);
 			refreshFuzzAdminActionState();
 			const ok = adminTokenCurrent().length > 0;
 			if ($('fuzz-auth-hint')) {
-				$('fuzz-auth-hint').textContent = ok ? '' : 'Admin token missing — click Sync token (loads from .env.desktop) or Save token in header.';
+				$('fuzz-auth-hint').textContent = ok ? '' : 'Admin token missing — click Sync token or hard-refresh (Ctrl+F5).';
 			}
 			return ok;
 		}
