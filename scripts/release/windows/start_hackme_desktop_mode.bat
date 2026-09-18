@@ -43,8 +43,18 @@ if not exist "%ENV_FILE%" (
   echo Created %ENV_FILE% with generated admin token.
 )
 
-for /f "tokens=1,* delims==" %%A in (%ENV_FILE%) do (
-  set "%%A=%%B"
+rem usebackq + quoted path required (Program Files / spaces). Skip comments.
+for /f "usebackq tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
+  set "_k=%%~A"
+  if defined _k if not "!_k:~0,1!"=="#" (
+    set "%%~A=%%~B"
+  )
+)
+if "!HACKME_ADMIN_TOKEN!"=="" (
+  echo ERROR: HACKME_ADMIN_TOKEN missing in %ENV_FILE%
+  echo Delete that file and re-run this script to regenerate a token.
+  pause
+  exit /b 1
 )
 
 echo Starting HackMe Desktop Mode...

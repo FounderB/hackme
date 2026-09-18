@@ -18,6 +18,8 @@ if not exist "%HACKME_DIR%\pool.miner.token" (
   exit /b 1
 )
 
+if not exist "%HACKME_DIR%\logs" mkdir "%HACKME_DIR%\logs" >nul 2>&1
+
 if not exist "%HACKME_DIR%\hackme.env" (
   echo Creating hackme.env...
   call "%HACKME_DIR%\setup_hackme_miner.bat"
@@ -26,9 +28,10 @@ if not exist "%HACKME_DIR%\hackme.env" (
 
 set "POOL_OK=0"
 for /f "usebackq delims=" %%T in ("%HACKME_DIR%\pool.miner.token") do if not "%%T"=="" set "POOL_OK=1"
+set "HAS_POOL="
 if "!POOL_OK!"=="1" (
-  for /f "tokens=1,* delims==" %%A in ('findstr /B /I "HACKME_POOL_COORDINATOR_TOKEN=" "%HACKME_DIR%\hackme.env" 2^>nul') do (
-    if not "%%B"=="" if /I not "%%B"=="REPLACE_WITH_POOL_TOKEN" set "HAS_POOL=1"
+  for /f "usebackq tokens=1,* delims==" %%A in ("%HACKME_DIR%\hackme.env") do (
+    if /I "%%~A"=="HACKME_POOL_COORDINATOR_TOKEN" if not "%%~B"=="" if /I not "%%~B"=="REPLACE_WITH_POOL_TOKEN" set "HAS_POOL=1"
   )
 )
 if not "!HAS_POOL!"=="1" (
@@ -42,10 +45,38 @@ if not "!HAS_POOL!"=="1" (
 )
 
 set "HACKME_PUBLIC_AUTHORITY_BASE=https://hackme.tech"
-for /f "tokens=1,* delims==" %%A in ('findstr /B /I "HACKME_ADMIN_TOKEN=" "%HACKME_DIR%\hackme.env" 2^>nul') do set "HACKME_ADMIN_TOKEN=%%B"
-for /f "tokens=1,* delims==" %%A in ('findstr /B /I "HACKME_POOL_COORDINATOR_TOKEN=" "%HACKME_DIR%\hackme.env" 2^>nul') do set "HACKME_POOL_COORDINATOR_TOKEN=%%B"
+set "HACKME_ADMIN_TOKEN="
+set "HACKME_POOL_COORDINATOR_TOKEN="
+for /f "usebackq tokens=1,* delims==" %%A in ("%HACKME_DIR%\hackme.env") do (
+  if /I "%%~A"=="HACKME_ADMIN_TOKEN" set "HACKME_ADMIN_TOKEN=%%~B"
+  if /I "%%~A"=="HACKME_POOL_COORDINATOR_TOKEN" set "HACKME_POOL_COORDINATOR_TOKEN=%%~B"
+)
+set "HACKME_ADMIN_TOKEN=!HACKME_ADMIN_TOKEN:"=!"
+set "HACKME_POOL_COORDINATOR_TOKEN=!HACKME_POOL_COORDINATOR_TOKEN:"=!"
+
+if "!HACKME_ADMIN_TOKEN!"=="" (
+  echo Admin token missing — regenerating hackme.env...
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%HACKME_DIR%\write_hackme_env.ps1" -InstallDir "%HACKME_DIR%" -RepairOnly -NonInteractive
+  if errorlevel 1 (
+    echo ERROR: could not create admin token in hackme.env
+    pause
+    exit /b 1
+  )
+  for /f "usebackq tokens=1,* delims==" %%A in ("%HACKME_DIR%\hackme.env") do (
+    if /I "%%~A"=="HACKME_ADMIN_TOKEN" set "HACKME_ADMIN_TOKEN=%%~B"
+    if /I "%%~A"=="HACKME_POOL_COORDINATOR_TOKEN" set "HACKME_POOL_COORDINATOR_TOKEN=%%~B"
+  )
+  set "HACKME_ADMIN_TOKEN=!HACKME_ADMIN_TOKEN:"=!"
+  set "HACKME_POOL_COORDINATOR_TOKEN=!HACKME_POOL_COORDINATOR_TOKEN:"=!"
+)
+
 if "!HACKME_POOL_COORDINATOR_TOKEN!"=="" (
   for /f "usebackq delims=" %%T in ("%HACKME_DIR%\pool.miner.token") do set "HACKME_POOL_COORDINATOR_TOKEN=%%T"
+)
+if "!HACKME_ADMIN_TOKEN!"=="" (
+  echo ERROR: HACKME_ADMIN_TOKEN still empty after repair. Delete hackme.env and re-run setup_hackme_miner.bat
+  pause
+  exit /b 1
 )
 if "!HACKME_POOL_COORDINATOR_TOKEN!"=="" (
   echo ERROR: pool token missing. Run setup_hackme_miner.bat or reinstall.
@@ -59,19 +90,26 @@ echo.
 echo HackMe public pool miner
 echo Install: %HACKME_DIR%
 echo Dashboard: http://127.0.0.1:8080/#ecosystem
+echo Watchdog log: %HACKME_DIR%\logs\watchdog_worker.log
 echo.
 echo Keep this window open while mining.
 echo.
 
 start "hackme-browser" cmd /c "timeout /t 3 /nobreak >nul && start http://127.0.0.1:8080/#ecosystem"
-rem Keep pool worker alive (restarts after GPU crash / thermal / node hiccup). Node also runs an internal watchdog when HACKME_WORKER_WATCHDOG=1.
-start "hackme-watchdog" /min cmd /c call "%HACKME_DIR%\watchdog_pool_worker.bat"
+
+rem Hidden watchdog (no blank "hackme-watchdog" console). Falls back to minimized+log redirect.
+if exist "%HACKME_DIR%\run_watchdog_hidden.vbs" (
+  wscript //B //Nologo "%HACKME_DIR%\run_watchdog_hidden.vbs"
+) else (
+  start "hackme-watchdog" /min cmd /c "cd /d \"%HACKME_DIR%\" && call watchdog_pool_worker.bat >> logs\watchdog_worker.log 2>&1"
+)
 
 cd /d "%HACKME_DIR%"
 hackme.exe
 set EC=%ERRORLEVEL%
 if not %EC%==0 (
   echo Node exited with code %EC%.
+  echo If you saw admin-token errors, delete hackme.env and run setup_hackme_miner.bat
   pause
 )
 exit /b %EC%

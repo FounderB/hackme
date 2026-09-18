@@ -30,10 +30,14 @@ $envPath = Join-Path $dir "hackme.env"
 $admin = ""
 if (Test-Path $envPath) {
     foreach ($line in [System.IO.File]::ReadAllLines($envPath)) {
-        if ($line -match '^\s*HACKME_ADMIN_TOKEN=(.+)$') { $admin = $Matches[1].Trim(); break }
+        if ($line -match '^\s*HACKME_ADMIN_TOKEN=(.*)$') {
+            $admin = ($Matches[1] -replace '^["'']|["'']$', '').Trim()
+            break
+        }
     }
 }
-if (-not $admin) {
+# Empty / placeholder admin must be regenerated — blank env var blocks Go dotenv load and breaks dashboard Mining API.
+if (-not $admin -or $admin -match '^(REPLACE|YOUR_|CHANGE_ME)') {
     $b = New-Object byte[] 24
     [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
     $admin = ($b | ForEach-Object { $_.ToString("x2") }) -join ""
