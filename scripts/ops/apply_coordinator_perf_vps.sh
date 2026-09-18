@@ -36,18 +36,29 @@ COORD_UNIT=/etc/systemd/system/hackme-coordinator.service
 if [[ -f "\$COORD_UNIT" ]]; then
   sudo grep -q 'HACKME_COORDINATOR_WRITE_TIMEOUT_SEC' "\$COORD_UNIT" || \
     sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_COORDINATOR_WRITE_TIMEOUT_SEC=480' "\$COORD_UNIT" || true
-  # Align with code defaults (2): parallel=3 reintroduced SQLITE_BUSY under Hunt ASAN.
+  # Cap Hunt ASAN on small VPS — dual workers + 250ms idle poll pegged one core.
   if sudo grep -q 'HACKME_POOL_HUNT_REPLAY_MAX_PARALLEL=3' "\$COORD_UNIT"; then
-    sudo sed -i 's/HACKME_POOL_HUNT_REPLAY_MAX_PARALLEL=3/HACKME_POOL_HUNT_REPLAY_MAX_PARALLEL=2/' "\$COORD_UNIT" || true
+    sudo sed -i 's/HACKME_POOL_HUNT_REPLAY_MAX_PARALLEL=3/HACKME_POOL_HUNT_REPLAY_MAX_PARALLEL=1/' "\$COORD_UNIT" || true
+  fi
+  if sudo grep -q 'HACKME_POOL_HUNT_REPLAY_MAX_PARALLEL=2' "\$COORD_UNIT"; then
+    sudo sed -i 's/HACKME_POOL_HUNT_REPLAY_MAX_PARALLEL=2/HACKME_POOL_HUNT_REPLAY_MAX_PARALLEL=1/' "\$COORD_UNIT" || true
   fi
   sudo grep -q 'HACKME_POOL_HUNT_REPLAY_MAX_PARALLEL' "\$COORD_UNIT" || \
-    sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_POOL_HUNT_REPLAY_MAX_PARALLEL=2' "\$COORD_UNIT" || true
+    sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_POOL_HUNT_REPLAY_MAX_PARALLEL=1' "\$COORD_UNIT" || true
+  if sudo grep -q 'HACKME_POOL_HUNT_REPLAY_WORKERS=2' "\$COORD_UNIT"; then
+    sudo sed -i 's/HACKME_POOL_HUNT_REPLAY_WORKERS=2/HACKME_POOL_HUNT_REPLAY_WORKERS=1/' "\$COORD_UNIT" || true
+  fi
   sudo grep -q 'HACKME_POOL_HUNT_REPLAY_WORKERS' "\$COORD_UNIT" || \
-    sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_POOL_HUNT_REPLAY_WORKERS=2' "\$COORD_UNIT" || true
+    sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_POOL_HUNT_REPLAY_WORKERS=1' "\$COORD_UNIT" || true
   sudo grep -q 'HACKME_COORDINATOR_READ_TIMEOUT_SEC' "\$COORD_UNIT" || \
     sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_COORDINATOR_READ_TIMEOUT_SEC=60' "\$COORD_UNIT" || true
+  if sudo grep -q 'HACKME_POOL_TICK_SEC=5' "\$COORD_UNIT"; then
+    sudo sed -i 's/HACKME_POOL_TICK_SEC=5/HACKME_POOL_TICK_SEC=10/' "\$COORD_UNIT" || true
+  fi
   sudo grep -q 'HACKME_POOL_TICK_SEC' "\$COORD_UNIT" || \
-    sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_POOL_TICK_SEC=5' "\$COORD_UNIT" || true
+    sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_POOL_TICK_SEC=10' "\$COORD_UNIT" || true
+  sudo grep -q 'HACKME_COORDINATOR_PEER_FLUSH_SEC' "\$COORD_UNIT" || \
+    sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_COORDINATOR_PEER_FLUSH_SEC=5' "\$COORD_UNIT" || true
   sudo systemctl daemon-reload
 fi
 sudo cp /tmp/hackme-worker-settlement.service /etc/systemd/system/hackme-worker-settlement.service

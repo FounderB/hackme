@@ -125,6 +125,13 @@ type workManager struct {
 	hybridSignerStrict    bool
 	hybridRequireFoundSig bool
 	claimRequirePubKey    bool
+
+	// Short TTL for /api/work/stats|/api/pool/stats — public pollers were rebuilding the full worker map every hit.
+	statsCacheMu      sync.Mutex
+	statsCachePlainAt time.Time
+	statsCachePlain   map[string]any
+	statsCacheDetAt   time.Time
+	statsCacheDetails map[string]any
 }
 
 type workKey struct {
@@ -2139,6 +2146,52 @@ func enrichPoolStatsForPublic(out map[string]any, reg *lanpool.Registry, wm *wor
 	// Never overwrite workers{} breakdown map (settlement + dashboard need payout_hmc per id).
 }
 
+func shallowCloneStats(in map[string]any) map[string]any {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]any, len(in)+8)
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+const workStatsCacheTTL = 2 * time.Second
+
+// statsCached returns a shallow clone of stats with a short TTL to cut public poller CPU.
+func (m *workManager) statsCached(includeDetails bool) map[string]any {
+	ttl := workStatsCacheTTL
+	m.statsCacheMu.Lock()
+	now := time.Now()
+	if includeDetails {
+		if m.statsCacheDetails != nil && now.Sub(m.statsCacheDetAt) < ttl {
+			out := shallowCloneStats(m.statsCacheDetails)
+			m.statsCacheMu.Unlock()
+			return out
+		}
+	} else if m.statsCachePlain != nil && now.Sub(m.statsCachePlainAt) < ttl {
+		out := shallowCloneStats(m.statsCachePlain)
+		m.statsCacheMu.Unlock()
+		return out
+	}
+	m.statsCacheMu.Unlock()
+
+	built := m.stats(includeDetails)
+
+	m.statsCacheMu.Lock()
+	if includeDetails {
+		m.statsCacheDetails = built
+		m.statsCacheDetAt = time.Now()
+	} else {
+		m.statsCachePlain = built
+		m.statsCachePlainAt = time.Now()
+	}
+	out := shallowCloneStats(built)
+	m.statsCacheMu.Unlock()
+	return out
+}
+
 func (m *workManager) stats(includeDetails bool) map[string]any {
 	now := time.Now().Unix()
 	m.prefetchTargetMod(now)
@@ -2743,7 +2796,8 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 			}
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		out := wm.stats(details)
+		w.Header().Set("Cache-Control", "public, max-age=1")
+		out := wm.statsCached(details)
 		enrichPoolStatsForPublic(out, reg, wm)
 		_ = json.NewEncoder(w).Encode(out)
 	})
@@ -2754,7 +2808,7 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		out := wm.stats(false)
+		out := wm.statsCached(false)
 		enrichPoolStatsForPublic(out, reg, wm)
 		hr := float64(0)
 		if v, ok := out["hashrate_hs"].(float64); ok {
@@ -2790,7 +2844,7 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 			}
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Cache-Control", "public, max-age=1")
 		pub := map[string]any{
 			"status":   "ok",
 			"pool":     "HackMe Official Pool",

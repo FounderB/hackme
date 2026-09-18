@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"hackme/internal/fuzzengine"
@@ -93,19 +94,34 @@ func StartHuntReplayWorkers(ctx context.Context, s *Service) {
 }
 
 func huntReplayWorkerLoop(ctx context.Context, s *Service, workerLabel string) {
-	t := time.NewTicker(250 * time.Millisecond)
-	defer t.Stop()
+	// Busy: poll quickly. Idle: back off so empty queues do not hammer SQLite.
+	delay := 250 * time.Millisecond
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.C:
+		case <-timer.C:
+			busy := false
 			for {
 				ok, err := s.processNextHuntReplayJob(ctx, workerLabel)
 				if err != nil || !ok {
 					break
 				}
+				busy = true
 			}
+			if busy {
+				delay = 250 * time.Millisecond
+			} else if delay < 2*time.Second {
+				delay *= 2
+				if delay > 2*time.Second {
+					delay = 2 * time.Second
+				}
+			} else {
+				delay = 2 * time.Second
+			}
+			timer.Reset(delay)
 		}
 	}
 }
@@ -304,6 +320,11 @@ func (s *Service) ensureHuntReplayQueueRowTx(ctx context.Context, tx *sql.Tx, re
 
 const huntReplayStaleProcessingSec int64 = 15 * 60
 
+// huntReplayReclaimEverySec throttles stale reclaim off the hot claim path.
+const huntReplayReclaimEverySec int64 = 30
+
+var huntReplayLastReclaimUnix atomic.Int64
+
 func (s *Service) reclaimStaleHuntReplayJobs(ctx context.Context, now int64) {
 	if s == nil || s.DB == nil || now <= 0 {
 		return
@@ -314,6 +335,17 @@ func (s *Service) reclaimStaleHuntReplayJobs(ctx context.Context, now int64) {
 		 SET status=?, verifier_id='', last_error=CASE WHEN last_error='' THEN 'reclaimed stale processing' ELSE last_error END, updated_at=?
 		 WHERE status=? AND updated_at < ?`,
 		huntReplayStatusPending, now, huntReplayStatusProcessing, cutoff)
+}
+
+func (s *Service) maybeReclaimStaleHuntReplayJobs(ctx context.Context, now int64) {
+	prev := huntReplayLastReclaimUnix.Load()
+	if prev > 0 && now-prev < huntReplayReclaimEverySec {
+		return
+	}
+	if !huntReplayLastReclaimUnix.CompareAndSwap(prev, now) {
+		return
+	}
+	s.reclaimStaleHuntReplayJobs(ctx, now)
 }
 
 func huntReplayRetryable(err error) bool {
@@ -355,7 +387,7 @@ const huntReplayMaxRetries = 8
 
 func (s *Service) processNextHuntReplayJob(ctx context.Context, verifierID string) (bool, error) {
 	now := time.Now().Unix()
-	s.reclaimStaleHuntReplayJobs(ctx, now)
+	s.maybeReclaimStaleHuntReplayJobs(ctx, now)
 
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {

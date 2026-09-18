@@ -635,7 +635,8 @@ func (s *Service) Claim(ctx context.Context, workerID string, now int64) (Claime
 
 func (s *Service) noteEmptyClaim() {
 	s.emptyClaimMu.Lock()
-	s.emptyClaimUntil = time.Now().Add(350 * time.Millisecond)
+	// Longer negative cache when no work — idle workerfuzz fleets were hammering SQLite ~3/s.
+	s.emptyClaimUntil = time.Now().Add(1500 * time.Millisecond)
 	s.emptyClaimMu.Unlock()
 }
 
