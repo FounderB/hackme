@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"hackme/internal/hunt"
@@ -21,8 +19,11 @@ func (a *app) publishHuntHarnessForConfig(ctx context.Context, cfg map[string]an
 		return nil
 	}
 	root := a.repoRoot()
-	cachePath := filepath.Join(root, ".cache", "hunt-harness", hash+".bin")
-	if _, err := os.Stat(cachePath); err != nil {
+	cachePath, err := hunt.SafeCacheFile(root, "hunt-harness", hash, "bin")
+	if err != nil {
+		return err
+	}
+	if _, err := hunt.SafeStatUnder(root, cachePath); err != nil {
 		targetID := strings.TrimSpace(toString(cfg["upstream_target_id"]))
 		if targetID == "" {
 			return fmt.Errorf("hunt publish: harness binary missing for %s", hash)
