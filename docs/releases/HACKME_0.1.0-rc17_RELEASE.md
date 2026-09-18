@@ -29,10 +29,10 @@
 
 | File | Hash |
 |---|---|
-| `hackme_0.1.0-rc17_windows.zip` | `052a6276461a997328839dfebd7d44880d42988697e1a8ef3d72df63703ca769` |
-| `hackme_0.1.0-rc17_windows_setup.zip` | `22492eb5a80d1614a650b223414e14dfbe579f14eb958b28317798204f679caf` |
+| `hackme_0.1.0-rc17_windows.zip` | `ebdd3683ee82e14c0d7e07d68560fcf22bbb5bdd5a8086ba24ceaf7a4182c74b` |
+| `hackme_0.1.0-rc17_windows_setup.zip` | `5fb73978412dd8e8d56fd0766b4e7fc6d436d16e4bc04af905507637c5f6f708` |
 | `hackme_0.1.0-rc17_linux.tar.gz` | `ddf872d09324e638d8f93a3a0cc0f2c490faa2e0a7c6d231887fe59b016fd3f3` |
-| `HackMe-Setup-0.1.0-rc17.exe` | `dad6ce984a3b690a3442a9dc0461f306496393bfcc2683809238e47f5a9515fc` |
+| `HackMe-Setup-0.1.0-rc17.exe` | `a7f006a0e49df4e4d23ead3c2d4fabaf314e159557e9a9a2f54674db607fa5d7` |
 | `Install-HackMe.ps1` | `99cab528dbbc1ac8e30913f60893af5c55bc999f9ad1007fa611fd0e199498a7` |
 | `HackMe-Install.cmd` | `0ac66574d6c2eb2bc605f3d254d912f08bb7f46befb8b66db9edc61618c8d243` |
 | `hackme-fuzzing-0.1.0-rc17-linux-amd64` | `82d0c4e4ef48b4e0d2556b0d0e51bb002e62c6d87f1990c7ca0778af7eae4715` |

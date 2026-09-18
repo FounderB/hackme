@@ -26,8 +26,11 @@ set "GPU_BACKEND=auto"
 set "WORKER_BATCH=16777216"
 for /f "tokens=1,* delims==" %%A in ('findstr /B /I "HACKME_GPU_BACKEND=" hackme.env 2^>nul') do set "GPU_BACKEND=%%B"
 if /I "!GPU_BACKEND!"=="auto" (
-  if exist "workerpoh-cuda.exe" set "GPU_BACKEND=cuda"
-  else if exist "workerpoh-opencl.exe" set "GPU_BACKEND=opencl"
+  if exist "workerpoh-cuda.exe" (
+    set "GPU_BACKEND=cuda"
+  ) else if exist "workerpoh-opencl.exe" (
+    set "GPU_BACKEND=opencl"
+  )
 )
 for /f "tokens=1,* delims==" %%A in ('findstr /B /I "HACKME_WORKER_BATCH_SIZE=" hackme.env 2^>nul') do set "WORKER_BATCH=%%B"
 
