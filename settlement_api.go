@@ -207,30 +207,30 @@ func mergeCanonicalSettlementState(local *workerSettlementState, remote workerSe
 			}
 			cur.LastSettleUnix = ent.LastSettleUnix
 			rowChanged = true
-		} else if ent.SettledHMC > cur.SettledHMC {
+		} else if cur.LastSettleUnix == 0 && ent.LastSettleUnix > 0 && ent.SettledHMC > cur.SettledHMC {
+			// Bootstrap only: local never settled; require remote timestamp (H7 — no unsigned raise).
 			cur.SettledHMC = ent.SettledHMC
-			rowChanged = true
+			if ent.SettledSUP > cur.SettledSUP {
+				cur.SettledSUP = ent.SettledSUP
+			}
 			if strings.TrimSpace(ent.PayoutAddress) != "" {
 				cur.PayoutAddress = ent.PayoutAddress
 			}
 			if strings.TrimSpace(ent.LastTxHash) != "" {
 				cur.LastTxHash = ent.LastTxHash
 			}
-			if ent.LastSettleUnix > 0 {
-				cur.LastSettleUnix = ent.LastSettleUnix
-			}
-		} else if ent.SettledSUP > cur.SettledSUP {
+			cur.LastSettleUnix = ent.LastSettleUnix
+			rowChanged = true
+		} else if cur.LastSettleUnix == 0 && ent.LastSettleUnix > 0 && ent.SettledSUP > cur.SettledSUP {
 			cur.SettledSUP = ent.SettledSUP
-			rowChanged = true
 			if strings.TrimSpace(ent.PayoutAddress) != "" {
 				cur.PayoutAddress = ent.PayoutAddress
 			}
 			if strings.TrimSpace(ent.LastTxHash) != "" {
 				cur.LastTxHash = ent.LastTxHash
 			}
-			if ent.LastSettleUnix > 0 {
-				cur.LastSettleUnix = ent.LastSettleUnix
-			}
+			cur.LastSettleUnix = ent.LastSettleUnix
+			rowChanged = true
 		}
 		if rowChanged {
 			local.Workers[wid] = cur

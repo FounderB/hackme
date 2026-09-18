@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"hackme/internal/gitutil"
 )
 
 var buildMu sync.Mutex
@@ -290,11 +292,13 @@ func cloneRepo(ctx context.Context, repo, ref, dest string) error {
 	}
 	cloneCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--branch", ref, repo, dest)
+	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--branch", ref, "--", repo, dest)
+	gitutil.IsolateCmd(cmd)
 	if err := cmd.Run(); err != nil {
 		// fallback: clone default branch then checkout ref
 		_ = os.RemoveAll(dest)
-		cmd2 := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", repo, dest)
+		cmd2 := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--", repo, dest)
+		gitutil.IsolateCmd(cmd2)
 		if err2 := cmd2.Run(); err2 != nil {
 			return fmt.Errorf("git clone %s: %w", repo, err)
 		}
@@ -316,12 +320,18 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 		refs = append(refs, "master")
 	}
 	for _, r := range refs {
-		_ = exec.CommandContext(checkCtx, "git", "-C", dest, "fetch", "--depth", "1", "origin", r).Run()
-		if exec.CommandContext(checkCtx, "git", "-C", dest, "checkout", "--force", r).Run() == nil {
+		fetch := exec.CommandContext(checkCtx, "git", "-C", dest, "fetch", "--depth", "1", "origin", r)
+		gitutil.IsolateCmd(fetch)
+		_ = fetch.Run()
+		co := exec.CommandContext(checkCtx, "git", "-C", dest, "checkout", "--force", "--", r)
+		gitutil.IsolateCmd(co)
+		if co.Run() == nil {
 			return nil
 		}
 	}
-	if exec.CommandContext(checkCtx, "git", "-C", dest, "rev-parse", "HEAD").Run() == nil {
+	rev := exec.CommandContext(checkCtx, "git", "-C", dest, "rev-parse", "HEAD")
+	gitutil.IsolateCmd(rev)
+	if rev.Run() == nil {
 		return nil
 	}
 	return fmt.Errorf("git checkout %s in %s: no valid ref", ref, dest)

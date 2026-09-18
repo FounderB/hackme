@@ -103,6 +103,12 @@ func GetHarnessArtifact(ctx context.Context, db *sql.DB, hash string) ([]byte, e
 
 // PublishHarnessFile reads a local harness binary into the artifact store.
 func PublishHarnessFile(ctx context.Context, db *sql.DB, hash, path, sourceRel string) error {
+	root := RepoRoot()
+	if root != "" {
+		if _, err := MustUnderRoot(root, path); err != nil {
+			return fmt.Errorf("hunt artifact: harness path outside repo root: %w", err)
+		}
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err

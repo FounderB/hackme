@@ -77,6 +77,7 @@ func persistWorkerCoordinatorMirrorFromStats(ws map[string]any) {
 		if len(row) == 0 {
 			continue
 		}
+		delete(row, "last_client_ip")
 		row["mirror_snapshot_unix"] = now
 		mirror.Workers[id] = row
 	}

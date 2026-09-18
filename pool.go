@@ -184,11 +184,13 @@ const (
 )
 
 var (
-	workStatsCacheMu sync.RWMutex
-	workStatsCache   map[string]any
-	workStatsCacheTS int64
-	coordHTTPOnce    sync.Once
-	coordHTTPClient  *http.Client
+	workStatsCacheMu       sync.RWMutex
+	workStatsCachePublic   map[string]any
+	workStatsCachePublicTS int64
+	workStatsCacheAdmin    map[string]any
+	workStatsCacheAdminTS  int64
+	coordHTTPOnce          sync.Once
+	coordHTTPClient        *http.Client
 )
 
 const (
@@ -196,59 +198,78 @@ const (
 	workStatsCacheStaleMaxSec = 45 // return cached body while revalidating in background
 )
 
-func copyCachedWorkStats(maxAgeSec int64) (map[string]any, int64, bool) {
+func copyCachedWorkStatsLane(admin bool, maxAgeSec int64) (map[string]any, int64, bool) {
 	workStatsCacheMu.RLock()
 	defer workStatsCacheMu.RUnlock()
-	if workStatsCache == nil || workStatsCacheTS == 0 {
+	var src map[string]any
+	var ts int64
+	if admin {
+		src, ts = workStatsCacheAdmin, workStatsCacheAdminTS
+	} else {
+		src, ts = workStatsCachePublic, workStatsCachePublicTS
+	}
+	if src == nil || ts == 0 {
 		return nil, 0, false
 	}
-	age := time.Now().Unix() - workStatsCacheTS
+	age := time.Now().Unix() - ts
 	if maxAgeSec > 0 && age > maxAgeSec {
 		return nil, age, false
 	}
-	out := make(map[string]any, len(workStatsCache))
-	for k, v := range workStatsCache {
+	out := make(map[string]any, len(src))
+	for k, v := range src {
 		out[k] = v
 	}
 	return out, age, true
 }
 
-func storeWorkStatsCache(ws map[string]any) {
+// copyCachedWorkStats returns the public (redacted) work-stats cache only.
+func copyCachedWorkStats(maxAgeSec int64) (map[string]any, int64, bool) {
+	return copyCachedWorkStatsLane(false, maxAgeSec)
+}
+
+func storeWorkStatsCacheLane(ws map[string]any, admin bool) {
 	if ws == nil {
 		return
 	}
-	persistWorkerCoordinatorMirrorFromStats(ws)
+	if !admin {
+		persistWorkerCoordinatorMirrorFromStats(ws)
+	}
 	workStatsCacheMu.Lock()
-	workStatsCache = ws
-	workStatsCacheTS = time.Now().Unix()
+	if admin {
+		workStatsCacheAdmin = ws
+		workStatsCacheAdminTS = time.Now().Unix()
+	} else {
+		workStatsCachePublic = ws
+		workStatsCachePublicTS = time.Now().Unix()
+	}
 	workStatsCacheMu.Unlock()
 }
 
-// resolveCoordinatorWorkStats serves coordinator work stats cache-first (same strategy as /api/work/stats).
-// Returned stale is true when body came from cache older than workStatsCacheFreshSec.
+// storeWorkStatsCache stores public (redacted) stats only — never admin details=1 payloads.
+func storeWorkStatsCache(ws map[string]any) {
+	storeWorkStatsCacheLane(ws, false)
+}
+
+// resolveCoordinatorWorkStats serves public coordinator work stats cache-first.
+// details=true is ignored here — callers that need admin details must use resolveCoordinatorWorkStatsAdmin.
 func (a *app) resolveCoordinatorWorkStats(ctx context.Context, base string, details bool) (ws map[string]any, stale bool, err error) {
+	_ = details // public lane only; prevents accidental admin cache pollution (C1/C2)
 	base = strings.TrimRight(strings.TrimSpace(base), "/")
 	if base == "" {
 		return nil, false, fmt.Errorf("coordinator url is empty")
 	}
 	maxCacheAge := int64(workStatsCacheFreshSec)
-	if details {
-		maxCacheAge = 12
-	}
-	if cached, age, ok := copyCachedWorkStats(maxCacheAge); ok && cached != nil {
+	if cached, age, ok := copyCachedWorkStatsLane(false, maxCacheAge); ok && cached != nil {
 		if age >= int64(workStatsCacheFreshSec) {
-			a.warmWorkStatsCacheAsync(base, details)
+			a.warmWorkStatsCacheAsync(base, false)
 		}
 		return cached, age > int64(workStatsCacheFreshSec), nil
 	}
-	if cached, _, ok := copyCachedWorkStats(workStatsCacheStaleMaxSec); ok && cached != nil {
-		a.warmWorkStatsCacheAsync(base, details)
+	if cached, _, ok := copyCachedWorkStatsLane(false, workStatsCacheStaleMaxSec); ok && cached != nil {
+		a.warmWorkStatsCacheAsync(base, false)
 		return cached, true, nil
 	}
 	fetchTimeout := 4 * time.Second
-	if details {
-		fetchTimeout = 6 * time.Second
-	}
 	if deadline, ok := ctx.Deadline(); ok {
 		if rem := time.Until(deadline); rem > 0 && rem < fetchTimeout {
 			fetchTimeout = rem
@@ -256,23 +277,62 @@ func (a *app) resolveCoordinatorWorkStats(ctx context.Context, base string, deta
 	}
 	coordCtx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
 	defer cancel()
-	ws, err = fetchCoordinatorWorkStats(coordCtx, base, details)
+	ws, err = fetchCoordinatorWorkStats(coordCtx, base, false)
 	if err != nil {
-		if cached, _, ok := copyCachedWorkStats(workStatsCacheStaleMaxSec); ok && cached != nil {
-			a.warmWorkStatsCacheAsync(base, details)
+		if cached, _, ok := copyCachedWorkStatsLane(false, workStatsCacheStaleMaxSec); ok && cached != nil {
+			a.warmWorkStatsCacheAsync(base, false)
 			return cached, true, nil
 		}
 		return nil, false, err
 	}
 	ensureCoordinatorWorkersMap(ws)
-	storeWorkStatsCache(ws)
+	storeWorkStatsCacheLane(ws, false)
+	return ws, false, nil
+}
+
+func (a *app) resolveCoordinatorWorkStatsAdmin(ctx context.Context, base string) (ws map[string]any, stale bool, err error) {
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	if base == "" {
+		return nil, false, fmt.Errorf("coordinator url is empty")
+	}
+	if cached, age, ok := copyCachedWorkStatsLane(true, 12); ok && cached != nil {
+		if age >= int64(workStatsCacheFreshSec) {
+			a.warmWorkStatsCacheAsync(base, true)
+		}
+		return cached, age > int64(workStatsCacheFreshSec), nil
+	}
+	if cached, _, ok := copyCachedWorkStatsLane(true, workStatsCacheStaleMaxSec); ok && cached != nil {
+		a.warmWorkStatsCacheAsync(base, true)
+		return cached, true, nil
+	}
+	fetchTimeout := 7 * time.Second
+	if deadline, ok := ctx.Deadline(); ok {
+		if rem := time.Until(deadline); rem > 0 && rem < fetchTimeout {
+			fetchTimeout = rem
+		}
+	}
+	coordCtx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
+	defer cancel()
+	ws, err = fetchCoordinatorWorkStats(coordCtx, base, true)
+	if err != nil {
+		if cached, _, ok := copyCachedWorkStatsLane(true, workStatsCacheStaleMaxSec); ok && cached != nil {
+			a.warmWorkStatsCacheAsync(base, true)
+			return cached, true, nil
+		}
+		// Fall back to public summary rather than failing admin UI hard.
+		return a.resolveCoordinatorWorkStats(ctx, base, false)
+	}
+	ensureCoordinatorWorkersMap(ws)
+	storeWorkStatsCacheLane(ws, true)
 	return ws, false, nil
 }
 
 func invalidateWorkStatsCache() {
 	workStatsCacheMu.Lock()
-	workStatsCache = nil
-	workStatsCacheTS = 0
+	workStatsCachePublic = nil
+	workStatsCachePublicTS = 0
+	workStatsCacheAdmin = nil
+	workStatsCacheAdminTS = 0
 	workStatsCacheMu.Unlock()
 }
 
@@ -321,7 +381,7 @@ func (a *app) warmWorkStatsCacheAsync(base string, details bool) {
 			return
 		}
 		ensureCoordinatorWorkersMap(ws)
-		storeWorkStatsCache(ws)
+		storeWorkStatsCacheLane(ws, details)
 	}()
 }
 
@@ -1422,7 +1482,7 @@ func fetchCoordinatorWorkStats(ctx context.Context, base string, includeDetails 
 			curlCtx, curlCancel := context.WithTimeout(context.Background(), 6*time.Second)
 			curlHdr := map[string]string{coordinatorForwardHeader: "1"}
 			if includeDetails {
-				if tok := coordinatorToken(); tok != "" {
+				if tok := coordinatorAdminToken(); tok != "" {
 					curlHdr["X-Hackme-Admin-Token"] = tok
 				}
 			}
@@ -1965,12 +2025,17 @@ func (a *app) handleWorkStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	includeDetails := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("details")))
-	details := includeDetails == "1" || includeDetails == "true" || includeDetails == "yes"
+	wantDetails := includeDetails == "1" || includeDetails == "true" || includeDetails == "yes"
+	// C1: never attach coordinator admin token for unauthenticated public callers.
+	adminDetails := wantDetails && hasValidAdminAuth(r)
+	if wantDetails && !adminDetails {
+		w.Header().Set("X-Hackme-Details-Redacted", "1")
+	}
 	maxCacheAge := int64(workStatsCacheFreshSec)
-	if details {
+	if adminDetails {
 		maxCacheAge = 12
 	}
-	if cached, age, ok := copyCachedWorkStats(maxCacheAge); ok {
+	if cached, age, ok := copyCachedWorkStatsLane(adminDetails, maxCacheAge); ok {
 		out := map[string]any{}
 		for k, v := range cached {
 			out[k] = v
@@ -1982,13 +2047,16 @@ func (a *app) handleWorkStats(w http.ResponseWriter, r *http.Request) {
 		out["stale"] = age > int64(workStatsCacheFreshSec)
 		out["stale_sec"] = age
 		out["cache_hit"] = true
+		if adminDetails {
+			out["details"] = true
+		}
 		writeJSON(w, out)
 		if age >= int64(workStatsCacheFreshSec) {
-			a.warmWorkStatsCacheAsync(base, details)
+			a.warmWorkStatsCacheAsync(base, adminDetails)
 		}
 		return
 	}
-	if cached, age, ok := copyCachedWorkStats(workStatsCacheStaleMaxSec); ok {
+	if cached, age, ok := copyCachedWorkStatsLane(adminDetails, workStatsCacheStaleMaxSec); ok {
 		out := map[string]any{}
 		for k, v := range cached {
 			out[k] = v
@@ -2000,17 +2068,27 @@ func (a *app) handleWorkStats(w http.ResponseWriter, r *http.Request) {
 		out["stale"] = true
 		out["stale_sec"] = age
 		out["cache_hit"] = true
+		if adminDetails {
+			out["details"] = true
+		}
 		writeJSON(w, out)
-		a.warmWorkStatsCacheAsync(base, details)
+		a.warmWorkStatsCacheAsync(base, adminDetails)
 		return
 	}
 	fetchTimeout := 4 * time.Second
-	if details {
+	if adminDetails {
 		fetchTimeout = 7 * time.Second
 	}
 	coordCtx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
 	defer cancel()
-	ws, stale, err := a.resolveCoordinatorWorkStats(coordCtx, base, details)
+	var ws map[string]any
+	var stale bool
+	var err error
+	if adminDetails {
+		ws, stale, err = a.resolveCoordinatorWorkStatsAdmin(coordCtx, base)
+	} else {
+		ws, stale, err = a.resolveCoordinatorWorkStats(coordCtx, base, false)
+	}
 	if err != nil {
 		log.Printf("work/stats coordinator fallback: %v", err)
 		writeJSON(w, map[string]any{
@@ -2032,8 +2110,11 @@ func (a *app) handleWorkStats(w http.ResponseWriter, r *http.Request) {
 	ws["source"] = base
 	ws["stale"] = false
 	ws["stale_sec"] = int64(0)
+	if adminDetails {
+		ws["details"] = true
+	}
 	a.enrichWorkStatsDesktopWorker(ws)
-	storeWorkStatsCache(ws)
+	storeWorkStatsCacheLane(ws, adminDetails)
 	writeJSON(w, ws)
 }
 

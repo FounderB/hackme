@@ -1179,6 +1179,10 @@ func bountySeverity(sev string) bool {
 func (s *Service) evalSubmitCheck(ctx context.Context, cfg map[string]any, sem fuzzengine.CheckSemantics, inputN, inputU uint64, inputB []byte, seeds []fuzzengine.PoolCorpusSeed) (checkResult int32, trap string, pass bool, recordFinding bool, findingU uint64, findingB []byte, seg fuzzengine.SegmentResult, err error) {
 	wasmHex := wasmHexFromConfig(cfg)
 	if wasmHex == "" {
+		// H9: escrow Dig campaigns must not auto-pass without a verifier.
+		if escrowEnabled(cfg) && !IsHuntCampaign(cfg) {
+			return 0, "", false, false, 0, nil, seg, fmt.Errorf("poolfuzz: escrow campaign requires wasm_check_hex")
+		}
 		return 0, "", true, false, inputU, inputB, seg, nil
 	}
 	wasm, err := hex.DecodeString(wasmHex)
@@ -1577,23 +1581,28 @@ func (s *Service) PoolStats(ctx context.Context) (map[string]any, error) {
 	}, nil
 }
 
-// CampaignProgress returns live pool progress for one campaign (public read).
+// CampaignProgress returns live pool progress for one marketplace campaign (public read).
 func (s *Service) CampaignProgress(ctx context.Context, campaignID string) (map[string]any, error) {
 	campaignID = strings.TrimSpace(campaignID)
 	if campaignID == "" {
 		return nil, fmt.Errorf("poolfuzz: campaign id required")
 	}
-	var status, title, summaryJSON string
+	var status, title, ownerRef, summaryJSON, cfgJSON string
 	var budgetRuns int
 	var completedAt int64
 	err := s.DB.QueryRowContext(ctx,
-		`SELECT status, title, budget_runs, summary_json, completed_at FROM fuzz_campaigns WHERE id=?`,
-		campaignID).Scan(&status, &title, &budgetRuns, &summaryJSON, &completedAt)
+		`SELECT status, title, owner_ref, budget_runs, summary_json, config_json, completed_at FROM fuzz_campaigns WHERE id=?`,
+		campaignID).Scan(&status, &title, &ownerRef, &budgetRuns, &summaryJSON, &cfgJSON, &completedAt)
 	if err == sql.ErrNoRows {
 		return nil, err
 	}
 	if err != nil {
 		return nil, err
+	}
+	cfg := parseConfigJSON(cfgJSON)
+	if !IsPublicProgressVisible(status, campaignID, title, ownerRef, cfg) {
+		// Same as missing — do not enumerate private/internal campaigns (M9).
+		return nil, sql.ErrNoRows
 	}
 	summary := parseConfigJSON(summaryJSON)
 	runsDone := runsDoneForCampaign(ctx, s.DB, campaignID, summary)

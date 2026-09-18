@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"hackme/internal/gitutil"
 )
 
 // RepoPinRequest pins a local path or git clone at ref.
@@ -88,9 +90,11 @@ func cloneOrUpdate(ctx context.Context, gitURL, ref, dest string) error {
 	defer cancel()
 	// Args are separate argv; URL/ref validated above (CodeQL command-injection).
 	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--branch", ref, "--", gitURL, dest)
+	gitutil.IsolateCmd(cmd)
 	if err := cmd.Run(); err != nil {
 		_ = os.RemoveAll(dest)
 		cmd2 := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--", gitURL, dest)
+		gitutil.IsolateCmd(cmd2)
 		if err2 := cmd2.Run(); err2 != nil {
 			return fmt.Errorf("hunt pin: git clone: %w", err)
 		}
@@ -119,12 +123,18 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 		if err := ValidateGitRef(r); err != nil {
 			continue
 		}
-		_ = exec.CommandContext(checkCtx, "git", "-C", dest, "fetch", "--depth", "1", "origin", r).Run()
-		if exec.CommandContext(checkCtx, "git", "-C", dest, "checkout", "--force", "--", r).Run() == nil {
+		fetch := exec.CommandContext(checkCtx, "git", "-C", dest, "fetch", "--depth", "1", "origin", r)
+		gitutil.IsolateCmd(fetch)
+		_ = fetch.Run()
+		co := exec.CommandContext(checkCtx, "git", "-C", dest, "checkout", "--force", "--", r)
+		gitutil.IsolateCmd(co)
+		if co.Run() == nil {
 			return nil
 		}
 	}
-	if exec.CommandContext(checkCtx, "git", "-C", dest, "rev-parse", "HEAD").Run() == nil {
+	rev := exec.CommandContext(checkCtx, "git", "-C", dest, "rev-parse", "HEAD")
+	gitutil.IsolateCmd(rev)
+	if rev.Run() == nil {
 		return nil
 	}
 	return fmt.Errorf("hunt pin: git checkout %s failed", ref)

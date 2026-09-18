@@ -57,6 +57,33 @@ func TestMergeCanonicalSettlementStateNoRegression(t *testing.T) {
 	}
 }
 
+func TestMergeCanonicalSettlementStateRejectsUnsignedRaise(t *testing.T) {
+	local := workerSettlementState{Workers: map[string]workerSettlementStateEntry{
+		"w1": {SettledHMC: 1.0, LastSettleUnix: 50},
+	}}
+	remote := workerSettlementState{Workers: map[string]workerSettlementStateEntry{
+		"w1": {SettledHMC: 99.0, LastTxHash: "poison", LastSettleUnix: 50},
+	}}
+	if mergeCanonicalSettlementState(&local, remote) {
+		t.Fatal("must not raise SettledHMC without fresher LastSettleUnix")
+	}
+	if local.Workers["w1"].SettledHMC != 1.0 {
+		t.Fatalf("settled=%v", local.Workers["w1"].SettledHMC)
+	}
+}
+
+func TestMergeCanonicalSettlementStateRejectsZeroTimestampRaise(t *testing.T) {
+	local := workerSettlementState{Workers: map[string]workerSettlementStateEntry{
+		"w1": {SettledHMC: 1.0, LastSettleUnix: 10},
+	}}
+	remote := workerSettlementState{Workers: map[string]workerSettlementStateEntry{
+		"w1": {SettledHMC: 9.0, LastSettleUnix: 0},
+	}}
+	if mergeCanonicalSettlementState(&local, remote) {
+		t.Fatal("must not raise SettledHMC from untimestamped remote")
+	}
+}
+
 func TestMergeCanonicalSettlementStateFresherRemoteMayLower(t *testing.T) {
 	local := workerSettlementState{Workers: map[string]workerSettlementStateEntry{
 		"w1": {SettledHMC: 9.2, LastTxHash: "poison", LastSettleUnix: 100},

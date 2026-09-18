@@ -104,3 +104,22 @@ func fundFuzzSettleEscrow(t *testing.T, ctx context.Context, db *sql.DB, svc *ch
 		t.Fatal(err)
 	}
 }
+
+func TestHandleFuzzPoolSettleNumericEventIDRejected(t *testing.T) {
+	t.Setenv("HACKME_ADMIN_TOKEN", "settle-test-admin")
+	a, db := newFuzzSettleTestApp(t)
+	ctx := context.Background()
+	miner := "HMC-9876543210987654"
+	fundFuzzSettleEscrow(t, ctx, db, a.chain, "evt-num", miner)
+	raw := []byte(`{"kind":"run","campaign_id":"evt-num","miner_address":"` + miner + `","event_id":"42"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/fuzz/pool/settle", bytes.NewReader(raw))
+	req.Header.Set("X-Hackme-Admin-Token", "settle-test-admin")
+	rec := httptest.NewRecorder()
+	a.handleFuzzPoolSettle(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("numeric event_id: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("outbox_event_id")) {
+		t.Fatalf("expected outbox_event_id error, got %s", rec.Body.String())
+	}
+}

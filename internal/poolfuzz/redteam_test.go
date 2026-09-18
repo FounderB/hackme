@@ -100,7 +100,7 @@ func TestRedteamWrongWorkerNoSettle(t *testing.T) {
 	spy := &spySettler{}
 	svc := &Service{DB: db, Settler: spy}
 	ctx := context.Background()
-	cfg := fuzzengine.NormalizeCampaignConfig(map[string]any{"pool_distributed": true, "budget_hmc": 1.0, "check_semantics": "pow_gate"}, "property")
+	cfg := fuzzengine.NormalizeCampaignConfig(map[string]any{"pool_distributed": true, "budget_hmc": 1.0, "check_semantics": "pow_gate", "wasm_check_hex": sandbox.MinimalGateWasmHex}, "property")
 	id := "rt-worker"
 	if err := svc.RegisterCampaign(ctx, Campaign{ID: id, CampaignType: "property", Status: "running", BudgetRuns: 1, Config: cfg}); err != nil {
 		t.Fatal(err)

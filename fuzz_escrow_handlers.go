@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,6 +50,12 @@ func (a *app) handleFuzzPoolSettle(w http.ResponseWriter, r *http.Request) {
 	eventID := strings.TrimSpace(req.EventID)
 	if eventID == "" {
 		writeAPIError(w, http.StatusBadRequest, "event_id_required", "event_id required for idempotent settle", nil)
+		return
+	}
+	// H6: numeric event_id is reserved for coordinator outbox pull (bound miner_address).
+	// Manual admin settles must use a non-numeric id (e.g. admin:...).
+	if _, perr := strconv.ParseInt(eventID, 10, 64); perr == nil {
+		writeAPIError(w, http.StatusBadRequest, "outbox_event_id", "numeric event_id reserved for settle-pull; use admin:<id> for manual settle", nil)
 		return
 	}
 	row, _, err = a.chain.ApplyFuzzSettleOnce(ctx, eventID, kind, campaignID, req.MinerAddress, req.Severity)

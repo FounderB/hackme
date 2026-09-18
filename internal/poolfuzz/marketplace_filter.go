@@ -98,6 +98,24 @@ func IsMarketplaceCampaign(status, id, title, ownerRef string, cfg map[string]an
 	return true
 }
 
+// IsPublicProgressVisible allows marketplace progress polls (incl. completed) while
+// hiding private/local and internal gate campaigns (audit M9).
+func IsPublicProgressVisible(status, id, title, ownerRef string, cfg map[string]any) bool {
+	if IsInternalGateCampaign(id, title, ownerRef, cfg) {
+		return false
+	}
+	if !poolDistributed(cfg) {
+		return false
+	}
+	st := strings.TrimSpace(strings.ToLower(status))
+	switch st {
+	case "planned", "running", "completed", "cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
 // IsActivelyDiggable is true when a marketplace row should still accept miner work.
 // Closed/bounty_paid escrow or run-budget exhaustion must not appear as diggable "running" zombies.
 // bounty_paid means the crash bounty slice already landed — remaining run settles may still

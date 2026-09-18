@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/sandbox"
 	"hackme/internal/store"
 )
 
@@ -55,6 +56,7 @@ func TestSubmitSettleFailureThenRetryPaysOnce(t *testing.T) {
 		"pool_distributed": true,
 		"budget_hmc":       1.0,
 		"check_semantics":  "pow_gate",
+		"wasm_check_hex":   sandbox.MinimalGateWasmHex,
 	}, "property")
 	id := "settle-retry"
 	if err := svc.RegisterCampaign(ctx, Campaign{ID: id, CampaignType: "property", Status: "running", BudgetRuns: 2, Config: cfg}); err != nil {
@@ -115,6 +117,7 @@ func TestSubmitSettleQueuedNotPaidUntilApplied(t *testing.T) {
 		"pool_distributed": true,
 		"budget_hmc":       1.0,
 		"check_semantics":  "pow_gate",
+		"wasm_check_hex":   sandbox.MinimalGateWasmHex,
 	}, "property")
 	id := "settle-queued"
 	if err := svc.RegisterCampaign(ctx, Campaign{ID: id, CampaignType: "property", Status: "running", BudgetRuns: 2, Config: cfg}); err != nil {

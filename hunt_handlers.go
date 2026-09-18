@@ -110,11 +110,13 @@ func (a *app) handleHuntPackSuggest(w http.ResponseWriter, r *http.Request) {
 	}
 	sample := strings.TrimSpace(req.ContentSample)
 	if sample == "" && strings.TrimSpace(req.Path) != "" {
-		if b, err := os.ReadFile(req.Path); err == nil {
-			if len(b) > 4096 {
-				b = b[:4096]
+		if abs, err := hunt.MustUnderRoot(a.repoRoot(), req.Path); err == nil {
+			if b, err := os.ReadFile(abs); err == nil {
+				if len(b) > 4096 {
+					b = b[:4096]
+				}
+				sample = string(b)
 			}
-			sample = string(b)
 		}
 	}
 	suggestions := hunt.SuggestPacksForPath(sourceRel, sample)
@@ -383,6 +385,12 @@ func (a *app) handleHuntTemplatePreview(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		pinPath = pin.Path
+	}
+	if pinPath != "" {
+		if _, err := hunt.MustUnderRoot(a.repoRoot(), pinPath); err != nil {
+			writeAPIError(w, http.StatusBadRequest, "pin_path_forbidden", "pin_path must be under repo root", nil)
+			return
+		}
 	}
 	prev, err := hunt.PreviewTemplate(a.repoRoot(), pinPath, req.SourceRel)
 	if err != nil {
