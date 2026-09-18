@@ -25,7 +25,7 @@ type SettleOutboxItem struct {
 // FetchSettleOutbox returns pending settlements from the coordinator.
 func FetchSettleOutbox(ctx context.Context, limit int) ([]SettleOutboxItem, error) {
 	coordURL := ResolveCoordinatorURL()
-	token := AdminToken()
+	token := CoordinatorAdminToken()
 	if coordURL == "" || token == "" {
 		return nil, nil
 	}
@@ -60,7 +60,7 @@ func FetchSettleOutbox(ctx context.Context, limit int) ([]SettleOutboxItem, erro
 // AckSettleOutbox marks coordinator outbox rows applied on the origin node.
 func AckSettleOutbox(ctx context.Context, ids []int64) error {
 	coordURL := ResolveCoordinatorURL()
-	token := AdminToken()
+	token := CoordinatorAdminToken()
 	if coordURL == "" || token == "" || len(ids) == 0 {
 		return nil
 	}

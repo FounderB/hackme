@@ -626,8 +626,10 @@ func main() {
 		a.startPoolSyncWorker()
 		if poolsync.FuzzSettlePullEnabled() {
 			log.Printf("Pool fuzz settle pull: enabled (coordinator outbox every 15s)")
-		} else if strings.TrimSpace(os.Getenv("HACKME_FUZZ_SETTLE_PULL")) != "0" && !strings.EqualFold(strings.TrimSpace(os.Getenv("HACKME_FUZZ_SETTLE_PULL")), "false") && poolsync.AdminToken() == "" {
-			log.Printf("Pool fuzz settle pull: disabled — set HACKME_COORDINATOR_ADMIN_TOKEN (or HACKME_POOL_COORDINATOR_TOKEN) for outbox pull, or HACKME_FUZZ_SETTLE_PULL=0 on follower nodes")
+		} else if strings.TrimSpace(os.Getenv("HACKME_FUZZ_SETTLE_PULL")) == "0" || strings.EqualFold(strings.TrimSpace(os.Getenv("HACKME_FUZZ_SETTLE_PULL")), "false") {
+			log.Printf("Pool fuzz settle pull: disabled (HACKME_FUZZ_SETTLE_PULL=0)")
+		} else if poolsync.CoordinatorAdminToken() == "" {
+			log.Printf("Pool fuzz settle pull: disabled — need HACKME_COORDINATOR_ADMIN_TOKEN (worker HACKME_POOL_COORDINATOR_TOKEN is not enough on public pool)")
 		}
 	}
 	if a.p2p != nil && a.p2p.Enabled() {

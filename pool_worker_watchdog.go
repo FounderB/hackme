@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"strings"
@@ -41,6 +43,8 @@ func nodeLoopbackBase() string {
 	return strings.TrimRight(addr, "/")
 }
 
+// restartPoolWorkerViaAPI starts the pool worker using an in-process handler call.
+// Avoids Windows loopback HTTP races and keeps the same auth path as the dashboard.
 func (a *app) restartPoolWorkerViaAPI() error {
 	admin := strings.TrimSpace(os.Getenv("HACKME_ADMIN_TOKEN"))
 	if admin == "" {
@@ -65,27 +69,30 @@ func (a *app) restartPoolWorkerViaAPI() error {
 		}
 	}
 	raw, _ := json.Marshal(body)
-	req, err := http.NewRequest(http.MethodPost, nodeLoopbackBase()+"/api/worker/start", bytes.NewReader(raw))
-	if err != nil {
-		return err
-	}
+	req := httptest.NewRequest(http.MethodPost, "/api/worker/start", bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Hackme-Admin-Token", admin)
-	cl := &http.Client{Timeout: 90 * time.Second}
-	res, err := cl.Do(req)
-	if err != nil {
-		return err
-	}
+	// Loopback Host so desktop CSRF / Host checks stay satisfied if added later.
+	req.Host = "127.0.0.1:8080"
+	req.RemoteAddr = "127.0.0.1:0"
+	rec := httptest.NewRecorder()
+	a.handleWorkerStart(rec, req)
+	res := rec.Result()
 	defer res.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("worker/start HTTP %d", res.StatusCode)
+		msg := strings.TrimSpace(string(b))
+		if msg == "" {
+			msg = res.Status
+		}
+		return fmt.Errorf("worker/start HTTP %d: %s (admin_token_len=%d)", res.StatusCode, msg, len(admin))
 	}
 	var out struct {
 		OK bool `json:"ok"`
 	}
-	_ = json.NewDecoder(res.Body).Decode(&out)
+	_ = json.Unmarshal(b, &out)
 	if !out.OK {
-		return fmt.Errorf("worker/start rejected")
+		return fmt.Errorf("worker/start rejected: %s", strings.TrimSpace(string(b)))
 	}
 	return nil
 }
@@ -100,7 +107,7 @@ func (a *app) startPoolWorkerWatchdog() {
 	interval := poolWorkerWatchdogInterval()
 	go func() {
 		time.Sleep(12 * time.Second)
-		log.Printf("pool worker watchdog: enabled (every %s)", interval)
+		log.Printf("pool worker watchdog: enabled (every %s, in-process)", interval)
 		var lastRestartUnix int64
 		for {
 			if miningPaused() {

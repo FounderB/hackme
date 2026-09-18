@@ -9,6 +9,22 @@ set "LOG=logs\watchdog_worker.log"
 
 call :log "watchdog start dir=%CD%"
 
+rem Prefer in-process HACKME_WORKER_WATCHDOG inside hackme.exe (avoids double-start + token races).
+set "INTERNAL_WD="
+if exist "hackme.env" (
+  for /f "usebackq tokens=1,* delims==" %%A in ("hackme.env") do (
+    if /I "%%~A"=="HACKME_WORKER_WATCHDOG" set "INTERNAL_WD=%%~B"
+  )
+)
+if /I "!INTERNAL_WD!"=="1" (
+  call :log "internal HACKME_WORKER_WATCHDOG=1 — external bat watchdog idle"
+  exit /b 0
+)
+if /I "!INTERNAL_WD!"=="true" (
+  call :log "internal HACKME_WORKER_WATCHDOG=true — external bat watchdog idle"
+  exit /b 0
+)
+
 set "ADMIN_TOKEN="
 set "POOL_TOKEN="
 set "WORKER_ID="

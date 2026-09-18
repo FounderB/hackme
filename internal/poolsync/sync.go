@@ -133,6 +133,21 @@ func adminToken() string {
 	return ""
 }
 
+// CoordinatorAdminToken is the hub admin secret for privileged pool APIs (settle outbox).
+// Never falls back to HACKME_POOL_COORDINATOR_TOKEN — that is worker-scoped and returns HTTP 401
+// on public pool settle routes (desktop miners were spamming 401 every 15s).
+func CoordinatorAdminToken() string {
+	for _, k := range []string{
+		"HACKME_COORDINATOR_ADMIN_TOKEN",
+		"HACKME_POOL_COORDINATOR_ADMIN_TOKEN",
+	} {
+		if t := strings.TrimSpace(os.Getenv(k)); t != "" {
+			return t
+		}
+	}
+	return ""
+}
+
 // RegisterOnce POSTs one campaign to the coordinator pool API.
 func RegisterOnce(ctx context.Context, coordURL, token string, req RegisterRequest) (latency time.Duration, err error) {
 	coordURL = strings.TrimRight(strings.TrimSpace(coordURL), "/")

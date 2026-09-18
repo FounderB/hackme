@@ -136,6 +136,7 @@ $lines = @(
     "WORKER_ID=$hostWid",
     "HACKME_WORKER_WATCHDOG=1",
     "HACKME_WORKER_WATCHDOG_SEC=45",
+    "HACKME_FUZZ_SETTLE_PULL=0",
     "HACKME_POOL_COORDINATOR_URL=https://hackme.tech/pool/coordinator",
     "HACKME_WORKER_HYBRID_FUZZ=1",
     "HACKME_WORKER_HYBRID_FUZZ_MODE=inline"
