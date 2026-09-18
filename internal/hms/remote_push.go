@@ -68,7 +68,7 @@ func (c *Coordinator) pushChunkToWorkerEndpoint(workerID, chunkID string, cipher
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-HMS-Worker-ID", workerID)
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := egressHTTPClient(60 * time.Second)
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

@@ -81,6 +81,18 @@ func TestWrapCompilerCmdUsesBwrapWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestFromCodeRequireSandboxDefaultsFailClosed(t *testing.T) {
+	t.Setenv("HACKME_FROM_CODE_REQUIRE_SANDBOX", "")
+	t.Setenv("HACKME_BIND_ADDR", "127.0.0.1:8080")
+	if !fromCodeRequireSandbox() {
+		t.Fatal("unset REQUIRE_SANDBOX must default fail-closed")
+	}
+	t.Setenv("HACKME_FROM_CODE_REQUIRE_SANDBOX", "0")
+	if fromCodeRequireSandbox() {
+		t.Fatal("explicit 0 must allow host compile")
+	}
+}
+
 func TestFromCodeEnabledEnvAndBindDefault(t *testing.T) {
 	t.Setenv("HACKME_FROM_CODE", "0")
 	if fromCodeEnabled() {

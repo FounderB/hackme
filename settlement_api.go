@@ -556,7 +556,7 @@ func (a *app) handleWorkerSettlement(w http.ResponseWriter, r *http.Request) {
 	supNoteCtx, supNoteCancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	supNote := a.supSettlementNoteForAPI(supNoteCtx)
 	supNoteCancel()
-	writeJSON(w, map[string]any{
+	out := map[string]any{
 		"ok":                                    true,
 		"lite":                                  lite,
 		"source":                                base,
@@ -604,7 +604,11 @@ func (a *app) handleWorkerSettlement(w http.ResponseWriter, r *http.Request) {
 		"threshold_ready":                       totalUnpaid >= minSettleHMC,
 		"coordinator_workers_breakdown_omitted": coordOmittedBreakdown,
 		"on_chain_payout_note":                  "UI threshold is not a bank transfer. On-chain payout runs on the VPS/chain host via settle_worker_payouts.sh (ADMIN_TOKEN + CHAIN_BASE + COORD_URL + WORKER_PAYOUT_MAP). Coordinators that omit workers{} require the updated script (synthetic single-map row) or coordinator upgrade.",
-		"state_file":                            statePath,
 		"updated_unix":                          nowUnix,
-	})
+	}
+	// M4: filesystem paths are admin-only (public UI does not need state_file).
+	if hasValidAdminAuth(r) {
+		out["state_file"] = statePath
+	}
+	writeJSON(w, out)
 }

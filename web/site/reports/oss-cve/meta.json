@@ -4,7 +4,7 @@
   "cve_candidates": [],
   "informational_targets": [],
   "clean_targets": [
-    "parsello"
+    "sjh"
   ],
   "hold_disclosure": [
     "centijson"
@@ -28,8 +28,8 @@
     "wren",
     "gpslib"
   ],
-  "wave": "parsello",
-  "started_at": "2026-09-18T12:55:57Z",
-  "finished_at": "2026-09-18T13:04:41Z",
+  "wave": "sjh",
+  "started_at": "2026-09-18T17:22:24Z",
+  "finished_at": "2026-09-18T17:31:36Z",
   "publish_allowed": true
 }

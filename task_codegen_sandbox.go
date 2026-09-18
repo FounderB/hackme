@@ -21,22 +21,8 @@ func fromCodeRequireSandbox() bool {
 	case "0", "false", "no", "off":
 		return false
 	}
-	// V3-L1: off-loopback binds default to require sandbox.
-	bind := strings.TrimSpace(os.Getenv("HACKME_BIND_ADDR"))
-	if bind == "" {
-		return false
-	}
-	host := bind
-	if i := strings.LastIndex(bind, ":"); i >= 0 {
-		host = bind[:i]
-	}
-	host = strings.Trim(host, "[]")
-	switch host {
-	case "", "127.0.0.1", "::1", "localhost":
-		return false
-	default:
-		return true
-	}
+	// Default fail-closed (audit H5). Lab hosts may set HACKME_FROM_CODE_REQUIRE_SANDBOX=0.
+	return true
 }
 
 // fromCodeEnabled gates host compile for POST /api/tasks/from_code and

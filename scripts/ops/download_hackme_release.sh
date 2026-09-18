@@ -46,7 +46,9 @@ for entry in "${MIRRORS[@]}"; do
     max_time=25
   fi
   if [[ "$url" == https://${ORIGIN_IP}* ]]; then
-    extra=(-H "Host: hackme.tech" -k)
+    # Prefer SNI/Host pinning without disabling TLS verify (audit M12).
+    url="https://hackme.tech${PATH_ON_SITE}"
+    extra=(--resolve "hackme.tech:443:${ORIGIN_IP}")
   fi
   echo "[download] try ${label}: ${url}"
   if curl -fL --retry 1 --connect-timeout 10 --max-time "$max_time" \
@@ -64,5 +66,5 @@ for entry in "${MIRRORS[@]}"; do
   rm -f "${OUT}.part"
 done
 
-echo "[download] FAIL all mirrors — try: curl -fL -k -H 'Host: hackme.tech' -o '${OUT}' 'https://${ORIGIN_IP}${PATH_ON_SITE}'" >&2
+echo "[download] FAIL all mirrors — try: curl -fL --resolve 'hackme.tech:443:${ORIGIN_IP}' -o '${OUT}' 'https://hackme.tech${PATH_ON_SITE}'" >&2
 exit 1

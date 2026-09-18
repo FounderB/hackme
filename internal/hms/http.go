@@ -405,7 +405,15 @@ func registerMarketRoutes(mux *http.ServeMux, coord *Coordinator, adminToken, wo
 		if len(parts) == 3 && parts[1] == "download" && r.Method == http.MethodGet {
 			token := strings.TrimSpace(r.Header.Get("X-HMS-Upload-Token"))
 			if token == "" {
-				token = strings.TrimSpace(r.URL.Query().Get("token"))
+				// M11: query tokens land in access logs / Referer. Allow only when
+				// explicitly opted in (legacy clients) or from loopback.
+				allowQ := loopbackOnly(r)
+				if v := strings.TrimSpace(strings.ToLower(os.Getenv("HMS_ALLOW_QUERY_TOKEN"))); v == "1" || v == "true" || v == "yes" {
+					allowQ = true
+				}
+				if allowQ {
+					token = strings.TrimSpace(r.URL.Query().Get("token"))
+				}
 			}
 			idx := atoiDefault(parts[2], -1)
 			if idx < 0 {
@@ -519,6 +527,7 @@ func bearerOK(r *http.Request, token string) bool {
 
 func loopbackOnly(r *http.Request) bool {
 	// Auth must use RemoteAddr — never trust X-Forwarded-For for loopback skips.
+	// Empty RemoteAddr must not fail-open (audit M6).
 	host := ""
 	if r != nil {
 		host = r.RemoteAddr
@@ -527,5 +536,5 @@ func loopbackOnly(r *http.Request) bool {
 		}
 		host = strings.Trim(host, "[]")
 	}
-	return host == "127.0.0.1" || host == "::1" || host == ""
+	return host == "127.0.0.1" || host == "::1"
 }
