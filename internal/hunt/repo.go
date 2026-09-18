@@ -9,11 +9,47 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"hackme/internal/gitutil"
 )
+
+// Local FindString allowlists (same file as exec sinks) for CodeQL command-injection.
+var (
+	reRepoHTTPS   = regexp.MustCompile(`^https://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+$`)
+	reRepoSSH     = regexp.MustCompile(`^git@[A-Za-z0-9.-]+:[A-Za-z0-9._~/-]+\.git$`)
+	reRepoRef     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,200}$`)
+	reRepoAbsPath = regexp.MustCompile(`^(/[A-Za-z0-9._+-]+)+$`)
+)
+
+func allowlistedRepoURL(gitURL string) string {
+	gitURL = strings.TrimSpace(gitURL)
+	if s := reRepoHTTPS.FindString(gitURL); s != "" && s == gitURL {
+		return s
+	}
+	if s := reRepoSSH.FindString(gitURL); s != "" && s == gitURL {
+		return s
+	}
+	return ""
+}
+
+func allowlistedRepoRef(ref string) string {
+	ref = strings.TrimSpace(ref)
+	if s := reRepoRef.FindString(ref); s != "" && s == ref {
+		return s
+	}
+	return ""
+}
+
+func allowlistedRepoPath(p string) string {
+	p = filepath.Clean(strings.TrimSpace(p))
+	if s := reRepoAbsPath.FindString(p); s != "" && s == p {
+		return s
+	}
+	return ""
+}
 
 // RepoPinRequest pins a local path or git clone at ref.
 type RepoPinRequest struct {
@@ -84,7 +120,13 @@ func cloneOrUpdate(ctx context.Context, gitURL, ref, dest string) error {
 	if err != nil {
 		return err
 	}
-	dest = filepath.Clean(dest)
+	// Re-bind via FindString in this file so CodeQL treats argv as sanitized.
+	gitURL = allowlistedRepoURL(gitURL)
+	ref = allowlistedRepoRef(ref)
+	dest = allowlistedRepoPath(dest)
+	if gitURL == "" || ref == "" || dest == "" {
+		return fmt.Errorf("hunt pin: sanitized git args empty")
+	}
 	if _, err := os.Stat(filepath.Join(dest, ".git")); err == nil {
 		return checkoutCloneRef(ctx, dest, ref)
 	}
@@ -93,7 +135,6 @@ func cloneOrUpdate(ctx context.Context, gitURL, ref, dest string) error {
 	}
 	cloneCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
-	// Args are separate argv; URL/ref sanitized above (CodeQL command-injection).
 	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--branch", ref, "--", gitURL, dest)
 	gitutil.IsolateCmd(cmd)
 	if err := cmd.Run(); err != nil {
@@ -117,7 +158,11 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 	if err != nil {
 		return err
 	}
-	dest = filepath.Clean(dest)
+	ref = allowlistedRepoRef(ref)
+	dest = allowlistedRepoPath(dest)
+	if ref == "" || dest == "" {
+		return fmt.Errorf("hunt pin: sanitized checkout args empty")
+	}
 	checkCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
 	refs := []string{ref}
@@ -126,9 +171,9 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 	} else if ref == "main" {
 		refs = append(refs, "master")
 	}
-	for _, r := range refs {
-		r, err := ValidateGitRef(r)
-		if err != nil {
+	for _, cand := range refs {
+		r := allowlistedRepoRef(cand)
+		if r == "" {
 			continue
 		}
 		fetch := exec.CommandContext(checkCtx, "git", "-C", dest, "fetch", "--depth", "1", "origin", r)

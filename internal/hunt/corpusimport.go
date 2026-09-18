@@ -32,12 +32,29 @@ func LoadLibFuzzerSeedFiles(dir string, maxSeeds int) ([][]byte, error) {
 	if maxSeeds <= 0 {
 		maxSeeds = defaultLibFuzzerSeeds
 	}
-	entries, err := os.ReadDir(dir)
+	root := RepoRoot()
+	if root == "" {
+		root = filepath.Dir(dir)
+	}
+	entries, err := SafeReadDirUnder(root, dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, err
+		// Fall back: allowlisted absolute dir outside repo root (tests/tmp).
+		safeDir, aerr := allowlistedAbs(dir)
+		if aerr != nil {
+			return nil, err
+		}
+		entries, err = os.ReadDir(safeDir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		dir = safeDir
+		root = filepath.Dir(safeDir)
 	}
 	out := make([][]byte, 0, min(len(entries), maxSeeds))
 	seen := map[string]struct{}{}
@@ -53,13 +70,16 @@ func LoadLibFuzzerSeedFiles(dir string, maxSeeds int) ([][]byte, error) {
 		if strings.HasPrefix(low, ".") || strings.HasPrefix(low, "crash-") || low == "readme" {
 			continue
 		}
-		path := filepath.Join(dir, name)
-		st, err := os.Stat(path)
-		if err != nil || st.IsDir() || st.Size() <= 0 || st.Size() > libFuzzerSeedMaxBytes {
+		abs, jerr := SafeJoinUnder(dir, name)
+		if jerr != nil {
 			continue
 		}
-		b, err := os.ReadFile(path)
-		if err != nil || len(b) == 0 {
+		st, serr := SafeStatUnder(root, abs)
+		if serr != nil || st.IsDir() || st.Size() <= 0 || st.Size() > libFuzzerSeedMaxBytes {
+			continue
+		}
+		b, rerr := SafeReadFileUnder(root, abs)
+		if rerr != nil || len(b) == 0 {
 			continue
 		}
 		key := hex.EncodeToString(b)

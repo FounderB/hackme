@@ -130,14 +130,18 @@ func resolveInventoryRoot(repoRoot, rawPath string) (string, error) {
 			return "", fmt.Errorf("hunt inventory: path blocked: %s", abs)
 		}
 	}
-	st, err := os.Stat(abs)
+	safe, err := allowlistedAbs(abs)
+	if err != nil {
+		return "", err
+	}
+	st, err := os.Stat(safe)
 	if err != nil {
 		return "", fmt.Errorf("hunt inventory: %w", err)
 	}
 	if !st.IsDir() {
 		return "", errors.New("hunt inventory: path must be a directory")
 	}
-	return abs, nil
+	return safe, nil
 }
 
 func isSourceFile(path string) bool {

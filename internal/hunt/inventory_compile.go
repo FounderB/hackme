@@ -110,7 +110,7 @@ func collectCompanionSourcesInDir(pinRoot, dirRel, skipBase string) ([]string, e
 			return nil, err
 		}
 	}
-	entries, err := os.ReadDir(searchDir)
+	entries, err := SafeReadDirUnder(pinRoot, searchDir)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func collectParentCompanions(pinRoot, mainRel string) ([]string, error) {
 			return nil, nil
 		}
 	}
-	entries, err := os.ReadDir(parentRoot)
+	entries, err := SafeReadDirUnder(pinRoot, parentRoot)
 	if err != nil {
 		return nil, nil
 	}
@@ -238,7 +238,7 @@ func collectIncludeDirs(pinRoot, sourceRel string) []string {
 		if _, ok := seen[safe]; ok {
 			return
 		}
-		if st, err := os.Stat(safe); err == nil && st.IsDir() {
+		if st, err := SafeStatUnder(pinRoot, safe); err == nil && st.IsDir() {
 			seen[safe] = struct{}{}
 		}
 	}

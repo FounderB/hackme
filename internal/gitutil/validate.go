@@ -2,6 +2,7 @@ package gitutil
 
 import (
 	"errors"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -11,6 +12,7 @@ var (
 	reGitHTTPS = regexp.MustCompile(`^https://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+$`)
 	reGitSSH   = regexp.MustCompile(`^git@[A-Za-z0-9.-]+:[A-Za-z0-9._~/-]+\.git$`)
 	reGitRef   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,200}$`)
+	reAbsPath  = regexp.MustCompile(`^(/[A-Za-z0-9._+-]+)+$`)
 )
 
 // SanitizeURL returns an allowlisted git remote URL or an error.
@@ -47,4 +49,34 @@ func SanitizeRef(ref string) (string, error) {
 		return s, nil
 	}
 	return "", errors.New("gitutil: git ref rejected")
+}
+
+// MustAllowlistedURL returns FindString match or "" (CodeQL argv barrier helper).
+func MustAllowlistedURL(gitURL string) string {
+	gitURL = strings.TrimSpace(gitURL)
+	if s := reGitHTTPS.FindString(gitURL); s != "" && s == gitURL {
+		return s
+	}
+	if s := reGitSSH.FindString(gitURL); s != "" && s == gitURL {
+		return s
+	}
+	return ""
+}
+
+// MustAllowlistedRef returns FindString match or "".
+func MustAllowlistedRef(ref string) string {
+	ref = strings.TrimSpace(ref)
+	if s := reGitRef.FindString(ref); s != "" && s == ref {
+		return s
+	}
+	return ""
+}
+
+// MustAllowlistedAbsPath returns FindString match for an absolute path or "".
+func MustAllowlistedAbsPath(p string) string {
+	p = filepath.Clean(strings.TrimSpace(p))
+	if s := reAbsPath.FindString(p); s != "" && s == p {
+		return s
+	}
+	return ""
 }

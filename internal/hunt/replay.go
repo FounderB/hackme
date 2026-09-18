@@ -85,7 +85,7 @@ func EnsureHarnessBinary(ctx context.Context, repoRoot, targetID, harnessHash st
 	if v, ok := harnessCache.Load(wantHash); ok {
 		if p, ok := v.(string); ok && p != "" {
 			if safe, err := MustUnderRoot(repoRoot, p); err == nil {
-				if st, err := os.Stat(safe); err == nil && st.Mode().IsRegular() {
+				if st, err := SafeStatUnder(repoRoot, safe); err == nil && st.Mode().IsRegular() {
 					return safe, nil
 				}
 			}
@@ -105,7 +105,7 @@ func EnsureHarnessBinary(ctx context.Context, repoRoot, targetID, harnessHash st
 	if err != nil {
 		return "", err
 	}
-	if st, err := os.Stat(cachePath); err == nil && st.Mode().IsRegular() {
+	if st, err := SafeStatUnder(repoRoot, cachePath); err == nil && st.Mode().IsRegular() {
 		harnessCache.Store(wantHash, cachePath)
 		return cachePath, nil
 	}
@@ -128,15 +128,18 @@ func EnsureHarnessBinary(ctx context.Context, repoRoot, targetID, harnessHash st
 	if err != nil {
 		return "", err
 	}
-	in, err := os.ReadFile(safeBin)
+	in, err := SafeReadFileUnder(repoRoot, safeBin)
 	if err != nil {
 		return "", err
 	}
-	tmp := cachePath + ".tmp"
-	if err := os.WriteFile(tmp, in, 0o755); err != nil {
+	tmp, err := SafeCacheFile(repoRoot, "hunt-harness", wantHash, "bin.tmp")
+	if err != nil {
 		return "", err
 	}
-	if err := os.Rename(tmp, cachePath); err != nil {
+	if err := SafeWriteFileUnder(repoRoot, tmp, in, 0o755); err != nil {
+		return "", err
+	}
+	if err := SafeRenameUnder(repoRoot, tmp, cachePath); err != nil {
 		_ = os.Remove(tmp)
 		return "", err
 	}

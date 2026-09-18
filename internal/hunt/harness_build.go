@@ -60,7 +60,7 @@ func BuildInventoryHarness(ctx context.Context, repoRoot string, req HarnessBuil
 	if err != nil {
 		return nil, err
 	}
-	content, err := os.ReadFile(srcPath)
+	content, err := SafeReadFileUnder(req.Pin.Path, srcPath)
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +72,14 @@ func BuildInventoryHarness(ctx context.Context, repoRoot string, req HarnessBuil
 		return nil, fmt.Errorf("hunt build: LLVMFuzzerTestOneInput missing — set template_accept=true (Hunt Standard)")
 	}
 	hash := InventoryHarnessHash(req.Pin.CommitSHA, sourceRel, content)
-	cachePath := filepath.Join(repoRoot, ".cache", "hunt-harness", hash+".bin")
-	if st, err := os.Stat(cachePath); err == nil && st.Mode().IsRegular() {
+	if err := ValidateHexHash(hash); err != nil {
+		return nil, err
+	}
+	cachePath, err := SafeCacheFile(repoRoot, "hunt-harness", hash, "bin")
+	if err != nil {
+		return nil, err
+	}
+	if st, err := SafeStatUnder(repoRoot, cachePath); err == nil && st.Mode().IsRegular() {
 		harnessCache.Store(hash, cachePath)
 		plan, _ := planInventoryCompile(req.Pin.Path, sourceRel)
 		res := &HarnessBuildResult{
@@ -131,11 +137,14 @@ func BuildInventoryHarness(ctx context.Context, repoRoot string, req HarnessBuil
 	if err != nil {
 		return nil, err
 	}
-	tmp := cachePath + ".tmp"
-	if err := os.WriteFile(tmp, in, 0o755); err != nil {
+	tmp, err := SafeCacheFile(repoRoot, "hunt-harness", hash, "bin.tmp")
+	if err != nil {
 		return nil, err
 	}
-	if err := os.Rename(tmp, cachePath); err != nil {
+	if err := SafeWriteFileUnder(repoRoot, tmp, in, 0o755); err != nil {
+		return nil, err
+	}
+	if err := SafeRenameUnder(repoRoot, tmp, cachePath); err != nil {
 		_ = os.Remove(tmp)
 		return nil, err
 	}

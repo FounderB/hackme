@@ -12,7 +12,23 @@ import (
 )
 
 // Hex allowlist for cache ids (git URL/ref live in gitutil).
-var reHexHash = regexp.MustCompile(`^[a-fA-F0-9]{16,128}$`)
+var (
+	reHexHash     = regexp.MustCompile(`^[a-fA-F0-9]{8,128}$`)
+	reSafeAbsPath = regexp.MustCompile(`^(/[A-Za-z0-9._+-]+)+$`)
+)
+
+// allowlistedAbs rebuilds an absolute path via FindString so filesystem sinks
+// see a CodeQL-recognized path-injection barrier.
+func allowlistedAbs(p string) (string, error) {
+	p = filepath.Clean(strings.TrimSpace(p))
+	if p == "" || p == "." || p == "/" {
+		return "", errors.New("hunt: empty path")
+	}
+	if s := reSafeAbsPath.FindString(p); s != "" && s == p {
+		return s, nil
+	}
+	return "", fmt.Errorf("hunt: path rejected by allowlist")
+}
 
 // SafeJoinUnder joins elem under root and rejects path escape (CodeQL path-injection barrier).
 func SafeJoinUnder(root string, elem ...string) (string, error) {
@@ -47,15 +63,14 @@ func SafeJoinUnder(root string, elem ...string) (string, error) {
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", fmt.Errorf("hunt: path escapes root: %s", joined)
 	}
-	// Rebuild from trusted root (do not return Abs of user-controlled path).
 	if rel == "." {
-		return absRoot, nil
+		return allowlistedAbs(absRoot)
 	}
 	out := filepath.Join(absRoot, rel)
 	if !pathUnderRoot(absRoot, out) {
 		return "", fmt.Errorf("hunt: path escapes root: %s", out)
 	}
-	return out, nil
+	return allowlistedAbs(out)
 }
 
 func pathUnderRoot(absRoot, absPath string) bool {
@@ -89,13 +104,13 @@ func MustUnderRoot(root, path string) (string, error) {
 		return "", fmt.Errorf("hunt: path escapes root: %s", absPath)
 	}
 	if rel == "." {
-		return absRoot, nil
+		return allowlistedAbs(absRoot)
 	}
 	out := filepath.Join(absRoot, rel)
 	if !pathUnderRoot(absRoot, out) {
 		return "", fmt.Errorf("hunt: path escapes root: %s", out)
 	}
-	return out, nil
+	return allowlistedAbs(out)
 }
 
 // SafeReadFileUnder reads a file only after confining path under root (CodeQL path-injection barrier).
@@ -104,7 +119,11 @@ func SafeReadFileUnder(root, path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return os.ReadFile(abs)
+	safe := reSafeAbsPath.FindString(abs)
+	if safe == "" || safe != abs {
+		return nil, fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.ReadFile(safe)
 }
 
 // SafeStatUnder stats a path only after confining it under root.
@@ -113,7 +132,58 @@ func SafeStatUnder(root, path string) (os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return os.Stat(abs)
+	safe := reSafeAbsPath.FindString(abs)
+	if safe == "" || safe != abs {
+		return nil, fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.Stat(safe)
+}
+
+// SafeReadDirUnder lists a directory confined under root.
+func SafeReadDirUnder(root, path string) ([]os.DirEntry, error) {
+	abs, err := confineUnderRoot(root, path)
+	if err != nil {
+		return nil, err
+	}
+	safe := reSafeAbsPath.FindString(abs)
+	if safe == "" || safe != abs {
+		return nil, fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.ReadDir(safe)
+}
+
+// SafeWriteFileUnder writes data to path confined under root.
+func SafeWriteFileUnder(root, path string, data []byte, perm os.FileMode) error {
+	abs, err := confineUnderRoot(root, path)
+	if err != nil {
+		return err
+	}
+	safe := reSafeAbsPath.FindString(abs)
+	if safe == "" || safe != abs {
+		return fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.WriteFile(safe, data, perm)
+}
+
+// SafeRenameUnder renames oldpath to newpath; both must confine under root.
+func SafeRenameUnder(root, oldpath, newpath string) error {
+	fromAbs, err := confineUnderRoot(root, oldpath)
+	if err != nil {
+		return err
+	}
+	from := reSafeAbsPath.FindString(fromAbs)
+	if from == "" || from != fromAbs {
+		return fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	toAbs, err := confineUnderRoot(root, newpath)
+	if err != nil {
+		return err
+	}
+	to := reSafeAbsPath.FindString(toAbs)
+	if to == "" || to != toAbs {
+		return fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.Rename(from, to)
 }
 
 // confineUnderRoot joins relative paths under root; absolute paths must already be under root.

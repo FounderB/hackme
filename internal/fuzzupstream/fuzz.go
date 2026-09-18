@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -42,7 +43,12 @@ func RunInputDetailed(ctx context.Context, binPath string, input []byte, opts Ru
 	if verr != nil {
 		return false, SanitizerInfo{}, "", verr
 	}
-	cmd := exec.CommandContext(runCtx, safeBin)
+	// FindString at the sink (same function) — CodeQL command-injection barrier.
+	bin := reAbsBinPath.FindString(safeBin)
+	if bin == "" || bin != safeBin {
+		return false, SanitizerInfo{}, "", errors.New("fuzzupstream: binary path rejected by allowlist")
+	}
+	cmd := exec.CommandContext(runCtx, bin)
 	cmd.Stdin = bytes.NewReader(input)
 	cmd.Env = []string{
 		"PATH=/usr/bin:/bin",

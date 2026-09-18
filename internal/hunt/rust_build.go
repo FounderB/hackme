@@ -39,7 +39,7 @@ func BuildInventoryRustHarness(ctx context.Context, repoRoot string, req Harness
 	if err != nil {
 		return nil, err
 	}
-	content, err := os.ReadFile(srcPath)
+	content, err := SafeReadFileUnder(req.Pin.Path, srcPath)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func BuildInventoryRustHarness(ctx context.Context, repoRoot string, req Harness
 	if err != nil {
 		return nil, err
 	}
-	if st, err := os.Stat(cachePath); err == nil && st.Mode().IsRegular() {
+	if st, err := SafeStatUnder(repoRoot, cachePath); err == nil && st.Mode().IsRegular() {
 		harnessCache.Store(hash, cachePath)
 		return &HarnessBuildResult{
 			HarnessHash: hash,
@@ -99,15 +99,24 @@ func BuildInventoryRustHarness(ctx context.Context, repoRoot string, req Harness
 	} else {
 		return nil, fmt.Errorf("hunt rust build: binary path not under pin/temp: %w", err)
 	}
-	in, err := os.ReadFile(safeBin)
+	in, err := SafeReadFileUnder(req.Pin.Path, safeBin)
+	if err != nil {
+		// cargo/rustc may emit under TempDir — fall back with allowlisted abs.
+		if p, err2 := MustUnderRoot(os.TempDir(), safeBin); err2 == nil {
+			in, err = SafeReadFileUnder(os.TempDir(), p)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	tmp, err := SafeCacheFile(repoRoot, "hunt-harness", hash, "bin.tmp")
 	if err != nil {
 		return nil, err
 	}
-	tmp := cachePath + ".tmp"
-	if err := os.WriteFile(tmp, in, 0o755); err != nil {
+	if err := SafeWriteFileUnder(repoRoot, tmp, in, 0o755); err != nil {
 		return nil, err
 	}
-	if err := os.Rename(tmp, cachePath); err != nil {
+	if err := SafeRenameUnder(repoRoot, tmp, cachePath); err != nil {
 		_ = os.Remove(tmp)
 		return nil, err
 	}
@@ -138,7 +147,7 @@ func planRustHarness(pinPath, sourceRel string, content []byte) (*rustHarnessPla
 	if strings.HasPrefix(slash, "fuzz/fuzz_targets/") {
 		cargoToml, err := SafeJoinUnder(pinPath, "fuzz", "Cargo.toml")
 		if err == nil {
-			if st, err := os.Stat(cargoToml); err == nil && !st.IsDir() {
+			if st, err := SafeStatUnder(pinPath, cargoToml); err == nil && !st.IsDir() {
 				plan.Mode = "cargo_fuzz"
 				if target := cargoFuzzTargetName(sourceRel); target != "" {
 					plan.FuzzTarget = target
@@ -164,7 +173,7 @@ func findCargoRoot(pinPath, sourceRel string) string {
 	for i := 0; i < 8; i++ {
 		cargoToml, err := SafeJoinUnder(dir, "Cargo.toml")
 		if err == nil {
-			if _, err := os.Stat(cargoToml); err == nil {
+			if _, err := SafeStatUnder(pinPath, cargoToml); err == nil {
 				return dir
 			}
 		}
@@ -186,7 +195,7 @@ func readCargoPackageName(cargoRoot string) string {
 	if err != nil {
 		return "hunt_crate"
 	}
-	b, err := os.ReadFile(path)
+	b, err := SafeReadFileUnder(cargoRoot, path)
 	if err != nil {
 		return "hunt_crate"
 	}
@@ -246,7 +255,7 @@ func buildCargoFuzzHarness(ctx context.Context, plan *rustHarnessPlan) (binPath,
 	}
 	for _, c := range candidates {
 		if safe, err := MustUnderRoot(plan.CargoRoot, c); err == nil {
-			if st, err := os.Stat(safe); err == nil && !st.IsDir() {
+			if st, err := SafeStatUnder(plan.CargoRoot, safe); err == nil && !st.IsDir() {
 				return safe, fmt.Sprintf("cargo-fuzz ASAN harness (%s)", fuzzTarget), nil
 			}
 		}

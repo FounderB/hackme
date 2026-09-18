@@ -110,8 +110,17 @@ func PublishHarnessFile(ctx context.Context, db *sql.DB, hash, path, sourceRel s
 		if err != nil {
 			return fmt.Errorf("hunt artifact: harness path outside repo root: %w", err)
 		}
+		data, err := SafeReadFileUnder(root, path)
+		if err != nil {
+			return err
+		}
+		return PutHarnessArtifact(ctx, db, hash, data, sourceRel)
 	}
-	data, err := os.ReadFile(path)
+	safe, err := allowlistedAbs(path)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(safe)
 	if err != nil {
 		return err
 	}
@@ -152,11 +161,14 @@ func MaterializeHarness(ctx context.Context, repoRoot, hash, fetchURL string, db
 	if err := os.MkdirAll(filepath.Dir(cachePath), 0o755); err != nil {
 		return "", err
 	}
-	tmp := cachePath + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o755); err != nil {
+	tmp, err := SafeCacheFile(repoRoot, "hunt-harness", hash, "bin.tmp")
+	if err != nil {
 		return "", err
 	}
-	if err := os.Rename(tmp, cachePath); err != nil {
+	if err := SafeWriteFileUnder(repoRoot, tmp, data, 0o755); err != nil {
+		return "", err
+	}
+	if err := SafeRenameUnder(repoRoot, tmp, cachePath); err != nil {
 		_ = os.Remove(tmp)
 		return "", err
 	}

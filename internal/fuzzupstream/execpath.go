@@ -37,6 +37,10 @@ func ValidateBinPath(binPath string) (string, error) {
 	if safe == "" || safe != abs {
 		return "", fmt.Errorf("fuzzupstream: binary path rejected by allowlist")
 	}
+	safe = reAbsBinPath.FindString(safe)
+	if safe == "" {
+		return "", fmt.Errorf("fuzzupstream: binary path rejected by allowlist")
+	}
 	st, err := os.Stat(safe)
 	if err != nil {
 		return "", fmt.Errorf("fuzzupstream: binary: %w", err)
