@@ -24,33 +24,6 @@ var (
 	reRepoAbsPath = regexp.MustCompile(`^(/[A-Za-z0-9._+-]+)+$`)
 )
 
-func allowlistedRepoURL(gitURL string) string {
-	gitURL = strings.TrimSpace(gitURL)
-	if s := reRepoHTTPS.FindString(gitURL); s != "" && s == gitURL {
-		return s
-	}
-	if s := reRepoSSH.FindString(gitURL); s != "" && s == gitURL {
-		return s
-	}
-	return ""
-}
-
-func allowlistedRepoRef(ref string) string {
-	ref = strings.TrimSpace(ref)
-	if s := reRepoRef.FindString(ref); s != "" && s == ref {
-		return s
-	}
-	return ""
-}
-
-func allowlistedRepoPath(p string) string {
-	p = filepath.Clean(strings.TrimSpace(p))
-	if s := reRepoAbsPath.FindString(p); s != "" && s == p {
-		return s
-	}
-	return ""
-}
-
 // RepoPinRequest pins a local path or git clone at ref.
 type RepoPinRequest struct {
 	Path   string `json:"path,omitempty"`
@@ -120,31 +93,34 @@ func cloneOrUpdate(ctx context.Context, gitURL, ref, dest string) error {
 	if err != nil {
 		return err
 	}
-	// Re-bind via FindString in this file so CodeQL treats argv as sanitized.
-	gitURL = allowlistedRepoURL(gitURL)
-	ref = allowlistedRepoRef(ref)
-	dest = allowlistedRepoPath(dest)
-	if gitURL == "" || ref == "" || dest == "" {
+	// FindString must be in this function (not via helpers) for CodeQL argv barriers.
+	safeURL := reRepoHTTPS.FindString(gitURL)
+	if safeURL == "" {
+		safeURL = reRepoSSH.FindString(gitURL)
+	}
+	safeRef := reRepoRef.FindString(ref)
+	safeDest := reRepoAbsPath.FindString(filepath.Clean(dest))
+	if safeURL == "" || safeRef == "" || safeDest == "" {
 		return fmt.Errorf("hunt pin: sanitized git args empty")
 	}
-	if _, err := os.Stat(filepath.Join(dest, ".git")); err == nil {
-		return checkoutCloneRef(ctx, dest, ref)
+	if _, err := os.Stat(filepath.Join(safeDest, ".git")); err == nil {
+		return checkoutCloneRef(ctx, safeDest, safeRef)
 	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(safeDest), 0o755); err != nil {
 		return err
 	}
 	cloneCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--branch", ref, "--", gitURL, dest)
+	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--branch", safeRef, "--", safeURL, safeDest)
 	gitutil.IsolateCmd(cmd)
 	if err := cmd.Run(); err != nil {
-		_ = os.RemoveAll(dest)
-		cmd2 := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--", gitURL, dest)
+		_ = os.RemoveAll(safeDest)
+		cmd2 := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--", safeURL, safeDest)
 		gitutil.IsolateCmd(cmd2)
 		if err2 := cmd2.Run(); err2 != nil {
 			return fmt.Errorf("hunt pin: git clone: %w", err)
 		}
-		return checkoutCloneRef(ctx, dest, ref)
+		return checkoutCloneRef(ctx, safeDest, safeRef)
 	}
 	return nil
 }
@@ -158,39 +134,47 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 	if err != nil {
 		return err
 	}
-	ref = allowlistedRepoRef(ref)
-	dest = allowlistedRepoPath(dest)
-	if ref == "" || dest == "" {
+	safeRef := reRepoRef.FindString(ref)
+	safeDest := reRepoAbsPath.FindString(filepath.Clean(dest))
+	if safeRef == "" || safeDest == "" {
 		return fmt.Errorf("hunt pin: sanitized checkout args empty")
 	}
 	checkCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
-	refs := []string{ref}
-	if ref == "master" {
+	refs := []string{safeRef}
+	if safeRef == "master" {
 		refs = append(refs, "main")
-	} else if ref == "main" {
+	} else if safeRef == "main" {
 		refs = append(refs, "master")
 	}
 	for _, cand := range refs {
-		r := allowlistedRepoRef(cand)
+		r := reRepoRef.FindString(cand)
 		if r == "" {
 			continue
 		}
-		fetch := exec.CommandContext(checkCtx, "git", "-C", dest, "fetch", "--depth", "1", "origin", r)
+		d := reRepoAbsPath.FindString(safeDest)
+		if d == "" {
+			continue
+		}
+		fetch := exec.CommandContext(checkCtx, "git", "-C", d, "fetch", "--depth", "1", "origin", r)
 		gitutil.IsolateCmd(fetch)
 		_ = fetch.Run()
-		co := exec.CommandContext(checkCtx, "git", "-C", dest, "checkout", "--force", "--", r)
+		co := exec.CommandContext(checkCtx, "git", "-C", d, "checkout", "--force", "--", r)
 		gitutil.IsolateCmd(co)
 		if co.Run() == nil {
 			return nil
 		}
 	}
-	rev := exec.CommandContext(checkCtx, "git", "-C", dest, "rev-parse", "HEAD")
+	d := reRepoAbsPath.FindString(safeDest)
+	if d == "" {
+		return fmt.Errorf("hunt pin: git checkout %s failed", safeRef)
+	}
+	rev := exec.CommandContext(checkCtx, "git", "-C", d, "rev-parse", "HEAD")
 	gitutil.IsolateCmd(rev)
 	if rev.Run() == nil {
 		return nil
 	}
-	return fmt.Errorf("hunt pin: git checkout %s failed", ref)
+	return fmt.Errorf("hunt pin: git checkout %s failed", safeRef)
 }
 
 func gitHead(ctx context.Context, dir string) (string, error) {

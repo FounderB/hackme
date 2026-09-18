@@ -33,20 +33,15 @@ func ValidateBinPath(binPath string) (string, error) {
 		return "", errors.New("fuzzupstream: binary path escapes")
 	}
 	// Rebuild via allowlist so sinks use a non-tainted string.
-	safe := reAbsBinPath.FindString(abs)
-	if safe == "" || safe != abs {
+	if reAbsBinPath.FindString(abs) == "" || reAbsBinPath.FindString(abs) != abs {
 		return "", fmt.Errorf("fuzzupstream: binary path rejected by allowlist")
 	}
-	safe = reAbsBinPath.FindString(safe)
-	if safe == "" {
-		return "", fmt.Errorf("fuzzupstream: binary path rejected by allowlist")
-	}
-	st, err := os.Stat(safe)
+	st, err := os.Stat(reAbsBinPath.FindString(abs))
 	if err != nil {
 		return "", fmt.Errorf("fuzzupstream: binary: %w", err)
 	}
 	if !st.Mode().IsRegular() {
 		return "", errors.New("fuzzupstream: binary must be a regular file")
 	}
-	return safe, nil
+	return reAbsBinPath.FindString(abs), nil
 }
