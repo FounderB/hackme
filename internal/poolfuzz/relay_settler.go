@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"hackme/internal/chain"
+	"hackme/internal/netutil"
 )
 
 // RelaySettler relays fuzz escrow settlements to the campaign origin node, or queues
@@ -71,14 +74,9 @@ func (r *RelaySettler) Finalize(ctx context.Context, campaignID string, reuseOut
 	return r.relay(ctx, "finalize", campaignID, "", "", 0, reuseOutboxID)
 }
 
-// SettleEventID mirrors chain.FuzzSettleEventID for coordinator→origin settle keys.
-// Format: outbox:<campaign_id>:<outbox_id> (globally unique; see chain.FuzzSettleEventID).
+// SettleEventID is the durable coordinator→origin settle key (same as chain.FuzzSettleEventID).
 func SettleEventID(campaignID string, outboxID int64) string {
-	campaignID = strings.TrimSpace(campaignID)
-	if campaignID == "" {
-		return fmt.Sprintf("outbox:%d", outboxID)
-	}
-	return fmt.Sprintf("outbox:%s:%d", campaignID, outboxID)
+	return chain.FuzzSettleEventID(campaignID, outboxID)
 }
 
 func (r *RelaySettler) relay(ctx context.Context, kind, campaignID, minerAddress, severity string, workItemID, reuseOutboxID int64) (SettleResult, error) {
@@ -232,7 +230,7 @@ func truthy(v any) bool {
 		return x
 	case string:
 		s := strings.TrimSpace(strings.ToLower(x))
-		return s == "1" || s == "true" || s == "yes"
+		return s == "1" || s == "true" || s == "yes" || s == "on"
 	case float64:
 		return x != 0
 	default:
@@ -241,6 +239,5 @@ func truthy(v any) bool {
 }
 
 func isLoopbackSettleURL(u string) bool {
-	low := strings.ToLower(strings.TrimSpace(u))
-	return strings.Contains(low, "127.0.0.1") || strings.Contains(low, "localhost")
+	return netutil.IsLoopbackURL(u)
 }

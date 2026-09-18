@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"hackme/internal/poolauth"
 	"hackme/internal/workerid"
 )
 
@@ -34,10 +35,7 @@ type workerSettlementState struct {
 }
 
 func workerPayoutMapFromEnv() map[string]string {
-	raw := strings.TrimSpace(os.Getenv("HACKME_WORKER_PAYOUT_MAP"))
-	if raw == "" {
-		raw = strings.TrimSpace(os.Getenv("WORKER_PAYOUT_MAP"))
-	}
+	raw := poolauth.WorkerPayoutMapRaw()
 	out := map[string]string{}
 	for _, part := range strings.Split(raw, ",") {
 		p := strings.TrimSpace(part)

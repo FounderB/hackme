@@ -550,7 +550,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			WorkerID        string `json:"worker_id"`
 			MinerAddress    string `json:"miner_address"`
 			MinerPubKey     string `json:"miner_pubkey"`
+			MinerPubKeyEd   string `json:"miner_pubkey_ed25519"` // PoH-lane alias (D8)
 			MinerSig        string `json:"miner_sig"`
+			MinerSigEd      string `json:"miner_sig_ed25519"` // PoH-lane alias
 			MinerSigAlg     string `json:"miner_sig_alg"`
 			SubmitNonce     uint64 `json:"submit_nonce"`
 			WorkID          string `json:"work_id"`
@@ -567,6 +569,12 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
+		}
+		if strings.TrimSpace(req.MinerPubKey) == "" {
+			req.MinerPubKey = strings.TrimSpace(req.MinerPubKeyEd)
+		}
+		if strings.TrimSpace(req.MinerSig) == "" {
+			req.MinerSig = strings.TrimSpace(req.MinerSigEd)
 		}
 		if strings.TrimSpace(req.WorkerID) == "" || strings.TrimSpace(req.CampaignID) == "" || req.ItemID <= 0 {
 			http.Error(w, "invalid submit payload", http.StatusBadRequest)

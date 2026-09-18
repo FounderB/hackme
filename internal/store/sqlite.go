@@ -712,6 +712,19 @@ func migrateFuzzSettleOutbox(db *sql.DB) error {
 			}
 		}
 	}
+	// UNIQUE must live in migrate (not only runtime ensure) so migrate-only DBs cannot
+	// duplicate outbox rows before the first EnqueueSettleOutbox.
+	_, _ = db.Exec(`
+		DELETE FROM fuzz_settle_outbox
+		 WHERE id NOT IN (
+		   SELECT MIN(id) FROM fuzz_settle_outbox
+		    GROUP BY campaign_id, kind, miner_address, severity, COALESCE(work_item_id,0)
+		 )`)
+	if _, err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_fuzz_settle_outbox_uq
+		 ON fuzz_settle_outbox(campaign_id, kind, miner_address, severity, work_item_id)`); err != nil {
+		return err
+	}
 	return nil
 }
 

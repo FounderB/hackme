@@ -34,6 +34,7 @@ import (
 	"hackme/internal/integrator"
 	"hackme/internal/lanpool"
 	"hackme/internal/logsetup"
+	"hackme/internal/netutil"
 	"hackme/internal/nodecrypto"
 	"hackme/internal/p2p"
 	"hackme/internal/poolsync"
@@ -741,11 +742,7 @@ func envBool(key string, def bool) bool {
 }
 
 func coordinatorURLLooksRemote(coordURL string) bool {
-	u := strings.TrimSpace(strings.ToLower(coordURL))
-	if u == "" {
-		return false
-	}
-	return !strings.Contains(u, "127.0.0.1") && !strings.Contains(u, "localhost") && !strings.Contains(u, "::1")
+	return netutil.LooksRemoteCoordinatorURL(coordURL)
 }
 
 // Worker submits use HACKME_WORKER_SIGN_SUBMITS in worker_loop.sh; public coordinators often require signatures (hybrid).
@@ -4271,7 +4268,7 @@ func (a *app) handleP2PTx(w http.ResponseWriter, r *http.Request) {
 
 func clientIP(r *http.Request) string {
 	if envBool("HACKME_TRUST_X_FORWARDED_FOR", false) {
-		// Only honor XFF from loopback / allowlisted proxy peers (HACKME_PROXY_TRUST_CIDRS).
+		// Only honor forwarded headers from loopback / allowlisted proxy peers (HACKME_PROXY_TRUST_CIDRS).
 		ra := strings.TrimSpace(r.RemoteAddr)
 		host := ra
 		if h, _, err := net.SplitHostPort(ra); err == nil {
@@ -4299,13 +4296,19 @@ func clientIP(r *http.Request) string {
 			}
 		}
 		if trusted {
+			// Prefer nginx X-Real-IP, then left-most X-Forwarded-For (same order as coordinator).
+			if xri := strings.TrimSpace(r.Header.Get("X-Real-IP")); xri != "" {
+				if ip, ok := parseIP(xri); ok {
+					return ip.String()
+				}
+			}
 			xff := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
 			if xff != "" {
 				parts := strings.Split(xff, ",")
 				if len(parts) > 0 {
 					p := strings.TrimSpace(parts[0])
-					if p != "" {
-						return p
+					if ip, ok := parseIP(p); ok {
+						return ip.String()
 					}
 				}
 			}

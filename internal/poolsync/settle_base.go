@@ -4,6 +4,8 @@ import (
 	"net"
 	"os"
 	"strings"
+
+	"hackme/internal/netutil"
 )
 
 // ResolveOrdersSettleBase returns the node URL coordinators should relay fuzz escrow
@@ -35,17 +37,9 @@ func ResolveOrdersSettleBase() (base string, pull bool) {
 }
 
 func isLoopbackSettleBase(u string) bool {
-	low := strings.ToLower(strings.TrimSpace(u))
-	if strings.HasPrefix(low, "http://127.0.0.1") || strings.HasPrefix(low, "http://localhost") {
-		return true
-	}
-	if strings.HasPrefix(low, "https://127.0.0.1") || strings.HasPrefix(low, "https://localhost") {
-		return true
-	}
-	return false
+	return netutil.IsLoopbackURL(u)
 }
 
 func isLoopbackHost(host string) bool {
-	host = strings.TrimSpace(strings.ToLower(host))
-	return host == "127.0.0.1" || host == "localhost" || host == "::1"
+	return netutil.IsLoopbackHost(host)
 }

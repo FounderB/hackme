@@ -23,6 +23,7 @@ import (
 
 	"hackme/internal/chain"
 	"hackme/internal/lanpool"
+	"hackme/internal/poolauth"
 	"hackme/internal/worksubmit"
 )
 
@@ -342,13 +343,7 @@ func newWorkManagerFromEnv() *workManager {
 			ordersProbeEverySec = x
 		}
 	}
-	workerTokenEnv := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_WORKER_TOKEN"))
-	allowInsecureEnv := envBool("HACKME_COORDINATOR_ALLOW_INSECURE", false)
-	// Public pools with worker tokens should bind miner identity by default.
-	hybridSignerEnabled := workerTokenEnv != "" && !allowInsecureEnv
-	if v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_POOL_HYBRID_SIGNER_ENABLED"))); v != "" {
-		hybridSignerEnabled = v == "1" || v == "true" || v == "yes" || v == "on"
-	}
+	hybridSignerEnabled := poolauth.HybridSignerEnabled()
 	hybridSignerStrict := hybridSignerEnabled
 	if v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_POOL_HYBRID_SIGNER_STRICT"))); v != "" {
 		hybridSignerStrict = v == "1" || v == "true" || v == "yes" || v == "on"

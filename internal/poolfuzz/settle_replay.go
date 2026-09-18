@@ -9,6 +9,7 @@ import (
 
 	"hackme/internal/fuzzengine"
 	"hackme/internal/fuzznative"
+	"hackme/internal/poolauth"
 )
 
 // ReplayCampaignSettles enqueues pending run/finding/finalize rows for a completed campaign.
@@ -124,7 +125,7 @@ func resolveWorkerPayoutAddress(workerID string) string {
 			return legacy
 		}
 	}
-	raw := strings.TrimSpace(os.Getenv("WORKER_PAYOUT_MAP"))
+	raw := poolauth.WorkerPayoutMapRaw()
 	if workerID != "" {
 		for _, part := range strings.Split(raw, ",") {
 			part = strings.TrimSpace(part)

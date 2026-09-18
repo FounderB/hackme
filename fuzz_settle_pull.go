@@ -157,25 +157,6 @@ func (a *app) applyLocalFuzzSettleOnce(ctx context.Context, it poolsync.SettleOu
 	return err
 }
 
-func (a *app) applyLocalFuzzSettle(ctx context.Context, it poolsync.SettleOutboxItem) error {
-	switch strings.TrimSpace(strings.ToLower(it.Kind)) {
-	case "run":
-		_, err := a.chain.PayFuzzRun(ctx, it.CampaignID, it.MinerAddress)
-		return err
-	case "finding", "bounty":
-		_, err := a.chain.PayFuzzBounty(ctx, it.CampaignID, it.MinerAddress, it.Severity)
-		return err
-	case "crash_bonus", "unique_crash":
-		_, err := a.chain.PayFuzzCrashBonus(ctx, it.CampaignID, it.MinerAddress)
-		return err
-	case "finalize", "close":
-		_, err := a.chain.FinalizeFuzzEscrow(ctx, it.CampaignID)
-		return err
-	default:
-		return nil
-	}
-}
-
 func (a *app) startFuzzSettlePullTicker() {
 	if !poolSyncCoordinatorConfigured() {
 		return

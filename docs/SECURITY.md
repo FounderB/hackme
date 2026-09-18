@@ -82,6 +82,6 @@ Helper: `scripts/ops/internet_preflight.sh` records sandbox/economics/status, se
 | `internal/nodecrypto/` | API Signing Key |
 | `spec/CHAIN_SPEC.md`, `docs/API.md` | Protocol and HTTP |
 
-**Separate process `cmd/coordinator`:** listens to **127.0.0.1:8081** (lab) or **127.0.0.1:18081** (public hub) by default. **Fail-closed:** `HACKME_COORDINATOR_REQUIRE_ADMIN_TOKEN` defaults **on** — the process refuses to start without `HACKME_COORDINATOR_ADMIN_TOKEN` / worker token. Mutating **`POST /api/work/claim`**, **`POST /api/work/submit`**, **`POST /api/fuzz/work/*`**, **`POST /api/push_work`** require worker or admin bearer auth. Lab-only escape hatch: `HACKME_COORDINATOR_ALLOW_INSECURE=1` (never on public edge). When trusting `X-Forwarded-For`, only honor headers from loopback or `HACKME_PROXY_TRUST_CIDRS`.
+**Separate process `cmd/coordinator`:** listens to **127.0.0.1:8081** (lab) or **127.0.0.1:18081** (public hub) by default. **Fail-closed:** `HACKME_COORDINATOR_REQUIRE_ADMIN_TOKEN` defaults **on** — the process refuses to start without **`HACKME_COORDINATOR_ADMIN_TOKEN`** (a worker token alone is not enough to start). Mutating **`POST /api/work/claim`**, **`POST /api/work/submit`**, **`POST /api/fuzz/work/*`**, **`POST /api/push_work`** require worker or admin bearer auth. Lab-only escape hatch: `HACKME_COORDINATOR_ALLOW_INSECURE=1` (never on public edge). When trusting `X-Forwarded-For`, only honor headers from loopback or `HACKME_PROXY_TRUST_CIDRS`.
 
 When you change your security policy, update this file and **`docs/API.md`**.

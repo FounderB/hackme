@@ -13,15 +13,30 @@ const DriftEpsilonHMC = 0.000001
 const LedgerDriftDetected = "Ledger Drift Detected"
 
 // ComputeAttemptPayout returns HMC credited for a submit under payout_found_only rules.
-// Mirrors cmd/coordinator/work.go submit payout accrual (attempt path, no hashrate cap).
+// Matches the non-order attempt path in cmd/coordinator/work.go (found bonus when found,
+// no chain solve, no per-submit ceiling). Prefer ComputeAttemptPayoutLive for full parity.
 func ComputeAttemptPayout(attempts uint64, rewardPerM float64, found bool, foundBonus float64, payoutFoundOnly bool) float64 {
+	return ComputeAttemptPayoutLive(attempts, rewardPerM, found, foundBonus, payoutFoundOnly, false, 0)
+}
+
+// ComputeAttemptPayoutLive mirrors cmd/coordinator/work.go submit accrual:
+//   - found bonus only when found && !chainSolveOK
+//   - when chainSolveOK, wipe bonus and keep attempt accrual only
+//   - clamp to maxSubmitHMC when maxSubmitHMC > 0
+func ComputeAttemptPayoutLive(attempts uint64, rewardPerM float64, found bool, foundBonus float64, payoutFoundOnly bool, chainSolveOK bool, maxSubmitHMC float64) float64 {
 	paidAttempts := attempts
 	if payoutFoundOnly && !found {
 		paidAttempts = 0
 	}
 	payout := (float64(paidAttempts) / 1_000_000.0) * rewardPerM
-	if found {
+	if found && !chainSolveOK {
 		payout += foundBonus
+	}
+	if chainSolveOK {
+		payout = (float64(paidAttempts) / 1_000_000.0) * rewardPerM
+	}
+	if maxSubmitHMC > 0 && payout > maxSubmitHMC {
+		payout = maxSubmitHMC
 	}
 	if payout < 0 {
 		return 0

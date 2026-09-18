@@ -12,6 +12,7 @@ import (
 
 	"hackme/internal/block"
 	"hackme/internal/chain"
+	"hackme/internal/poolauth"
 	"hackme/internal/sandbox"
 	"hackme/internal/store"
 )
@@ -203,7 +204,7 @@ func (a *app) handleStatus(w http.ResponseWriter, r *http.Request) {
 			"simultaneous_block_rule": "first_valid_block_on_canonical_node_wins",
 			"fork_resolution":         "no_reorg_v1_fail_closed",
 			"fork_action":             "followers_stop_mining_and_reseed_from_canonical",
-			"hybrid_signer_enabled":   envBool("HACKME_POOL_HYBRID_SIGNER_ENABLED", false),
+			"hybrid_signer_enabled":   poolauth.HybridSignerEnabled(),
 		},
 		"pool_sync": a.poolSyncStatusPayload(),
 	}

@@ -22,6 +22,7 @@ import (
 
 	"hackme/internal/chain"
 	"hackme/internal/lanpool"
+	"hackme/internal/netutil"
 	"hackme/internal/store"
 	"hackme/internal/workerid"
 	"hackme/internal/workerlock"
@@ -378,12 +379,7 @@ func coordinatorHTTPClient() *http.Client {
 // coordinatorURLIsLoopback reports whether the pool coordinator is on this machine.
 // Curl subprocess fallback is disabled for loopback: under public traffic it can fork-bomb the VPS.
 func coordinatorURLIsLoopback(base string) bool {
-	u, err := neturl.Parse(strings.TrimSpace(base))
-	if err != nil {
-		return false
-	}
-	h := strings.ToLower(strings.TrimSpace(u.Hostname()))
-	return h == "127.0.0.1" || h == "localhost" || h == "::1"
+	return netutil.IsLoopbackURL(base)
 }
 
 var coordCurlFallbackSem = make(chan struct{}, 3)

@@ -1347,13 +1347,13 @@ func (s *Service) insertFinding(ctx context.Context, req SubmitRequest, cfg map[
 		if IsHuntCampaign(cfg) {
 			repro = fuzzupstream.ReproCmdHuntNative(inputBytes)
 		} else {
-			wasmHex, _ := cfg["wasm_check_hex"].(string)
+			wasmHex := wasmHexFromConfig(cfg)
 			wasmPath := fuzzartifacts.WriteWasmHex(req.CampaignID, wasmHex)
 			repro = fuzzengine.ReproCmdBytes(wasmPath, inputBytes)
 		}
 	} else {
 		inputSHA = fuzzengine.InputSHA256(req.ActualInput)
-		wasmHex, _ := cfg["wasm_check_hex"].(string)
+		wasmHex := wasmHexFromConfig(cfg)
 		wasmPath := fuzzartifacts.WriteWasmHex(req.CampaignID, wasmHex)
 		artifactPath = fuzzartifacts.WriteInput(req.CampaignID, inputSHA, req.ActualInput)
 		repro = fuzzengine.ReproCmdTool(wasmPath, req.ActualInput)
@@ -1371,7 +1371,7 @@ func (s *Service) insertFinding(ctx context.Context, req SubmitRequest, cfg map[
 	severity = sev
 	findingID = fmt.Sprintf("finding-pool-%s-%d-%d", req.CampaignID, req.ItemID, now)
 	op, itemID, qty := fuzzengine.WasmCheckInputParts(req.ActualInput)
-	wasmHex, _ := cfg["wasm_check_hex"].(string)
+	wasmHex := wasmHexFromConfig(cfg)
 	_ = fuzzartifacts.WriteWasmHex(req.CampaignID, wasmHex)
 	triage := fuzzengine.ClassifyFinding(ft, sev)
 	detailMap := map[string]any{
