@@ -93,34 +93,35 @@ func cloneOrUpdate(ctx context.Context, gitURL, ref, dest string) error {
 	if err != nil {
 		return err
 	}
-	// FindString must be in this function (not via helpers) for CodeQL argv barriers.
-	safeURL := reRepoHTTPS.FindString(gitURL)
-	if safeURL == "" {
-		safeURL = reRepoSSH.FindString(gitURL)
+	dest = filepath.Clean(dest)
+	// MatchString barrier guards (CodeQL command-injection) — not FindString alone.
+	if !(reRepoHTTPS.MatchString(gitURL) || reRepoSSH.MatchString(gitURL)) {
+		return fmt.Errorf("hunt pin: sanitized git url empty")
 	}
-	safeRef := reRepoRef.FindString(ref)
-	safeDest := reRepoAbsPath.FindString(filepath.Clean(dest))
-	if safeURL == "" || safeRef == "" || safeDest == "" {
-		return fmt.Errorf("hunt pin: sanitized git args empty")
+	if !reRepoRef.MatchString(ref) {
+		return fmt.Errorf("hunt pin: sanitized git ref empty")
 	}
-	if _, err := os.Stat(filepath.Join(safeDest, ".git")); err == nil {
-		return checkoutCloneRef(ctx, safeDest, safeRef)
+	if !reRepoAbsPath.MatchString(dest) {
+		return fmt.Errorf("hunt pin: sanitized git dest empty")
 	}
-	if err := os.MkdirAll(filepath.Dir(safeDest), 0o755); err != nil {
+	if _, err := os.Stat(filepath.Join(dest, ".git")); err == nil {
+		return checkoutCloneRef(ctx, dest, ref)
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
 	cloneCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--branch", safeRef, "--", safeURL, safeDest)
+	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--branch", ref, "--", gitURL, dest)
 	gitutil.IsolateCmd(cmd)
 	if err := cmd.Run(); err != nil {
-		_ = os.RemoveAll(safeDest)
-		cmd2 := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--", safeURL, safeDest)
+		_ = os.RemoveAll(dest)
+		cmd2 := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--", gitURL, dest)
 		gitutil.IsolateCmd(cmd2)
 		if err2 := cmd2.Run(); err2 != nil {
 			return fmt.Errorf("hunt pin: git clone: %w", err)
 		}
-		return checkoutCloneRef(ctx, safeDest, safeRef)
+		return checkoutCloneRef(ctx, dest, ref)
 	}
 	return nil
 }
@@ -134,47 +135,37 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 	if err != nil {
 		return err
 	}
-	safeRef := reRepoRef.FindString(ref)
-	safeDest := reRepoAbsPath.FindString(filepath.Clean(dest))
-	if safeRef == "" || safeDest == "" {
+	dest = filepath.Clean(dest)
+	if !reRepoRef.MatchString(ref) || !reRepoAbsPath.MatchString(dest) {
 		return fmt.Errorf("hunt pin: sanitized checkout args empty")
 	}
 	checkCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
-	refs := []string{safeRef}
-	if safeRef == "master" {
+	refs := []string{ref}
+	if ref == "master" {
 		refs = append(refs, "main")
-	} else if safeRef == "main" {
+	} else if ref == "main" {
 		refs = append(refs, "master")
 	}
 	for _, cand := range refs {
-		r := reRepoRef.FindString(cand)
-		if r == "" {
+		if !reRepoRef.MatchString(cand) {
 			continue
 		}
-		d := reRepoAbsPath.FindString(safeDest)
-		if d == "" {
-			continue
-		}
-		fetch := exec.CommandContext(checkCtx, "git", "-C", d, "fetch", "--depth", "1", "origin", r)
+		fetch := exec.CommandContext(checkCtx, "git", "-C", dest, "fetch", "--depth", "1", "origin", cand)
 		gitutil.IsolateCmd(fetch)
 		_ = fetch.Run()
-		co := exec.CommandContext(checkCtx, "git", "-C", d, "checkout", "--force", "--", r)
+		co := exec.CommandContext(checkCtx, "git", "-C", dest, "checkout", "--force", "--", cand)
 		gitutil.IsolateCmd(co)
 		if co.Run() == nil {
 			return nil
 		}
 	}
-	d := reRepoAbsPath.FindString(safeDest)
-	if d == "" {
-		return fmt.Errorf("hunt pin: git checkout %s failed", safeRef)
-	}
-	rev := exec.CommandContext(checkCtx, "git", "-C", d, "rev-parse", "HEAD")
+	rev := exec.CommandContext(checkCtx, "git", "-C", dest, "rev-parse", "HEAD")
 	gitutil.IsolateCmd(rev)
 	if rev.Run() == nil {
 		return nil
 	}
-	return fmt.Errorf("hunt pin: git checkout %s failed", safeRef)
+	return fmt.Errorf("hunt pin: git checkout %s failed", ref)
 }
 
 func gitHead(ctx context.Context, dir string) (string, error) {

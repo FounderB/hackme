@@ -39,12 +39,11 @@ func RunInputDetailed(ctx context.Context, binPath string, input []byte, opts Ru
 	}
 	runCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	if _, verr := ValidateBinPath(binPath); verr != nil {
+	bin := filepath.Clean(strings.TrimSpace(binPath))
+	if _, verr := ValidateBinPath(bin); verr != nil {
 		return false, SanitizerInfo{}, "", verr
 	}
-	// FindString on the original path at the argv sink (CodeQL command-injection barrier).
-	bin := reAbsBinPath.FindString(filepath.Clean(strings.TrimSpace(binPath)))
-	if bin == "" {
+	if !reAbsBinPath.MatchString(bin) {
 		return false, SanitizerInfo{}, "", errors.New("fuzzupstream: binary path rejected by allowlist")
 	}
 	cmd := exec.CommandContext(runCtx, bin)

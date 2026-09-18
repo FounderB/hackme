@@ -24,10 +24,10 @@ func allowlistedAbs(p string) (string, error) {
 	if p == "" || p == "." || p == "/" {
 		return "", errors.New("hunt: empty path")
 	}
-	if s := reSafeAbsPath.FindString(p); s != "" && s == p {
-		return s, nil
+	if !reSafeAbsPath.MatchString(p) {
+		return "", fmt.Errorf("hunt: path rejected by allowlist")
 	}
-	return "", fmt.Errorf("hunt: path rejected by allowlist")
+	return p, nil
 }
 
 // SafeJoinUnder joins elem under root and rejects path escape (CodeQL path-injection barrier).
@@ -119,11 +119,10 @@ func SafeReadFileUnder(root, path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	safe := reSafeAbsPath.FindString(abs)
-	if safe == "" || safe != abs {
+	if !reSafeAbsPath.MatchString(abs) {
 		return nil, fmt.Errorf("hunt: path rejected by allowlist")
 	}
-	return os.ReadFile(safe)
+	return os.ReadFile(abs)
 }
 
 // SafeStatUnder stats a path only after confining it under root.
@@ -132,11 +131,10 @@ func SafeStatUnder(root, path string) (os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	safe := reSafeAbsPath.FindString(abs)
-	if safe == "" || safe != abs {
+	if !reSafeAbsPath.MatchString(abs) {
 		return nil, fmt.Errorf("hunt: path rejected by allowlist")
 	}
-	return os.Stat(safe)
+	return os.Stat(abs)
 }
 
 // SafeReadDirUnder lists a directory confined under root.
@@ -145,11 +143,10 @@ func SafeReadDirUnder(root, path string) ([]os.DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	safe := reSafeAbsPath.FindString(abs)
-	if safe == "" || safe != abs {
+	if !reSafeAbsPath.MatchString(abs) {
 		return nil, fmt.Errorf("hunt: path rejected by allowlist")
 	}
-	return os.ReadDir(safe)
+	return os.ReadDir(abs)
 }
 
 // SafeWriteFileUnder writes data to path confined under root.
@@ -158,11 +155,10 @@ func SafeWriteFileUnder(root, path string, data []byte, perm os.FileMode) error 
 	if err != nil {
 		return err
 	}
-	safe := reSafeAbsPath.FindString(abs)
-	if safe == "" || safe != abs {
+	if !reSafeAbsPath.MatchString(abs) {
 		return fmt.Errorf("hunt: path rejected by allowlist")
 	}
-	return os.WriteFile(safe, data, perm)
+	return os.WriteFile(abs, data, perm)
 }
 
 // SafeRenameUnder renames oldpath to newpath; both must confine under root.
@@ -171,19 +167,17 @@ func SafeRenameUnder(root, oldpath, newpath string) error {
 	if err != nil {
 		return err
 	}
-	from := reSafeAbsPath.FindString(fromAbs)
-	if from == "" || from != fromAbs {
+	if !reSafeAbsPath.MatchString(fromAbs) {
 		return fmt.Errorf("hunt: path rejected by allowlist")
 	}
 	toAbs, err := confineUnderRoot(root, newpath)
 	if err != nil {
 		return err
 	}
-	to := reSafeAbsPath.FindString(toAbs)
-	if to == "" || to != toAbs {
+	if !reSafeAbsPath.MatchString(toAbs) {
 		return fmt.Errorf("hunt: path rejected by allowlist")
 	}
-	return os.Rename(from, to)
+	return os.Rename(fromAbs, toAbs)
 }
 
 // confineUnderRoot joins relative paths under root; absolute paths must already be under root.
