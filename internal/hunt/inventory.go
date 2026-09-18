@@ -151,11 +151,7 @@ func isSourceFile(path string) bool {
 }
 
 func fileHasFuzzEntry(root, path string) (bool, error) {
-	path, err := MustUnderRoot(root, path)
-	if err != nil {
-		return false, err
-	}
-	b, err := os.ReadFile(path)
+	b, err := SafeReadFileUnder(root, path)
 	if err != nil {
 		return false, err
 	}
@@ -173,11 +169,7 @@ func fileHasFuzzEntry(root, path string) (bool, error) {
 
 // fileHasMain reports standalone programs that must not be linked as companions.
 func fileHasMain(root, path string) (bool, error) {
-	path, err := MustUnderRoot(root, path)
-	if err != nil {
-		return false, err
-	}
-	b, err := os.ReadFile(path)
+	b, err := SafeReadFileUnder(root, path)
 	if err != nil {
 		return false, err
 	}

@@ -226,21 +226,20 @@ func collectIncludeDirs(pinRoot, sourceRel string) []string {
 		if p == "" {
 			return
 		}
-		if _, err := MustUnderRoot(pinRoot, p); err != nil && p != filepath.Clean(pinRoot) {
-			// allow only under pin (or equal)
+		safe, err := MustUnderRoot(pinRoot, p)
+		if err != nil {
 			absPin, _ := filepath.Abs(filepath.Clean(pinRoot))
 			absP, err2 := filepath.Abs(p)
 			if err2 != nil || absP != absPin {
-				if err != nil {
-					return
-				}
+				return
 			}
+			safe = absPin
 		}
-		if _, ok := seen[p]; ok {
+		if _, ok := seen[safe]; ok {
 			return
 		}
-		if st, err := os.Stat(p); err == nil && st.IsDir() {
-			seen[p] = struct{}{}
+		if st, err := os.Stat(safe); err == nil && st.IsDir() {
+			seen[safe] = struct{}{}
 		}
 	}
 	add(pinRoot)
@@ -273,13 +272,13 @@ func collectIncludeDirs(pinRoot, sourceRel string) []string {
 
 func detectInventoryBuildHints(root string) []string {
 	hints := make([]string, 0, 4)
-	if fileExists(filepath.Join(root, "CMakeLists.txt")) {
+	if fileExistsUnder(root, "CMakeLists.txt") {
 		hints = append(hints, "cmake_present")
 	}
-	if fileExists(filepath.Join(root, "Makefile")) || fileExists(filepath.Join(root, "GNUmakefile")) {
+	if fileExistsUnder(root, "Makefile") || fileExistsUnder(root, "GNUmakefile") {
 		hints = append(hints, "makefile_present")
 	}
-	if fileExists(filepath.Join(root, "Cargo.toml")) {
+	if fileExistsUnder(root, "Cargo.toml") {
 		hints = append(hints, "cargo_present")
 	}
 	cpp := 0
@@ -332,9 +331,8 @@ func detectInventoryBuildHints(root string) []string {
 	return hints
 }
 
-func fileExists(path string) bool {
-	path = filepath.Clean(path)
-	st, err := os.Stat(path)
+func fileExistsUnder(root, rel string) bool {
+	st, err := SafeStatUnder(root, rel)
 	return err == nil && !st.IsDir()
 }
 

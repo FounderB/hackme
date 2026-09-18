@@ -25,16 +25,16 @@ func TestSafeJoinUnderRejectsEscape(t *testing.T) {
 }
 
 func TestValidateGitURLAndRef(t *testing.T) {
-	if err := ValidateGitURL("https://github.com/foo/bar.git"); err != nil {
+	if _, err := ValidateGitURL("https://github.com/foo/bar.git"); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateGitURL("https://evil;rm -rf /"); err == nil {
+	if _, err := ValidateGitURL("https://evil;rm -rf /"); err == nil {
 		t.Fatal("expected reject")
 	}
-	if err := ValidateGitRef("main"); err != nil {
+	if _, err := ValidateGitRef("main"); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateGitRef("-rf"); err == nil {
+	if _, err := ValidateGitRef("-rf"); err == nil {
 		t.Fatal("expected reject leading dash")
 	}
 	if err := ValidateHexHash("d5a1703fcfaf5f296993b4b6373e9cb9"); err != nil {

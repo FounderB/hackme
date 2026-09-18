@@ -105,7 +105,9 @@ func GetHarnessArtifact(ctx context.Context, db *sql.DB, hash string) ([]byte, e
 func PublishHarnessFile(ctx context.Context, db *sql.DB, hash, path, sourceRel string) error {
 	root := RepoRoot()
 	if root != "" {
-		if _, err := MustUnderRoot(root, path); err != nil {
+		var err error
+		path, err = MustUnderRoot(root, path)
+		if err != nil {
 			return fmt.Errorf("hunt artifact: harness path outside repo root: %w", err)
 		}
 	}

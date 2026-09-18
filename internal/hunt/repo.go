@@ -43,10 +43,12 @@ func PinRepo(ctx context.Context, repoRoot string, req RepoPinRequest) (*RepoPin
 	}
 	now := time.Now().Unix()
 	if gitURL != "" {
-		if err := ValidateGitURL(gitURL); err != nil {
+		gitURL, err := ValidateGitURL(gitURL)
+		if err != nil {
 			return nil, err
 		}
-		if err := ValidateGitRef(ref); err != nil {
+		ref, err = ValidateGitRef(ref)
+		if err != nil {
 			return nil, err
 		}
 		sum := sha256.Sum256([]byte(gitURL))
@@ -73,10 +75,13 @@ func PinRepo(ctx context.Context, repoRoot string, req RepoPinRequest) (*RepoPin
 }
 
 func cloneOrUpdate(ctx context.Context, gitURL, ref, dest string) error {
-	if err := ValidateGitURL(gitURL); err != nil {
+	var err error
+	gitURL, err = ValidateGitURL(gitURL)
+	if err != nil {
 		return err
 	}
-	if err := ValidateGitRef(ref); err != nil {
+	ref, err = ValidateGitRef(ref)
+	if err != nil {
 		return err
 	}
 	dest = filepath.Clean(dest)
@@ -88,7 +93,7 @@ func cloneOrUpdate(ctx context.Context, gitURL, ref, dest string) error {
 	}
 	cloneCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
-	// Args are separate argv; URL/ref validated above (CodeQL command-injection).
+	// Args are separate argv; URL/ref sanitized above (CodeQL command-injection).
 	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--branch", ref, "--", gitURL, dest)
 	gitutil.IsolateCmd(cmd)
 	if err := cmd.Run(); err != nil {
@@ -107,7 +112,9 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 	if ref == "" {
 		return nil
 	}
-	if err := ValidateGitRef(ref); err != nil {
+	var err error
+	ref, err = ValidateGitRef(ref)
+	if err != nil {
 		return err
 	}
 	dest = filepath.Clean(dest)
@@ -120,7 +127,8 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 		refs = append(refs, "master")
 	}
 	for _, r := range refs {
-		if err := ValidateGitRef(r); err != nil {
+		r, err := ValidateGitRef(r)
+		if err != nil {
 			continue
 		}
 		fetch := exec.CommandContext(checkCtx, "git", "-C", dest, "fetch", "--depth", "1", "origin", r)

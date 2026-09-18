@@ -1,0 +1,11 @@
+name: "HackMe CodeQL config"
+
+queries:
+  - uses: security-and-quality
+
+paths-ignore:
+  - "**/vendor/**"
+  - "**/node_modules/**"
+  - "web/site/**"
+  - "dist/**"
+  - "reports/**"

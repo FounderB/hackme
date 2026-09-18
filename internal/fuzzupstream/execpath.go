@@ -5,8 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+// Absolute harness path allowlist — FindString return is a CodeQL command/path barrier.
+var reAbsBinPath = regexp.MustCompile(`^(/[A-Za-z0-9._+-]+)+$`)
 
 // ValidateBinPath ensures an ASAN harness binary path is a cleaned absolute regular file
 // with no path escape / shell metacharacters (CodeQL command-injection barrier).
@@ -21,24 +25,24 @@ func ValidateBinPath(binPath string) (string, error) {
 	if !filepath.IsAbs(binPath) {
 		return "", errors.New("fuzzupstream: binary path must be absolute")
 	}
-	clean := filepath.Clean(binPath)
-	if clean != binPath && filepath.Clean(binPath) != clean {
-		// normalize
-	}
-	abs, err := filepath.Abs(clean)
+	abs, err := filepath.Abs(filepath.Clean(binPath))
 	if err != nil {
 		return "", err
 	}
-	// Reject null bytes and ".." remnants after Clean (should be gone).
 	if strings.Contains(abs, string(filepath.Separator)+".."+string(filepath.Separator)) || strings.HasSuffix(abs, string(filepath.Separator)+"..") {
 		return "", errors.New("fuzzupstream: binary path escapes")
 	}
-	st, err := os.Stat(abs)
+	// Rebuild via allowlist so sinks use a non-tainted string.
+	safe := reAbsBinPath.FindString(abs)
+	if safe == "" || safe != abs {
+		return "", fmt.Errorf("fuzzupstream: binary path rejected by allowlist")
+	}
+	st, err := os.Stat(safe)
 	if err != nil {
 		return "", fmt.Errorf("fuzzupstream: binary: %w", err)
 	}
 	if !st.Mode().IsRegular() {
 		return "", errors.New("fuzzupstream: binary must be a regular file")
 	}
-	return abs, nil
+	return safe, nil
 }

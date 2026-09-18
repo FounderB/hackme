@@ -84,8 +84,10 @@ func EnsureHarnessBinary(ctx context.Context, repoRoot, targetID, harnessHash st
 	}
 	if v, ok := harnessCache.Load(wantHash); ok {
 		if p, ok := v.(string); ok && p != "" {
-			if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
-				return p, nil
+			if safe, err := MustUnderRoot(repoRoot, p); err == nil {
+				if st, err := os.Stat(safe); err == nil && st.Mode().IsRegular() {
+					return safe, nil
+				}
 			}
 		}
 	}

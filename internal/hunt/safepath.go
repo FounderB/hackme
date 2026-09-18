@@ -7,15 +7,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"hackme/internal/gitutil"
 )
 
-// Git/ref allowlists — CodeQL command-injection barriers (argv still used; values must be constrained).
-var (
-	reGitHTTPS = regexp.MustCompile(`^https://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+$`)
-	reGitSSH   = regexp.MustCompile(`^git@[A-Za-z0-9.-]+:[A-Za-z0-9._~/-]+\.git$`)
-	reGitRef   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,200}$`)
-	reHexHash  = regexp.MustCompile(`^[a-fA-F0-9]{16,128}$`)
-)
+// Hex allowlist for cache ids (git URL/ref live in gitutil).
+var reHexHash = regexp.MustCompile(`^[a-fA-F0-9]{16,128}$`)
 
 // SafeJoinUnder joins elem under root and rejects path escape (CodeQL path-injection barrier).
 func SafeJoinUnder(root string, elem ...string) (string, error) {
@@ -36,9 +33,6 @@ func SafeJoinUnder(root string, elem ...string) (string, error) {
 		if filepath.IsAbs(e) {
 			return "", fmt.Errorf("hunt: absolute path segment rejected: %s", e)
 		}
-		if e == ".." || strings.Contains(e, ".."+string(os.PathSeparator)) || strings.HasPrefix(e, ".."+string(os.PathSeparator)) {
-			// still allow Clean to resolve, Rel check is authoritative
-		}
 		parts = append(parts, e)
 	}
 	joined := absRoot
@@ -53,10 +47,26 @@ func SafeJoinUnder(root string, elem ...string) (string, error) {
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", fmt.Errorf("hunt: path escapes root: %s", joined)
 	}
-	return joined, nil
+	// Rebuild from trusted root (do not return Abs of user-controlled path).
+	if rel == "." {
+		return absRoot, nil
+	}
+	out := filepath.Join(absRoot, rel)
+	if !pathUnderRoot(absRoot, out) {
+		return "", fmt.Errorf("hunt: path escapes root: %s", out)
+	}
+	return out, nil
 }
 
-// MustUnderRoot returns cleaned abs if path is inside root.
+func pathUnderRoot(absRoot, absPath string) bool {
+	if absPath == absRoot {
+		return true
+	}
+	sep := string(os.PathSeparator)
+	return strings.HasPrefix(absPath, absRoot+sep)
+}
+
+// MustUnderRoot returns a path rebuilt under root if path is inside root.
 func MustUnderRoot(root, path string) (string, error) {
 	root = strings.TrimSpace(root)
 	path = strings.TrimSpace(path)
@@ -78,40 +88,56 @@ func MustUnderRoot(root, path string) (string, error) {
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", fmt.Errorf("hunt: path escapes root: %s", absPath)
 	}
-	return absPath, nil
+	if rel == "." {
+		return absRoot, nil
+	}
+	out := filepath.Join(absRoot, rel)
+	if !pathUnderRoot(absRoot, out) {
+		return "", fmt.Errorf("hunt: path escapes root: %s", out)
+	}
+	return out, nil
+}
+
+// SafeReadFileUnder reads a file only after confining path under root (CodeQL path-injection barrier).
+func SafeReadFileUnder(root, path string) ([]byte, error) {
+	abs, err := confineUnderRoot(root, path)
+	if err != nil {
+		return nil, err
+	}
+	return os.ReadFile(abs)
+}
+
+// SafeStatUnder stats a path only after confining it under root.
+func SafeStatUnder(root, path string) (os.FileInfo, error) {
+	abs, err := confineUnderRoot(root, path)
+	if err != nil {
+		return nil, err
+	}
+	return os.Stat(abs)
+}
+
+// confineUnderRoot joins relative paths under root; absolute paths must already be under root.
+func confineUnderRoot(root, path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", errors.New("hunt: empty path")
+	}
+	if filepath.IsAbs(path) {
+		return MustUnderRoot(root, path)
+	}
+	return SafeJoinUnder(root, path)
 }
 
 // ValidateGitURL rejects non-https / non-git@ SSH URLs and shell metacharacters.
-func ValidateGitURL(gitURL string) error {
-	gitURL = strings.TrimSpace(gitURL)
-	if gitURL == "" {
-		return errors.New("hunt: empty git_url")
-	}
-	if strings.ContainsAny(gitURL, " \t\n\r;|&$`\\\"'") {
-		return errors.New("hunt: git_url contains forbidden characters")
-	}
-	if reGitHTTPS.MatchString(gitURL) || reGitSSH.MatchString(gitURL) {
-		return nil
-	}
-	return errors.New("hunt: git_url must be https://… or git@host:path.git")
+// Returns the allowlisted URL string for use at exec argv sinks (CodeQL barrier).
+func ValidateGitURL(gitURL string) (string, error) {
+	return gitutil.SanitizeURL(gitURL)
 }
 
 // ValidateGitRef allows only safe refnames (no leading dash / shell meta).
-func ValidateGitRef(ref string) error {
-	ref = strings.TrimSpace(ref)
-	if ref == "" {
-		return errors.New("hunt: empty git ref")
-	}
-	if strings.HasPrefix(ref, "-") {
-		return errors.New("hunt: git ref must not start with -")
-	}
-	if strings.ContainsAny(ref, " \t\n\r;|&$`\\\"'") {
-		return errors.New("hunt: git ref contains forbidden characters")
-	}
-	if !reGitRef.MatchString(ref) {
-		return errors.New("hunt: git ref rejected")
-	}
-	return nil
+// Returns the allowlisted ref for use at exec argv sinks (CodeQL barrier).
+func ValidateGitRef(ref string) (string, error) {
+	return gitutil.SanitizeRef(ref)
 }
 
 // ValidateHexHash requires a hex harness/cache id.

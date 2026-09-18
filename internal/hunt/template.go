@@ -2,7 +2,6 @@ package hunt
 
 import (
 	"fmt"
-	"os"
 	"strings"
 )
 
@@ -38,7 +37,7 @@ func PreviewTemplate(repoRoot, pinPath, sourceRel string) (*TemplatePreview, err
 	if err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(src)
+	b, err := SafeReadFileUnder(pinPath, src)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +66,7 @@ func resolveSourceFile(repoRoot, pinPath, sourceRel string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	st, err := os.Stat(abs)
+	st, err := SafeStatUnder(pinPath, abs)
 	if err != nil {
 		return "", err
 	}

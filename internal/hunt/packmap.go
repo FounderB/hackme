@@ -5,8 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"os"
-
 	"hackme/internal/fuzzingcli"
 )
 
@@ -174,11 +172,7 @@ func inventoryContentSample(root, rel string) string {
 	if root == "" || rel == "" {
 		return inventoryMarker
 	}
-	path, err := SafeJoinUnder(root, rel)
-	if err != nil {
-		return inventoryMarker
-	}
-	b, err := os.ReadFile(path)
+	b, err := SafeReadFileUnder(root, rel)
 	if err != nil {
 		return inventoryMarker
 	}

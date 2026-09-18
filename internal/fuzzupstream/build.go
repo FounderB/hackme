@@ -284,6 +284,15 @@ func extractDuktapeRelease(clonePath, version string) error {
 }
 
 func cloneRepo(ctx context.Context, repo, ref, dest string) error {
+	var err error
+	repo, err = gitutil.SanitizeURL(repo)
+	if err != nil {
+		return err
+	}
+	ref, err = gitutil.SanitizeRef(ref)
+	if err != nil {
+		return err
+	}
 	if _, err := os.Stat(filepath.Join(dest, ".git")); err == nil {
 		return checkoutCloneRef(ctx, dest, ref)
 	}
@@ -311,6 +320,11 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 	if ref == "" {
 		return nil
 	}
+	var err error
+	ref, err = gitutil.SanitizeRef(ref)
+	if err != nil {
+		return err
+	}
 	checkCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
 	refs := []string{ref}
@@ -320,6 +334,10 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 		refs = append(refs, "master")
 	}
 	for _, r := range refs {
+		r, err := gitutil.SanitizeRef(r)
+		if err != nil {
+			continue
+		}
 		fetch := exec.CommandContext(checkCtx, "git", "-C", dest, "fetch", "--depth", "1", "origin", r)
 		gitutil.IsolateCmd(fetch)
 		_ = fetch.Run()
