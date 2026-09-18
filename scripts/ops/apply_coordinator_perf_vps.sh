@@ -59,6 +59,13 @@ if [[ -f "\$COORD_UNIT" ]]; then
     sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_POOL_TICK_SEC=10' "\$COORD_UNIT" || true
   sudo grep -q 'HACKME_COORDINATOR_PEER_FLUSH_SEC' "\$COORD_UNIT" || \
     sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_COORDINATOR_PEER_FLUSH_SEC=5' "\$COORD_UNIT" || true
+  # Below GPU per-worker floor (120): global>=120 forced lim>=120 and pegged the VPS core.
+  if [[ -f "\$DEPLOY/.env.coord" ]]; then
+    sudo sed -i 's/^HACKME_COORDINATOR_CLAIM_PER_MIN=.*/HACKME_COORDINATOR_CLAIM_PER_MIN=90/' "\$DEPLOY/.env.coord" || true
+    sudo sed -i 's/^HACKME_COORDINATOR_SUBMIT_PER_MIN=.*/HACKME_COORDINATOR_SUBMIT_PER_MIN=480/' "\$DEPLOY/.env.coord" || true
+    grep -q '^HACKME_COORDINATOR_CLAIM_PER_MIN=' "\$DEPLOY/.env.coord" || echo 'HACKME_COORDINATOR_CLAIM_PER_MIN=90' | sudo tee -a "\$DEPLOY/.env.coord" >/dev/null
+    grep -q '^HACKME_COORDINATOR_SUBMIT_PER_MIN=' "\$DEPLOY/.env.coord" || echo 'HACKME_COORDINATOR_SUBMIT_PER_MIN=480' | sudo tee -a "\$DEPLOY/.env.coord" >/dev/null
+  fi
   sudo systemctl daemon-reload
 fi
 sudo cp /tmp/hackme-worker-settlement.service /etc/systemd/system/hackme-worker-settlement.service
