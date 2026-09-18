@@ -44,6 +44,20 @@ Coin VPS Y   — same pattern
 
 Miners keep one pool URL; routing is internal.
 
+## Memory / OOM hardening (2026-09)
+
+Coordinator SQLite page cache for large DBs is charged to the unit cgroup. On the ~3.7 GiB origin box:
+
+| Control | Value | Where |
+|---------|-------|-------|
+| Swapfile | **2 GiB** at `/swapfile` (fstab entry) | host |
+| `MemoryHigh` | `2.2G` | unit + `/etc/systemd/system/hackme-coordinator.service.d/memory.conf` |
+| `MemoryMax` | `3.0G` | same |
+
+Without swap, a healthy Go heap (~200 MiB) plus mapped DB pages repeatedly hit memcg OOM under `MemoryMax=2G`. Swap is the primary stabilizer; the raised cgroup cap avoids artificial kills when the kernel would otherwise reclaim.
+
+Revert swap: `swapoff /swapfile && rm -f /swapfile` and remove the `/swapfile` line from `/etc/fstab`.
+
 ## Ops checks
 
 ```bash

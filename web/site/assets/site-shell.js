@@ -101,14 +101,38 @@
     `;
   }
 
-  function placeNavMoreMenu(details) {
+  function navMoreMenu(details) {
+    if (details._navMoreMenu) return details._navMoreMenu;
     const menu = details.querySelector(".nav-more-menu");
+    if (menu) details._navMoreMenu = menu;
+    return menu;
+  }
+
+  function restoreNavMoreMenu(details) {
+    const menu = details._navMoreMenu || details.querySelector(".nav-more-menu");
+    if (!menu) return;
+    if (menu.parentElement !== details) details.appendChild(menu);
+    menu.style.left = "";
+    menu.style.top = "";
+    menu.style.right = "";
+    menu.style.maxWidth = "";
+  }
+
+  function placeNavMoreMenu(details) {
+    const menu = navMoreMenu(details);
     const summary = details.querySelector("summary");
-    if (!menu || !summary || !details.open) return;
+    if (!menu || !summary) return;
+    if (!details.open) {
+      restoreNavMoreMenu(details);
+      return;
+    }
+    // Portal to <body> so sibling stacking (LIVE ticker) cannot cover the panel.
+    if (menu.parentElement !== document.body) {
+      document.body.appendChild(menu);
+    }
     const pad = 12;
     const gap = 6;
     const rect = summary.getBoundingClientRect();
-    // Measure with temporary visibility if needed
     const prevVis = menu.style.visibility;
     menu.style.visibility = "hidden";
     menu.style.left = "0";
@@ -117,7 +141,6 @@
     const mw = Math.min(menu.offsetWidth || 176, window.innerWidth - pad * 2);
     const mh = menu.offsetHeight || 0;
     menu.style.visibility = prevVis || "";
-    // Prefer align to summary right edge; clamp fully into viewport
     let left = rect.right - mw;
     left = Math.max(pad, Math.min(left, window.innerWidth - pad - mw));
     let top = rect.bottom + gap;
@@ -135,11 +158,13 @@
     document.querySelectorAll(".nav-more").forEach((details) => {
       if (details.dataset.navWired === "1") return;
       details.dataset.navWired = "1";
+      const menu = () => navMoreMenu(details);
       const reposition = () => placeNavMoreMenu(details);
       details.addEventListener("toggle", () => {
         if (details.open) {
-          // rAF: layout after open
           requestAnimationFrame(reposition);
+        } else {
+          restoreNavMoreMenu(details);
         }
       });
       window.addEventListener("resize", () => {
@@ -155,7 +180,8 @@
       document.addEventListener("click", (ev) => {
         if (!details.open) return;
         const t = ev.target;
-        if (t instanceof Node && details.contains(t)) return;
+        const m = menu();
+        if (t instanceof Node && (details.contains(t) || (m && m.contains(t)))) return;
         details.open = false;
       });
       document.addEventListener("keydown", (ev) => {
@@ -174,7 +200,7 @@
     ).join("");
   }
 
-  const TICKER_CACHE = "20260914glass1";
+  const TICKER_CACHE = "20260916more3";
 
   function ensureDisclosureTickerStyles() {
     if (document.querySelector('link[data-disclosure-ticker-css="1"]')) return;

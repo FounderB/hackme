@@ -154,6 +154,23 @@ if ($RigProfile -match '^amd_rx580') {
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllLines($envPath, $lines, $utf8NoBom)
 
+# Lock down wallet/miner seeds (NTFS ACL). Open ACLs + Go Mode.Perm 0666 used to brick Start Worker.
+$dataDir = Join-Path -Path $dir -ChildPath "data"
+if (-not (Test-Path -LiteralPath $dataDir)) {
+    New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+}
+foreach ($seedName in @("node_ed25519.seed", "miner_submit_ed25519_seed.hex")) {
+    $seedPath = Join-Path -Path $dataDir -ChildPath $seedName
+    if (-not (Test-Path -LiteralPath $seedPath)) { continue }
+    try {
+        icacls $seedPath /inheritance:r | Out-Null
+        icacls $seedPath /grant:r "${env:USERNAME}:(R,W)" | Out-Null
+        icacls $seedPath /grant:r "SYSTEM:(F)" | Out-Null
+    } catch {
+        Write-Host "WARN: could not tighten ACL on $seedPath"
+    }
+}
+
 Write-Host "OK: $envPath"
 Write-Host "Admin token (dashboard): $admin"
 Write-Host "Pool token: configured ($($poolToken.Length) chars)"

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 const seedFile = "node_ed25519.seed"
@@ -19,8 +20,34 @@ type Signer struct {
 	pub  ed25519.PublicKey
 }
 
-// ReadSeedFile reads a seed file after rejecting symlinks and group/other-readable modes (H52).
-// Same policy as operator openSecretFile (H51).
+// ensureSeedFileMode tightens seed files to 0600 when group/other bits are set.
+// Common after zip/deb extract, Windows NTFS (reports 0666), Docker volume copy, or umask.
+// Returns the refreshed FileInfo after a successful repair, or an error if still too open.
+func ensureSeedFileMode(path string, fi os.FileInfo) (os.FileInfo, error) {
+	perm := fi.Mode().Perm()
+	if perm&0o077 == 0 {
+		return fi, nil
+	}
+	// Best-effort repair (owner can chmod own file on Unix; Windows Chmod is limited).
+	_ = os.Chmod(path, 0o600)
+	fi2, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	perm2 := fi2.Mode().Perm()
+	if perm2&0o077 == 0 {
+		return fi2, nil
+	}
+	// Windows FileMode.Perm() typically stays 0666 even after Chmod — ACLs gate access.
+	// Do not block mining/wallet on that artifact; refuse only on Unix where bits are real.
+	if runtime.GOOS == "windows" {
+		return fi2, nil
+	}
+	return nil, fmt.Errorf("nodecrypto: seed file permissions too open (%04o; need 0600): %s", perm2, path)
+}
+
+// ReadSeedFile reads a seed file after rejecting symlinks and repairing group/other-readable modes (H52).
+// Same policy as operator openSecretFile (H51), plus auto-chmod 0600 so installers do not brick mining.
 func ReadSeedFile(path string) ([]byte, error) {
 	fi, err := os.Lstat(path)
 	if err != nil {
@@ -32,8 +59,8 @@ func ReadSeedFile(path string) ([]byte, error) {
 	if !fi.Mode().IsRegular() {
 		return nil, fmt.Errorf("nodecrypto: seed file is not a regular file: %s", path)
 	}
-	if perm := fi.Mode().Perm(); perm&0o077 != 0 {
-		return nil, fmt.Errorf("nodecrypto: seed file permissions too open (%04o; need 0600): %s", perm, path)
+	if _, err := ensureSeedFileMode(path, fi); err != nil {
+		return nil, err
 	}
 	return os.ReadFile(path)
 }
@@ -43,9 +70,10 @@ func LoadOrCreate(dataDir string) (*Signer, error) {
 	if dataDir == "" {
 		return nil, errors.New("nodecrypto: empty dataDir")
 	}
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, err
 	}
+	_ = os.Chmod(dataDir, 0o700)
 	path := filepath.Join(dataDir, seedFile)
 	seed, err := ReadSeedFile(path)
 	if err != nil {
@@ -59,6 +87,7 @@ func LoadOrCreate(dataDir string) (*Signer, error) {
 		if err := os.WriteFile(path, []byte(hex.EncodeToString(s)), 0o600); err != nil {
 			return nil, err
 		}
+		_ = os.Chmod(path, 0o600)
 		seed = []byte(hex.EncodeToString(s))
 	}
 	raw := make([]byte, ed25519.SeedSize)

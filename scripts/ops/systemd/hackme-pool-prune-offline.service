@@ -8,7 +8,9 @@ Type=oneshot
 User=hackme
 WorkingDirectory=/opt/hackme
 Environment=NODE_SSH=
-Environment=COORD_URL=https://hackme.tech/pool/coordinator
+# Admin prune must hit loopback; public nginx returns 403 for /api/work/admin/*
+Environment=COORD_URL=http://127.0.0.1:18081
+EnvironmentFile=-/opt/hackme/.env.coord
 Environment=STALE_SEC=1800
 Environment=MAX_PAYOUT_HMC=2
 ExecStart=/bin/bash /opt/hackme/scripts/ops/prune_offline_pool_workers_gate.sh

@@ -206,3 +206,30 @@ web/site/assets/social/
 # Local social drafts (never commit)
 docs/ops/*_SOCIAL.md
 docs/ops/*SOCIAL*.md
+
+# Local obscure Hunt ops + private disclosure (never push)
+scripts/ops/run_oss_cve_obscure*.sh
+logs/oss-obscure*
+logs/*obscure*
+reports/oss-cve/hold-*/
+reports/oss-cve/obscure-loop-*/
+**/01_EMAIL.txt
+**/02_GITHUB_ISSUE.md
+**/03_PUBLIC_AFTER_FIX.md
+**/poc_input_*.bin
+**/asan_stack_example*.txt
+**/README_HOLD.txt
+
+# Local obscure wave drivers (private R&D — do not push until reviewed)
+tasks/sources/fuzz/oss/sjh_stdin.c
+tasks/sources/fuzz/oss/xchange_stdin.c
+tasks/sources/fuzz/oss/cjsonx_stdin.c
+tasks/sources/fuzz/oss/gpslib_stdin.c
+tasks/sources/fuzz/oss/jes_stdin.c
+tasks/sources/fuzz/oss/okjson_stdin.c
+tasks/sources/fuzz/oss/csfm_stdin.c
+tasks/sources/fuzz/oss/microjson_stdin.c
+tasks/sources/fuzz/oss/diffstorm_stdin.c
+tasks/sources/fuzz/oss/csonh_stdin.c
+tasks/sources/fuzz/oss/supernovas_stdin.c
+tasks/sources/fuzz/oss/redisx_stdin.c

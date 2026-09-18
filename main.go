@@ -853,6 +853,7 @@ func minerSubmitSeedHexForDataDir(dataDir string) (string, error) {
 	if err := os.WriteFile(p, []byte(h+"\n"), 0o600); err != nil {
 		return "", err
 	}
+	_ = os.Chmod(p, 0o600)
 	log.Printf("miner submit signing: created %s (treat like wallet seed; backup offline)", p)
 	return h, nil
 }
@@ -918,10 +919,33 @@ func resolveWorkerPohBin(repoRoot, name string) string {
 	)
 }
 
-// resolveWorkerRepoRoot finds the checkout root that contains scripts/ops/worker_loop.sh.
+func repoRootLooksLikeWorkerTree(root string) bool {
+	if root == "" || root == "." {
+		return false
+	}
+	if resolveWorkerAutostartScript(root) != "" {
+		return true
+	}
+	if firstExistingFile(
+		filepath.Join(root, "scripts", "ops", "worker_loop.sh"),
+		filepath.Join(root, "worker_loop.sh"),
+	) != "" {
+		return true
+	}
+	// Deb/apt layout may ship binaries without scripts (fallback path spawns workerpoh directly).
+	for _, name := range []string{"workerpoh", "workerpoh-cuda", "workerpoh-opencl", "workerpoh-cpu", "hackme"} {
+		if resolveWorkerPohBin(root, name) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveWorkerRepoRoot finds the checkout root that contains scripts/ops/worker_loop.sh
+// (or flat release binaries next to hackme).
 // dataDir's parent is wrong when the binary lives under logs/desktop/ and uses ./data next to it.
 func resolveWorkerRepoRoot(dataDir string) string {
-	candidates := make([]string, 0, 6)
+	candidates := make([]string, 0, 8)
 	if d := strings.TrimSpace(dataDir); d != "" {
 		candidates = append(candidates, filepath.Clean(filepath.Join(d, "..")))
 	}
@@ -933,26 +957,22 @@ func resolveWorkerRepoRoot(dataDir string) string {
 	if exe, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exe)
 		candidates = append(candidates,
-			filepath.Clean(filepath.Join(dir, "..", "..")),
-			filepath.Clean(filepath.Join(dir, "..")),
 			dir,
+			filepath.Clean(filepath.Join(dir, "..")),
+			filepath.Clean(filepath.Join(dir, "..", "..")),
 		)
 	}
+	if v := strings.TrimSpace(os.Getenv("HACKME_REPO_ROOT")); v != "" {
+		candidates = append([]string{v}, candidates...)
+	}
 	for _, root := range candidates {
-		if root == "" || root == "." {
+		if !repoRootLooksLikeWorkerTree(root) {
 			continue
 		}
-		script := firstExistingFile(
-			filepath.Join(root, "scripts", "ops", "worker_loop.sh"),
-			filepath.Join(root, "scripts", "ops", "worker_autostart.sh"),
-			filepath.Join(root, "worker_autostart.sh"),
-		)
-		if script != "" {
-			if abs, err := filepath.Abs(root); err == nil {
-				return abs
-			}
-			return root
+		if abs, err := filepath.Abs(root); err == nil {
+			return abs
 		}
+		return root
 	}
 	if d := strings.TrimSpace(dataDir); d != "" {
 		return filepath.Clean(filepath.Join(d, ".."))
@@ -2672,26 +2692,96 @@ func (a *app) handleWorkerStart(w http.ResponseWriter, r *http.Request) {
 				filepath.Join(repoRoot, "worker_loop.sh"),
 			)
 		}
-		if workerScript == "" {
-			_ = f.Close()
-			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"ok":    false,
-				"code":  "worker_script_missing",
-				"error": "worker script not found under " + repoRoot + " (run fix_miner_layout.sh or reinstall linux bundle)",
-			})
-			return
+		if workerScript != "" {
+			workerEnv = append(workerEnv,
+				"COORD_TOKEN="+coordToken,
+				"HACKME_REPO_ROOT="+repoRoot,
+			)
+			if seedHex, err := minerSubmitSeedHexForDataDir(strings.TrimSpace(a.dataDir)); err == nil && seedHex != "" {
+				workerEnv = append(workerEnv, "HACKME_MINER_ED25519_SEED_HEX="+seedHex)
+			}
+			cmd = exec.Command("bash", workerScript)
+			cmd.Dir = repoRoot
+		} else {
+			// Parity with Windows: spawn workerpoh directly when release tree has no shell wrapper
+			// (older deb packages, minimal installs).
+			linBackend := gpuBackend
+			if linBackend == "" || strings.EqualFold(linBackend, "auto") {
+				if v := resolveAutoGPUBackend(repoRoot); v != "" {
+					linBackend = v
+				} else {
+					linBackend = "cpu"
+				}
+			}
+			var wp string
+			switch {
+			case strings.EqualFold(linBackend, "cuda"):
+				wp = firstExistingFile(
+					resolveWorkerPohBin(repoRoot, "workerpoh-cuda"),
+					resolveWorkerPohBin(repoRoot, "workerpoh"),
+					resolveWorkerPohBin(repoRoot, "workerpoh-opencl"),
+					resolveWorkerPohBin(repoRoot, "workerpoh-cpu"),
+				)
+			case strings.EqualFold(linBackend, "opencl"):
+				wp = firstExistingFile(
+					resolveWorkerPohBin(repoRoot, "workerpoh-opencl"),
+					resolveWorkerPohBin(repoRoot, "workerpoh"),
+					resolveWorkerPohBin(repoRoot, "workerpoh-cpu"),
+				)
+			case strings.EqualFold(linBackend, "cpu"):
+				wp = firstExistingFile(
+					resolveWorkerPohBin(repoRoot, "workerpoh-cpu"),
+					resolveWorkerPohBin(repoRoot, "workerpoh"),
+				)
+			default:
+				wp = firstExistingFile(
+					resolveWorkerPohBin(repoRoot, "workerpoh"),
+					resolveWorkerPohBin(repoRoot, "workerpoh-opencl"),
+					resolveWorkerPohBin(repoRoot, "workerpoh-cuda"),
+					resolveWorkerPohBin(repoRoot, "workerpoh-cpu"),
+				)
+			}
+			if wp == "" {
+				if exe, err := os.Executable(); err == nil {
+					exeDir := filepath.Dir(exe)
+					wp = firstExistingFile(
+						filepath.Join(exeDir, "bin", "workerpoh"),
+						filepath.Join(exeDir, "workerpoh"),
+						filepath.Join(exeDir, "bin", "workerpoh-opencl"),
+						filepath.Join(exeDir, "workerpoh-opencl"),
+						filepath.Join(exeDir, "bin", "workerpoh-cuda"),
+						filepath.Join(exeDir, "workerpoh-cuda"),
+						filepath.Join(exeDir, "bin", "workerpoh-cpu"),
+						filepath.Join(exeDir, "workerpoh-cpu"),
+					)
+				}
+			}
+			if wp == "" {
+				_ = f.Close()
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusPreconditionFailed)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"ok":    false,
+					"code":  "worker_script_missing",
+					"error": "worker script and workerpoh binary not found under " + repoRoot + " (reinstall linux bundle or apt package)",
+				})
+				return
+			}
+			wpArgs := []string{
+				"-coord", coordURL,
+				"-token", coordToken,
+				"-worker", workerID,
+				"-batch", strconv.FormatUint(batchSize, 10),
+			}
+			if !strings.EqualFold(linBackend, "cpu") && !strings.EqualFold(os.Getenv("HACKME_GPU_DISABLE"), "1") && !strings.EqualFold(linBackend, "auto") {
+				wpArgs = append(wpArgs, "-gpu-backend", linBackend)
+			}
+			if v := strings.TrimSpace(os.Getenv("HACKME_GPU_DEVICE")); v != "" {
+				wpArgs = append(wpArgs, "-gpu-device", v)
+			}
+			cmd = exec.Command(wp, wpArgs...)
+			cmd.Dir = repoRoot
 		}
-		workerEnv = append(workerEnv,
-			"COORD_TOKEN="+coordToken,
-			"HACKME_REPO_ROOT="+repoRoot,
-		)
-		if seedHex, err := minerSubmitSeedHexForDataDir(strings.TrimSpace(a.dataDir)); err == nil && seedHex != "" {
-			workerEnv = append(workerEnv, "HACKME_MINER_ED25519_SEED_HEX="+seedHex)
-		}
-		cmd = exec.Command("bash", workerScript)
-		cmd.Dir = repoRoot
 	}
 	cmd.Stdout = f
 	cmd.Stderr = f

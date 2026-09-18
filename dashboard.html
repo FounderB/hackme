@@ -2432,7 +2432,7 @@
 						<button type="button" id="btn-orders-refresh" class="text-[10px] px-3 py-1.5 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Refresh</button>
 					</div>
 					<div id="orders-market-banner" class="rounded-lg border border-neon/25 bg-neon/5 p-3 text-[11px] text-gray-300 leading-snug">
-						<strong class="text-neon">Read-only</strong> — save a <strong>developer token</strong> (header → Issue / Save) or <strong>admin token</strong> to run audits. Reports open on the <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz tab</a>.
+						<strong class="text-neon">Read-only</strong> — click <strong>Sync token</strong> (desktop) or save <strong>admin token</strong> to run Security audit / Hunt. Developer token alone is for PoH <code class="text-neon/70">/api/tasks</code> only. Reports: <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz tab</a>.
 					</div>
 					<div id="orders-wallet-gate" class="hidden rounded-lg border border-warn/35 bg-warn/5 p-3 text-[11px] text-warn/95 leading-snug"></div>
 					<div id="orders-balance-strip" class="orders-balance-strip hidden">
@@ -2662,8 +2662,8 @@
 				<!-- FUZZ CAMPAIGNS -->
 				<div id="panel-fuzz" data-coin-scope="hmc-only" class="tab-panel max-w-[1600px] mx-auto space-y-4">
 					<div id="fuzz-market-banner" class="rounded-lg border border-neon/25 bg-neon/5 p-3 text-[11px] text-gray-300 leading-snug">
-						<strong class="text-neon">Customer:</strong> run <strong>Security audit</strong> in <code class="text-neon/80">#orders</code> (admin or developer token) — report token saved here. Open <strong>fuzz_report_v2</strong> HTML with repro commands.
-						<strong class="text-warn">Operator:</strong> admin token for full fuzz ops (CSV, diff, housekeeping). Public L1 research: <a href="https://hackme.tech/reports/l1-crypto-stack-v3.html" class="text-neon/90 underline" target="_blank" rel="noopener">hackme.tech/reports/l1-crypto-stack-v3.html</a> (separate from token-gated campaigns).
+						<strong class="text-neon">Customer:</strong> run <strong>Security audit</strong> in <code class="text-neon/80">#orders</code> (desktop: Sync token / admin) — report token saved here. Open <strong>fuzz_report_v2</strong> HTML with repro commands.
+						<strong class="text-warn">Operator:</strong> admin token for full fuzz ops (CSV, diff, housekeeping). Developer token is PoH tasks only. Public L1 research: <a href="https://hackme.tech/reports/l1-crypto-stack-v3.html" class="text-neon/90 underline" target="_blank" rel="noopener">hackme.tech/reports/l1-crypto-stack-v3.html</a> (separate from token-gated campaigns).
 					</div>
 					<div id="fuzz-customer-only" class="hidden space-y-4">
 						<div class="flex flex-wrap items-center justify-between gap-2">
@@ -2692,6 +2692,7 @@
 									<button type="button" id="btn-fuzz-customer-report-json" class="text-[10px] px-3 py-1 rounded border border-white/20 text-gray-300 hover:bg-white/5 uppercase tracking-wider">JSON</button>
 									<button type="button" id="btn-fuzz-customer-proof" class="text-[10px] px-3 py-1 rounded border border-matrix/30 text-matrix hover:bg-matrix/10 uppercase tracking-wider">Proof bundle</button>
 								</div>
+								<p id="fuzz-customer-report-msg" class="text-[10px] text-warn/90 font-mono min-h-[1rem]"></p>
 							</div>
 							<div class="card card-glow rounded-lg p-4 border-neon/20">
 								<div id="fuzz-customer-report-preview" class="rounded-lg border border-neon/25 bg-black/40 p-3 text-[11px] text-gray-300 min-h-[120px]">Select a campaign row.</div>
@@ -5672,6 +5673,10 @@
 		function canCreateOrders() {
 			return adminTokenCurrent().length > 0 || developerTokenCurrent().length > 0;
 		}
+		/** Paid Security audit / Hunt escrow — admin only (matches requireAdminAuthStrict). */
+		function canCreatePaidAudits() {
+			return adminTokenCurrent().length > 0;
+		}
 		function saveDeveloperTokenFromInput() {
 			const input = $('developer-token-input');
 			if (!input) return;
@@ -6031,31 +6036,34 @@
 		function updateOrdersMarketUIMode() {
 			const admin = adminTokenCurrent().length > 0;
 			const canCreate = canCreateOrders();
+			const canAudit = canCreatePaidAudits();
 			document.querySelectorAll('.fuzz-operator-only').forEach((el) => {
 				el.classList.toggle('hidden', !admin);
 				el.setAttribute('aria-hidden', admin ? 'false' : 'true');
 			});
 			const marketBanner = $('orders-market-banner');
-			if (marketBanner) marketBanner.classList.toggle('hidden', canCreate);
+			if (marketBanner) marketBanner.classList.toggle('hidden', canAudit);
 			const fromCode = $('orders-from-code-block');
 			if (fromCode) fromCode.classList.toggle('hidden', !admin);
 			const subtitle = $('orders-panel-subtitle');
 			if (subtitle) {
-				subtitle.innerHTML = canCreate
+				subtitle.innerHTML = canAudit
 					? 'Recommended: <strong>Run full security audit</strong> (PoH order + pool fuzz + HTML report). Admin: PoH-only tools below.'
-					: 'Read-only — save <strong>developer</strong> or <strong>admin</strong> token in the header.';
+					: (canCreate
+						? 'Developer token OK for PoH tasks — <strong>Sync token</strong> (admin) required for Security audit / Hunt escrow.'
+						: 'Read-only — desktop: <strong>Sync token</strong>, or save admin in the header.');
 			}
 			const auditBlock = $('orders-security-audit');
-			if (auditBlock) auditBlock.classList.toggle('hidden', !canCreate);
+			if (auditBlock) auditBlock.classList.toggle('hidden', !canAudit);
 			const huntBlock = $('orders-hunt-campaign');
-			if (huntBlock) huntBlock.classList.toggle('hidden', !canCreate);
+			if (huntBlock) huntBlock.classList.toggle('hidden', !canAudit);
 			const pohWrap = $('orders-poh-advanced-wrap');
 			if (pohWrap) pohWrap.classList.toggle('hidden', !admin);
 			syncProToolsPanelVisibility();
 			const fuzzBanner = $('fuzz-market-banner');
 			const fuzzAdmin = $('fuzz-admin-only');
 			const fuzzCustomer = $('fuzz-customer-only');
-			const showCustomerFuzz = canCreate || loadCustomerFuzzCampaigns().length > 0;
+			const showCustomerFuzz = canAudit || loadCustomerFuzzCampaigns().length > 0;
 			if (fuzzBanner) fuzzBanner.classList.toggle('hidden', admin);
 			if (fuzzAdmin) fuzzAdmin.classList.toggle('hidden', !admin);
 			if (fuzzCustomer) fuzzCustomer.classList.toggle('hidden', !showCustomerFuzz || admin);
@@ -13706,8 +13714,10 @@
 		async function submitHuntCampaign() {
 			const msg = $('hunt-run-msg');
 			const box = $('hunt-run-result');
-			if (!canCreateOrders()) {
-				if (msg) msg.textContent = 'Save developer or admin token first.';
+			await ensureDesktopAdminToken(true);
+			updateOrdersMarketUIMode();
+			if (!canCreatePaidAudits()) {
+				if (msg) msg.textContent = 'Admin token required for Hunt escrow — click Sync token (desktop) or Save admin.';
 				return;
 			}
 			const mode = String(($('hunt-mode') && $('hunt-mode').value) || 'catalog');
@@ -13753,11 +13763,19 @@
 			if (msg) msg.textContent = 'Creating Hunt campaign (50/50 escrow)…';
 			if (box) box.classList.add('hidden');
 			try {
-				const r = await fetch('/api/hunt/campaigns', {
+				let r = await fetch('/api/hunt/campaigns', {
 					method: 'POST',
-					headers: Object.assign({ 'Content-Type': 'application/json' }, tasksAuthHeaders()),
+					headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
 					body: JSON.stringify(body),
 				});
+				if (r.status === 401) {
+					await ensureDesktopAdminToken(true);
+					r = await fetch('/api/hunt/campaigns', {
+						method: 'POST',
+						headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+						body: JSON.stringify(body),
+					});
+				}
 				const j = await r.json().catch(() => ({}));
 				if (!r.ok) {
 					const err = (j && (j.error || j.message)) || ('HTTP ' + r.status);
@@ -13783,8 +13801,10 @@
 			const msg = $('audit-run-msg');
 			const box = $('audit-run-result');
 			const logPre = $('audit-compile-log');
-			if (!canCreateOrders()) {
-				if (msg) msg.textContent = 'Save developer or admin token first.';
+			await ensureDesktopAdminToken(true);
+			updateOrdersMarketUIMode();
+			if (!canCreatePaidAudits()) {
+				if (msg) msg.textContent = 'Admin token required for Security audit — click Sync token (desktop) or Save admin.';
 				return;
 			}
 			const code = String(($('audit-code-input') && $('audit-code-input').value) || '').trim();
@@ -13821,11 +13841,19 @@
 					body.language = lang;
 					body.code = code;
 				}
-				const r = await fetch('/api/security-audit', {
+				let r = await fetch('/api/security-audit', {
 					method: 'POST',
-					headers: Object.assign({ 'Content-Type': 'application/json' }, tasksAuthHeaders()),
+					headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
 					body: JSON.stringify(body),
 				});
+				if (r.status === 401) {
+					await ensureDesktopAdminToken(true);
+					r = await fetch('/api/security-audit', {
+						method: 'POST',
+						headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+						body: JSON.stringify(body),
+					});
+				}
 				const j = await r.json().catch(() => ({}));
 				if (!r.ok) {
 					const err = (j && (j.error || j.message)) || ('HTTP ' + r.status);
@@ -13876,10 +13904,16 @@
 			if ($('btn-fuzz-customer-report-html')) {
 				$('btn-fuzz-customer-report-html').addEventListener('click', async () => {
 					const cid = selectedFuzzCustomerCampaignId;
-					if (!cid) return;
+					const hint = $('fuzz-customer-report-msg');
+					if (!cid) {
+						if (hint) hint.textContent = 'Select a campaign row first.';
+						logLine('[fuzz] report html: no campaign selected');
+						return;
+					}
 					try {
 						await openFuzzReportHTML(cid);
 					} catch (e) {
+						if (hint) hint.textContent = String(e && e.message ? e.message : e);
 						logLine('[fuzz] report html: ' + (e && e.message ? e.message : e));
 					}
 				});
@@ -13887,10 +13921,15 @@
 			if ($('btn-fuzz-customer-report-json')) {
 				$('btn-fuzz-customer-report-json').addEventListener('click', async () => {
 					const cid = selectedFuzzCustomerCampaignId;
-					if (!cid) return;
+					const hint = $('fuzz-customer-report-msg');
+					if (!cid) {
+						if (hint) hint.textContent = 'Select a campaign row first.';
+						return;
+					}
 					try {
 						await openAuthenticatedGET('/api/fuzz/campaigns/' + encodeURIComponent(cid) + '/report?limit=50&format=json', 'application/json', cid);
 					} catch (e) {
+						if (hint) hint.textContent = String(e && e.message ? e.message : e);
 						logLine('[fuzz] report json: ' + (e && e.message ? e.message : e));
 					}
 				});
@@ -13898,10 +13937,15 @@
 			if ($('btn-fuzz-customer-proof')) {
 				$('btn-fuzz-customer-proof').addEventListener('click', async () => {
 					const cid = selectedFuzzCustomerCampaignId;
-					if (!cid) return;
+					const hint = $('fuzz-customer-report-msg');
+					if (!cid) {
+						if (hint) hint.textContent = 'Select a campaign row first.';
+						return;
+					}
 					try {
 						await openAuthenticatedGET('/api/fuzz/campaigns/' + encodeURIComponent(cid) + '/proof-bundle', 'application/json', cid);
 					} catch (e) {
+						if (hint) hint.textContent = String(e && e.message ? e.message : e);
 						logLine('[fuzz] proof bundle: ' + (e && e.message ? e.message : e));
 					}
 				});
@@ -13920,7 +13964,10 @@
 			});
 			if ($('fuzz-hide-gate')) $('fuzz-hide-gate').addEventListener('change', () => { void refreshFuzzCampaigns(); });
 			if ($('btn-fuzz-create')) $('btn-fuzz-create').addEventListener('click', async () => {
-				if (!(await ensureFuzzAdminToken())) return;
+				if (!(await ensureFuzzAdminToken())) {
+					logLine('[fuzz] create blocked: admin token missing — Sync token or hard-refresh');
+					return;
+				}
 				const typ = String(($('fuzz-create-type') && $('fuzz-create-type').value) || 'fuzz');
 				const titleInp = $('fuzz-create-title');
 				const title = String((titleInp && titleInp.value) || '').trim();

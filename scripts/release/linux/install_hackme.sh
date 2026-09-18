@@ -69,13 +69,34 @@ if ! id -u "${SERVICE_USER}" >/dev/null 2>&1; then
 fi
 
 echo "[install] installing to ${INSTALL_DIR}"
-mkdir -p "${INSTALL_DIR}"
+mkdir -p "${INSTALL_DIR}/bin" "${INSTALL_DIR}/scripts/ops" "${INSTALL_DIR}/data" "${INSTALL_DIR}/logs"
 install -m 0755 "${PAYLOAD_DIR}/hackme" "${INSTALL_DIR}/hackme"
 install -m 0644 "${PAYLOAD_DIR}/README.md" "${INSTALL_DIR}/README.md" || true
+for b in workerpoh workerfuzz minersign fleetplan workerpoh-opencl workerpoh-cuda workerpoh-cpu; do
+  if [[ -f "${PAYLOAD_DIR}/${b}" ]]; then
+    install -m 0755 "${PAYLOAD_DIR}/${b}" "${INSTALL_DIR}/${b}"
+  fi
+  if [[ -f "${PAYLOAD_DIR}/bin/${b}" ]]; then
+    install -m 0755 "${PAYLOAD_DIR}/bin/${b}" "${INSTALL_DIR}/bin/${b}"
+  fi
+done
+[[ -d "${PAYLOAD_DIR}/bin" ]] && cp -a "${PAYLOAD_DIR}/bin/." "${INSTALL_DIR}/bin/" 2>/dev/null || true
+[[ -d "${PAYLOAD_DIR}/lib" ]] && cp -a "${PAYLOAD_DIR}/lib" "${INSTALL_DIR}/lib"
 for helper in update_hackme_miner.sh update_hackme_os_binaries.sh start_hackme_miner.sh stop_hackme_miner.sh \
-              install_menu_entry.sh setup_hackme_miner.sh; do
+              install_menu_entry.sh setup_hackme_miner.sh hackme_desktop_launch.sh \
+              detect_gpu_backend.sh fix_miner_layout.sh; do
   if [[ -f "${PAYLOAD_DIR}/${helper}" ]]; then
     install -m 0755 "${PAYLOAD_DIR}/${helper}" "${INSTALL_DIR}/${helper}"
+  fi
+done
+for op in worker_autostart.sh worker_loop.sh stop_pool_workers.sh resume_pool_mining.sh \
+          purge_stale_pool_workers.sh detect_gpu_backend.sh desktop_worker_reset.sh; do
+  if [[ -f "${PAYLOAD_DIR}/scripts/ops/${op}" ]]; then
+    install -m 0755 "${PAYLOAD_DIR}/scripts/ops/${op}" "${INSTALL_DIR}/scripts/ops/${op}"
+    install -m 0755 "${PAYLOAD_DIR}/scripts/ops/${op}" "${INSTALL_DIR}/${op}"
+  elif [[ -f "${PAYLOAD_DIR}/${op}" ]]; then
+    install -m 0755 "${PAYLOAD_DIR}/${op}" "${INSTALL_DIR}/${op}"
+    install -m 0755 "${PAYLOAD_DIR}/${op}" "${INSTALL_DIR}/scripts/ops/${op}"
   fi
 done
 if [[ -d "${PAYLOAD_DIR}/icons" ]]; then
@@ -87,12 +108,24 @@ for f in hackme.png hackme.desktop.template hackme-dashboard.desktop.template; d
 done
 
 if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
+  admin=""
+  if command -v openssl >/dev/null 2>&1; then
+    admin="$(openssl rand -hex 24)"
+  else
+    admin="$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
+  fi
   cat > "${INSTALL_DIR}/.env" <<EOF
 HACKME_BIND_ADDR=127.0.0.1:8080
 HACKME_REQUIRE_ADMIN_TOKEN=1
-# HACKME_ADMIN_TOKEN=change_me
+HACKME_ADMIN_TOKEN=${admin}
+HACKME_DESKTOP_MODE=1
+HACKME_WORKER_WATCHDOG=1
+WORKER_AUTOSTART=1
+HACKME_FUZZ_SETTLE_PULL=0
+HACKME_DATA_DIR=${INSTALL_DIR}/data
 EOF
   chmod 0600 "${INSTALL_DIR}/.env"
+  echo "[install] generated HACKME_ADMIN_TOKEN in ${INSTALL_DIR}/.env"
 fi
 
 # Branded application menu entry (HackMe logo)

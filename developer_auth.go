@@ -37,8 +37,10 @@ func developerRequestAuthed(r *http.Request) bool {
 }
 
 // requireDeveloperTasksAuth allows POST/GET /api/tasks with admin or developer token.
+// When HACKME_ADMIN_TOKEN is unset, do not fail-open (unlike adminRequestAuthed); require a
+// valid developer/integrator secret so misconfigured nodes are not anonymously writable.
 func requireDeveloperTasksAuth(w http.ResponseWriter, r *http.Request) bool {
-	if adminRequestAuthed(r) {
+	if adminAuthEnabled() && secretsEqualConstantTime(extractAdminSecret(r), adminTokenFromEnv()) {
 		return true
 	}
 	if !integratorSelfRegisterEnabled() && developerTokenFromEnv() == "" && (integratorStore == nil || integratorStore.ActiveCount() == 0) {

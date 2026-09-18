@@ -1602,6 +1602,19 @@ func (s *Service) CampaignProgress(ctx context.Context, campaignID string) (map[
 	displayStatus := status
 	if budgetRuns > 0 && runsDone >= budgetRuns && displayStatus == "running" {
 		displayStatus = "completed"
+		// Persist so list/marketplace stop treating budget-done campaigns as diggable.
+		// Display-only completed left coordinator status=running with stale summary
+		// runs_done=0 and resurrected "ETA warming up" zombies after node close.
+		now := time.Now().Unix()
+		summary["runs_done"] = runsDone
+		_, _ = s.DB.ExecContext(ctx,
+			`UPDATE fuzz_campaigns
+			 SET status='completed',
+			     summary_json=?,
+			     completed_at=CASE WHEN completed_at=0 THEN ? ELSE completed_at END
+			 WHERE id=? AND status='running'`,
+			marshalSummaryJSON(summary), now, campaignID)
+		completedAt = now
 	}
 	return map[string]any{
 		"ok":           true,

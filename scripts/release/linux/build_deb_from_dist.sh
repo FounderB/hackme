@@ -40,6 +40,7 @@ done
 [[ -d "${SRC}/lib" ]] && cp -a "${SRC}/lib" "${PKG}/opt/hackme/lib"
 for f in update_hackme_miner.sh update_hackme_os_binaries.sh start_hackme_miner.sh stop_hackme_miner.sh \
          setup_hackme_miner.sh install_hackme.sh install_menu_entry.sh hackme_desktop_launch.sh \
+         detect_gpu_backend.sh fix_miner_layout.sh \
          RELEASE_QUICKSTART.md README.md \
          hackme-node.service.template hackme.desktop.template hackme-dashboard.desktop.template; do
   if [[ -f "${SRC}/${f}" ]]; then
@@ -52,6 +53,24 @@ for f in update_hackme_miner.sh update_hackme_os_binaries.sh start_hackme_miner.
     install -m 0755 "${ROOT}/scripts/ops/${f}" "${PKG}/opt/hackme/${f}"
   fi
 done
+# Worker ops scripts — required for POST /api/worker/start on Linux (also nested under scripts/ops/).
+mkdir -p "${PKG}/opt/hackme/scripts/ops"
+for op in worker_autostart.sh worker_loop.sh stop_pool_workers.sh resume_pool_mining.sh \
+          purge_stale_pool_workers.sh detect_gpu_backend.sh desktop_worker_reset.sh; do
+  src_op=""
+  if [[ -f "${SRC}/scripts/ops/${op}" ]]; then
+    src_op="${SRC}/scripts/ops/${op}"
+  elif [[ -f "${SRC}/${op}" ]]; then
+    src_op="${SRC}/${op}"
+  elif [[ -f "${ROOT}/scripts/ops/${op}" ]]; then
+    src_op="${ROOT}/scripts/ops/${op}"
+  fi
+  if [[ -n "$src_op" ]]; then
+    install -m 0755 "$src_op" "${PKG}/opt/hackme/scripts/ops/${op}"
+    # Flat copy next to hackme for resolveWorkerAutostartScript fallbacks.
+    install -m 0755 "$src_op" "${PKG}/opt/hackme/${op}"
+  fi
+done
 [[ -f "${PKG}/opt/hackme/update_hackme_miner.sh" ]] || \
   install -m 0755 "${ROOT}/scripts/ops/update_hackme_miner.sh" "${PKG}/opt/hackme/update_hackme_miner.sh"
 [[ -f "${PKG}/opt/hackme/update_hackme_os_binaries.sh" ]] || \
@@ -61,6 +80,11 @@ done
 [[ -f "${PKG}/opt/hackme/hackme_desktop_launch.sh" ]] || \
   install -m 0755 "${ROOT}/scripts/release/linux/hackme_desktop_launch.sh" "${PKG}/opt/hackme/hackme_desktop_launch.sh"
 chmod 0755 "${PKG}/opt/hackme/hackme_desktop_launch.sh" 2>/dev/null || true
+# Fail closed: deb without worker_autostart cannot mine.
+if [[ ! -f "${PKG}/opt/hackme/worker_autostart.sh" && ! -f "${PKG}/opt/hackme/scripts/ops/worker_autostart.sh" ]]; then
+  echo "[deb] ERROR: worker_autostart.sh missing from package staging" >&2
+  exit 1
+fi
 
 # Icons (branded HackMe logo)
 ICON_SRC="${SRC}/icons"
@@ -140,8 +164,13 @@ mkdir -p /opt/hackme/data /opt/hackme/logs
 chmod 0755 /opt/hackme/hackme \
   /opt/hackme/update_hackme_miner.sh \
   /opt/hackme/start_hackme_miner.sh \
+  /opt/hackme/stop_hackme_miner.sh \
   /opt/hackme/hackme_desktop_launch.sh \
-  /opt/hackme/install_menu_entry.sh 2>/dev/null || true
+  /opt/hackme/install_menu_entry.sh \
+  /opt/hackme/worker_autostart.sh \
+  /opt/hackme/resume_pool_mining.sh \
+  /opt/hackme/scripts/ops/worker_autostart.sh \
+  /opt/hackme/scripts/ops/resume_pool_mining.sh 2>/dev/null || true
 # Refresh menu entries from packaged templates (idempotent)
 if [ -x /opt/hackme/install_menu_entry.sh ]; then
   INSTALL_DIR=/opt/hackme PAYLOAD_DIR=/opt/hackme \

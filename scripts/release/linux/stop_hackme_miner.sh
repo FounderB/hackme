@@ -34,4 +34,4 @@ if command -v fuser >/dev/null 2>&1; then
   fuser -k -TERM "${port}/tcp" >/dev/null 2>&1 || true
 fi
 
-echo "[stop-miner] OK — paused. Resume: bash start_hackme_miner.sh (after rm $LOG_DIR/mining_paused or resume_pool_mining.sh)"
+echo "[stop-miner] OK — paused. Resume: bash resume_pool_mining.sh && bash start_hackme_miner.sh"

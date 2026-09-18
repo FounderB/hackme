@@ -56,7 +56,6 @@ ops/desktop_verify_miner_address.sh
 ops/desktop_vps_settlement_note.sh
 ops/desktop_worker.env.example
 ops/dev_cleanup_orders_wallet.sh
-ops/docker_e2e_smoke.sh
 ops/domain_https_up.sh
 ops/dual_vps_cutover.sh
 ops/enable_vps_canary_mining.sh
@@ -178,7 +177,6 @@ ops/repro_oss_hold_disclosure.sh
 ops/reseed_follower_pick_best_backup.sh
 ops/restart_linux_desktop_worker.sh
 ops/restore_db.sh
-ops/resume_pool_mining.sh
 ops/resync_pool_fuzz_campaigns.sh
 ops/revoke_pool_abuser.sh
 ops/rollout_coordinator_worker_token.sh

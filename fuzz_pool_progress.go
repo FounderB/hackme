@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"hackme/internal/poolfuzz"
 )
 
 type coordinatorPoolCampaign struct {
@@ -151,6 +153,34 @@ func (a *app) mergeCoordinatorPoolMarketplace(ctx context.Context, items []map[s
 		if strings.EqualFold(strings.TrimSpace(st), "cancelled") {
 			continue
 		}
+		id := strings.TrimSpace(fmt.Sprint(item["id"]))
+		runsDone := intFromAny(item["runs_done"])
+		budgetRuns := intFromAny(item["budget_runs"])
+		escrow, _ := item["escrow_status"].(string)
+		// Prefer live progress so budget-exhausted coordinator rows with stale
+		// summary runs_done=0 do not resurrect as diggable zombies.
+		if id != "" {
+			if rc, ok := a.fetchCoordinatorPoolCampaignProgress(ctx, id); ok {
+				if rc.RunsDone > runsDone {
+					runsDone = rc.RunsDone
+					item["runs_done"] = rc.RunsDone
+				}
+				if st2 := strings.TrimSpace(rc.Status); st2 != "" {
+					item["status"] = st2
+					st = st2
+				}
+				if rc.BudgetRuns > 0 {
+					budgetRuns = rc.BudgetRuns
+					item["budget_runs"] = rc.BudgetRuns
+				}
+			}
+		}
+		if strings.EqualFold(strings.TrimSpace(st), "completed") || strings.EqualFold(strings.TrimSpace(st), "cancelled") {
+			continue
+		}
+		if !poolfuzz.IsActivelyDiggable(st, escrow, runsDone, budgetRuns) {
+			continue
+		}
 		filtered = append(filtered, item)
 	}
 	return filtered
@@ -188,7 +218,11 @@ func (a *app) mergeCoordinatorPoolMarketplaceWithRemote(ctx context.Context, ite
 			if rd := rc.RunsDone; rc.BudgetRuns > 0 && rd >= rc.BudgetRuns {
 				item["status"] = "completed"
 			}
-			if id != "" && rc.RunsDone > 0 {
+			// Persist coordinator terminal status / progress onto the node DB so
+			// marketplace does not keep serving local "running" zombies.
+			if id != "" && (rc.RunsDone > 0 ||
+				strings.EqualFold(strings.TrimSpace(rc.Status), "completed") ||
+				strings.EqualFold(strings.TrimSpace(rc.Status), "cancelled")) {
 				go func(cid string) {
 					syncCtx, syncCancel := context.WithTimeout(context.Background(), 8*time.Second)
 					_ = a.syncPoolCampaignProgressFromCoordinator(syncCtx, cid)
@@ -207,7 +241,14 @@ func (a *app) mergeCoordinatorPoolMarketplaceWithRemote(ctx context.Context, ite
 
 func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campaignID string) error {
 	rc, ok := a.fetchCoordinatorPoolCampaignProgress(ctx, campaignID)
-	if !ok || rc.RunsDone <= 0 {
+	if !ok {
+		return nil
+	}
+	remoteStatus := strings.TrimSpace(strings.ToLower(rc.Status))
+	// Always honor terminal coordinator status — even when runs_done is 0 (cancelled /
+	// never-started zombies). Previously RunsDone<=0 returned early and left the node
+	// marketplace showing "running / ETA warming up" forever with closed escrow.
+	if rc.RunsDone <= 0 && remoteStatus != "completed" && remoteStatus != "cancelled" {
 		return nil
 	}
 	var summaryJSON, status string
@@ -223,35 +264,43 @@ func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campa
 	}
 	summary := parseMapJSON(summaryJSON)
 	cur := intFromAny(summary["runs_done"])
-	if rc.RunsDone <= cur {
-		return nil
+	changed := false
+	if rc.RunsDone > cur {
+		summary["runs_done"] = rc.RunsDone
+		changed = true
 	}
-	summary["runs_done"] = rc.RunsDone
 	if rc.Findings > 0 {
 		summary["unique_crashes"] = rc.Findings
+		changed = true
 	}
-	summary["pool_workers"] = true
-	summary["heartbeat_at"] = time.Now().Unix()
 	nextStatus := strings.TrimSpace(strings.ToLower(status))
 	if budgetRuns > 0 && rc.RunsDone >= budgetRuns {
 		nextStatus = "completed"
-	} else if st := strings.TrimSpace(strings.ToLower(rc.Status)); st == "completed" {
-		nextStatus = "completed"
+	} else if remoteStatus == "completed" || remoteStatus == "cancelled" {
+		nextStatus = remoteStatus
 	}
+	if nextStatus != strings.TrimSpace(strings.ToLower(status)) {
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	summary["pool_workers"] = true
+	summary["heartbeat_at"] = time.Now().Unix()
 	completedAt := int64(0)
-	if nextStatus == "completed" {
+	if nextStatus == "completed" || nextStatus == "cancelled" {
 		completedAt = time.Now().Unix()
 	}
 	_, err = a.db.ExecContext(ctx,
 		`UPDATE fuzz_campaigns
-		 SET status=?, summary_json=?, completed_at=CASE WHEN ?='completed' AND completed_at=0 THEN ? ELSE completed_at END
+		 SET status=?, summary_json=?, completed_at=CASE WHEN ? IN ('completed','cancelled') AND completed_at=0 THEN ? ELSE completed_at END
 		 WHERE id=?`,
 		nextStatus, marshalMapJSON(summary), nextStatus, completedAt, campaignID)
 	if err != nil {
 		return err
 	}
-	if nextStatus == "completed" {
-		a.tryCloseFuzzEscrowForStatus(ctx, campaignID, "completed")
+	if nextStatus == "completed" || nextStatus == "cancelled" {
+		a.tryCloseFuzzEscrowForStatus(ctx, campaignID, nextStatus)
 	}
 	return nil
 }

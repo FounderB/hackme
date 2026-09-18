@@ -1249,10 +1249,10 @@ h4 { font-size: 1.02rem; }
 }
 .nav-more summary::-webkit-details-marker { display: none; }
 .nav-more[open] summary { color: var(--text); }
-/* Fixed + JS clamp keeps the panel inside the viewport (was clipping off the right edge). */
+/* Fixed + body portal (site-shell) + clamp — above LIVE ticker / any sibling stack. */
 .nav-more-menu {
   position: fixed;
-  z-index: 80;
+  z-index: 200;
   min-width: 11.5rem;
   max-width: min(18rem, calc(100vw - 1.5rem));
   max-height: min(70vh, 28rem);
@@ -1977,8 +1977,16 @@ h4 { font-size: 1.02rem; }
   opacity: 0.55;
 }
 .page-home > .bg-glow { z-index: 0; }
-.page-home > .topbar,
-.page-home > .disclosure-ticker,
+/* Topbar must sit above the short LIVE ticker — equal z-index let the
+   ticker (later in DOM) cover the fixed .nav-more-menu. */
+.page-home > .topbar {
+  position: relative;
+  z-index: 50;
+}
+.page-home > .disclosure-ticker {
+  position: relative;
+  z-index: 5;
+}
 .page-home > .container,
 .page-home > .footer {
   position: relative;

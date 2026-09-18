@@ -16,7 +16,10 @@ ExecStart=/opt/hackme/coordinator
 Restart=always
 RestartSec=2
 LimitNOFILE=65535
-MemoryMax=2G
+# Page cache for large coordinator*.db is charged to this cgroup. MemoryMax=2G
+# OOM-killed a healthy ~200MB Go heap under submit load; reclaim before hard kill.
+MemoryHigh=2.2G
+MemoryMax=3.0G
 
 [Install]
 WantedBy=multi-user.target

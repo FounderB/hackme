@@ -97,6 +97,8 @@ HACKME_CANONICAL_CHAIN_URL=https://hackme.tech
 HACKME_DATA_DIR=${DATA_DIR}
 HACKME_WORKING_DIR=${STATE_DIR}
 HACKME_WORKER_WATCHDOG=1
+WORKER_AUTOSTART=1
+HACKME_FUZZ_SETTLE_PULL=0
 HACKME_DESKTOP_GPU_POOL=1
 HACKME_POOL_DIRECT=1
 HACKME_POOL_DIRECT_URL=http://132.243.112.100:18083
@@ -109,6 +111,12 @@ EOF
     chmod 600 "${CONFIG_DIR}/pool.miner.token" 2>/dev/null || true
   fi
   chmod 600 "$ENV_FILE" 2>/dev/null || true
+  # Seed files must be 0600 (node refuses group/other-readable seeds → mining start fails).
+  chmod 700 "$DATA_DIR" 2>/dev/null || true
+  for f in "${DATA_DIR}/node_ed25519.seed" "${DATA_DIR}/miner_submit_ed25519_seed.hex"; do
+    [[ -f "$f" ]] || continue
+    chmod 600 "$f" 2>/dev/null || true
+  done
 }
 
 node_up() {

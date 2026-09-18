@@ -63,14 +63,114 @@ if [[ ! -f "$INSTALL_DIR/pool.miner.token" ]]; then
   fi
 fi
 
+# Starting the miner always clears pause + restores watchdog (stop_hackme_miner / stop_pool_workers set them).
+# Opt out: KEEP_MINING_PAUSED=1 bash start_hackme_miner.sh
+if [[ "${KEEP_MINING_PAUSED:-0}" != "1" ]]; then
+  if [[ -x "$INSTALL_DIR/scripts/ops/resume_pool_mining.sh" ]]; then
+    LOG_DIR="$LOG_DIR" ROOT_DIR="$INSTALL_DIR" ENV_FILE="$ENV_FILE" \
+      bash "$INSTALL_DIR/scripts/ops/resume_pool_mining.sh" >/dev/null || true
+  elif [[ -x "$INSTALL_DIR/resume_pool_mining.sh" ]]; then
+    LOG_DIR="$LOG_DIR" ROOT_DIR="$INSTALL_DIR" ENV_FILE="$ENV_FILE" \
+      bash "$INSTALL_DIR/resume_pool_mining.sh" >/dev/null || true
+  else
+    rm -f "$LOG_DIR/mining_paused" 2>/dev/null || true
+    if [[ -f "$ENV_FILE" ]]; then
+      for key in HACKME_WORKER_WATCHDOG WORKER_AUTOSTART; do
+        if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+          sed -i "s/^${key}=.*/${key}=1/" "$ENV_FILE"
+        else
+          echo "${key}=1" >>"$ENV_FILE"
+        fi
+      done
+    fi
+  fi
+fi
+
+# Repair empty/missing admin token (parity with Windows start_hackme_miner.bat).
+repair_admin_token() {
+  local admin=""
+  if [[ -f "$ENV_FILE" ]]; then
+    admin="$(grep -E '^HACKME_ADMIN_TOKEN=' "$ENV_FILE" | head -n1 | cut -d= -f2- | tr -d '\r' || true)"
+  fi
+  if [[ -n "$admin" ]]; then
+    return 0
+  fi
+  if command -v openssl >/dev/null 2>&1; then
+    admin="$(openssl rand -hex 24)"
+  else
+    admin="$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
+  fi
+  if grep -q '^HACKME_ADMIN_TOKEN=' "$ENV_FILE" 2>/dev/null; then
+    sed -i "s/^HACKME_ADMIN_TOKEN=.*/HACKME_ADMIN_TOKEN=${admin}/" "$ENV_FILE"
+  else
+    echo "HACKME_ADMIN_TOKEN=${admin}" >>"$ENV_FILE"
+  fi
+  echo "[miner] repaired empty HACKME_ADMIN_TOKEN in $ENV_FILE"
+}
+
+# Repair pool token from pool.miner.token when .env is empty/broken.
+repair_pool_token() {
+  local pool_file="$INSTALL_DIR/pool.miner.token"
+  [[ -f "$pool_file" ]] || return 0
+  local tok
+  tok="$(tr -d '\r\n' <"$pool_file")"
+  [[ -n "$tok" && "$tok" != "REPLACE_WITH_POOL_TOKEN" ]] || return 0
+  if grep -q '^HACKME_POOL_COORDINATOR_TOKEN=.\+' "$ENV_FILE" 2>/dev/null; then
+    return 0
+  fi
+  if grep -q '^HACKME_POOL_COORDINATOR_TOKEN=' "$ENV_FILE" 2>/dev/null; then
+    sed -i "s/^HACKME_POOL_COORDINATOR_TOKEN=.*/HACKME_POOL_COORDINATOR_TOKEN=${tok}/" "$ENV_FILE"
+  else
+    echo "HACKME_POOL_COORDINATOR_TOKEN=${tok}" >>"$ENV_FILE"
+  fi
+  echo "[miner] repaired HACKME_POOL_COORDINATOR_TOKEN from pool.miner.token"
+}
+
+# Ensure settle pull stays off for worker-token desktops.
+ensure_settle_pull_off() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  if grep -q '^HACKME_FUZZ_SETTLE_PULL=' "$ENV_FILE" 2>/dev/null; then
+    sed -i 's/^HACKME_FUZZ_SETTLE_PULL=.*/HACKME_FUZZ_SETTLE_PULL=0/' "$ENV_FILE"
+  else
+    echo 'HACKME_FUZZ_SETTLE_PULL=0' >>"$ENV_FILE"
+  fi
+}
+
+repair_admin_token
+repair_pool_token
+ensure_settle_pull_off
+
+# Tighten seed files after zip/tar extract (0644/0666 breaks hybrid mining: "permissions too open").
+repair_seed_perms() {
+  local d="${HACKME_DATA_DIR:-$INSTALL_DIR/data}"
+  mkdir -p "$d" 2>/dev/null || true
+  chmod 700 "$d" 2>/dev/null || true
+  for f in "$d/node_ed25519.seed" "$d/miner_submit_ed25519_seed.hex"; do
+    [[ -f "$f" ]] || continue
+    chmod 600 "$f" 2>/dev/null || true
+  done
+}
+repair_seed_perms
+
 set -a
 # shellcheck disable=SC1090
 . "$ENV_FILE"
 set +a
 
-if [[ -f "$LOG_DIR/mining_paused" ]]; then
-  echo "[miner] mining paused — run: bash stop_hackme_miner.sh (clear) or rm $LOG_DIR/mining_paused" >&2
-  echo "[miner] to resume: bash start_hackme_miner.sh after clearing pause" >&2
+# Force-enable after sourcing (stop may have left =0 in the file we already rewrote;
+# re-export so the running process sees 1 even if sed raced).
+export HACKME_WORKER_WATCHDOG="${HACKME_WORKER_WATCHDOG:-1}"
+if [[ "${HACKME_WORKER_WATCHDOG}" == "0" && "${KEEP_MINING_PAUSED:-0}" != "1" ]]; then
+  export HACKME_WORKER_WATCHDOG=1
+fi
+export WORKER_AUTOSTART="${WORKER_AUTOSTART:-1}"
+if [[ "${WORKER_AUTOSTART}" == "0" && "${KEEP_MINING_PAUSED:-0}" != "1" ]]; then
+  export WORKER_AUTOSTART=1
+fi
+export HACKME_FUZZ_SETTLE_PULL=0
+
+if [[ -f "$LOG_DIR/mining_paused" && "${KEEP_MINING_PAUSED:-0}" == "1" ]]; then
+  echo "[miner] mining paused (KEEP_MINING_PAUSED=1) — clear with: bash resume_pool_mining.sh" >&2
   exit 0
 fi
 
@@ -108,17 +208,29 @@ if [[ -f "$PID_FILE" ]]; then
 fi
 
 start_worker() {
-  local coord_url
+  local coord_url resp http_code
   coord_url="$(curl -fsS "$BASE_URL/api/status" 2>/dev/null | python3 -c '
 import json,sys
 d=json.load(sys.stdin)
 print((d.get("pool_coordinator_url_effective") or d.get("pool_coordinator_url") or "").strip())
 ' 2>/dev/null || true)"
   [[ -n "$coord_url" ]] || coord_url="https://hackme.tech/pool/coordinator"
-  curl -fsS -X POST "$BASE_URL/api/worker/start" \
+  if [[ -z "${HACKME_ADMIN_TOKEN:-}" ]]; then
+    echo "[miner] WARN: HACKME_ADMIN_TOKEN empty — cannot start workers" >&2
+    return 1
+  fi
+  resp="$(mktemp)"
+  http_code="$(curl -sS -o "$resp" -w '%{http_code}' -X POST "$BASE_URL/api/worker/start" \
     -H "Content-Type: application/json" \
     -H "X-Hackme-Admin-Token: ${HACKME_ADMIN_TOKEN}" \
-    -d "{\"coord_url\":\"${coord_url}\"}" >/dev/null 2>&1 || true
+    -d "{\"coord_url\":\"${coord_url}\"}" 2>/dev/null || echo "000")"
+  if [[ "$http_code" != "200" ]]; then
+    echo "[miner] WARN: worker/start HTTP ${http_code}: $(head -c 240 "$resp" 2>/dev/null || true)" >&2
+    rm -f "$resp"
+    return 1
+  fi
+  rm -f "$resp"
+  echo "[miner] workers started (coord=${coord_url})"
 }
 
 if [[ ! -f "$PID_FILE" ]]; then
@@ -140,7 +252,7 @@ if ! curl -fsS "$BASE_URL/api/status" >/dev/null 2>&1; then
   exit 1
 fi
 
-start_worker
+start_worker || true
 
 if command -v xdg-open >/dev/null 2>&1; then
   (sleep 2; xdg-open "$BASE_URL/#ecosystem" >/dev/null 2>&1 &) || true
@@ -150,7 +262,7 @@ echo ""
 echo "HackMe miner is running."
 echo "  Dashboard: $BASE_URL"
 echo "  Logs:      $NODE_LOG"
-echo "  Stop:      kill \$(cat $PID_FILE)"
+echo "  Stop:      bash stop_hackme_miner.sh"
 echo ""
 
 # Default: daemon mode — closing the terminal must not kill mining.

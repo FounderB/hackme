@@ -391,7 +391,8 @@ func postSecurityAudit(base, adminTok string, payload map[string]any) ([]byte, i
 	return postSecurityAuditAuth(base, payload)
 }
 
-// postSecurityAuditAuth tries node admin, loopback desktop admin, then developer token.
+// postSecurityAuditAuth tries node admin, then loopback desktop local-auth.
+// Developer/integrator tokens cannot create paid security-audit escrow (admin-strict API).
 func postSecurityAuditAuth(base string, payload map[string]any) ([]byte, int, error) {
 	body, _ := json.Marshal(payload)
 	path := "/api/security-audit"
@@ -415,10 +416,7 @@ func postSecurityAuditAuth(base string, payload map[string]any) ([]byte, int, er
 			}
 		}
 	}
-	if dev := resolveToken(""); dev != "" {
-		return apiDo(base, dev, http.MethodPost, path, body)
-	}
-	return nil, 0, fmt.Errorf("authentication required: set HACKME_ADMIN_TOKEN, use desktop node on loopback, or run: hackme-fuzzing register --save")
+	return nil, 0, fmt.Errorf("authentication required: set HACKME_ADMIN_TOKEN or use a desktop node on loopback (GET /api/desktop/local-auth)")
 }
 
 func fetchLoopbackAdminToken(base string) string {

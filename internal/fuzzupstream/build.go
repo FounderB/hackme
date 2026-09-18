@@ -186,6 +186,29 @@ func injectOSSCveBuildStubs(repoRoot, targetID, clonePath string) error {
 	case "expat":
 		src := filepath.Join(repoRoot, "tasks", "sources", "fuzz", "oss", "expat_config.h")
 		return copyStub(src, filepath.Join(clonePath, "expat", "lib", "expat_config.h"))
+	case "redisx":
+		// RESP parse harness needs Sigmyne/xchange (headers + sources) vendored into the clone.
+		xchangeClone := filepath.Join(repoRoot, ".cache", "oss-cve-clones", "xchange")
+		if _, err := os.Stat(filepath.Join(xchangeClone, ".git")); err != nil {
+			if err := cloneRepo(context.Background(), "https://github.com/Sigmyne/xchange", "main", xchangeClone); err != nil {
+				return fmt.Errorf("redisx: ensure xchange clone: %w", err)
+			}
+		}
+		depDir := filepath.Join(clonePath, "deps", "xchange")
+		if err := os.MkdirAll(depDir, 0o755); err != nil {
+			return err
+		}
+		for _, name := range []string{"xchange.h", "xjson.h", "xmutex.h"} {
+			if err := copyStub(filepath.Join(xchangeClone, "include", name), filepath.Join(depDir, name)); err != nil {
+				return err
+			}
+		}
+		for _, name := range []string{"xchange.c", "xjson.c", "xlookup.c", "xstruct.c"} {
+			if err := copyStub(filepath.Join(xchangeClone, "src", name), filepath.Join(depDir, name)); err != nil {
+				return err
+			}
+		}
+		return nil
 	default:
 		return nil
 	}

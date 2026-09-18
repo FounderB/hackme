@@ -55,6 +55,16 @@ func (s *Service) ListPublicCampaigns(ctx context.Context, limit int) ([]map[str
 		summary := parseConfigJSON(summaryJSON)
 		// Marketplace list must stay cheap: trust summary / escrow, not live COUNT(*).
 		runsDone := intFromJSON(summary["runs_done"])
+		// Stale summary_json (runs_done stuck at 0 while work is done) is how
+		// coordinator "running" zombies reappear as ETA warming up after node close.
+		if runsDone == 0 && strings.EqualFold(strings.TrimSpace(status), "running") && budgetRuns > 0 {
+			var live int
+			_ = s.DB.QueryRowContext(listCtx,
+				`SELECT COUNT(*) FROM fuzz_work_items WHERE campaign_id=? AND status='done'`, id).Scan(&live)
+			if live > 0 {
+				runsDone = live
+			}
+		}
 		findings := intFromJSON(summary["unique_crashes"])
 		if findings <= 0 {
 			findings = intFromJSON(summary["findings"])

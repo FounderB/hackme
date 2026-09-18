@@ -31,8 +31,18 @@ require_cmd() {
 require_cmd awk
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-LOG_DIR="${ROOT_DIR}/logs"
+# Flat release (/opt/hackme or linux/ tarball): script next to hackme/workerpoh.
+# Checkout: scripts/ops/worker_autostart.sh → repo root is ../..
+if [[ -n "${HACKME_REPO_ROOT:-}" && -d "${HACKME_REPO_ROOT}" ]]; then
+  ROOT_DIR="$(cd "${HACKME_REPO_ROOT}" && pwd)"
+elif [[ -x "${SCRIPT_DIR}/hackme" || -x "${SCRIPT_DIR}/bin/workerpoh" || -x "${SCRIPT_DIR}/workerpoh" || -x "${SCRIPT_DIR}/workerpoh-cpu" ]]; then
+  ROOT_DIR="$SCRIPT_DIR"
+elif [[ -x "${SCRIPT_DIR}/../hackme" || -x "${SCRIPT_DIR}/../bin/workerpoh" ]]; then
+  ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+else
+  ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+LOG_DIR="${LOG_DIR:-${ROOT_DIR}/logs}"
 mkdir -p "$LOG_DIR"
 
 LOCK_FILE="${LOG_DIR}/.worker_autostart.lock"

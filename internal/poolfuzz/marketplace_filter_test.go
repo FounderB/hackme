@@ -45,6 +45,9 @@ func TestIsActivelyDiggable(t *testing.T) {
 	if IsActivelyDiggable("running", "closed", 10, 100) {
 		t.Fatal("closed escrow must not be diggable")
 	}
+	if IsActivelyDiggable("running", "bounty_paid", 0, 32) {
+		t.Fatal("bounty_paid escrow must not look diggable (zombie ETA warming up)")
+	}
 	if IsActivelyDiggable("running", "", 100, 100) {
 		t.Fatal("budget exhausted must not be diggable")
 	}

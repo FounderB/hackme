@@ -35,15 +35,22 @@ services:
     command: ["/usr/local/bin/hackme"]
     environment:
       HACKME_WORKING_DIR: "/opt/hackme"
+      HACKME_DATA_DIR: "/data"
       HACKME_BIND_ADDR: "0.0.0.0:8080"
       HACKME_ADMIN_TOKEN: "${E2E_TOKEN:?set E2E_TOKEN}"
       HACKME_REQUIRE_ADMIN_TOKEN: "1"
+      HACKME_DESKTOP_MODE: "1"
+      HACKME_P2P_TOKEN: "${E2E_TOKEN:?set E2E_TOKEN}"
+      HACKME_RIG_PROFILE_AUTO: "0"
       HACKME_POOL_COORDINATOR_URL: "http://coordinator:8081"
       HACKME_POOL_COORDINATOR_TOKEN: "${E2E_TOKEN:?set E2E_TOKEN}"
       HACKME_FUZZ_AUTORUN: "0"
+      HACKME_GPU_DISABLE: "1"
       HACKME_MINER_CPU_PCT: "${HACKME_MINER_CPU_PCT:-70}"
       # Docker service hostname is not 127.0.0.1 but must not force hybrid minersign in lab.
       HACKME_WORKER_SIGN_SUBMITS: "0"
+      HACKME_WORKER_WATCHDOG: "0"
+      WORKER_AUTOSTART: "0"
     volumes:
       - node_data:/data
     ports:

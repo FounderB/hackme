@@ -6,7 +6,16 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${ROOT_DIR:-${HACKME_ROOT:-$SCRIPT_DIR/../..}}" && pwd)"
+# Flat release: stop next to hackme; checkout: scripts/ops → ../..
+if [[ -n "${ROOT_DIR:-}" ]]; then
+  ROOT_DIR="$(cd "$ROOT_DIR" && pwd)"
+elif [[ -n "${HACKME_ROOT:-}" ]]; then
+  ROOT_DIR="$(cd "$HACKME_ROOT" && pwd)"
+elif [[ -x "${SCRIPT_DIR}/hackme" || -x "${SCRIPT_DIR}/bin/workerpoh" || -x "${SCRIPT_DIR}/workerpoh" ]]; then
+  ROOT_DIR="$SCRIPT_DIR"
+else
+  ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs}"
 DESKTOP_ENV_FILE="${DESKTOP_ENV_FILE:-$ROOT_DIR/.env.desktop}"
 ENV_FILE="${ENV_FILE:-$ROOT_DIR/.env}"
