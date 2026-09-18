@@ -79,38 +79,33 @@ run_coord_post "/api/fuzz/pool/campaigns/cleanup-stale?min_age_sec=1800" | jq -c
 log "POST repair-zombies limit=50"
 run_coord_post "/api/fuzz/pool/campaigns/repair-zombies?limit=50" | jq -c . || log "repair-zombies skipped (upgrade coordinator)"
 
-# Belt-and-suspenders SQL: reclaim expired leases, then cancel zero-done all-expired-lease zombies.
-if n="$(run_remote_sql "PRAGMA busy_timeout=60000; UPDATE fuzz_work_items SET status='pending', lease_owner='', lease_until=0, updated_at=strftime('%s','now') WHERE status='leased' AND lease_until>0 AND lease_until<strftime('%s','now'); SELECT changes();" 2>/dev/null)"; then
-  log "SQL reclaimed expired leases: ${n:-0}"
-fi
-if n="$(run_remote_sql "PRAGMA busy_timeout=60000;
-UPDATE fuzz_campaigns
-SET status='cancelled', completed_at=strftime('%s','now')
-WHERE status='running'
-  AND json_extract(config_json, '\$.pool_distributed') IN (1,'true','1')
-  AND (strftime('%s','now') - created_at) >= 3600
-  AND id IN (
-    SELECT c.id FROM fuzz_campaigns c
-    WHERE c.status='running'
-      AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='done'),0)=0
-      AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='pending'),0)=0
-      AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='leased'),0)>0
-      AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='leased' AND w.lease_until>=strftime('%s','now')),0)=0
-  );
-SELECT changes();" 2>/dev/null)"; then
-  log "SQL cancelled stuck expired-lease campaigns: ${n:-0}"
-fi
+# Belt-and-suspenders SQL: reclaim expired leases, cancel stuck expired-lease zombies,
+# purge open work on closed campaigns.
+run_sql_changes() {
+  local label="$1"
+  local sql="$2"
+  local out
+  if out="$(run_remote_sql "PRAGMA busy_timeout=60000; ${sql}" 2>/dev/null)"; then
+    # sqlite may print pragma echo lines; take the last integer token.
+    local n
+    n="$(printf '%s\n' "$out" | awk '/^[0-9]+$/ {v=$1} END{print v+0}')"
+    log "SQL ${label}: ${n}"
+  else
+    log "SQL ${label}: skipped"
+  fi
+}
 
-if n="$(run_remote_sql "UPDATE fuzz_work_items SET status='cancelled', updated_at=strftime('%s','now') WHERE status IN ('pending','leased','replay_pending') AND campaign_id IN (SELECT id FROM fuzz_campaigns WHERE status='cancelled'); SELECT changes();" 2>/dev/null)"; then
-  log "SQL cancelled pending items on cancelled campaigns: ${n:-0}"
-else
-  log "skip SQL purge (set NODE_SSH=${NODE_SSH:-} or readable COORD_SQL_DB=${COORD_DB})"
-fi
+run_sql_changes "reclaimed expired leases" \
+  "UPDATE fuzz_work_items SET status='pending', lease_owner='', lease_until=0, updated_at=strftime('%s','now') WHERE status='leased' AND lease_until>0 AND lease_until<strftime('%s','now'); SELECT changes();"
 
-if n="$(run_remote_sql "UPDATE fuzz_hunt_replay_queue SET status='failed', last_error='campaign cancelled', verifier_id='', updated_at=strftime('%s','now') WHERE status IN ('pending','processing') AND campaign_id IN (SELECT id FROM fuzz_campaigns WHERE status IN ('cancelled','completed')); SELECT changes();" 2>/dev/null)"; then
-  log "SQL failed replay jobs on closed campaigns: ${n:-0}"
-fi
-stats_url="${COORD_URL}/api/fuzz/pool/stats"
+run_sql_changes "cancelled stuck expired-lease campaigns" \
+  "UPDATE fuzz_campaigns SET status='cancelled', completed_at=strftime('%s','now') WHERE status='running' AND json_extract(config_json, '\$.pool_distributed') IN (1,'true','1') AND (strftime('%s','now') - created_at) >= 3600 AND id IN (SELECT c.id FROM fuzz_campaigns c WHERE c.status='running' AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='done'),0)=0 AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='pending'),0)=0 AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='leased'),0)>0 AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='leased' AND w.lease_until>=strftime('%s','now')),0)=0); SELECT changes();"
+
+run_sql_changes "cancelled open items on closed campaigns" \
+  "UPDATE fuzz_work_items SET status='cancelled', updated_at=strftime('%s','now') WHERE status IN ('pending','leased','replay_pending') AND campaign_id IN (SELECT id FROM fuzz_campaigns WHERE status IN ('cancelled','completed','paused')); SELECT changes();"
+
+run_sql_changes "failed replay jobs on closed campaigns" \
+  "UPDATE fuzz_hunt_replay_queue SET status='failed', last_error='campaign closed', verifier_id='', updated_at=strftime('%s','now') WHERE status IN ('pending','processing') AND campaign_id IN (SELECT id FROM fuzz_campaigns WHERE status IN ('cancelled','completed','paused')); SELECT changes();"stats_url="${COORD_URL}/api/fuzz/pool/stats"
 if [[ -n "${NODE_SSH:-}" ]]; then
   read -r pending running < <(ssh -o BatchMode=yes "$NODE_SSH" \
     "curl -fsS http://127.0.0.1:18081/api/fuzz/pool/stats | jq -r '[.work_pending,.campaigns_running]|@tsv'")
