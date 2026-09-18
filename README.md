@@ -11,7 +11,7 @@
 
 # HackMe Network
 
-### Useful Proof-of-Work · public GPU pool · Dig / Hunt · paper Exchange
+**Useful Proof-of-Work** · public GPU pool · B2B Dig/Hunt fuzz · paper Exchange · research ledgers
 
 Hashrate settles on-chain. Security work is escrowed, distributed, and reported — not a slide deck.
 
@@ -19,26 +19,18 @@ Hashrate settles on-chain. Security work is escrowed, distributed, and reported 
 
 [![Release](https://img.shields.io/badge/release-0.1.0--rc17_LIVE-00d1ff?style=for-the-badge)](https://hackme.tech/downloads.html)
 [![Pool](https://img.shields.io/badge/pool-LIVE-39ff14?style=for-the-badge)](https://hackme.tech/pool/coordinator/api/pool/stats)
-[![CI](https://github.com/jokeez/hackme/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jokeez/hackme/actions/workflows/ci.yml)
+[![CI](https://github.com/jokeez/hackme/actions/workflows/ci.yml/badge.svg)](https://github.com/jokeez/hackme/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-7fe7ff?style=for-the-badge)](LICENSE)
-[![YouTube](https://img.shields.io/badge/YouTube-@HackmeTech-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/@HackmeTech)
 
 <br/>
 
-<a href="https://www.youtube.com/watch?v=KdRr6zK2QVE">
-  <img src="https://img.youtube.com/vi/KdRr6zK2QVE/maxresdefault.jpg" alt="HackMe — watch on YouTube" width="860" />
-</a>
-
-<br/>
-
-**▶ [Watch the walkthrough](https://www.youtube.com/watch?v=KdRr6zK2QVE)** · install · mine · pool · what HackMe is
-
-<br/>
-
-| | | | |
-|:--:|:--:|:--:|:--:|
-| **[⬇ Downloads](https://hackme.tech/downloads.html)** | **[⚡ Quick start](docs/QUICK_START.md)** | **[⛏ Mine](docs/SETUP.md)** | **[🔬 Dig · Hunt](https://hackme.tech/developers.html)** |
-| **[📈 Exchange](https://exchange.hackme.tech/)** | **[🧪 Research](https://hackme.tech/research.html)** | **[📖 Docs](docs/INDEX.md)** | **[🌐 hackme.tech](https://hackme.tech)** |
+**[Downloads](https://hackme.tech/downloads.html)** ·
+**[Quick start](docs/QUICK_START.md)** ·
+**[Mine](docs/SETUP.md)** ·
+**[Fuzz / Dig · Hunt](https://hackme.tech/developers.html)** ·
+**[Exchange](https://exchange.hackme.tech/)** ·
+**[Research](https://hackme.tech/research.html)** ·
+**[Docs](docs/INDEX.md)**
 
 </div>
 
@@ -235,11 +227,9 @@ Docs map: [docs/INDEX.md](docs/INDEX.md) · API: [docs/API.md](docs/API.md) · A
 
 <br/>
 
-[![YouTube](https://img.shields.io/badge/YouTube-@HackmeTech-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=KdRr6zK2QVE)
-[![Telegram](https://img.shields.io/badge/Telegram-@hackme__tech-26A5E4?style=for-the-badge&logo=telegram)](https://t.me/hackme_tech)
-[![Site](https://img.shields.io/badge/hackme.tech-00d1ff?style=for-the-badge)](https://hackme.tech)
-[![Bitcointalk](https://img.shields.io/badge/Bitcointalk-ANN-f7931a?style=for-the-badge)](https://bitcointalk.org/index.php?topic=5583373.0)
-[![GitHub](https://img.shields.io/badge/GitHub-jokeez%2Fhackme-181717?style=for-the-badge&logo=github)](https://github.com/jokeez/hackme)
+[![Telegram](https://img.shields.io/badge/Telegram-@hackme__tech-26A5E4?style=flat-square&logo=telegram)](https://t.me/hackme_tech)
+[![Bitcointalk](https://img.shields.io/badge/Bitcointalk-ANN-f7931a?style=flat-square)](https://bitcointalk.org/index.php?topic=5583373.0)
+[![GitHub](https://img.shields.io/badge/GitHub-jokeez%2Fhackme-181717?style=flat-square&logo=github)](https://github.com/jokeez/hackme)
 
 <br/>
 
