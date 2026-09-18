@@ -1,10 +1,11 @@
 [Unit]
-Description=Daily HackMe pool fuzz queue cleanup
+Description=HackMe pool fuzz queue cleanup (every 2h)
 
 [Timer]
-OnCalendar=*-*-* 04:15:00 UTC
+OnBootSec=15min
+OnUnitActiveSec=2h
 Persistent=true
-RandomizedDelaySec=300
+RandomizedDelaySec=180
 
 [Install]
 WantedBy=timers.target

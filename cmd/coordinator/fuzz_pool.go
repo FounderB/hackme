@@ -292,13 +292,22 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		stuck, err := pf.CancelStuckExpiredLeaseCampaigns(r.Context(), minAge, 100)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		repaired, err := pf.RepairZombiePoolCampaigns(r.Context(), 50)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		if _, err := pf.ReclaimExpiredLeases(r.Context(), time.Now().Unix()); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "cancelled": n, "repaired": repaired})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "cancelled": n, "stuck_expired_leases": stuck, "repaired": repaired})
 	})
 
 	mux.HandleFunc("/api/fuzz/pool/campaigns/repair-zombies", func(w http.ResponseWriter, r *http.Request) {

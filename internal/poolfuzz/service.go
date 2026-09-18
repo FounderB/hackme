@@ -38,6 +38,9 @@ type Service struct {
 	emptyClaimUntil time.Time
 
 	tickRR atomic.Uint64 // round-robin cursor for Tick campaign batches
+
+	// staleSweepN counts Tick calls; every Nth tick cancels zero-progress / expired-lease zombies.
+	staleSweepN atomic.Uint64
 }
 
 type Campaign struct {
@@ -346,6 +349,7 @@ func (s *Service) CancelInternalGateCampaigns(ctx context.Context, limit int) (i
 }
 
 // CancelZeroProgressPoolCampaigns stops pool campaigns that never completed a run.
+// Uses DB done-count (not only summary_json) so stale summaries cannot keep zombies alive.
 func (s *Service) CancelZeroProgressPoolCampaigns(ctx context.Context, minAgeSec int64, limit int) (int, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 200
@@ -355,7 +359,8 @@ func (s *Service) CancelZeroProgressPoolCampaigns(ctx context.Context, minAgeSec
 		minAgeSec = 3600
 	}
 	rows, err := s.DB.QueryContext(ctx,
-		`SELECT c.id, c.title, c.owner_ref, c.config_json, c.summary_json, c.created_at
+		`SELECT c.id, c.title, c.owner_ref, c.config_json, c.summary_json, c.created_at,
+		        COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='done'),0) AS done_n
 		 FROM fuzz_campaigns c
 		 WHERE c.status IN ('planned','running')
 		   AND json_extract(c.config_json, '$.pool_distributed') IN (1, 'true', '1')
@@ -370,13 +375,13 @@ func (s *Service) CancelZeroProgressPoolCampaigns(ctx context.Context, minAgeSec
 	for rows.Next() {
 		var id, title, ownerRef, cfgJSON, summaryJSON string
 		var createdAt int64
-		if err := rows.Scan(&id, &title, &ownerRef, &cfgJSON, &summaryJSON, &createdAt); err != nil {
+		var doneN int
+		if err := rows.Scan(&id, &title, &ownerRef, &cfgJSON, &summaryJSON, &createdAt, &doneN); err != nil {
 			return n, err
 		}
-		cfg := parseConfigJSON(cfgJSON)
 		summary := parseConfigJSON(summaryJSON)
 		runsDone := intFromJSON(summary["runs_done"])
-		if runsDone > 0 {
+		if doneN > 0 || runsDone > 0 {
 			continue
 		}
 		if err := s.SetCampaignStatus(ctx, id, "cancelled"); err != nil {
@@ -386,10 +391,77 @@ func (s *Service) CancelZeroProgressPoolCampaigns(ctx context.Context, minAgeSec
 		if n >= limit {
 			break
 		}
-		_ = cfg
+		_ = title
 		_ = ownerRef
+		_ = cfgJSON
+		_ = createdAt
 	}
 	return n, rows.Err()
+}
+
+// CancelStuckExpiredLeaseCampaigns cancels running pool campaigns whose entire queue is
+// expired leases with zero done work (workers vanished; Tick would otherwise spin forever).
+func (s *Service) CancelStuckExpiredLeaseCampaigns(ctx context.Context, minAgeSec int64, limit int) (int, error) {
+	if s == nil || s.DB == nil {
+		return 0, fmt.Errorf("poolfuzz: no database")
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	now := time.Now().Unix()
+	if minAgeSec < 60 {
+		minAgeSec = 3600
+	}
+	rows, err := s.DB.QueryContext(ctx,
+		`SELECT c.id FROM fuzz_campaigns c
+		 WHERE c.status='running'
+		   AND json_extract(c.config_json, '$.pool_distributed') IN (1, 'true', '1')
+		   AND (? - c.created_at) >= ?
+		   AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='done'),0)=0
+		   AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='pending'),0)=0
+		   AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='leased'),0)>0
+		   AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='leased' AND w.lease_until>=?),0)=0
+		 ORDER BY c.created_at ASC
+		 LIMIT ?`, now, minAgeSec, now, limit)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return n, err
+		}
+		if err := s.SetCampaignStatus(ctx, id, "cancelled"); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, rows.Err()
+}
+
+// ReclaimExpiredLeases returns expired leased items to pending (Tick / health fix).
+func (s *Service) ReclaimExpiredLeases(ctx context.Context, now int64) (int64, error) {
+	if s == nil || s.DB == nil {
+		return 0, nil
+	}
+	if now <= 0 {
+		now = time.Now().Unix()
+	}
+	res, err := s.DB.ExecContext(ctx,
+		`UPDATE fuzz_work_items
+		 SET status='pending', lease_owner='', lease_until=0, updated_at=?
+		 WHERE status='leased' AND lease_until > 0 AND lease_until < ?`,
+		now, now)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	if n > 0 {
+		s.clearEmptyClaimCache()
+	}
+	return n, nil
 }
 
 // EnsureWorkItems tops up pending queue for active pool campaigns.
@@ -441,13 +513,26 @@ func (s *Service) EnsureWorkItems(ctx context.Context, campaignID string, now in
 // Batching EnsureWorkItems + progress avoids parking claim/submit behind full-fleet sweeps.
 func (s *Service) Tick(ctx context.Context) error {
 	const batch = 24
+	now := time.Now().Unix()
+	// Always reclaim expired leases first so vanished workers cannot pin campaigns forever.
+	if _, err := s.ReclaimExpiredLeases(ctx, now); err != nil {
+		return err
+	}
+	// Every ~12 ticks (~2 min at 10s): cancel zero-progress / all-expired-lease zombies.
+	if s.staleSweepN.Add(1)%12 == 0 {
+		if _, err := s.CancelStuckExpiredLeaseCampaigns(ctx, 3600, 50); err != nil {
+			return err
+		}
+		if _, err := s.CancelZeroProgressPoolCampaigns(ctx, 7200, 100); err != nil {
+			return err
+		}
+	}
 	rows, err := s.DB.QueryContext(ctx,
 		`SELECT id FROM fuzz_campaigns WHERE status IN ('planned','running') ORDER BY created_at ASC LIMIT 200`)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
-	now := time.Now().Unix()
 	if _, err := s.RepairZombiePoolCampaigns(ctx, 10); err != nil {
 		return err
 	}
