@@ -134,6 +134,40 @@ func TestReclaimExpiredLeases(t *testing.T) {
 	}
 }
 
+func TestReconcileCompletesBudgetDoneCampaign(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "co.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := &Service{DB: db}
+	ctx := context.Background()
+	now := time.Now().Unix()
+	cfg := fuzzengine.NormalizeCampaignConfig(map[string]any{
+		"pool_distributed": true,
+		"check_semantics":  "detector",
+		"wasm_check_hex":   "0061736d0100000001060160017e017f0302010007090105636865636b00000a0601040041010b",
+	}, "property")
+	id := "camp-budget-done"
+	if err := svc.RegisterCampaign(ctx, Campaign{
+		ID: id, CampaignType: "property", Title: "done budget", Status: "running",
+		BudgetRuns: 2, Config: cfg,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = db.ExecContext(ctx,
+		`UPDATE fuzz_work_items SET status='done', result_ok=1, updated_at=? WHERE campaign_id=?`, now, id)
+	if err := svc.reconcileActiveCampaignWork(ctx, id, now); err != nil {
+		t.Fatal(err)
+	}
+	var st string
+	_ = db.QueryRowContext(ctx, `SELECT status FROM fuzz_campaigns WHERE id=?`, id).Scan(&st)
+	if st != "completed" {
+		t.Fatalf("status=%s want completed", st)
+	}
+}
+
 func TestCancelHuntCampaignsMissingHarness(t *testing.T) {
 	dir := t.TempDir()
 	db, err := store.Open(filepath.Join(dir, "co.db"))

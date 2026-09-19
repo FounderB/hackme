@@ -188,7 +188,17 @@ func (s *Service) reconcileActiveCampaignWork(ctx context.Context, campaignID st
 	var doneCnt int
 	_ = s.DB.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM fuzz_work_items WHERE campaign_id=? AND status='done'`, campaignID).Scan(&doneCnt)
+	// Budget fully consumed with no claimable work → mark completed (Tick/repair path).
 	if budgetRuns > 0 && doneCnt >= budgetRuns {
+		var claimable int
+		_ = s.DB.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM fuzz_work_items
+			 WHERE campaign_id=?
+			   AND (status='pending' OR (status='leased' AND lease_until>=?))`,
+			campaignID, now).Scan(&claimable)
+		if claimable == 0 {
+			return s.SetCampaignStatus(ctx, campaignID, "completed")
+		}
 		return nil
 	}
 	if completedAt != 0 {
@@ -236,6 +246,11 @@ func (s *Service) RepairZombiePoolCampaigns(ctx context.Context, limit int) (int
 		     c.completed_at != 0
 		     OR (
 		       COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status IN ('pending','leased')),0) = 0
+		       AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='done'),0) >= c.budget_runs
+		       AND c.budget_runs > 0
+		     )
+		     OR (
+		       COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status IN ('pending','leased')),0) = 0
 		       AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='cancelled'),0) > 0
 		       AND COALESCE((SELECT COUNT(*) FROM fuzz_work_items w WHERE w.campaign_id=c.id AND w.status='done'),0) < c.budget_runs
 		     )
@@ -256,8 +271,12 @@ func (s *Service) RepairZombiePoolCampaigns(ctx context.Context, limit int) (int
 		if err := s.reconcileActiveCampaignWork(ctx, id, now); err != nil {
 			return n, err
 		}
-		if err := s.EnsureWorkItems(ctx, id, now); err != nil {
-			return n, err
+		var st string
+		_ = s.DB.QueryRowContext(ctx, `SELECT status FROM fuzz_campaigns WHERE id=?`, id).Scan(&st)
+		if strings.EqualFold(strings.TrimSpace(st), "running") || strings.EqualFold(strings.TrimSpace(st), "planned") {
+			if err := s.EnsureWorkItems(ctx, id, now); err != nil {
+				return n, err
+			}
 		}
 		n++
 	}
