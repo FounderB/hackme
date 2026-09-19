@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
+	"hackme/internal/hunt"
 	"hackme/internal/lanpool"
 	"hackme/internal/logsetup"
-	"hackme/internal/hunt"
 	"hackme/internal/poolfuzz"
 	"hackme/internal/store"
 )

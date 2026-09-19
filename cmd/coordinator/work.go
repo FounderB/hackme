@@ -57,7 +57,7 @@ type workManager struct {
 	acceptedSubmitNonces   map[string]struct{}
 	acceptedSignedPayloads map[string]struct{}
 	signedSubmitNonceMax   map[string]uint64
-	lastSignedMiner         string
+	lastSignedMiner        string
 	dedupDB                *sql.DB // optional durable dedup (issue #8 Phase 3)
 
 	issuedRanges     uint64
