@@ -1,6 +1,7 @@
 package hunt
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
 	"testing"
@@ -10,6 +11,8 @@ import (
 
 func TestHarnessArtifactRoundTrip(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("HACKME_HUNT_HARNESS_DIR", "")
+	SetHarnessObjectDir("")
 	db, err := store.Open(filepath.Join(dir, "hunt-artifact.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -32,6 +35,81 @@ func TestHarnessArtifactRoundTrip(t *testing.T) {
 	}
 	if ValidHarnessHash("ab/cd") || ValidHarnessHash("short") {
 		t.Fatal("invalid hashes accepted")
+	}
+}
+
+func TestHarnessObjectStoreRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	obj := filepath.Join(dir, "harness")
+	SetHarnessObjectDir(obj)
+	t.Cleanup(func() { SetHarnessObjectDir("") })
+	db, err := store.Open(filepath.Join(dir, "hunt-obj.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	data := bytes.Repeat([]byte{0x41}, 64*1024)
+	hash := "deadbeefcafe0011"
+	if err := PutHarnessArtifact(ctx, db, hash, data, "t.c"); err != nil {
+		t.Fatal(err)
+	}
+	if !HarnessObjectExists(obj, hash) {
+		t.Fatal("expected on-disk object")
+	}
+	var blobLen int
+	if err := db.QueryRow(`SELECT length(binary_blob) FROM hunt_harness_artifacts WHERE harness_hash=?`, hash).Scan(&blobLen); err != nil {
+		t.Fatal(err)
+	}
+	if blobLen != 0 {
+		t.Fatalf("sqlite blob should be empty, got %d", blobLen)
+	}
+	got, err := GetHarnessArtifact(ctx, db, hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, data) {
+		t.Fatal("disk roundtrip mismatch")
+	}
+	n, err := BackfillHarnessArtifactsToDisk(ctx, db, obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("already on disk; backfill want 0 got %d", n)
+	}
+}
+
+func TestHarnessBackfillClearsBlob(t *testing.T) {
+	dir := t.TempDir()
+	SetHarnessObjectDir("")
+	db, err := store.Open(filepath.Join(dir, "hunt-bf.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	data := []byte("ELF-BACKFILL-TEST")
+	hash := "aabbccddeeff0011"
+	// Insert legacy blob without object store.
+	if err := PutHarnessArtifact(ctx, db, hash, data, "x.c"); err != nil {
+		t.Fatal(err)
+	}
+	obj := filepath.Join(dir, "harness")
+	SetHarnessObjectDir(obj)
+	t.Cleanup(func() { SetHarnessObjectDir("") })
+	n, err := BackfillHarnessArtifactsToDisk(ctx, db, obj)
+	if err != nil || n != 1 {
+		t.Fatalf("backfill n=%d err=%v", n, err)
+	}
+	var blobLen int
+	_ = db.QueryRow(`SELECT length(binary_blob) FROM hunt_harness_artifacts WHERE harness_hash=?`, hash).Scan(&blobLen)
+	if blobLen != 0 {
+		t.Fatalf("blob not cleared: %d", blobLen)
+	}
+	got, err := GetHarnessArtifact(ctx, db, hash)
+	if err != nil || string(got) != string(data) {
+		t.Fatalf("get after backfill: %v len=%d", err, len(got))
 	}
 }
 
@@ -62,6 +140,8 @@ func TestSafeHarnessFetchURL(t *testing.T) {
 
 func TestPutHarnessArtifactRejectsOverwrite(t *testing.T) {
 	dir := t.TempDir()
+	SetHarnessObjectDir("")
+	t.Setenv("HACKME_HUNT_HARNESS_DIR", "")
 	db, err := store.Open(filepath.Join(dir, "hunt-ow.db"))
 	if err != nil {
 		t.Fatal(err)

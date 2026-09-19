@@ -18,6 +18,7 @@ import (
 
 	"hackme/internal/lanpool"
 	"hackme/internal/logsetup"
+	"hackme/internal/hunt"
 	"hackme/internal/poolfuzz"
 	"hackme/internal/store"
 )
@@ -73,6 +74,29 @@ func main() {
 		fuzzDBPathLog = fuzzDBPath
 	}
 	absFuzzDBPath := store.AbsDBPath(fuzzDBPathLog)
+
+	harnessDir := strings.TrimSpace(os.Getenv("HACKME_HUNT_HARNESS_DIR"))
+	if harnessDir == "" {
+		harnessDir = hunt.DefaultHarnessObjectDirBesideDB(absFuzzDBPath)
+	}
+	if harnessDir != "" {
+		hunt.SetHarnessObjectDir(harnessDir)
+		if err := os.MkdirAll(harnessDir, 0o755); err != nil {
+			log.Printf("hunt harness dir: %v", err)
+		} else if n, berr := hunt.BackfillHarnessArtifactsToDisk(context.Background(), fuzzDB, harnessDir); berr != nil {
+			log.Printf("hunt harness backfill: %v", berr)
+		} else if n > 0 {
+			log.Printf("hunt harness backfill: migrated %d blob(s) → %s", n, harnessDir)
+		}
+	}
+	corpusDir := strings.TrimSpace(os.Getenv("HACKME_POOL_CORPUS_DIR"))
+	if corpusDir == "" {
+		corpusDir = poolfuzz.DefaultCorpusObjectDirBesideDB(absFuzzDBPath)
+	}
+	if corpusDir != "" {
+		poolfuzz.SetCorpusObjectDir(corpusDir)
+		_ = os.MkdirAll(corpusDir, 0o755)
+	}
 
 	startCoordWALMaint := func(label, absPath string, handle *sql.DB) {
 		if err := store.SetWALAutocheckpoint(handle, 500); err != nil {
@@ -133,6 +157,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	wm := newWorkManagerFromEnv()
+	wm.attachDedupDB(db)
 	wm.initPersistentPermaban()
 	mux.HandleFunc("/api/network/stats", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

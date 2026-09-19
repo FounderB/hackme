@@ -49,6 +49,9 @@ func (s *Service) loadPoolCorpusSeeds(ctx context.Context, campaignID string, ma
 		}
 		r.Input = uint64(inputSigned)
 		r.Crash = crash != 0
+		if hydrated, herr := readCorpusObject(r.InputBytes); herr == nil {
+			r.InputBytes = hydrated
+		}
 		if len(r.InputBytes) > 0 {
 			r.InputBytes = fuzzengine.CompactCorpusSeed(r.InputBytes, 0)
 		}
@@ -114,6 +117,11 @@ func (s *Service) upsertPoolCorpusSeed(ctx context.Context, campaignID string, i
 	}
 	if inputBytes == nil {
 		inputBytes = []byte{}
+	}
+	if len(inputBytes) >= corpusObjMinBytes {
+		if marker, err := writeCorpusObject("seed", sha256Hex(inputBytes), inputBytes); err == nil {
+			inputBytes = marker
+		}
 	}
 	_, err := s.DB.ExecContext(ctx,
 		`INSERT INTO fuzz_pool_corpus
@@ -211,6 +219,9 @@ func (s *Service) loadAllPoolCorpusSeeds(ctx context.Context, campaignID string)
 		var inputSigned int64
 		if err := rows.Scan(&inputSigned, &r.InputBytes, &r.Energy, &r.Edge, &r.Path, &crash); err != nil {
 			return nil, err
+		}
+		if hydrated, herr := readCorpusObject(r.InputBytes); herr == nil {
+			r.InputBytes = hydrated
 		}
 		out = append(out, fuzzengine.PoolCorpusSeed{
 			Input: uint64(inputSigned), InputBytes: append([]byte(nil), r.InputBytes...),
@@ -344,6 +355,11 @@ func (s *Service) storeExpectedInputs(ctx context.Context, campaignID string, it
 	if inputB == nil {
 		inputB = []byte{}
 	}
+	if len(inputB) >= corpusObjMinBytes {
+		if marker, err := writeCorpusObject("expected", sha256Hex(inputB), inputB); err == nil {
+			inputB = marker
+		}
+	}
 	_, err := s.DB.ExecContext(ctx,
 		`UPDATE fuzz_work_items
 		    SET expected_input_u64=?, expected_input_bytes=?, expected_input_locked=1, updated_at=?
@@ -365,6 +381,9 @@ func (s *Service) loadExpectedInputs(ctx context.Context, campaignID string, ite
 	if err != nil {
 		return 0, nil, false, err
 	}
+	if hydrated, herr := readCorpusObject(inputB); herr == nil {
+		inputB = hydrated
+	}
 	return uint64(u), inputB, lockedInt != 0, nil
 }
 
@@ -376,11 +395,17 @@ func (s *Service) storeCorpusSnapshot(ctx context.Context, campaignID string, it
 	if err != nil {
 		return err
 	}
+	storeBytes := jsonBytes
+	if len(jsonBytes) >= corpusObjMinBytes {
+		if marker, werr := writeCorpusObject("snapshot", sha, jsonBytes); werr == nil {
+			storeBytes = marker
+		}
+	}
 	_, err = s.DB.ExecContext(ctx,
 		`UPDATE fuzz_work_items
 		    SET corpus_snapshot_json=?, corpus_snapshot_sha256=?, updated_at=?
 		  WHERE id=? AND campaign_id=?`,
-		jsonBytes, sha, time.Now().Unix(), itemID, campaignID)
+		storeBytes, sha, time.Now().Unix(), itemID, campaignID)
 	return err
 }
 
@@ -394,6 +419,9 @@ func (s *Service) loadCorpusSnapshot(ctx context.Context, campaignID string, ite
 	}
 	if err != nil {
 		return nil, err
+	}
+	if hydrated, herr := readCorpusObject(jsonBytes); herr == nil {
+		jsonBytes = hydrated
 	}
 	return fuzzengine.DecodeCorpusSnapshot(jsonBytes)
 }

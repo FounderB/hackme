@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/hunt"
 	"hackme/internal/poolfuzz"
 )
 
@@ -734,33 +736,52 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 				return
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, 36<<20)
-			var req struct {
-				HarnessHash string `json:"harness_hash"`
-				SourceRel   string `json:"source_rel"`
-				BinaryB64   string `json:"binary_b64"`
+			ct := strings.ToLower(strings.TrimSpace(strings.Split(r.Header.Get("Content-Type"), ";")[0]))
+			var hash, sourceRel string
+			var data []byte
+			var err error
+			if ct == "application/octet-stream" || ct == "application/x-hunt-harness" {
+				hash = strings.TrimSpace(r.Header.Get("X-Hackme-Harness-Hash"))
+				sourceRel = strings.TrimSpace(r.Header.Get("X-Hackme-Source-Rel"))
+				data, err = io.ReadAll(r.Body)
+				if err != nil {
+					http.Error(w, "read body failed", http.StatusBadRequest)
+					return
+				}
+			} else {
+				var req struct {
+					HarnessHash string `json:"harness_hash"`
+					SourceRel   string `json:"source_rel"`
+					BinaryB64   string `json:"binary_b64"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					http.Error(w, "invalid json", http.StatusBadRequest)
+					return
+				}
+				hash = strings.TrimSpace(req.HarnessHash)
+				sourceRel = strings.TrimSpace(req.SourceRel)
+				data, err = base64.StdEncoding.DecodeString(strings.TrimSpace(req.BinaryB64))
+				if err != nil {
+					http.Error(w, "invalid binary_b64", http.StatusBadRequest)
+					return
+				}
 			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				http.Error(w, "invalid json", http.StatusBadRequest)
-				return
-			}
-			data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(req.BinaryB64))
-			if err != nil {
-				http.Error(w, "invalid binary_b64", http.StatusBadRequest)
-				return
-			}
-			if err := huntPutHarnessArtifact(r.Context(), pf.DB, req.HarnessHash, data, req.SourceRel); err != nil {
+			if err := huntPutHarnessArtifact(r.Context(), pf.DB, hash, data, sourceRel); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "harness_hash": strings.TrimSpace(req.HarnessHash), "byte_size": len(data)})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true, "harness_hash": strings.TrimSpace(hash), "byte_size": len(data),
+				"storage": huntHarnessStorageMode(),
+			})
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
 
 	mux.HandleFunc("/api/fuzz/pool/hunt/harness/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -774,13 +795,32 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "harness hash required", http.StatusBadRequest)
 			return
 		}
+		etag := `"` + strings.ToLower(strings.TrimSpace(hash)) + `"`
+		w.Header().Set("ETag", etag)
+		w.Header().Set("Cache-Control", "private, max-age=3600")
+		if match := strings.TrimSpace(r.Header.Get("If-None-Match")); match != "" {
+			for _, part := range strings.Split(match, ",") {
+				if strings.TrimSpace(part) == etag || strings.TrimSpace(part) == "*" {
+					w.WriteHeader(http.StatusNotModified)
+					return
+				}
+			}
+		}
+		if path, ok := hunt.GetHarnessArtifactPath(hash); ok {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			http.ServeFile(w, r, path)
+			return
+		}
 		data, err := huntGetHarnessArtifact(r.Context(), pf.DB, hash)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Cache-Control", "private, max-age=3600")
+		if r.Method == http.MethodHead {
+			w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+			return
+		}
 		_, _ = w.Write(data)
 	})
 }

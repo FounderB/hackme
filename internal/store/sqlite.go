@@ -824,9 +824,13 @@ func migrateHuntHarnessArtifacts(db *sql.DB) error {
 			source_rel TEXT NOT NULL DEFAULT '',
 			created_at INTEGER NOT NULL
 		)`,
+		`ALTER TABLE hunt_harness_artifacts ADD COLUMN content_sha256 TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, s := range stmts {
 		if _, err := db.Exec(s); err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+				continue
+			}
 			return err
 		}
 	}

@@ -14,3 +14,10 @@ func huntPutHarnessArtifact(ctx context.Context, db *sql.DB, hash string, data [
 func huntGetHarnessArtifact(ctx context.Context, db *sql.DB, hash string) ([]byte, error) {
 	return hunt.GetHarnessArtifact(ctx, db, hash)
 }
+
+func huntHarnessStorageMode() string {
+	if hunt.HarnessObjectDir() != "" {
+		return "object_store"
+	}
+	return "sqlite_blob"
+}
