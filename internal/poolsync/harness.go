@@ -90,3 +90,40 @@ func uploadHuntHarnessJSON(ctx context.Context, coordURL, token, hash string, da
 	}
 	return nil
 }
+
+// IsHarnessAlreadyBound reports coordinator rejecting overwrite of an existing hash.
+func IsHarnessAlreadyBound(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "already bound") || strings.Contains(msg, "already exists")
+}
+
+// CoordinatorHarnessAvailable GETs the published harness (admin token).
+func CoordinatorHarnessAvailable(ctx context.Context, coordURL, token, hash string) bool {
+	coordURL = strings.TrimRight(strings.TrimSpace(coordURL), "/")
+	hash = strings.TrimSpace(hash)
+	if coordURL == "" || hash == "" {
+		return false
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, timeoutDuration())
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, coordURL+"/api/fuzz/pool/hunt/harness/"+hash, nil)
+	if err != nil {
+		return false
+	}
+	if token != "" {
+		req.Header.Set("X-Hackme-Admin-Token", token)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return false
+	}
+	n, _ := io.Copy(io.Discard, io.LimitReader(res.Body, 64<<20))
+	return n > 0
+}

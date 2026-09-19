@@ -61,6 +61,11 @@ func (a *app) syncHuntHarnessToCoordinator(ctx context.Context, cfg map[string]a
 		return fmt.Errorf("hunt harness sync: local artifact: %w", err)
 	}
 	if err := poolsync.UploadHuntHarness(ctx, coord, token, hash, data, strings.TrimSpace(toString(cfg["hunt_source_rel"]))); err != nil {
+		// Catalog hash is metadata-stable; clang rebuilds can differ byte-for-byte across hosts.
+		// "already bound" from the coordinator means that hash is already published and fetchable.
+		if poolsync.IsHarnessAlreadyBound(err) {
+			return nil
+		}
 		return err
 	}
 	return nil
