@@ -51,10 +51,11 @@ func TestHuntReplayAsyncEnqueueAndDrain(t *testing.T) {
 	if err := svc.RegisterCampaign(ctx, Campaign{ID: id, CampaignType: "hunt", Status: "running", BudgetRuns: 1, Config: cfg}); err != nil {
 		t.Fatal(err)
 	}
+	putTestHuntHarness(t, ctx, db, hash)
 	_ = svc.EnsureWorkItems(ctx, id, time.Now().Unix())
 	w, ok, err := svc.Claim(ctx, "hunt-async-w1", time.Now().Unix())
 	if err != nil || !ok {
-		t.Fatal(err)
+		t.Fatalf("claim ok=%v err=%v", ok, err)
 	}
 
 	out, err := svc.SubmitWithOutcome(ctx, SubmitRequest{
@@ -114,7 +115,7 @@ func TestHuntReplayAsyncDisabledSyncPath(t *testing.T) {
 		"work_kind":            "hunt_shard",
 		"campaign_type":        "hunt",
 		"upstream_target_id":   "jsmn",
-		"harness_hash":         "abc",
+		"harness_hash":         "abcdef0123456789",
 		"iterations_per_shard": 2,
 		"max_input_bytes":      256,
 	}
@@ -122,10 +123,11 @@ func TestHuntReplayAsyncDisabledSyncPath(t *testing.T) {
 	if err := svc.RegisterCampaign(ctx, Campaign{ID: id, CampaignType: "hunt", Status: "running", BudgetRuns: 1, Config: cfg}); err != nil {
 		t.Fatal(err)
 	}
+	putTestHuntHarness(t, ctx, db, "abcdef0123456789")
 	_ = svc.EnsureWorkItems(ctx, id, time.Now().Unix())
 	w, ok, err := svc.Claim(ctx, "hunt-sync-w1", time.Now().Unix())
 	if err != nil || !ok {
-		t.Fatal(err)
+		t.Fatalf("claim ok=%v err=%v", ok, err)
 	}
 
 	out, err := svc.SubmitWithOutcome(ctx, SubmitRequest{

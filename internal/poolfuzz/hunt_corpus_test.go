@@ -27,7 +27,7 @@ func TestHuntGuidedClaimFreezesCorpusSnapshot(t *testing.T) {
 		"work_kind":             "hunt_shard",
 		"campaign_type":         "hunt",
 		"upstream_target_id":    "jsmn",
-		"harness_hash":          "abc123",
+		"harness_hash":          "abcdef0123456789",
 		"iterations_per_shard":  4,
 		"max_input_bytes":       256,
 		"depth_tier":            "oss_cve",
@@ -38,10 +38,11 @@ func TestHuntGuidedClaimFreezesCorpusSnapshot(t *testing.T) {
 	if err := svc.RegisterCampaign(ctx, Campaign{ID: id, CampaignType: "hunt", Status: "running", BudgetRuns: 2, Config: cfg}); err != nil {
 		t.Fatal(err)
 	}
+	putTestHuntHarness(t, ctx, db, "abcdef0123456789")
 	_ = svc.EnsureWorkItems(ctx, id, time.Now().Unix())
 	w, ok, err := svc.Claim(ctx, "hunt-w1", time.Now().Unix())
 	if err != nil || !ok {
-		t.Fatal(err)
+		t.Fatalf("claim ok=%v err=%v", ok, err)
 	}
 	if w.CoverageKind != "hunt_corpus_guided" {
 		t.Fatalf("coverage_kind=%q", w.CoverageKind)

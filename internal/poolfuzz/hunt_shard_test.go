@@ -2,6 +2,7 @@ package poolfuzz
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,16 @@ import (
 	"hackme/internal/fuzzescrow"
 	"hackme/internal/hunt"
 )
+
+func putTestHuntHarness(t *testing.T, ctx context.Context, db *sql.DB, hash string) {
+	t.Helper()
+	hunt.SetHarnessObjectDir("")
+	t.Cleanup(func() { hunt.SetHarnessObjectDir("") })
+	data := []byte{0x7f, 'E', 'L', 'F', 0, 1, 2, 3, 4, 5, 6, 7}
+	if err := hunt.PutHarnessArtifact(ctx, db, hash, data, "test.c"); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestIsHuntCampaign(t *testing.T) {
 	if !IsHuntCampaign(map[string]any{"work_kind": "hunt_shard"}) {
