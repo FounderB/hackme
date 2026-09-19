@@ -299,6 +299,11 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		missingHarness, err := pf.CancelHuntCampaignsMissingHarness(r.Context(), minAge, 100)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		repaired, err := pf.RepairZombiePoolCampaigns(r.Context(), 50)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -309,7 +314,10 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			return
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "cancelled": n, "stuck_expired_leases": stuck, "repaired": repaired})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok": true, "cancelled": n, "stuck_expired_leases": stuck,
+			"missing_harness": missingHarness, "repaired": repaired,
+		})
 	})
 
 	mux.HandleFunc("/api/fuzz/pool/campaigns/repair-zombies", func(w http.ResponseWriter, r *http.Request) {

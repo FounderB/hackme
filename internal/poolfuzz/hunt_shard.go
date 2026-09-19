@@ -35,6 +35,13 @@ func HuntShardInputBytes(campaignID string, inputN uint64, cfg map[string]any) [
 
 func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, itemID int64, inputN uint64, cfg map[string]any, workerID string) (ClaimedWork, error) {
 	_ = workerID
+	hash := strings.TrimSpace(jsonString(cfg["harness_hash"]))
+	if hash == "" {
+		return ClaimedWork{}, fmt.Errorf("poolfuzz: hunt harness_hash required")
+	}
+	if err := hunt.HarnessArtifactReady(ctx, s.DB, hash); err != nil {
+		return ClaimedWork{}, fmt.Errorf("poolfuzz: hunt harness not ready: %w", err)
+	}
 	iter := huntIterationsPerShard(cfg)
 	now := time.Now().Unix()
 	var inputB []byte
@@ -75,7 +82,7 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 		CorpusSnapshotSHA256: corpusSHA,
 		TaskClass:            "hunt",
 		WorkKind:             "hunt_shard",
-		HarnessHash:          strings.TrimSpace(jsonString(cfg["harness_hash"])),
+		HarnessHash:          hash,
 		UpstreamTargetID:     strings.TrimSpace(jsonString(cfg["upstream_target_id"])),
 		HuntSource:           strings.TrimSpace(jsonString(cfg["hunt_source"])),
 		HuntPinPath:          strings.TrimSpace(jsonString(cfg["hunt_pin_path"])),

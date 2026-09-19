@@ -441,6 +441,59 @@ func (s *Service) CancelStuckExpiredLeaseCampaigns(ctx context.Context, minAgeSe
 	return n, rows.Err()
 }
 
+// CancelHuntCampaignsMissingHarness cancels running Hunt campaigns whose harness blob is gone.
+// Workers refreshing leases would otherwise pin shards forever with zero progress.
+func (s *Service) CancelHuntCampaignsMissingHarness(ctx context.Context, minAgeSec int64, limit int) (int, error) {
+	if s == nil || s.DB == nil {
+		return 0, fmt.Errorf("poolfuzz: no database")
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	now := time.Now().Unix()
+	if minAgeSec < 60 {
+		minAgeSec = 900
+	}
+	rows, err := s.DB.QueryContext(ctx,
+		`SELECT c.id, c.config_json FROM fuzz_campaigns c
+		 WHERE c.status IN ('planned','running')
+		   AND lower(COALESCE(c.campaign_type,''))='hunt'
+		   AND json_extract(c.config_json, '$.pool_distributed') IN (1, 'true', '1')
+		   AND (? - c.created_at) >= ?
+		 ORDER BY c.created_at ASC
+		 LIMIT ?`, now, minAgeSec, limit*4)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var id, cfgJSON string
+		if err := rows.Scan(&id, &cfgJSON); err != nil {
+			return n, err
+		}
+		cfg := parseConfigJSON(cfgJSON)
+		if !IsHuntCampaign(cfg) {
+			continue
+		}
+		hash := strings.TrimSpace(jsonString(cfg["harness_hash"]))
+		if hash == "" {
+			continue
+		}
+		if hunt.HarnessArtifactReady(ctx, s.DB, hash) == nil {
+			continue
+		}
+		if err := s.SetCampaignStatus(ctx, id, "cancelled"); err != nil {
+			return n, err
+		}
+		n++
+		if n >= limit {
+			break
+		}
+	}
+	return n, rows.Err()
+}
+
 // ReclaimExpiredLeases returns expired leased items to pending (Tick / health fix).
 func (s *Service) ReclaimExpiredLeases(ctx context.Context, now int64) (int64, error) {
 	if s == nil || s.DB == nil {
@@ -524,6 +577,9 @@ func (s *Service) Tick(ctx context.Context) error {
 			return err
 		}
 		if _, err := s.CancelZeroProgressPoolCampaigns(ctx, 7200, 100); err != nil {
+			return err
+		}
+		if _, err := s.CancelHuntCampaignsMissingHarness(ctx, 900, 50); err != nil {
 			return err
 		}
 	}
@@ -772,6 +828,13 @@ func (s *Service) claimOnePendingInCampaign(ctx context.Context, workerID, campa
 	cfg := parseConfigJSON(cfgJSON)
 	if !poolDistributed(cfg) || IsInternalGateCampaign(campaignID, title, ownerRef, cfg) {
 		return out, false, nil
+	}
+	// Hunt: never lease shards when the ASAN harness is missing — workers would only spin leases.
+	if IsHuntCampaign(cfg) {
+		hash := strings.TrimSpace(jsonString(cfg["harness_hash"]))
+		if hash == "" || hunt.HarnessArtifactReady(ctx, s.DB, hash) != nil {
+			return out, false, nil
+		}
 	}
 	leaseSec := leaseSecondsForConfig(cfg)
 	res, err := s.DB.ExecContext(ctx, `

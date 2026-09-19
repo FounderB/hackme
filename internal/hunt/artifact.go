@@ -171,6 +171,39 @@ func GetHarnessArtifactPath(hash string) (string, bool) {
 	return path, true
 }
 
+// HarnessArtifactReady reports whether workers can fetch this harness (disk object or SQLite blob).
+// Cheap claim/Tick gate — does not load the full binary into memory.
+func HarnessArtifactReady(ctx context.Context, db *sql.DB, hash string) error {
+	hash = strings.TrimSpace(strings.ToLower(hash))
+	if !ValidHarnessHash(hash) {
+		return fmt.Errorf("hunt artifact: invalid harness hash")
+	}
+	if dir := HarnessObjectDir(); dir != "" && HarnessObjectExists(dir, hash) {
+		return nil
+	}
+	if db == nil {
+		return fmt.Errorf("hunt artifact: %s not found", hash)
+	}
+	var blobLen int
+	err := db.QueryRowContext(ctx,
+		`SELECT length(binary_blob) FROM hunt_harness_artifacts WHERE harness_hash=?`, hash).
+		Scan(&blobLen)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("hunt artifact: %s not found", hash)
+	}
+	if err != nil {
+		return err
+	}
+	if blobLen > 0 {
+		return nil
+	}
+	// Metadata-only row: ready only if object store file exists.
+	if dir := HarnessObjectDir(); dir != "" && HarnessObjectExists(dir, hash) {
+		return nil
+	}
+	return fmt.Errorf("hunt artifact: %s not found", hash)
+}
+
 func bytesEqual(a, b []byte) bool {
 	if len(a) != len(b) {
 		return false

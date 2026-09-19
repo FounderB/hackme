@@ -159,6 +159,29 @@ func TestPutHarnessArtifactRejectsOverwrite(t *testing.T) {
 	}
 }
 
+func TestHarnessArtifactReady(t *testing.T) {
+	dir := t.TempDir()
+	obj := filepath.Join(dir, "harness")
+	SetHarnessObjectDir(obj)
+	t.Cleanup(func() { SetHarnessObjectDir("") })
+	db, err := store.Open(filepath.Join(dir, "ready.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := HarnessArtifactReady(ctx, db, "deadbeefdeadbeef"); err == nil {
+		t.Fatal("expected missing")
+	}
+	data := []byte{0x7f, 'E', 'L', 'F', 0, 1, 2, 3}
+	if err := PutHarnessArtifact(ctx, db, "deadbeefdeadbeef", data, "t.c"); err != nil {
+		t.Fatal(err)
+	}
+	if err := HarnessArtifactReady(ctx, db, "deadbeefdeadbeef"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestHarnessFetchURL(t *testing.T) {
 	u := HarnessFetchURL("deadbeef")
 	if u != "/api/fuzz/pool/hunt/harness/deadbeef" {

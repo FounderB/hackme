@@ -133,3 +133,42 @@ func TestReclaimExpiredLeases(t *testing.T) {
 		t.Fatalf("status=%s", st)
 	}
 }
+
+func TestCancelHuntCampaignsMissingHarness(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "co.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := &Service{DB: db}
+	ctx := context.Background()
+	now := time.Now().Unix()
+	cfg := fuzzengine.NormalizeCampaignConfig(map[string]any{
+		"pool_distributed": true,
+		"campaign_type":    "hunt",
+		"work_kind":        "hunt_shard",
+		"harness_hash":     "abcdef0123456789",
+		"check_semantics":  "native_crash",
+	}, "hunt")
+	id := "hunt-missing-harness"
+	if err := svc.RegisterCampaign(ctx, Campaign{
+		ID: id, CampaignType: "hunt", Title: "yyjson-class", Status: "running",
+		BudgetRuns: 4, Config: cfg,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = db.ExecContext(ctx, `UPDATE fuzz_campaigns SET created_at=? WHERE id=?`, now-1800, id)
+	n, err := svc.CancelHuntCampaignsMissingHarness(ctx, 900, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("cancelled=%d want 1", n)
+	}
+	var st string
+	_ = db.QueryRowContext(ctx, `SELECT status FROM fuzz_campaigns WHERE id=?`, id).Scan(&st)
+	if st != "cancelled" {
+		t.Fatalf("status=%s", st)
+	}
+}

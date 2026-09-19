@@ -158,6 +158,15 @@ func (a *app) runPoolSyncJob(job poolSyncJob) {
 	if ctype == "" {
 		ctype = "property"
 	}
+	// Hunt: upload harness BEFORE registering the campaign so workers never claim
+	// shards against a missing ASAN binary (yyjson-class lease spin).
+	if poolfuzz.IsHuntCampaign(cfg) {
+		if herr := a.syncHuntHarnessToCoordinator(ctx, cfg); herr != nil {
+			log.Printf("pool sync: campaign %s harness upload failed: %v", job.campaign.ID, herr)
+			a.poolSyncMarkFailed(job.campaign.ID, herr)
+			return
+		}
+	}
 	req := poolsync.RegisterRequest{
 		ID:            job.campaign.ID,
 		CampaignType:  ctype,
@@ -173,13 +182,6 @@ func (a *app) runPoolSyncJob(job poolSyncJob) {
 		log.Printf("pool sync: campaign %s failed after retries: %v", job.campaign.ID, err)
 		a.poolSyncMarkFailed(job.campaign.ID, err)
 		return
-	}
-	if poolfuzz.IsHuntCampaign(cfg) {
-		if herr := a.syncHuntHarnessToCoordinator(ctx, cfg); herr != nil {
-			log.Printf("pool sync: campaign %s harness upload failed: %v", job.campaign.ID, herr)
-			a.poolSyncMarkFailed(job.campaign.ID, herr)
-			return
-		}
 	}
 	if fuzzengine.CorpusPersistEnabled(cfg) {
 		a.syncCorpusNamespaceToCoordinator(ctx, cfg)
