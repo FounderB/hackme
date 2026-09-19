@@ -91,9 +91,9 @@ PIN_WAVE30 = [
     "stb_vorbis",
 ]
 
-HOLD_DEEP = {"centijson"}  # disclosure hold — skip automated waves
+HOLD_DEEP = {"centijson", "csonh"}  # disclosure hold — skip automated waves
 
-DISCLOSURE_HOLD = {"centijson"}
+DISCLOSURE_HOLD = {"centijson", "csonh"}
 
 # Harness/driver false positives — never score as CVE_CANDIDATE
 DRIVER_FALSE_POSITIVE = {"heatshrink"}

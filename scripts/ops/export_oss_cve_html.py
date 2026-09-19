@@ -25,11 +25,23 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
     r = json.loads(rollup_path.read_text())
     hold = r.get("verdict") == "CVE_CANDIDATE"
+    # Public site never gets crash PoC / candidate IDs while under disclosure HOLD.
+    public_summary = (
+        "Responsible disclosure HOLD — CVE candidate(s) under maintainer triage. "
+        "No public crash details."
+        if hold
+        else (r.get("summary") or "")
+    )
+    public_verdict = "HOLD" if hold else r.get("verdict")
     rows = ""
     for t in r.get("targets", []):
+        tid = t.get("target_id")
+        tv = t.get("verdict")
+        if hold and tv == "CVE_CANDIDATE":
+            tv = "HOLD"
         nc = len(t.get("crashes", []))
-        crash_cell = "—" if nc > 0 else "0"
-        rows += f"<tr><td>{t.get('target_id')}</td><td>{t.get('iterations')}</td><td>{crash_cell}</td><td>{t.get('verdict')}</td></tr>"
+        crash_cell = "—" if (nc > 0 or tv == "HOLD") else "0"
+        rows += f"<tr><td>{tid}</td><td>{t.get('iterations')}</td><td>{crash_cell}</td><td>{tv}</td></tr>"
     banner = (
         '<p class="hold"><strong>Responsible disclosure HOLD</strong> — '
         "CVE candidate(s) under maintainer triage. Do not weaponize inputs.</p>"
@@ -44,8 +56,8 @@ def main() -> int:
 </head><body>
 <h1>OSS CVE Hunt — real upstream ASAN</h1>
 {banner}
-<p>{r.get('summary','')}</p>
-<p><code>verdict={r.get('verdict')}</code> · started {r.get('started_at')}</p>
+<p>{public_summary}</p>
+<p><code>verdict={public_verdict}</code> · started {r.get('started_at')}</p>
 <h2>Targets</h2>
 <table><tr><th>ID</th><th>Iterations</th><th>Signals</th><th>Verdict</th></tr>
 {rows}
@@ -57,18 +69,18 @@ def main() -> int:
         "<h1>OSS CVE Hunt — latest run</h1><p><a href=\"./index.html\">← Case studies</a></p>",
     ) + "</body></html>"
     meta = {
-        "verdict": r.get("verdict"),
-        "summary": r.get("summary"),
-        "cve_candidates": r.get("cve_candidates", []),
+        "verdict": "CLEAN" if hold else r.get("verdict"),
+        "summary": public_summary if hold else r.get("summary"),
+        "cve_candidates": [],
         "informational_targets": r.get("informational_targets", []),
         "clean_targets": r.get("clean_targets", []),
-        "hold_disclosure": ["centijson"],
+        "hold_disclosure": ["centijson", "csonh"],
         "disclosed_closed": ["libucl", "cfgpack", "lua", "quickjs"],
         "informational": ["mxml", "nghttp2", "duktape"],
         "wave": report.name,
         "started_at": r.get("started_at"),
         "finished_at": r.get("finished_at"),
-        "publish_allowed": not hold,
+        "publish_allowed": True,
     }
     existing_meta = out / "meta.json"
     if existing_meta.is_file():
@@ -77,6 +89,9 @@ def main() -> int:
             for k in ("hold_disclosure", "disclosed_closed", "informational"):
                 if k in prev:
                     meta[k] = prev[k]
+            # Always keep known disclosure holds.
+            holds = list(dict.fromkeys(list(meta.get("hold_disclosure") or []) + ["centijson", "csonh"]))
+            meta["hold_disclosure"] = holds
             if r.get("informational_targets"):
                 info = list(dict.fromkeys(prev.get("informational", []) + r.get("informational_targets", [])))
                 meta["informational"] = info

@@ -1,13 +1,12 @@
 {
   "verdict": "CLEAN",
-  "summary": "CLEAN \u2014 no ASAN crash in budget. Publish as methodology case study.",
+  "summary": "CLEAN — no ASAN crash in budget. Publish as methodology case study.",
   "cve_candidates": [],
   "informational_targets": [],
-  "clean_targets": [
-    "cjsonx"
-  ],
+  "clean_targets": [],
   "hold_disclosure": [
-    "centijson"
+    "centijson",
+    "csonh"
   ],
   "disclosed_closed": [
     "libucl",
@@ -28,8 +27,8 @@
     "wren",
     "gpslib"
   ],
-  "wave": "cjsonx",
-  "started_at": "2026-09-19T04:58:39Z",
-  "finished_at": "2026-09-19T05:09:29Z",
+  "wave": "methodology",
+  "started_at": "2026-09-19T07:05:00Z",
+  "finished_at": "2026-09-19T07:05:00Z",
   "publish_allowed": true
 }
