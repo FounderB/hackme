@@ -2,6 +2,8 @@
 
 Thanks for your interest in HackMe.
 
+By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Before you open a PR
 
 1. Run from the repo root:

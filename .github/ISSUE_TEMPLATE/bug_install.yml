@@ -1,0 +1,66 @@
+name: Bug / install
+description: Something broken — miner, install, pool, dashboard, Dig/Hunt
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Do not** paste admin tokens, seeds, or private keys.
+        Security issues → [contacts](https://hackme.tech/contacts.html) (private), not here.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Windows install / Setup
+        - Linux install / deb / tarball
+        - Miner / worker / pool
+        - Desktop dashboard
+        - Dig / Hunt / orders
+        - Docs / site
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / build
+      description: e.g. 0.1.0-rc17, Setup SHA256 prefix, or `git rev-parse --short HEAD`
+      placeholder: 0.1.0-rc17
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Windows 10/11
+        - Linux
+        - HackMe OS / ISO
+        - Other / mixed
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Expected vs actual. Include error text (redact secrets).
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Extra context
+      description: GPU/backend, logs path, screenshots (no secrets).
+    validations:
+      required: false

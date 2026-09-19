@@ -1,0 +1,25 @@
+name: Question
+description: How-to, pool join, docs — not a bug report
+title: "[question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For install failures use **Bug / install**.  
+        Security → [contacts](https://hackme.tech/contacts.html) (private).  
+        Official docs: [QUICK_START](https://github.com/jokeez/hackme/blob/main/docs/QUICK_START.md) · [hackme.tech](https://hackme.tech)
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to do, and what did you already try?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version (if relevant)
+      placeholder: 0.1.0-rc17
+    validations:
+      required: false

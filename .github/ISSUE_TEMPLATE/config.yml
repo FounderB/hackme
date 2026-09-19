@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://hackme.tech/contacts.html
+    about: Do not file public issues for exploitable bugs — report privately (see SECURITY.md).
+  - name: Downloads & checksums
+    url: https://hackme.tech/downloads.html
+    about: Official installers and SHA256 — verify before install.
+  - name: Docs & quick start
+    url: https://github.com/jokeez/hackme/blob/main/docs/QUICK_START.md
+    about: Setup, pool join, and troubleshooting guides in the repo.
