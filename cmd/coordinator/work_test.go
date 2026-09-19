@@ -1344,3 +1344,24 @@ func TestMergeWorkerStatAddressConflictDoesNotStealPayout(t *testing.T) {
 		t.Fatalf("victim accrual must remain visible: %v", merged3.PayoutHMC)
 	}
 }
+
+func TestStatsWorkersCountMatchesMergedMap(t *testing.T) {
+	wm := newTestWorkManagerForPayout(1e-5, false)
+	now := time.Now().Unix()
+	wm.mu.Lock()
+	wm.worker["rig-a"] = workerPayoutStat{LastSeenUnix: now, LastHashrateGHS: 10, PayoutAddress: "HMC-aaa"}
+	wm.worker["rig-a-gpu0"] = workerPayoutStat{LastSeenUnix: now, LastHashrateGHS: 11, PayoutAddress: "HMC-aaa"}
+	wm.worker["rig-b"] = workerPayoutStat{LastSeenUnix: now, LastHashrateGHS: 5, PayoutAddress: "HMC-bbb"}
+	wm.mu.Unlock()
+	st := wm.stats(false)
+	workers, _ := st["workers"].(map[string]workerPayoutStat)
+	if len(workers) != 2 {
+		t.Fatalf("merged workers want 2 got %d keys=%v", len(workers), workers)
+	}
+	if got := st["workers_count"]; got != 2 {
+		t.Fatalf("workers_count want 2 (merged), got %v (tracked raw=%v)", got, st["workers_tracked"])
+	}
+	if got := st["workers_tracked"]; got != 3 {
+		t.Fatalf("workers_tracked want 3 raw entries, got %v", got)
+	}
+}

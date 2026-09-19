@@ -4,7 +4,7 @@
   "cve_candidates": [],
   "informational_targets": [],
   "clean_targets": [
-    "sjh"
+    "cjsonx"
   ],
   "hold_disclosure": [
     "centijson"
@@ -28,8 +28,8 @@
     "wren",
     "gpslib"
   ],
-  "wave": "sjh",
-  "started_at": "2026-09-18T17:22:24Z",
-  "finished_at": "2026-09-18T17:31:36Z",
+  "wave": "cjsonx",
+  "started_at": "2026-09-19T04:58:39Z",
+  "finished_at": "2026-09-19T05:09:29Z",
   "publish_allowed": true
 }

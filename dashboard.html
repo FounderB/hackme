@@ -6268,6 +6268,19 @@
 			if (ref > 0 && est > ref * 4) return 0;
 			return Math.min(est, 5000);
 		}
+		/** Prefer merged workers{} / workers_online over raw workers_count (fleet -gpuN inflate). */
+		function poolWorkersCountFromWorkStats(ws) {
+			if (!ws || typeof ws !== 'object') return 0;
+			const mapN = Object.keys(ws.workers || {}).length;
+			const online = Number(ws.workers_online != null ? ws.workers_online : ws.miners);
+			if (Number.isFinite(online) && online > 0) {
+				if (mapN > 0) return Math.min(mapN, Math.floor(online)) || mapN;
+				return Math.floor(online);
+			}
+			if (mapN > 0) return mapN;
+			const tracked = Number(ws.workers_count || 0);
+			return Number.isFinite(tracked) && tracked > 0 ? Math.floor(tracked) : 0;
+		}
 		function poolGhFromWorkStats(ws) {
 			if (!ws || typeof ws !== 'object') return 0;
 			const workers = ws.workers;
@@ -9384,7 +9397,7 @@
 			const ws = latestWorkStats;
 			if (!ws || ws.ok === false) return;
 			const workers = ws.workers || {};
-			const workerCount = Math.max(Object.keys(workers).length, Number(ws.workers_count || 0));
+			const workerCount = poolWorkersCountFromWorkStats(ws);
 			const hiveN = Number((latestNetworkStats && latestNetworkStats.total_miners) || 0);
 			const useMiners = Math.max(hiveN, workerCount);
 			if ($('pool-strip-miners') && useMiners > 0) {
@@ -9415,7 +9428,7 @@
 			latestNetworkStats = ts;
 			lastNetworkStatsOkUnix = Math.floor(Date.now() / 1000);
 			const wsN = latestWorkStats && latestWorkStats.ok !== false
-				? Math.max(Object.keys(latestWorkStats.workers || {}).length, Number(latestWorkStats.workers_count || 0))
+				? poolWorkersCountFromWorkStats(latestWorkStats)
 				: 0;
 			const rigsOnline = (ts.active_rigs || []).filter((r) => !!r.online).length;
 			const minersN = Math.max(Number(ts.total_miners ?? 0), wsN);
@@ -10011,7 +10024,7 @@
 			const workers = ws.workers || {};
 			const abuse = ws.abuse || {};
 			const sampleUnix = Number(ws.now_unix || nowUnix);
-			const workerCount = Math.max(Object.keys(workers).length, Number(ws.workers_count || 0));
+			const workerCount = poolWorkersCountFromWorkStats(ws);
 			if ($('pool-strip-miners')) $('pool-strip-miners').textContent = fmtUInt(workerCount);
 			if ($('mining-strip-miners')) $('mining-strip-miners').textContent = fmtUInt(workerCount);
 			if ($('mining-strip-workers')) $('mining-strip-workers').textContent = fmtUInt(workerCount);
@@ -11295,7 +11308,7 @@
 							lastGlobalTargetMod = t;
 							if ($('kpi-poh-difficulty')) $('kpi-poh-difficulty').textContent = fmtUInt(t);
 						}
-						if ($('pool-workers-online')) $('pool-workers-online').textContent = fmtUInt(wk.workers_count || 0);
+						if ($('pool-workers-online')) $('pool-workers-online').textContent = fmtUInt(poolWorkersCountFromWorkStats(wk) || wk.workers_online || 0);
 						const wph = $('work-payout-hint');
 						if (wph) {
 							if (wk.ok === false && wk.reason) {
@@ -11619,7 +11632,7 @@
 				titleTxt = 'Mining active';
 				const wid = String(wst.worker_id || myWorker);
 				const poolGh = resolvePoolAggregateGh(ws);
-				const nWorkers = Math.max(Object.keys(workers).length, Number(ws.workers_count || 0));
+				const nWorkers = poolWorkersCountFromWorkStats(ws);
 				let poolLbl = poolGh > 0 ? poolHashLabelFromGh(poolGh, '*') : '';
 				if (!poolLbl || poolLbl === '—') {
 					const strip = $('pool-strip-hash') ? String($('pool-strip-hash').textContent || '').trim() : '';
@@ -11692,7 +11705,7 @@
 			const workStaleSec = lastWorkStatsOkUnix > 0 ? Math.max(0, nowUnix - lastWorkStatsOkUnix) : -1;
 			const workUnavailable = (!ws || ws.ok === false);
 			const workersMap = (ws && typeof ws.workers === 'object' && ws.workers) ? ws.workers : {};
-			const workerCount = Math.max(Object.keys(workersMap).length, Number((ws && ws.workers_count) || 0));
+			const workerCount = poolWorkersCountFromWorkStats(ws);
 			const poolGh = poolGhFromWorkStats(ws);
 			if ($('pool-strip-diff')) {
 				$('pool-strip-diff').textContent = (peerData.enabled === false || peers.length === 0) ? 'optional' : (String(healthy) + '/' + String(peers.length));

@@ -2255,7 +2255,7 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 		"submit_per_min":               m.submitPerMin,
 		"ban_sec":                      m.banSec,
 		"bad_strikes_to_ban":           m.badStrikesToBan,
-		"workers_count":                len(m.worker),
+		"workers_tracked":              len(m.worker),
 		"active_leases_count":          len(m.active),
 		"abuse_count":                  len(m.abuse),
 		"max_workers":                  m.maxWorkers,
@@ -2311,6 +2311,17 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 		}
 	}
 	out["workers"] = workers
+	// Public miner count must match the merged workers{} map (fleet -gpuN collapse),
+	// not raw m.worker len — otherwise dashboard shows N+1 vs site N.
+	out["workers_count"] = len(workers)
+	onlineMerged := 0
+	for _, st := range workers {
+		if st.Online {
+			onlineMerged++
+		}
+	}
+	out["workers_online"] = onlineMerged
+	out["miners"] = onlineMerged
 	if includeDetails {
 		active := make([]leaseRecord, 0, len(m.active))
 		abuse := make(map[string]workerAbuseState, len(m.abuse))

@@ -2103,7 +2103,8 @@ func (a *app) handleWorkStats(w http.ResponseWriter, r *http.Request) {
 	ensureCoordinatorWorkersMap(ws)
 	workersMap := mapFromAny(ws["workers"])
 	workersCount := asUint64(ws["workers_count"])
-	if workersCount == 0 && len(workersMap) > 0 {
+	if len(workersMap) > 0 && (workersCount == 0 || workersCount != uint64(len(workersMap))) {
+		// Prefer merged workers{} length — raw coordinator tracked count can include -gpuN siblings.
 		ws["workers_count"] = uint64(len(workersMap))
 	}
 	ws["ok"] = true
