@@ -35,7 +35,7 @@ func MeasureMutationDepth(base []byte, dict []byte, corpus [][]byte, samples int
 	minL, maxL := int(^uint(0)>>1), 0
 	havocN := 0
 	for i := 0; i < samples; i++ {
-		stage := MutationStage(i % (StageDeterministicMax + 16))
+		stage := MutationStage(i % (StageDeterministicMax + 48))
 		salt := uint64(i)*0x9E3779B97F4A7C15 + 0xDEAD
 		out := mutateBytesWithDict(base, stage, salt, maxLen, dict, corpus)
 		sum := sha256.Sum256(out)
@@ -86,7 +86,7 @@ type EngineABReport struct {
 	LensGainPct float64 `json:"lens_gain_pct"`
 }
 
-// CompareEngineAB runs the same sample grid against baseline (v2.0 upstream) and current (v2.2).
+// CompareEngineAB runs the same sample grid against baseline (v2.0 upstream) and current (v2.6).
 func CompareEngineAB(base []byte, dict []byte, corpus [][]byte, samples int, maxLen int) EngineABReport {
 	if samples < 1 {
 		samples = 1
@@ -102,8 +102,8 @@ func CompareEngineAB(base []byte, dict []byte, corpus [][]byte, samples int, max
 	baseLens := map[int]struct{}{}
 	curLens := map[int]struct{}{}
 	for i := 0; i < samples; i++ {
-		// Havoc-only grid: deterministic bitflips are identical upstream vs v2.2.
-		stage := MutationStage(StageHavocBase + (i % 32))
+		// Havoc-only grid: deterministic bitflips are identical upstream vs current.
+		stage := MutationStage(StageHavocBase + (i % 48))
 		salt := uint64(i)*0x9E3779B97F4A7C15 + 0xDEAD
 		bOut := mutateBytesBaseline(base, stage, salt, maxLen, dict)
 		cOut := mutateBytesWithDict(base, stage, salt, maxLen, dict, corpus)

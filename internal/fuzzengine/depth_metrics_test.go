@@ -92,4 +92,46 @@ func TestEngineABComparison(t *testing.T) {
 		t.Fatalf("current should beat baseline unique ratio: baseline=%.3f current=%.3f",
 			rep.Baseline.UniqueRatio, rep.Current.UniqueRatio)
 	}
+	// Frozen T0 (v2.5 on prior 32-stage grid): unique≈4957 lens=182, +3.8%/+225% vs baseline.
+	// v2.6 uses a 48-stage havoc grid: allow tiny unique jitter, require stronger lens diversity.
+	const t0Unique = 4957
+	const t0Lens = 182
+	if rep.Current.UniqueSHA256+25 < t0Unique {
+		t.Fatalf("v2.6 unique regression vs v2.5 T0: got %d want >= ~%d", rep.Current.UniqueSHA256, t0Unique)
+	}
+	if rep.Current.UniqueLens < t0Lens+20 {
+		t.Fatalf("v2.6 lens must beat v2.5 T0 meaningfully: got %d want >= %d", rep.Current.UniqueLens, t0Lens+20)
+	}
+	if rep.UniqueGainPct < 3.5 {
+		t.Fatalf("v2.6 unique gain vs upstream baseline too low: %.1f%%", rep.UniqueGainPct)
+	}
+	if rep.LensGainPct < 250 {
+		t.Fatalf("v2.6 lens gain vs upstream baseline too low: %.1f%%", rep.LensGainPct)
+	}
+}
+
+func TestHavocExtraDeterministic(t *testing.T) {
+	base := []byte(`{"hello":"world","n":42}`)
+	a := reverseWindow(base, 99)
+	b := reverseWindow(base, 99)
+	if string(a) != string(b) {
+		t.Fatal("reverseWindow must be deterministic")
+	}
+	c := insertFootgunToken(base, 3, 7, 256)
+	d := insertFootgunToken(base, 3, 7, 256)
+	if string(c) != string(d) {
+		t.Fatal("insertFootgunToken must be deterministic")
+	}
+	if len(c) <= len(base) {
+		t.Fatal("expected footgun insert to grow buffer")
+	}
+}
+
+func TestHavocStackDepthBounds(t *testing.T) {
+	for salt := uint64(0); salt < 200; salt++ {
+		d := havocStackDepth(StageHavocBase+20, salt)
+		if d < 1 || d > 24 {
+			t.Fatalf("stack depth out of bounds: %d", d)
+		}
+	}
 }
