@@ -32,23 +32,28 @@ func MutateBytesForConfig(base []byte, stage MutationStage, salt uint64, maxLen 
 // Deterministic from stage+salt so coordinator replay stays stable.
 func havocStackDepth(stage MutationStage, salt uint64) int {
 	s := int(stage)
-	rounds := 1 + int((salt+uint64(s))%4)
+	rounds := 1 + int((salt+uint64(s))%6)
 	if s >= StageHavocBase {
 		extra := (s - StageHavocBase) / 2
-		if extra > 6 {
-			extra = 6
+		if extra > 10 {
+			extra = 10
 		}
 		rounds += extra
-		// Occasional deep stack for rare stages (still bounded).
 		if (salt^uint64(s))%11 == 0 {
+			rounds += 4
+		}
+		if (salt^uint64(s*17))%23 == 0 {
+			rounds += 3
+		}
+		if (salt^uint64(s*31))%29 == 0 {
 			rounds += 2
 		}
 	}
 	if rounds < 1 {
 		rounds = 1
 	}
-	if rounds > 16 {
-		rounds = 16
+	if rounds > 32 {
+		rounds = 32
 	}
 	return rounds
 }
@@ -82,7 +87,7 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 	}
 	out := append([]byte(nil), base...)
 	// Corpus crossover before havoc — fleet diversity (deterministic from salt).
-	if len(corpus) >= 2 && (salt%13) == 0 {
+	if len(corpus) >= 2 && (salt%7) == 0 {
 		other := corpus[int((salt>>8)%uint64(len(corpus)))]
 		if len(other) > 0 && string(other) != string(out) {
 			out = crossoverBytes(out, other, salt^0xC0FFEE, maxLen)
@@ -91,7 +96,7 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 	rounds := havocStackDepth(stage, salt)
 	for i := 0; i < rounds; i++ {
 		mix := splitmix64(salt ^ uint64(s) ^ uint64(i)*0x517cc1b727220a95)
-		switch mix % 32 {
+		switch mix % 64 {
 		case 0:
 			idx := int(mix % uint64(len(out)))
 			out[idx] ^= byte(1 << (mix % 8))
@@ -266,7 +271,7 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 			if len(out)*2 <= maxLen && len(out) >= 2 {
 				out = append(out, out...)
 			}
-		default: // set length-ish prefix (common parser footgun)
+		case 31: // set length-ish prefix (common parser footgun)
 			if len(out) >= 4 {
 				claimed := uint32(mix & 0xffff)
 				if mix&1 == 0 {
@@ -275,6 +280,109 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 					writeU32BE(out, 0, claimed)
 				}
 			}
+		// --- v2.6 ops (32–47) ---
+		case 32:
+			out = reverseWindow(out, mix)
+		case 33:
+			out = swapEndian64(out, mix)
+		case 34:
+			out = sieveReplaceByte(out, mix)
+		case 35:
+			idx := int(mix % uint64(len(out)+1))
+			out = insertFootgunToken(out, idx, mix, maxLen)
+		case 36:
+			out = caseFlipASCII(out, mix)
+		case 37:
+			out = repeatTokenBurst(out, mix, dict, maxLen)
+		case 38:
+			out = adjacentBitflip(out, mix)
+		case 39:
+			out = chunkLengthMismatch(out, mix)
+		case 40:
+			out = spliceCorpusSlice(out, corpus, mix, maxLen)
+		case 41: // second structure smash pass (different mix)
+			out = structureSmash(out, mix^0xA5A5A5A5, maxLen)
+		case 42: // insert CRLF + fold
+			idx := int(mix % uint64(len(out)+1))
+			out = insertToken(out, idx, []byte{'\r', '\n', ' ', '\t'}, maxLen)
+		case 43: // overwrite with interesting8 run
+			if len(out) >= 2 {
+				vals := Interesting8()
+				start := int(mix % uint64(len(out)-1))
+				for j := 0; j < 3 && start+j < len(out); j++ {
+					out[start+j] = vals[int((mix>>uint(8*j))%uint64(len(vals)))]
+				}
+			}
+		case 44: // truncate to power-of-two-ish
+			if len(out) > 8 {
+				keep := 4 + int(mix%uint64(len(out)/2))
+				if keep < len(out) {
+					out = out[:keep]
+				}
+			}
+		case 45: // pad with 0x00 / 0x20 alternating
+			if len(out) < growCap && len(out) < maxLen {
+				n := 1 + int(mix%8)
+				pad := make([]byte, 0, n)
+				for j := 0; j < n; j++ {
+					if j%2 == 0 {
+						pad = append(pad, 0x00)
+					} else {
+						pad = append(pad, 0x20)
+					}
+				}
+				idx := int((mix >> 8) % uint64(len(out)+1))
+				out = insertToken(out, idx, pad, maxLen)
+			}
+		case 46: // double crossover with two corpus parents (ordered)
+			if len(corpus) >= 2 {
+				a := corpus[int(mix%uint64(len(corpus)))]
+				b := corpus[int((mix>>16)%uint64(len(corpus)))]
+				out = crossoverBytes(crossoverBytes(out, a, mix, maxLen), b, mix>>8, maxLen)
+			}
+		case 47: // structure smash + footgun
+			out = structureSmash(out, mix, maxLen)
+			idx := int((mix >> 4) % uint64(len(out)+1))
+			out = insertFootgunToken(out, idx, mix>>8, maxLen)
+		// --- v2.7 ops (48–63) ---
+		case 48:
+			out = nestBraces(out, mix, maxLen)
+		case 49:
+			out = utf16LEExpand(out, mix, maxLen)
+		case 50:
+			out = bitReverseByte(out, mix)
+		case 51:
+			out = setInterestingMagnitude(out, mix)
+		case 52:
+			idx := int(mix % uint64(len(out)+1))
+			out = insertToken(out, idx, []byte("GET / HTTP/1.1\r\nHost: x\r\n\r\n"), maxLen)
+		case 53:
+			out = protobufWireSmash(out, mix)
+		case 54:
+			out = injectFloatBits(out, mix)
+		case 55:
+			out = deltaAdjacent(out, mix)
+		case 56:
+			idx := int(mix % uint64(len(out)+1))
+			out = insertToken(out, idx, []byte("/*x*/ //y\n"), maxLen)
+		case 57:
+			out = wrapLengthFrame(out, mix, maxLen)
+		case 58:
+			out = shuffleWindow8(out, mix)
+		case 59:
+			idx := int(mix % uint64(len(out)+1))
+			out = insertToken(out, idx, []byte{0xe2, 0x80, 0x8e, 0xe2, 0x80, 0x8f}, maxLen) // LTR/RTL
+		case 60:
+			out = corpusMaskMerge(out, corpus, mix, maxLen)
+		case 61:
+			out = arithEveryNth(out, mix)
+		case 62:
+			out = structureSmash(out, mix^0x5a5a5a5a, maxLen)
+			out = insertFootgunToken(out, int(mix%uint64(len(out)+1)), mix>>3, maxLen)
+		default: // 63 — JSON number overflow / nested smash combo
+			idx := int(mix % uint64(len(out)+1))
+			out = insertToken(out, idx, []byte("1e309"), maxLen)
+			out = nestBraces(out, mix>>8, maxLen)
 		}
 		if len(out) == 0 {
 			out = []byte{byte(mix)}

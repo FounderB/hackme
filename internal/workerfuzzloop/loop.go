@@ -81,8 +81,15 @@ type Config struct {
 	PohGHSMilli *atomic.Int64
 	// CalibGHSMilli is calibrated/peak PoH milli-GH/s for backpressure baseline.
 	CalibGHSMilli *atomic.Int64
+	// PohGHSUpdatedUnix is unix seconds of the last positive PoH rate sample (optional).
+	// When set, ScheduleDig ignores stale rates (no boost / no backpressure from ghosts).
+	PohGHSUpdatedUnix *atomic.Int64
 	// BackpressureFloorPct pauses fuzz when PoH GH/s < floor% of calib (default 35).
+	// 0 disables backpressure pauses; boost still evaluated independently.
 	BackpressureFloorPct int
+	// DigBoostFloorPct tightens MinClaimGap when PoH GH/s >= this % of calib (default DigBoostFloorPct).
+	// Set 0 to use DigBoostFloorPct; set >100 to disable boost while keeping backpressure.
+	DigBoostFloorPct int
 }
 
 // Stats are best-effort counters for diagnostics.
@@ -91,6 +98,7 @@ type Stats struct {
 	SubmitsOK  atomic.Int64
 	Findings   atomic.Int64
 	PausedBack atomic.Int64
+	DigBoosted atomic.Int64
 	Panics     atomic.Int64
 }
 
@@ -252,11 +260,12 @@ func Run(ctx context.Context, cfg Config, st *Stats) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if paused := backpressurePause(cfg, st); paused > 0 {
+		sched := ScheduleDig(cfg, st)
+		if sched.Pause > 0 {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(paused):
+			case <-time.After(sched.Pause):
 			}
 			continue
 		}
@@ -275,34 +284,20 @@ func Run(ctx context.Context, cfg Config, st *Stats) error {
 			}()
 			runOne(ctx, cfg, base, st)
 		}()
+		gap := cfg.MinClaimGap
+		if sched.GapScale > 0 && sched.GapScale < 1 && gap > 0 {
+			scaled := time.Duration(float64(gap) * sched.GapScale)
+			if scaled < time.Millisecond {
+				scaled = time.Millisecond
+			}
+			gap = scaled
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(cfg.MinClaimGap):
+		case <-time.After(gap):
 		}
 	}
-}
-
-func backpressurePause(cfg Config, st *Stats) time.Duration {
-	if cfg.BackpressureFloorPct <= 0 || cfg.PohGHSMilli == nil || cfg.CalibGHSMilli == nil {
-		return 0
-	}
-	calib := cfg.CalibGHSMilli.Load()
-	cur := cfg.PohGHSMilli.Load()
-	if calib < 1000 || cur <= 0 {
-		return 0
-	}
-	floor := calib * int64(cfg.BackpressureFloorPct) / 100
-	if floor < 1 {
-		floor = 1
-	}
-	if cur >= floor {
-		return 0
-	}
-	st.PausedBack.Add(1)
-	fmt.Fprintf(os.Stderr, "%s: backpressure — PoH %.2f GH/s < %d%% of calib %.2f; pausing fuzz 5s\n",
-		cfg.LogPrefix, float64(cur)/1000.0, cfg.BackpressureFloorPct, float64(calib)/1000.0)
-	return 5 * time.Second
 }
 
 func runOne(ctx context.Context, cfg Config, base string, st *Stats) {

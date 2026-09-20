@@ -95,6 +95,24 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		cap := wm.fuzzFleetCapacity(time.Now().Unix())
+		prog["fleet_capacity"] = cap
+		budget := intFromProgress(prog["budget_runs"])
+		done := intFromProgress(prog["runs_done"])
+		remaining := budget - done
+		if remaining < 0 {
+			remaining = 0
+		}
+		eta := estimateETASeconds(remaining, cap.EstShardsPerHour)
+		prog["remaining_runs"] = remaining
+		prog["eta_sec_fleet"] = eta
+		if eta < 0 {
+			prog["eta_note"] = "fleet capacity warming — not enough online dig/hybrid workers"
+		} else if eta == 0 && remaining == 0 {
+			prog["eta_note"] = "complete"
+		} else {
+			prog["eta_note"] = "ETA from live hybrid GHS + dig workers (heuristic)"
+		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		_ = json.NewEncoder(w).Encode(prog)
@@ -208,6 +226,10 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "stats failed", http.StatusInternalServerError)
 			return
 		}
+		cap := wm.fuzzFleetCapacity(time.Now().Unix())
+		st["fleet_capacity"] = cap
+		st["fleet_hashrate_gh_s"] = cap.FleetHashrateGHS
+		st["est_shards_per_hour"] = cap.EstShardsPerHour
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		_ = json.NewEncoder(w).Encode(st)
@@ -481,6 +503,12 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reason})
 			return
 		}
+		if ok, reason := wm.allowFuzzClaimByGHS(workerID, now); !ok {
+			wm.recordDrop(reason)
+			w.WriteHeader(http.StatusTooManyRequests)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reason})
+			return
+		}
 		// Heartbeat only for existing workers or when under maxWorkers (PoH parity).
 		if okSeen, reasonSeen := wm.touchWorkerSeenLimited(workerID); !okSeen {
 			wm.recordDrop(reasonSeen)
@@ -682,7 +710,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 				st.PayoutAddress = payoutAddr
 			}
 			st.SignedSubmits++
-			st.LastSeenUnix = time.Now().Unix()
+			ts := time.Now().Unix()
+			st.LastSeenUnix = ts
+			st.LastFuzzSeenUnix = ts
 			wm.worker[req.WorkerID] = st
 			wm.mu.Unlock()
 			wm.commitFuzzHybridNonce(payoutAddr, req.SubmitNonce)
