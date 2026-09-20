@@ -83,6 +83,10 @@ func runHybridFuzzInline(ctx context.Context, st *hybridFuzzState, coordURL, tok
 	if floorPct > 100 {
 		floorPct = 100
 	}
+	boostPct := workerfuzzloop.EnvInt("HACKME_WORKER_HYBRID_FUZZ_DIG_BOOST_PCT", workerfuzzloop.DigBoostFloorPct)
+	if boostPct > 100 {
+		boostPct = 100
+	}
 	httpTimeout := hybridDigHTTPTimeout()
 	cfg := workerfuzzloop.Config{
 		CoordURL:             coordURL,
@@ -100,9 +104,10 @@ func runHybridFuzzInline(ctx context.Context, st *hybridFuzzState, coordURL, tok
 		PohGHSMilli:          &st.pohGHSMilli,
 		CalibGHSMilli:        &st.calibGHSMilli,
 		BackpressureFloorPct: floorPct,
+		DigBoostFloorPct:     boostPct,
 	}
-	fmt.Fprintf(os.Stderr, "workerpoh: hybrid fuzz inline dig=%v concurrency=%d claim_gap_ms=%d timeout_ms=%d backpressure=%d%% payout=%s\n",
-		dig, conc, gapMS, timeoutMS, floorPct, addr)
+	fmt.Fprintf(os.Stderr, "workerpoh: hybrid fuzz inline dig=%v concurrency=%d claim_gap_ms=%d timeout_ms=%d backpressure=%d%% dig_boost=%d%% payout=%s\n",
+		dig, conc, gapMS, timeoutMS, floorPct, boostPct, addr)
 	for {
 		if err := ctx.Err(); err != nil {
 			return
