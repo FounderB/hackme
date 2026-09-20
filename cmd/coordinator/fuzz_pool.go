@@ -43,23 +43,31 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		force := strings.TrimSpace(r.URL.Query().Get("refresh")) == "1"
 		listMu.Lock()
 		if !force && len(listCache) > 0 && time.Since(listAt) < listCacheTTL {
-			cached := listCache
+			cached := cloneCampaignMaps(listCache)
 			listMu.Unlock()
+			cap := wm.fuzzFleetCapacity(time.Now().Unix())
+			poolfuzz.AnnotateCampaignFleetETA(cached, cap.EstShardsPerHour)
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.Header().Set("Cache-Control", "public, max-age=15")
-			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "campaigns": cached, "cached": true})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true, "campaigns": cached, "cached": true, "fleet_capacity": cap,
+			})
 			return
 		}
 		listMu.Unlock()
 		items, err := pf.ListPublicCampaigns(r.Context(), limit)
 		if err != nil {
 			listMu.Lock()
-			stale := listCache
+			stale := cloneCampaignMaps(listCache)
 			listMu.Unlock()
 			if len(stale) > 0 {
+				cap := wm.fuzzFleetCapacity(time.Now().Unix())
+				poolfuzz.AnnotateCampaignFleetETA(stale, cap.EstShardsPerHour)
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				w.Header().Set("Cache-Control", "public, max-age=5")
-				_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "campaigns": stale, "cached": true, "stale": true})
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"ok": true, "campaigns": stale, "cached": true, "stale": true, "fleet_capacity": cap,
+				})
 				return
 			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -71,9 +79,14 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			listAt = time.Now()
 			listMu.Unlock()
 		}
+		cap := wm.fuzzFleetCapacity(time.Now().Unix())
+		out := cloneCampaignMaps(items)
+		poolfuzz.AnnotateCampaignFleetETA(out, cap.EstShardsPerHour)
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=15")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "campaigns": items})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok": true, "campaigns": out, "fleet_capacity": cap,
+		})
 	})
 
 	mux.HandleFunc("/api/fuzz/pool/campaigns/progress", func(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +116,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		if remaining < 0 {
 			remaining = 0
 		}
-		eta := estimateETASeconds(remaining, cap.EstShardsPerHour)
+		eta := poolfuzz.EstimateFleetETASeconds(remaining, cap.EstShardsPerHour)
 		prog["remaining_runs"] = remaining
 		prog["eta_sec_fleet"] = eta
 		if eta < 0 {

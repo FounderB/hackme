@@ -1,6 +1,6 @@
 # GHS ↔ Dig/Hunt coupling
 
-**Status:** shipped on branch `feat/ghs-dig-coupling`  
+**Status:** shipped on `main` (A canary live; **B** marketplace ETA/capacity UI)  
 **Honesty:** GPU hashrate (GH/s) still pays **PoH HMC/SUP**. Dig/Hunt still pays **customer escrow**. ASAN/WASM stay on **CPU**.
 
 ## What changed
@@ -10,7 +10,10 @@
 | **Hybrid dig boost** | When live PoH GH/s ≥ ~70% of calib, claim gap halves → more Dig/Hunt shards without killing GPU |
 | **Hybrid backpressure** | Unchanged idea: GH/s ≪ calib → pause dig (protect mining) |
 | **Claim GHS priority** | When hybrid workers (≥1 GH/s) are online, dig-only (~0 GH) get ~25% admit slots; hybrids always claim |
-| **Fleet capacity / ETA** | `GET /api/fuzz/pool/stats` + campaign progress expose `fleet_capacity`, `est_shards_per_hour`, `eta_sec_fleet` |
+| **Fleet capacity / ETA** | `GET /api/fuzz/pool/stats` + campaign progress/list expose `fleet_capacity`, `est_shards_per_hour`, `eta_sec_fleet` |
+| **Marketplace UI (B)** | Campaign board + dashboard mining panel show live hybrid/dig capacity and per-order fleet ETA |
+
+HTML finding reports stay findings-only (no GH/s in artifacts). Fleet ETA is order progress / marketplace only.
 
 ## Escape hatches
 
@@ -28,6 +31,7 @@ Hybrid claim/capacity requires **recent PoH GH/s** (`LastPoHSeenUnix`) **and** (
 
 ```bash
 bash scripts/tests/ghs_dig_coupling_bench.sh
+go test ./internal/poolfuzz/ -run FleetETA -count=1
 ```
 
 ## Why this helps

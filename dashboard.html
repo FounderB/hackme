@@ -2034,6 +2034,7 @@
 								<button type="button" id="btn-fuzz-market-refresh" class="text-[9px] px-2 py-1 rounded border border-neon/30 text-neon uppercase tracking-wider">Refresh</button>
 							</div>
 							<p class="text-[10px] text-gray-500 mb-2">Live pool campaigns with escrow — customer B2B first. Dig with <code class="text-neon/80">workerfuzz</code> or hybrid alongside PoH. Local wizard: <code class="text-neon/70">hackme-fuzzing wizard --pack filter_utf8 --package audit</code>.</p>
+							<p id="mining-fuzz-fleet-cap" class="text-[10px] font-mono text-neon/70 mb-2 hidden"></p>
 							<div id="mining-fuzz-market-rows" class="text-[10px] font-mono text-gray-400 space-y-0 max-h-56 overflow-y-auto pr-1">Loading…</div>
 						</div>
 						<div id="mining-admin-hint" class="hidden mb-3 rounded border border-warn/35 bg-warn/5 px-3 py-2 text-[10px] text-warn/95 font-mono leading-relaxed"></div>
@@ -13222,6 +13223,34 @@
 			return fmt(r, 2) + '/min';
 		}
 
+		function fmtFleetEtaSec(sec) {
+			const n = Number(sec);
+			if (!Number.isFinite(n)) return '';
+			if (n < 0) return 'warming';
+			if (n === 0) return 'done';
+			if (n < 120) return '~' + Math.ceil(n) + 's';
+			if (n < 7200) return '~' + Math.ceil(n / 60) + 'm';
+			return '~' + (n / 3600).toFixed(1) + 'h';
+		}
+
+		function paintMiningFuzzFleetCap(cap) {
+			const el = $('mining-fuzz-fleet-cap');
+			if (!el) return;
+			if (!cap || typeof cap !== 'object') {
+				el.classList.add('hidden');
+				el.textContent = '';
+				return;
+			}
+			const hyb = Number(cap.hybrid_workers_online || 0);
+			const dig = Number(cap.dig_only_workers_online || 0);
+			const ghs = Number(cap.fleet_hashrate_gh_s || 0);
+			const sph = Number(cap.est_shards_per_hour || 0);
+			const ghsTxt = ghs >= 10 ? ghs.toFixed(0) : (ghs > 0 ? ghs.toFixed(1) : '0');
+			const sphTxt = sph >= 10 ? String(Math.round(sph)) : (sph > 0 ? sph.toFixed(1) : '0');
+			el.textContent = 'Fleet: ' + hyb + ' hybrid · ' + dig + ' dig-only · ~' + ghsTxt + ' GH/s · ~' + sphTxt + ' shards/h (ASAN on CPU)';
+			el.classList.remove('hidden');
+		}
+
 		async function refreshMiningFuzzMarketplace(forceRefresh) {
 			const box = $('mining-fuzz-market-rows');
 			if (!box) return;
@@ -13242,6 +13271,7 @@
 					box.innerHTML = refreshMiningFuzzMarketplace._lastHtml + '<div class="text-gray-600 mt-1">(stale — node busy)</div>';
 					return;
 				}
+				paintMiningFuzzFleetCap(j.fleet_capacity || null);
 				const rows = Array.isArray(j.campaigns) ? j.campaigns : [];
 				const visible = rows.filter((c) => {
 					const st = String(c.status || '').toLowerCase();
@@ -13274,7 +13304,8 @@
 					samples[id] = pruned;
 					const progTxt = bud > 0 ? (fmtUInt(runs) + '/' + fmtUInt(bud) + ' runs') : '';
 					const rateTxt = fmtFuzzRateMin(meta.rateMin);
-					const etaTxt = meta.etaLabel ? ('ETA ' + meta.etaLabel) : '';
+					const fleetEta = fmtFleetEtaSec(c.eta_sec_fleet);
+					const etaTxt = fleetEta ? ('ETA ' + fleetEta) : (meta.etaLabel ? ('ETA ' + meta.etaLabel) : '');
 					const pctW = meta.pct.toFixed(1);
 					const nativeRaw = String(c.native_status || '').trim().toLowerCase();
 					const nativeUseful = nativeRaw && nativeRaw !== 'n/a' && nativeRaw !== 'na' && nativeRaw !== '-' && nativeRaw !== 'none';

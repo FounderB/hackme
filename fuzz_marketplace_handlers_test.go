@@ -44,12 +44,26 @@ func TestMergeCoordinatorMarketplaceFallsBackToRemote(t *testing.T) {
 
 func TestHandleFuzzMarketplaceLocalDBErrorStillOK(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"ok": true,
-			"campaigns": []map[string]any{
-				{"id": "campaign-c1", "status": "running", "title": "C1", "budget_runs": 16, "runs_done": 1},
-			},
-		})
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/api/fuzz/pool/campaigns/list"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true,
+				"campaigns": []map[string]any{
+					{"id": "campaign-c1", "status": "running", "title": "C1", "budget_runs": 16, "runs_done": 1},
+				},
+			})
+		case strings.HasPrefix(r.URL.Path, "/api/fuzz/pool/stats"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true,
+				"fleet_capacity": map[string]any{
+					"fleet_hashrate_gh_s": 30.0, "est_shards_per_hour": 270.0,
+					"hybrid_workers_online": 1, "dig_only_workers_online": 2,
+				},
+				"est_shards_per_hour": 270.0,
+			})
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer srv.Close()
 
@@ -80,5 +94,12 @@ func TestHandleFuzzMarketplaceLocalDBErrorStillOK(t *testing.T) {
 	camps, _ := resp["campaigns"].([]any)
 	if len(camps) < 1 {
 		t.Fatalf("expected coordinator fallback campaigns, got %v", resp)
+	}
+	if resp["fleet_capacity"] == nil {
+		t.Fatalf("expected fleet_capacity in marketplace response: %v", resp)
+	}
+	row, _ := camps[0].(map[string]any)
+	if row == nil || row["eta_sec_fleet"] == nil {
+		t.Fatalf("expected eta_sec_fleet on campaign: %#v", row)
 	}
 }

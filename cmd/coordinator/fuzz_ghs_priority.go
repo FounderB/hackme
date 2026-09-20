@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"hackme/internal/poolfuzz"
 )
 
 // Fuzz GHS ↔ Dig/Hunt coupling (soft priority + fleet capacity).
@@ -169,17 +171,25 @@ func (m *workManager) fuzzFleetCapacityUnlocked(now int64) fuzzFleetCapacity {
 
 // estimateETASeconds maps remaining work units to wall seconds via fleet capacity.
 func estimateETASeconds(remaining int, shardsPerHour float64) int64 {
-	if remaining <= 0 {
-		return 0
+	return poolfuzz.EstimateFleetETASeconds(remaining, shardsPerHour)
+}
+
+func cloneCampaignMaps(in []map[string]any) []map[string]any {
+	if len(in) == 0 {
+		return nil
 	}
-	if shardsPerHour < 1 {
-		return -1 // unknown / warming
+	out := make([]map[string]any, 0, len(in))
+	for _, src := range in {
+		if src == nil {
+			continue
+		}
+		dst := make(map[string]any, len(src)+2)
+		for k, v := range src {
+			dst[k] = v
+		}
+		out = append(out, dst)
 	}
-	sec := float64(remaining) / shardsPerHour * 3600.0
-	if sec < 1 {
-		return 1
-	}
-	return int64(sec + 0.5)
+	return out
 }
 
 func intFromProgress(v any) int {
