@@ -35,7 +35,7 @@ func MeasureMutationDepth(base []byte, dict []byte, corpus [][]byte, samples int
 	minL, maxL := int(^uint(0)>>1), 0
 	havocN := 0
 	for i := 0; i < samples; i++ {
-		stage := MutationStage(i % (StageDeterministicMax + 48))
+		stage := MutationStage(i % (StageDeterministicMax + 64))
 		salt := uint64(i)*0x9E3779B97F4A7C15 + 0xDEAD
 		out := mutateBytesWithDict(base, stage, salt, maxLen, dict, corpus)
 		sum := sha256.Sum256(out)
@@ -86,7 +86,7 @@ type EngineABReport struct {
 	LensGainPct float64 `json:"lens_gain_pct"`
 }
 
-// CompareEngineAB runs the same sample grid against baseline (v2.0 upstream) and current (v2.6).
+// CompareEngineAB runs the same sample grid against baseline (v2.0 upstream) and current (v2.7).
 func CompareEngineAB(base []byte, dict []byte, corpus [][]byte, samples int, maxLen int) EngineABReport {
 	if samples < 1 {
 		samples = 1
@@ -103,7 +103,7 @@ func CompareEngineAB(base []byte, dict []byte, corpus [][]byte, samples int, max
 	curLens := map[int]struct{}{}
 	for i := 0; i < samples; i++ {
 		// Havoc-only grid: deterministic bitflips are identical upstream vs current.
-		stage := MutationStage(StageHavocBase + (i % 48))
+		stage := MutationStage(StageHavocBase + (i % 64))
 		salt := uint64(i)*0x9E3779B97F4A7C15 + 0xDEAD
 		bOut := mutateBytesBaseline(base, stage, salt, maxLen, dict)
 		cOut := mutateBytesWithDict(base, stage, salt, maxLen, dict, corpus)
@@ -128,4 +128,44 @@ func CompareEngineAB(base []byte, dict []byte, corpus [][]byte, samples int, max
 		rep.LensGainPct = (float64(cr.UniqueLens-bl.UniqueLens) / float64(bl.UniqueLens)) * 100
 	}
 	return rep
+}
+
+// MeasureMutationDepthMulti averages uniqueness across several format bases (local stress).
+func MeasureMutationDepthMulti(samplesPerBase, maxLen int) MutationDepthStats {
+	bases := [][]byte{
+		[]byte(`{"a":1,"nested":{"b":[1,2,3],"tag":"<x/>"}}`),
+		[]byte(`<root attr="1"><child>text</child></root>`),
+		[]byte("GET /api?x=1 HTTP/1.1\r\nHost: t\r\n\r\n"),
+		{0x00, 0x01, 0x02, 0xff, 0xfe, 0x7f, 0x80, 0x00, 0x10, 0x20},
+		[]byte("%PDF-1.4\n1 0 obj<<>>endobj"),
+	}
+	dict := []byte(`"null""true""false""a""nested"{}[]<>`)
+	corpus := [][]byte{
+		[]byte(`{}`), []byte(`[1,2]`), []byte(`{"x":null}`),
+		[]byte(`<root/>`), []byte("\x1f\x8b\x08\x00"),
+	}
+	agg := MutationDepthStats{}
+	for _, base := range bases {
+		st := MeasureMutationDepth(base, dict, corpus, samplesPerBase, maxLen)
+		agg.Samples += st.Samples
+		agg.UniqueSHA256 += st.UniqueSHA256
+		agg.UniqueLens += st.UniqueLens
+		agg.AvgLen += st.AvgLen
+		if st.MaxLen > agg.MaxLen {
+			agg.MaxLen = st.MaxLen
+		}
+		agg.HavocSamples += st.HavocSamples
+		agg.HavocUnique += st.HavocUnique
+	}
+	n := len(bases)
+	if n > 0 {
+		agg.AvgLen /= float64(n)
+	}
+	if agg.Samples > 0 {
+		agg.UniqueRatio = float64(agg.UniqueSHA256) / float64(agg.Samples)
+	}
+	if agg.HavocSamples > 0 {
+		agg.HavocUniqueRt = float64(agg.HavocUnique) / float64(agg.HavocSamples)
+	}
+	return agg
 }

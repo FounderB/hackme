@@ -92,21 +92,21 @@ func TestEngineABComparison(t *testing.T) {
 		t.Fatalf("current should beat baseline unique ratio: baseline=%.3f current=%.3f",
 			rep.Baseline.UniqueRatio, rep.Current.UniqueRatio)
 	}
-	// Frozen T0 (v2.5 on prior 32-stage grid): unique≈4957 lens=182, +3.8%/+225% vs baseline.
-	// v2.6 uses a 48-stage havoc grid: allow tiny unique jitter, require stronger lens diversity.
-	const t0Unique = 4957
-	const t0Lens = 182
-	if rep.Current.UniqueSHA256+25 < t0Unique {
-		t.Fatalf("v2.6 unique regression vs v2.5 T0: got %d want >= ~%d", rep.Current.UniqueSHA256, t0Unique)
+	// Frozen T0 v2.6 (48-stage grid): unique≈4955 lens=234, +4.1%/+341% vs baseline.
+	// v2.7 uses 64-stage grid: require stronger lens, no unique collapse.
+	const t0Unique = 4955
+	const t0Lens = 234
+	if rep.Current.UniqueSHA256+40 < t0Unique {
+		t.Fatalf("v2.7 unique regression vs v2.6 T0: got %d want >= ~%d", rep.Current.UniqueSHA256, t0Unique)
 	}
-	if rep.Current.UniqueLens < t0Lens+20 {
-		t.Fatalf("v2.6 lens must beat v2.5 T0 meaningfully: got %d want >= %d", rep.Current.UniqueLens, t0Lens+20)
+	if rep.Current.UniqueLens < t0Lens {
+		t.Fatalf("v2.7 lens must beat/hold v2.6 T0: got %d want >= %d", rep.Current.UniqueLens, t0Lens)
 	}
 	if rep.UniqueGainPct < 3.5 {
-		t.Fatalf("v2.6 unique gain vs upstream baseline too low: %.1f%%", rep.UniqueGainPct)
+		t.Fatalf("v2.7 unique gain vs upstream baseline too low: %.1f%%", rep.UniqueGainPct)
 	}
-	if rep.LensGainPct < 250 {
-		t.Fatalf("v2.6 lens gain vs upstream baseline too low: %.1f%%", rep.LensGainPct)
+	if rep.LensGainPct < 300 {
+		t.Fatalf("v2.7 lens gain vs upstream baseline too low: %.1f%%", rep.LensGainPct)
 	}
 }
 
@@ -125,13 +125,57 @@ func TestHavocExtraDeterministic(t *testing.T) {
 	if len(c) <= len(base) {
 		t.Fatal("expected footgun insert to grow buffer")
 	}
+	e := nestBraces(base, 3, 256)
+	f := nestBraces(base, 3, 256)
+	if string(e) != string(f) || len(e) <= len(base) {
+		t.Fatalf("nestBraces: %q", e)
+	}
 }
 
 func TestHavocStackDepthBounds(t *testing.T) {
 	for salt := uint64(0); salt < 200; salt++ {
 		d := havocStackDepth(StageHavocBase+20, salt)
-		if d < 1 || d > 24 {
+		if d < 1 || d > 32 {
 			t.Fatalf("stack depth out of bounds: %d", d)
 		}
+	}
+}
+
+func TestLocalStressMultiFormat(t *testing.T) {
+	st := MeasureMutationDepthMulti(2000, 256)
+	t.Logf("multi-format stress: %+v", st)
+	if st.UniqueRatio < 0.25 {
+		t.Fatalf("multi unique_ratio too low: %+v", st)
+	}
+	if st.UniqueSHA256 < 2000 {
+		t.Fatalf("expected deep uniqueness across formats: %+v", st)
+	}
+}
+
+func TestEngineABHeavyLocal(t *testing.T) {
+	// Heavy local-only scale (contributor machine). Always runs — 50k is still <100ms.
+	base := []byte(`{"a":1,"nested":{"b":[1,2,3],"tag":"<x/>"}}`)
+	dict := []byte(`"null""true""false""a""nested"{}[]`)
+	corpus := [][]byte{
+		[]byte(`{}`), []byte(`[1,2]`), []byte(`{"x":null}`),
+		[]byte(`<root><child/></root>`), base,
+	}
+	for _, n := range []int{5000, 20000, 50000} {
+		rep := CompareEngineAB(base, dict, corpus, n, 256)
+		t.Logf("N=%d unique=%d/%d lens=%d/%d gain_u=%.2f%% gain_l=%.2f%% ratio=%.4f",
+			n, rep.Current.UniqueSHA256, rep.Baseline.UniqueSHA256,
+			rep.Current.UniqueLens, rep.Baseline.UniqueLens,
+			rep.UniqueGainPct, rep.LensGainPct, rep.Current.UniqueRatio)
+		if rep.Current.UniqueRatio <= rep.Baseline.UniqueRatio {
+			t.Fatalf("N=%d current must beat baseline ratio", n)
+		}
+		if rep.LensGainPct < 200 {
+			t.Fatalf("N=%d lens gain too low: %.1f%%", n, rep.LensGainPct)
+		}
+	}
+	st := MeasureMutationDepthMulti(5000, 256)
+	t.Logf("multi 5x5000: %+v", st)
+	if st.HavocUniqueRt < 0.95 {
+		t.Fatalf("havoc uniqueness collapsed: %+v", st)
 	}
 }
