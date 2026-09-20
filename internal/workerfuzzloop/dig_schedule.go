@@ -21,10 +21,13 @@ const DigBoostFloorPct = 70
 // DigGapBoostScale is MinClaimGap multiplier while boosted.
 const DigGapBoostScale = 0.5
 
+// DigPoHSignalStaleSec: boost/backpressure ignore PoH rates older than this.
+const DigPoHSignalStaleSec = 90
+
 // ScheduleDig returns pause/boost from PoH hashrate signals on cfg.
 func ScheduleDig(cfg Config, st *Stats) DigSchedule {
 	out := DigSchedule{GapScale: 1}
-	if cfg.BackpressureFloorPct <= 0 || cfg.PohGHSMilli == nil || cfg.CalibGHSMilli == nil {
+	if cfg.PohGHSMilli == nil || cfg.CalibGHSMilli == nil {
 		return out
 	}
 	calib := cfg.CalibGHSMilli.Load()
@@ -32,23 +35,32 @@ func ScheduleDig(cfg Config, st *Stats) DigSchedule {
 	if calib < 1000 || cur <= 0 {
 		return out
 	}
-	floorPct := cfg.BackpressureFloorPct
-	if floorPct > 100 {
-		floorPct = 100
-	}
-	floor := calib * int64(floorPct) / 100
-	if floor < 1 {
-		floor = 1
-	}
-	if cur < floor {
-		if st != nil {
-			st.PausedBack.Add(1)
+	if cfg.PohGHSUpdatedUnix != nil {
+		upd := cfg.PohGHSUpdatedUnix.Load()
+		if upd <= 0 || time.Now().Unix()-upd > DigPoHSignalStaleSec {
+			return out
 		}
-		fmt.Fprintf(os.Stderr, "%s: backpressure — PoH %.2f GH/s < %d%% of calib %.2f; pausing fuzz 5s\n",
-			cfg.LogPrefix, float64(cur)/1000.0, floorPct, float64(calib)/1000.0)
-		out.Pause = 5 * time.Second
-		out.PausedBack = true
-		return out
+	}
+	// Backpressure is optional (0 = disabled). Boost is independent.
+	if cfg.BackpressureFloorPct > 0 {
+		floorPct := cfg.BackpressureFloorPct
+		if floorPct > 100 {
+			floorPct = 100
+		}
+		floor := calib * int64(floorPct) / 100
+		if floor < 1 {
+			floor = 1
+		}
+		if cur < floor {
+			if st != nil {
+				st.PausedBack.Add(1)
+			}
+			fmt.Fprintf(os.Stderr, "%s: backpressure — PoH %.2f GH/s < %d%% of calib %.2f; pausing fuzz 5s\n",
+				cfg.LogPrefix, float64(cur)/1000.0, floorPct, float64(calib)/1000.0)
+			out.Pause = 5 * time.Second
+			out.PausedBack = true
+			return out
+		}
 	}
 	boostPct := cfg.DigBoostFloorPct
 	if boostPct <= 0 {

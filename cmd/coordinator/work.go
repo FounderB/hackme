@@ -170,8 +170,14 @@ type workerPayoutStat struct {
 	LastHashrateGHS float64 `json:"hashrate_gh_s,omitempty"`
 	PeakHashrateGHS float64 `json:"peak_hashrate_gh_s,omitempty"`
 	LastSeenUnix    int64   `json:"last_seen_unix,omitempty"`
-	LastClientIP    string  `json:"last_client_ip,omitempty"`
-	Online          bool    `json:"online,omitempty"`
+	// LastPoHSeenUnix is refreshed only on accepted PoH submits with credible GH/s.
+	// Fuzz heartbeats must not keep hybrid GHS "live" after mining stops.
+	LastPoHSeenUnix int64 `json:"last_poh_seen_unix,omitempty"`
+	// LastFuzzSeenUnix is refreshed on fuzz claim/submit. Required (with PoH) to count
+	// as hybrid Dig/Hunt capacity — PoH-only miners must not throttle dig-only fleets.
+	LastFuzzSeenUnix int64  `json:"last_fuzz_seen_unix,omitempty"`
+	LastClientIP     string `json:"last_client_ip,omitempty"`
+	Online           bool   `json:"online,omitempty"`
 }
 
 type workerAbuseState struct {
@@ -915,6 +921,7 @@ func (m *workManager) touchWorkerSeenLimited(workerID string) (ok bool, reason s
 	}
 	st := m.worker[workerID]
 	st.LastSeenUnix = now
+	st.LastFuzzSeenUnix = now
 	m.worker[workerID] = st
 	return true, ""
 }
@@ -1783,6 +1790,7 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		if gh > st.PeakHashrateGHS {
 			st.PeakHashrateGHS = gh
 		}
+		st.LastPoHSeenUnix = now
 	}
 	st.LastSeenUnix = time.Now().Unix()
 	st.PayoutHMC += payout
@@ -1978,6 +1986,12 @@ func mergeWorkerStat(dst, src workerPayoutStat) (workerPayoutStat, bool) {
 	}
 	if src.LastSeenUnix > dst.LastSeenUnix {
 		dst.LastSeenUnix = src.LastSeenUnix
+	}
+	if src.LastPoHSeenUnix > dst.LastPoHSeenUnix {
+		dst.LastPoHSeenUnix = src.LastPoHSeenUnix
+	}
+	if src.LastFuzzSeenUnix > dst.LastFuzzSeenUnix {
+		dst.LastFuzzSeenUnix = src.LastFuzzSeenUnix
 	}
 	if !addrConflict && dst.PayoutAddress == "" && srcAddr != "" {
 		dst.PayoutAddress = srcAddr

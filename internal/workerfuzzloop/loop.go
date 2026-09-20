@@ -81,7 +81,11 @@ type Config struct {
 	PohGHSMilli *atomic.Int64
 	// CalibGHSMilli is calibrated/peak PoH milli-GH/s for backpressure baseline.
 	CalibGHSMilli *atomic.Int64
+	// PohGHSUpdatedUnix is unix seconds of the last positive PoH rate sample (optional).
+	// When set, ScheduleDig ignores stale rates (no boost / no backpressure from ghosts).
+	PohGHSUpdatedUnix *atomic.Int64
 	// BackpressureFloorPct pauses fuzz when PoH GH/s < floor% of calib (default 35).
+	// 0 disables backpressure pauses; boost still evaluated independently.
 	BackpressureFloorPct int
 	// DigBoostFloorPct tightens MinClaimGap when PoH GH/s >= this % of calib (default DigBoostFloorPct).
 	// Set 0 to use DigBoostFloorPct; set >100 to disable boost while keeping backpressure.

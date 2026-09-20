@@ -710,7 +710,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 				st.PayoutAddress = payoutAddr
 			}
 			st.SignedSubmits++
-			st.LastSeenUnix = time.Now().Unix()
+			ts := time.Now().Unix()
+			st.LastSeenUnix = ts
+			st.LastFuzzSeenUnix = ts
 			wm.worker[req.WorkerID] = st
 			wm.mu.Unlock()
 			wm.commitFuzzHybridNonce(payoutAddr, req.SubmitNonce)

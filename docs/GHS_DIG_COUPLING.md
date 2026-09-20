@@ -18,8 +18,11 @@
 HACKME_FUZZ_CLAIM_GHS_PRIORITY=0          # disable claim soft-priority
 HACKME_FUZZ_CLAIM_GHS_DIG_ONLY_PCT=25     # dig-only admit % when hybrids online
 HACKME_WORKER_HYBRID_FUZZ_DIG_BOOST_PCT=70
-HACKME_WORKER_HYBRID_FUZZ_BACKPRESSURE_PCT=10  # dig profile default
+HACKME_WORKER_HYBRID_FUZZ_DIG_BOOST_PCT=101  # >100 disables boost (do not clamp)
+HACKME_WORKER_HYBRID_FUZZ_BACKPRESSURE_PCT=10  # dig profile default; 0 disables pauses only
 ```
+
+Hybrid claim/capacity requires **recent PoH GH/s** (`LastPoHSeenUnix`) **and** (for fleet Dig capacity) **recent fuzz** (`LastFuzzSeenUnix`). Fuzz heartbeats alone cannot keep hybrid priority after mining stops; PoH-only miners do not throttle dig-only fleets.
 
 ## Bench
 

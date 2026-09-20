@@ -14,7 +14,7 @@ import (
 
 const (
 	fuzzGHSHybridMinGHS     = 1.0 // worker counts as hybrid capacity above this
-	fuzzGHSPriorityStaleSec = 90  // recent PoH/fuzz heartbeat window
+	fuzzGHSPriorityStaleSec = 90  // recent PoH / fuzz activity window
 	fuzzGHSDigOnlyAdmitPct  = 25  // dig-only admit share when hybrids are online
 )
 
@@ -49,8 +49,33 @@ func fuzzGHSDigOnlyAdmitPercent() int {
 	return n
 }
 
-// allowFuzzClaimByGHS soft-defers dig-only (≈0 GH/s) workers when live hybrid GHS is on the pool.
-// When no hybrid capacity is online, dig-only fleets keep full access (bootstrap / dedicated dig).
+func workerPoHFresh(st workerPayoutStat, now int64) bool {
+	if now <= 0 {
+		now = time.Now().Unix()
+	}
+	return st.LastPoHSeenUnix > 0 && (now-st.LastPoHSeenUnix) <= fuzzGHSPriorityStaleSec
+}
+
+func workerFuzzFresh(st workerPayoutStat, now int64) bool {
+	if now <= 0 {
+		now = time.Now().Unix()
+	}
+	return st.LastFuzzSeenUnix > 0 && (now-st.LastFuzzSeenUnix) <= fuzzGHSPriorityStaleSec
+}
+
+// workerHybridClaimEligible: recent verified PoH GH/s (not fuzz heartbeat alone).
+func workerHybridClaimEligible(st workerPayoutStat, now int64) bool {
+	return workerPoHFresh(st, now) && effectiveWorkerHashrateGHS(st) >= fuzzGHSHybridMinGHS
+}
+
+// workerHybridCapacity: digs Dig/Hunt while also mining recently.
+func workerHybridCapacity(st workerPayoutStat, now int64) bool {
+	return workerHybridClaimEligible(st, now) && workerFuzzFresh(st, now)
+}
+
+// allowFuzzClaimByGHS soft-defers dig-only (no recent PoH GH/s) workers when live hybrid
+// Dig/Hunt capacity is on the pool. When no hybrid capacity is online, dig-only fleets
+// keep full access (bootstrap / dedicated dig).
 func (m *workManager) allowFuzzClaimByGHS(workerID string, now int64) (bool, string) {
 	if m == nil || !fuzzClaimGHSPriorityEnabled() {
 		return true, ""
@@ -62,14 +87,14 @@ func (m *workManager) allowFuzzClaimByGHS(workerID string, now int64) (bool, str
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	cap := m.fuzzFleetCapacityUnlocked(now)
-	my := 0.0
+	my := workerPayoutStat{}
 	if st, ok := m.worker[workerID]; ok {
-		my = effectiveWorkerHashrateGHS(st)
+		my = st
 	}
 	if cap.HybridWorkersOnline == 0 || cap.FleetHashrateGHS < fuzzGHSHybridMinGHS {
 		return true, ""
 	}
-	if my >= fuzzGHSHybridMinGHS {
+	if workerHybridClaimEligible(my, now) {
 		return true, ""
 	}
 	admit := fuzzGHSDigOnlyAdmitPercent()
@@ -110,23 +135,30 @@ func (m *workManager) fuzzFleetCapacity(now int64) fuzzFleetCapacity {
 func (m *workManager) fuzzFleetCapacityUnlocked(now int64) fuzzFleetCapacity {
 	out := fuzzFleetCapacity{
 		GHSPriorityEnabled: fuzzClaimGHSPriorityEnabled(),
-		Note:               "hybrid GPU GHS feeds Dig/Hunt capacity; ASAN/WASM still CPU",
+		Note:               "hybrid = recent PoH GH/s + recent fuzz; ASAN/WASM still CPU",
 	}
 	if now <= 0 {
 		now = time.Now().Unix()
 	}
 	for _, st := range m.worker {
-		if st.LastSeenUnix <= 0 || (now-st.LastSeenUnix) > fuzzGHSPriorityStaleSec {
-			continue
+		// Online for ETA: recent PoH or fuzz activity (not a pure ghost row).
+		online := workerPoHFresh(st, now) || workerFuzzFresh(st, now)
+		if !online {
+			// Fall back to generic last_seen so UI/ETA still sees diggers mid-claim.
+			if st.LastSeenUnix <= 0 || (now-st.LastSeenUnix) > fuzzGHSPriorityStaleSec {
+				continue
+			}
 		}
 		out.WorkersOnline++
-		gh := effectiveWorkerHashrateGHS(st)
-		if gh >= fuzzGHSHybridMinGHS {
+		if workerHybridCapacity(st, now) {
 			out.HybridWorkersOnline++
-			out.FleetHashrateGHS += gh
-		} else {
+			out.FleetHashrateGHS += effectiveWorkerHashrateGHS(st)
+		} else if !workerHybridClaimEligible(st, now) {
+			// Dig-only (or PoH-stale): count as dig capacity, not hybrid GHS.
 			out.DigOnlyWorkersOnline++
 		}
+		// PoH-only (fresh mining, no recent fuzz): counted in WorkersOnline only —
+		// must not inflate hybrid Dig capacity or throttle dedicated diggers.
 	}
 	// Heuristic throughput (honest order ETA input, not payout):
 	// hybrid digs ~90 shards/h while also mining; dedicated dig ~180 shards/h.
