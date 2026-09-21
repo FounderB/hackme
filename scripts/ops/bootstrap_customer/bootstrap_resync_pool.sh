@@ -45,8 +45,17 @@ con.close()
 PY
   cid="$(jq -r '.id' <<<"$body")"
   echo "[bootstrap-resync] POST $cid"
-  curl -fsS -X POST "$COORD/api/fuzz/pool/campaigns" \
+  code="$(curl -sS -o /tmp/bootstrap-resync-out.json -w '%{http_code}' -X POST "$COORD/api/fuzz/pool/campaigns" \
     -H "Content-Type: application/json" \
     -H "X-Hackme-Admin-Token: $COORD_ADMIN" \
-    -d "$body" | jq -c '{ok,campaign_id,pool_distributed,work_queue}' || true
+    -d "$body" || true)"
+  if [[ "$code" != "200" ]]; then
+    echo "[bootstrap-resync] FAIL HTTP $code: $(head -c 500 /tmp/bootstrap-resync-out.json 2>/dev/null)" >&2
+    exit 1
+  fi
+  jq -c '{ok,campaign_id,pool_distributed,work_queue,error,reason}' /tmp/bootstrap-resync-out.json 2>/dev/null || cat /tmp/bootstrap-resync-out.json
+  if [[ "$(jq -r '.ok // false' /tmp/bootstrap-resync-out.json 2>/dev/null)" != "true" ]]; then
+    echo "[bootstrap-resync] FAIL body ok!=true" >&2
+    exit 1
+  fi
 done
