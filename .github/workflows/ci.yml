@@ -30,6 +30,21 @@ jobs:
           bash scripts/build_security_task_pack.sh
           bash scripts/build_task_wasm.sh
 
+      # GitHub runners sometimes ship a broken nightly where `rustc +nightly` works
+      # but `cargo +nightly` errors ("cargo … not applicable to nightly"). Repair so
+      # Hunt/fuzzupstream Rust ASAN smokes can run; if repair fails, Go tests skip.
+      - name: Ensure Rust nightly cargo (Hunt / fuzzupstream)
+        run: |
+          set -euo pipefail
+          rustup toolchain install nightly --profile minimal
+          rustup component add cargo --toolchain nightly || true
+          if ! cargo +nightly -V; then
+            echo "::warning::cargo +nightly still unavailable after repair — rust ASAN tests will skip"
+          else
+            cargo +nightly -V
+            rustc +nightly -V
+          fi
+
       - name: Go fmt check
         run: bash scripts/ops/gofmt_check.sh
 

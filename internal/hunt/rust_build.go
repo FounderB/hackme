@@ -413,11 +413,18 @@ func requireRustNightlyASAN() error {
 	if _, err := exec.LookPath("cargo"); err != nil {
 		return fmt.Errorf("hunt rust: cargo required")
 	}
+	if _, err := exec.LookPath("rustc"); err != nil {
+		return fmt.Errorf("hunt rust: rustc required")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "rustc", "+nightly", "--version")
-	if err := cmd.Run(); err != nil {
+	// Match fuzzupstream: rustc alone is not enough when cargo's nightly component is broken.
+	if err := exec.CommandContext(ctx, "rustc", "+nightly", "--version").Run(); err != nil {
 		return fmt.Errorf("hunt rust: rustc +nightly required (rustup toolchain install nightly): %w", err)
+	}
+	if out, err := exec.CommandContext(ctx, "cargo", "+nightly", "--version").CombinedOutput(); err != nil {
+		return fmt.Errorf("hunt rust: cargo +nightly required (rustup component add cargo --toolchain nightly): %w (%s)",
+			err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }

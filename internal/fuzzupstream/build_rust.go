@@ -125,9 +125,14 @@ func requireRustNightlyASAN() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "rustc", "+nightly", "--version")
-	if err := cmd.Run(); err != nil {
+	// rustc +nightly can succeed while cargo +nightly is broken ("cargo binary …
+	// not applicable to the nightly toolchain") — builds need both.
+	if err := exec.CommandContext(ctx, "rustc", "+nightly", "--version").Run(); err != nil {
 		return fmt.Errorf("fuzzupstream: rustc +nightly required for rust ASAN (rustup toolchain install nightly): %w", err)
+	}
+	if out, err := exec.CommandContext(ctx, "cargo", "+nightly", "--version").CombinedOutput(); err != nil {
+		return fmt.Errorf("fuzzupstream: cargo +nightly required for rust ASAN (rustup component add cargo --toolchain nightly): %w (%s)",
+			err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
