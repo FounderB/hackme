@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Listing Readiness — HackMe Ecosystem</title>
-  <meta name="description" content="Exchange listing hub for HackMe ecosystem: HMC primary listing, SUP companion, HMS prelaunch. Honest readiness scores and document packs. Release 0.1.0-rc17." />
+  <meta name="description" content="Exchange listing hub for HackMe ecosystem: HMC primary, own spot desk first, then PoW-friendly CEX. Honest readiness scores. Release 0.1.0-rc17." />
   <link rel="canonical" href="https://hackme.tech/listing.html" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20260916more3" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260921list1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
 </head>
 <body>
@@ -21,37 +21,38 @@
       <p class="kicker">Listing · Ecosystem · 0.1.0-rc17</p>
       <h1>Exchange readiness — all tickers</h1>
       <p class="hero-copy">
-        HackMe is a <strong>multi-asset network</strong>. Listing strategy: <strong>HMC first</strong> on PoW-friendly CEX,
-        then <strong>SUP</strong> as companion, then <strong>HMS</strong> when the storage lane is live.
-        Tier-1 (Binance) is a later stage — we publish honest scores, not hype.
-        Internal paper desk (D0): <a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a>
-        · hub <a href="http://127.0.0.1:8080/#exchange"><code>#exchange</code></a>.
+        HackMe is a <strong>multi-asset network</strong>. Near-term priority:
+        <strong>own spot desk</strong> (<a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a>)
+        so miners and audit customers can buy/sell HMC without futures-first dumping —
+        then <strong>HMC</strong> on PoW-friendly external CEX when traction and MM are ready,
+        then <strong>SUP</strong>, then <strong>HMS</strong> when storage is live.
+        Tier-1 (Binance) stays a later stage — honest scores, not hype.
       </p>
     </section>
 
     <section class="panel glass">
-      <div class="panel-head"><h2>Live evidence (2026-08-29)</h2></div>
+      <div class="panel-head"><h2>Live evidence (2026-09-21)</h2></div>
       <ul class="list">
-        <li><strong>Release</strong> — <code>0.1.0-rc17</code> LIVE (paper Exchange · SUP wallet · Hunt). Installers / ISO published · <a href="./downloads.html">downloads</a> · <a href="https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17" target="_blank" rel="noreferrer">GitHub rc17</a></li>
-        <li><strong>Public pool</strong> — live coordinator + node · hybrid Ed25519 · ~14 running fuzz campaigns · tip ~#299k · mining on</li>
-        <li><strong>Wallet UX</strong> — Activity tab + settlement pending · desktop spend hardened vs DNS-rebind</li>
-        <li><strong>Research</strong> — Hunt Watch 12/12 (~192.5M Hunt Standard) · nghttp2 CVE Watch 14/14 CLEAN · libheif CVE Watch <strong>14/14 CLEAN</strong> (~2.57B · ASAN=0) · <a href="./reports/hunt-watch-2026sep/">Hunt ledger</a></li>
-        <li><strong>Security</strong> — fuzz submit lease ownership · public metrics redact · disks gated · baseline CSP</li>
-        <li><strong>DR</strong> — DE mirror static standby (no DNS failover yet) · PoH/fuzz DB split + WAL guard</li>
+        <li><strong>Release</strong> — <code>0.1.0-rc17</code> LIVE (paper Exchange · SUP wallet · Hunt). Installers / ISO · <a href="./downloads.html">downloads</a> · <a href="https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17" target="_blank" rel="noreferrer">GitHub rc17</a></li>
+        <li><strong>Public pool</strong> — live coordinator + node · hybrid Ed25519 · tip ~#384k · mining on · ~700 GH/s class fleet · GHS↔Dig/Hunt soft-priority live (hybrid GPUs prefer Dig leases; ASAN stays on CPU)</li>
+        <li><strong>Own exchange</strong> — spot paper desk at <a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a> (no futures lane at start; customer buy-path for audit escrow)</li>
+        <li><strong>Marketplace</strong> — campaign board shows live fleet capacity + per-order fleet ETA · <a href="./fuzz-marketplace.html">fuzz marketplace</a></li>
+        <li><strong>Research</strong> — Hunt Watch 12/12 · nghttp2 CVE Watch 14/14 CLEAN · libheif CVE Watch <strong>14/14 CLEAN</strong> · <a href="./reports/hunt-watch-2026sep/">Hunt ledger</a></li>
+        <li><strong>Security / DR</strong> — lease ownership · public metrics redact · PoH/fuzz DB split · DE mirror static standby</li>
       </ul>
-      <p class="muted" style="margin-top:0.75rem">Scores below are operator self-assessment for CEX desks — not a paid audit letter.</p>
+      <p class="muted" style="margin-top:0.75rem">Scores below are operator self-assessment for CEX desks — not a paid audit letter. Snapshot facts move with the live pool.</p>
     </section>
 
     <section class="panel glass">
-      <div class="panel-head"><h2>Readiness snapshot (29 Aug 2026)</h2></div>
+      <div class="panel-head"><h2>Readiness snapshot (21 Sep 2026)</h2></div>
       <div class="listing-score">
         <article class="card glass"><strong>9/10</strong>Technology &amp; transparency</article>
         <article class="card glass"><strong>8.5/10</strong>Operational discipline</article>
         <article class="card glass"><strong>3.5/10</strong>Market / traction</article>
-        <article class="card glass"><strong>1.5/10</strong>Liquidity readiness</article>
+        <article class="card glass"><strong>2/10</strong>Liquidity readiness</article>
         <article class="card glass"><strong>3/10</strong>Legal / entity</article>
       </div>
-      <p class="muted" style="margin-top:1rem">Verdict: <strong>early stage, narrative + evidence pack ready</strong> — not Binance-ready. Stronger research story (two 14/14 CLEAN series). Still weak on market, MM, and legal entity for Tier-1. Own exchange paper soft targeted mid-Sep.</p>
+      <p class="muted" style="margin-top:1rem">Verdict: <strong>early stage — own spot desk + product first</strong>. External mid-tier CEX is deferred until miners, audit customers, and MM capacity are stronger. Not Binance-ready; research story remains a strength (two 14/14 CLEAN series).</p>
     </section>
 
     <section class="panel glass">
@@ -59,7 +60,7 @@
       <div class="grid grid-3">
         <article class="card glass">
           <h3>HMC <span class="pill live">primary</span></h3>
-          <p>Native chain asset · first CEX target.</p>
+          <p>Native chain asset · own desk now · external CEX later.</p>
           <ul class="list">
             <li><a href="./coin-hmc.html">Investor page</a></li>
             <li><a href="./token-transparency.html">Live supply</a></li>
@@ -69,7 +70,7 @@
         </article>
         <article class="card glass">
           <h3>SUP <span class="pill">companion</span></h3>
-          <p>After HMC lists · pool-earned only.</p>
+          <p>After HMC has real spot traction · pool-earned only.</p>
           <ul class="list">
             <li><a href="./coin-sup.html">Utility page</a></li>
             <li><a href="https://hackme.tech/api/sup/economics">Economics API</a></li>
@@ -92,17 +93,18 @@
       <p class="section-lede">Why HackMe is not &quot;another mining pool coin&quot;:</p>
       <ul class="list">
         <li><strong>Useful PoH</strong> — WASM-gated work, not blind hashes</li>
-        <li><strong>B2B demand layer</strong> — security audit escrow in HMC</li>
+        <li><strong>B2B demand layer</strong> — Dig/Hunt escrow in HMC; customers buy on the desk to fund audits</li>
+        <li><strong>Honest GHS↔Dig coupling</strong> — live hybrid GPUs steer Dig priority; ASAN/WASM stay on CPU</li>
         <li><strong>Fair coordinator</strong> — hybrid Ed25519, published operator gates</li>
         <li><strong>Ecosystem</strong> — SUP rewards loyalty; HMS extends to storage (future)</li>
-        <li><strong>Public research ledgers</strong> — Hunt Watch 12/12 CLOSED · OSS CVE Watch (nghttp2 14/14 · libheif 14/14) with published reports</li>
+        <li><strong>Public research ledgers</strong> — Hunt Watch 12/12 · OSS CVE Watch (nghttp2 · libheif) with published reports</li>
       </ul>
       <p style="margin-top:1rem"><a class="btn btn-secondary" href="https://github.com/jokeez/hackme/blob/main/docs/LISTING_PITCH_OUTLINE.md" target="_blank" rel="noreferrer">Pitch deck outline (10–12 slides)</a></p>
     </section>
 
     <section class="panel glass">
       <div class="panel-head"><h2>PDF document packs (download)</h2></div>
-      <p class="section-lede">Branded PDF exports for exchange forms, partners, and legal review. <strong>Updated 2026-09-15</strong> · channel <strong>0.1.0-rc17 LIVE</strong>. Regenerate: <code>bash scripts/release/build_listing_pdfs.sh</code></p>
+      <p class="section-lede">Branded PDF exports for exchange forms, partners, and legal review. Channel <strong>0.1.0-rc17 LIVE</strong> · PDF build stamp <strong>2026-09-15</strong>. Regenerate: <code>bash scripts/release/build_listing_pdfs.sh</code></p>
       <div class="grid grid-3">
         <article class="card glass">
           <h3>HMC Listing Pack</h3>
@@ -139,8 +141,8 @@
     </section>
   </main>
 
-  <footer class="footer"><p>HackMe Network · snapshot 2026-09-14 · channel 0.1.0-rc17</p><div class="footer-nav"></div></footer>
-  <script src="./assets/site-shell.js?v=20260916more3"></script>
+  <footer class="footer"><p>HackMe Network · snapshot 2026-09-21 · channel 0.1.0-rc17</p><div class="footer-nav"></div></footer>
+  <script src="./assets/site-shell.js?v=20260921list1"></script>
   <script src="./assets/app.js?v=20260914dev1"></script>
 </body>
 </html>
