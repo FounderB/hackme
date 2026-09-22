@@ -1,17 +1,17 @@
 # HackMe 0.1.0-rc17 — cutover channel
 
-**Status:** LIVE · artifacts **0.1.0-rc17** published · [downloads](https://hackme.tech/downloads.html) · [GitHub](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17)
+**Status:** LIVE · runtime/UI channel **0.1.0-rc17.1** (hotpatch) · installers still **0.1.0-rc17** · [downloads](https://hackme.tech/downloads.html) · [GitHub](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17)
 
-Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · prior [HACKME_RC16.md](HACKME_RC16.md) · [downloads](https://hackme.tech/downloads.html)
+Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · prior [HACKME_RC16.md](HACKME_RC16.md) · [downloads](https://hackme.tech/downloads.html) · [BUG_BOUNTY.md](BUG_BOUNTY.md)
 
 ## What rc17 means
 
 | Layer | State |
 |-------|--------|
-| Hub UI (`dashboard.html`) | `0.1.0-rc17` — Exchange tab, SUP wallet, Hunt/Dig copy |
-| `main.go` / `CURRENT_VERSION` | `0.1.0-rc17` |
-| Public downloads | **0.1.0-rc17** Win/Linux/deb/fuzz/ISO + SHA256SUMS |
-| News / ticker | rc17 LIVE — installers published |
+| Hub UI (`dashboard.html`) | `0.1.0-rc17.1` — Exchange tab, SUP wallet, Hunt/Dig + worker lifecycle hotpatch |
+| `main.go` / `CURRENT_VERSION` / `app.js` `RELEASE_VER` | `0.1.0-rc17.1` |
+| Public downloads (`PUBLISHED_ARTIFACT_VER`) | **0.1.0-rc17** Win/Linux/deb/fuzz/ISO + SHA256SUMS (until rc17.1 bundle cut) |
+| News / ticker | rc17 LIVE installers · rc17.1 hotpatch channel |
 
 ## Ships in the cut window
 

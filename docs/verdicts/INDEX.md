@@ -23,4 +23,4 @@ Public news feed: https://hackme.tech/news.html · `web/site/assets/news.json`
 
 ## Version policy
 
-Win/Linux channel: `scripts/release/CURRENT_VERSION` → **0.1.0-rc17**. ISO channel: `scripts/release/CURRENT_ISO_VERSION` → **0.1.0-rc17** (published artifacts **0.1.0-rc17**).
+Win/Linux runtime: `scripts/release/CURRENT_VERSION` → **0.1.0-rc17.1**. ISO / published installers: `CURRENT_ISO_VERSION` / `PUBLISHED_ARTIFACT_VER` → **0.1.0-rc17** until next bundle cut.

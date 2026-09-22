@@ -1,8 +1,22 @@
 {
-  "updated": "2026-09-15T12:00:00Z",
+  "updated": "2026-09-22T15:00:00Z",
   "interval_ms": 6200,
   "pool_poll_ms": 30000,
   "slides": [
+    {
+      "kind": "release",
+      "badge": "HOTPATCH",
+      "title": "0.1.0-rc17.1 — worker lifecycle + claim identity",
+      "detail": "Runtime channel rc17.1 · installers still rc17 — verify SHA256SUMS",
+      "cta": "Downloads",
+      "href": "/downloads.html#start",
+      "accent": "success",
+      "stats": [
+        "rc17.1",
+        "hotpatch",
+        "SHA"
+      ]
+    },
     {
       "kind": "release",
       "badge": "LIVE",

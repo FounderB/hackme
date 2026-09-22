@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| `0.1.0-rc17` | Yes (current channel / cutover) |
+| `0.1.0-rc17.1` | Yes (current runtime / hotpatch) |
+| `0.1.0-rc17` | Yes (published installers / ISO) |
 | `0.1.0-rc16` | Yes (last published artifacts) |
 | `0.1.0-rc15` | Yes |
 | `0.1.0-rc14x` | Best effort only |
