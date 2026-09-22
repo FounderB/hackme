@@ -54,6 +54,8 @@ PIDS=()
   export HACKME_MINER_ED25519_SEED_HEX="$SEED_HEX"
   export HACKME_MINER_NONCE_FILE="${LOG_DIR}/${WORKER_ID}.nonce"
   export MINERSIGN_BIN COORD_PUSH_WORK=1
+  # Leave claim budget for dig/hunt under the same worker_id (coord per-worker cap).
+  export HACKME_WORKER_CLAIM_COOLDOWN_MS="${HACKME_WORKER_CLAIM_COOLDOWN_MS:-8000}"
   exec bash "$ROOT/scripts/ops/worker_loop.sh"
 ) >>"$POH_LOG" 2>&1 &
 PIDS+=($!)
@@ -76,7 +78,7 @@ if [[ "$ENABLE_FUZZ" == "1" || "$ENABLE_FUZZ" == "true" || "$ENABLE_FUZZ" == "ye
       export HACKME_WORKER_HUNT_TIMEOUT_MS="${HACKME_WORKER_HUNT_TIMEOUT_MS:-180000}"
       export WORKERFUZZ_HTTP_TIMEOUT_SEC="${WORKERFUZZ_HTTP_TIMEOUT_SEC:-120}"
       export HACKME_WORKER_HYBRID_FUZZ_CONCURRENCY="${HACKME_WORKER_HYBRID_FUZZ_CONCURRENCY:-1}"
-      export HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS="${HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS:-1200}"
+      export HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS="${HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS:-8000}"
       exec "$FUZZ_BIN" -coord "$COORD_URL" -token "$TOKEN" -worker "$WORKER_ID" \
         -timeout-ms "$FUZZ_TIMEOUT_MS"
     ) >>"$FUZZ_LOG" 2>&1 &

@@ -67,6 +67,9 @@ func (s *Service) LockGuidedWorkItem(ctx context.Context, campaignID string, ite
 	if err != nil {
 		return 0, nil, nil, err
 	}
+	if len(seeds) == 0 {
+		return 0, nil, nil, fmt.Errorf("poolfuzz: guided corpus empty for campaign %s (re-seed required)", campaignID)
+	}
 	if err := s.storeExpectedInputs(ctx, campaignID, itemID, actualU, actualB); err != nil {
 		return 0, nil, nil, err
 	}

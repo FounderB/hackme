@@ -29,12 +29,27 @@ func (s *Service) loadPoolCorpusSeeds(ctx context.Context, campaignID string, ma
 	if max <= 0 {
 		max = 256
 	}
-	rows, err := s.DB.QueryContext(ctx,
-		`SELECT input_u64, input_bytes, energy, edge_bucket, path_bucket, is_crash
+	out, err := s.loadPoolCorpusSeedsFiltered(ctx, campaignID, max, false)
+	if err != nil {
+		return nil, err
+	}
+	// Cull prefers crash seeds; if the corpus is crash-only, guided claim would
+	// freeze an empty snapshot and submit would 500 forever. Fall back to all seeds.
+	if len(out) == 0 {
+		return s.loadPoolCorpusSeedsFiltered(ctx, campaignID, max, true)
+	}
+	return out, nil
+}
+
+func (s *Service) loadPoolCorpusSeedsFiltered(ctx context.Context, campaignID string, max int, includeCrash bool) ([]fuzzengine.PoolCorpusSeed, error) {
+	q := `SELECT input_u64, input_bytes, energy, edge_bucket, path_bucket, is_crash
 		   FROM fuzz_pool_corpus
-		  WHERE campaign_id=? AND is_crash=0
-		  ORDER BY energy DESC, last_seen_at DESC
-		  LIMIT ?`, campaignID, max)
+		  WHERE campaign_id=?`
+	if !includeCrash {
+		q += ` AND is_crash=0`
+	}
+	q += ` ORDER BY energy DESC, last_seen_at DESC LIMIT ?`
+	rows, err := s.DB.QueryContext(ctx, q, campaignID, max)
 	if err != nil {
 		return nil, err
 	}
@@ -152,14 +167,31 @@ func (s *Service) cullPoolCorpus(ctx context.Context, campaignID string, max int
 	// Prefer rarity-aware keep set when corpus is large enough to matter.
 	seeds, err := s.loadPoolCorpusSeeds(ctx, campaignID, max*4)
 	if err != nil || len(seeds) <= max {
+		// Keep a floor of non-crash seeds so guided scheduling cannot starve.
+		nonCrashFloor := max / 2
+		if nonCrashFloor < 8 {
+			nonCrashFloor = 8
+		}
+		if nonCrashFloor > max {
+			nonCrashFloor = max
+		}
 		_, err2 := s.DB.ExecContext(ctx,
 			`DELETE FROM fuzz_pool_corpus
 			  WHERE campaign_id=? AND rowid NOT IN (
-			    SELECT rowid FROM fuzz_pool_corpus
-			     WHERE campaign_id=?
-			     ORDER BY is_crash DESC, energy DESC, last_seen_at DESC
-			     LIMIT ?
-			  )`, campaignID, campaignID, max)
+			    SELECT rowid FROM (
+			      SELECT rowid FROM fuzz_pool_corpus
+			       WHERE campaign_id=? AND is_crash=0
+			       ORDER BY energy DESC, last_seen_at DESC
+			       LIMIT ?
+			    )
+			    UNION ALL
+			    SELECT rowid FROM (
+			      SELECT rowid FROM fuzz_pool_corpus
+			       WHERE campaign_id=?
+			       ORDER BY is_crash DESC, energy DESC, last_seen_at DESC
+			       LIMIT ?
+			    )
+			  )`, campaignID, campaignID, nonCrashFloor, campaignID, max)
 		return err2
 	}
 	// Include crash seeds for ranking (loadPoolCorpusSeeds filters is_crash=0).

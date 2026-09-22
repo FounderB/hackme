@@ -26,12 +26,14 @@ UNIT_PREFIX="${UNIT_PREFIX:-hackme-test-poh}"
 # Hybrid dig+hunt under same worker_id (default ON). Soft defaults to limit SQLITE_BUSY on hub.
 HYBRID_FUZZ="${HACKME_NAMED_HYBRID_FUZZ:-1}"
 HTTP_TIMEOUT_SEC="${WORKERFUZZ_HTTP_TIMEOUT_SEC:-120}"
-FUZZ_GAP_MS="${HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS:-1200}"
+FUZZ_GAP_MS="${HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS:-8000}"
 # Dig WASM timeout; Hunt uses HACKME_WORKER_HUNT_TIMEOUT_MS (≥180s floor in binary).
 FUZZ_TIMEOUT_MS="${NAMED_FUZZ_TIMEOUT_MS:-2500}"
 FUZZ_CONC="${HACKME_WORKER_HYBRID_FUZZ_CONCURRENCY:-1}"
 HUNT_SHARDS="${HACKME_WORKER_HUNT_SHARDS:-1}"
 HUNT_TIMEOUT_MS="${HACKME_WORKER_HUNT_TIMEOUT_MS:-180000}"
+# PoH+fuzz share one public IP bucket (coord claim_per_min×4). Keep combined < ~360/min.
+POH_CLAIM_COOLDOWN_MS="${HACKME_WORKER_CLAIM_COOLDOWN_MS:-8000}"
 
 NAMES=(
   desktop-a4m2rx desktop-k7v1pd desktop-q9n4ls desktop-t2c8we desktop-z5h6mf
@@ -117,7 +119,8 @@ for i in $(seq "$FLEET_OFFSET" $((FLEET_OFFSET + N - 1))); do
   : >"$LOG_DIR/${wid}.log"
   : >"$LOG_DIR/${wid}.fuzz.log"
   # Stagger claims so hub SQLite + ASAN harness cold-start do not stampede.
-  stagger_ms=$((gh_idx * 200))
+  # ~1.2s/unit keeps 20-fleet under the shared public-IP claim bucket.
+  stagger_ms=$((gh_idx * 1200))
   systemd-run --user \
     --unit="$unit" \
     --property=Restart=on-failure \
@@ -144,6 +147,7 @@ for i in $(seq "$FLEET_OFFSET" $((FLEET_OFFSET + N - 1))); do
     --setenv=WORKERFUZZ_TIMEOUT_MS="$FUZZ_TIMEOUT_MS" \
     --setenv=HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS="$FUZZ_GAP_MS" \
     --setenv=HACKME_WORKER_HYBRID_FUZZ_CONCURRENCY="$FUZZ_CONC" \
+    --setenv=HACKME_WORKER_CLAIM_COOLDOWN_MS="$POH_CLAIM_COOLDOWN_MS" \
     /bin/bash -c "sleep $(python3 -c "print(${stagger_ms}/1000)"); exec \"$ROOT/scripts/ops/named_hybrid_unit.sh\""
   echo "$unit" >"$LOG_DIR/${wid}.unit"
   echo "[test-fleet]  $wid  gh=${gh}  dig+hunt=${HYBRID_FUZZ}  unit=${unit}"

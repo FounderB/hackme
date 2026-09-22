@@ -59,12 +59,13 @@ if [[ -f "\$COORD_UNIT" ]]; then
     sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_POOL_TICK_SEC=10' "\$COORD_UNIT" || true
   sudo grep -q 'HACKME_COORDINATOR_PEER_FLUSH_SEC' "\$COORD_UNIT" || \
     sudo sed -i '/^EnvironmentFile=/a Environment=HACKME_COORDINATOR_PEER_FLUSH_SEC=5' "\$COORD_UNIT" || true
-  # Below GPU per-worker floor (120): global>=120 forced lim>=120 and pegged the VPS core.
+  # Floor 120 when global>=120 is for GPU; named hybrid fleets share one public IP
+  # (claim_per_min×4). 200 keeps ~800 IP claims/min for 20×PoH+fuzz + desktop GPU.
   if [[ -f "\$DEPLOY/.env.coord" ]]; then
-    sudo sed -i 's/^HACKME_COORDINATOR_CLAIM_PER_MIN=.*/HACKME_COORDINATOR_CLAIM_PER_MIN=90/' "\$DEPLOY/.env.coord" || true
-    sudo sed -i 's/^HACKME_COORDINATOR_SUBMIT_PER_MIN=.*/HACKME_COORDINATOR_SUBMIT_PER_MIN=480/' "\$DEPLOY/.env.coord" || true
-    grep -q '^HACKME_COORDINATOR_CLAIM_PER_MIN=' "\$DEPLOY/.env.coord" || echo 'HACKME_COORDINATOR_CLAIM_PER_MIN=90' | sudo tee -a "\$DEPLOY/.env.coord" >/dev/null
-    grep -q '^HACKME_COORDINATOR_SUBMIT_PER_MIN=' "\$DEPLOY/.env.coord" || echo 'HACKME_COORDINATOR_SUBMIT_PER_MIN=480' | sudo tee -a "\$DEPLOY/.env.coord" >/dev/null
+    sudo sed -i 's/^HACKME_COORDINATOR_CLAIM_PER_MIN=.*/HACKME_COORDINATOR_CLAIM_PER_MIN=200/' "\$DEPLOY/.env.coord" || true
+    sudo sed -i 's/^HACKME_COORDINATOR_SUBMIT_PER_MIN=.*/HACKME_COORDINATOR_SUBMIT_PER_MIN=600/' "\$DEPLOY/.env.coord" || true
+    grep -q '^HACKME_COORDINATOR_CLAIM_PER_MIN=' "\$DEPLOY/.env.coord" || echo 'HACKME_COORDINATOR_CLAIM_PER_MIN=200' | sudo tee -a "\$DEPLOY/.env.coord" >/dev/null
+    grep -q '^HACKME_COORDINATOR_SUBMIT_PER_MIN=' "\$DEPLOY/.env.coord" || echo 'HACKME_COORDINATOR_SUBMIT_PER_MIN=600' | sudo tee -a "\$DEPLOY/.env.coord" >/dev/null
   fi
   sudo systemctl daemon-reload
 fi
