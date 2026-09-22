@@ -727,7 +727,7 @@ func (a *app) handleFuzzCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		escrow, err := a.chain.OpenFuzzEscrow(r.Context(), id, req.BudgetHMC, req.BudgetRuns)
 		if err != nil {
 			_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, id)
-			writeAPIError(w, http.StatusPaymentRequired, "escrow_failed", err.Error(), nil)
+			writeFuzzEscrowFailed(w, err)
 			return
 		}
 		cfgMap["budget_hmc"] = req.BudgetHMC

@@ -26,6 +26,10 @@ func TestLoadPoolCorpusSeedsFallsBackWhenCrashOnly(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// Drop any config/namespace bootstrap seeds so only our crash rows remain.
+	if _, err := db.ExecContext(ctx, `DELETE FROM fuzz_pool_corpus WHERE campaign_id=?`, id); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.upsertPoolCorpusSeed(ctx, id, 42, []byte("ab"), 8, 1, 2, true, now); err != nil {
 		t.Fatal(err)
 	}
@@ -38,5 +42,10 @@ func TestLoadPoolCorpusSeedsFallsBackWhenCrashOnly(t *testing.T) {
 	}
 	if len(seeds) != 2 {
 		t.Fatalf("expected crash-only fallback len=2, got %d", len(seeds))
+	}
+	for _, s := range seeds {
+		if !s.Crash {
+			t.Fatalf("fallback seed must be crash-marked: %+v", s)
+		}
 	}
 }

@@ -125,12 +125,19 @@ func (c *Client) postJSON(path string, body any) (int, []byte, error) {
 	return res.StatusCode, raw, err
 }
 
-// Claim requests a work lease.
-func (c *Client) Claim(workerID string, batchSize uint64) (ClaimResponse, error) {
-	code, raw, err := c.postJSON("/api/work/claim", map[string]any{
+// Claim requests a work lease. Optional pubHex/addr bind claim identity (hybrid pools).
+func (c *Client) Claim(workerID string, batchSize uint64, pubHex, minerAddr string) (ClaimResponse, error) {
+	body := map[string]any{
 		"worker_id":  workerID,
 		"batch_size": batchSize,
-	})
+	}
+	if pub := strings.TrimSpace(pubHex); pub != "" {
+		body["miner_pubkey_ed25519"] = pub
+	}
+	if addr := strings.TrimSpace(minerAddr); addr != "" {
+		body["miner_address"] = addr
+	}
+	code, raw, err := c.postJSON("/api/work/claim", body)
 	if err != nil {
 		return ClaimResponse{}, err
 	}
@@ -162,10 +169,15 @@ func (c *Client) Submit(req SubmitRequest) (SubmitResponse, error) {
 
 // ClaimWithRetry attempts claim until success or maxAttempts; returns attempts and final backoff.
 func (c *Client) ClaimWithRetry(workerID string, batchSize uint64, maxAttempts int) (ClaimResponse, int, error) {
+	return c.ClaimWithRetryIdentity(workerID, batchSize, "", "", maxAttempts)
+}
+
+// ClaimWithRetryIdentity is ClaimWithRetry with optional hybrid claim identity.
+func (c *Client) ClaimWithRetryIdentity(workerID string, batchSize uint64, pubHex, minerAddr string, maxAttempts int) (ClaimResponse, int, error) {
 	c.ResetBackoff()
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		cr, err := c.Claim(workerID, batchSize)
+		cr, err := c.Claim(workerID, batchSize, pubHex, minerAddr)
 		if err == nil {
 			c.ResetBackoff()
 			return cr, attempt, nil

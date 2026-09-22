@@ -410,7 +410,7 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 	escrow, err := openFuzzEscrowRetry(r.Context(), a.chain, campaignID, escrowBudgetHMC, budgetRuns)
 	if err != nil {
 		_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, campaignID)
-		writeAPIError(w, http.StatusPaymentRequired, "escrow_failed", err.Error(), nil)
+		writeFuzzEscrowFailed(w, err)
 		return
 	}
 

@@ -91,7 +91,11 @@ stop_all_workers() {
   pkill -f 'workerpoh ' 2>/dev/null || true
   sleep 2
 
-  echo "[worker-reset] clearing stale pool worker logs..."
+  echo "[worker-reset] rotating pool worker log (preserve prior; avoid sparse holes)..."
+  if [[ -s "$ROOT_DIR/logs/worker_participant.log" ]]; then
+    rm -f "$ROOT_DIR/logs/worker_participant.log.prev" 2>/dev/null || true
+    mv -f "$ROOT_DIR/logs/worker_participant.log" "$ROOT_DIR/logs/worker_participant.log.prev" 2>/dev/null || true
+  fi
   : >"$ROOT_DIR/logs/worker_participant.log" 2>/dev/null || true
 }
 

@@ -489,9 +489,10 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
 		var req struct {
-			WorkerID     string `json:"worker_id"`
-			MinerPubKey  string `json:"miner_pubkey"`
-			MinerAddress string `json:"miner_address"`
+			WorkerID      string `json:"worker_id"`
+			MinerPubKey   string `json:"miner_pubkey"`
+			MinerPubKeyEd string `json:"miner_pubkey_ed25519"`
+			MinerAddress  string `json:"miner_address"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
@@ -502,7 +503,11 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "invalid worker_id", http.StatusBadRequest)
 			return
 		}
-		if okID, reasonID := wm.checkClaimMinerIdentity(workerID, req.MinerPubKey, req.MinerAddress); !okID {
+		pub := strings.TrimSpace(req.MinerPubKey)
+		if pub == "" {
+			pub = strings.TrimSpace(req.MinerPubKeyEd)
+		}
+		if okID, reasonID := wm.checkClaimMinerIdentity(workerID, pub, req.MinerAddress); !okID {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reasonID})

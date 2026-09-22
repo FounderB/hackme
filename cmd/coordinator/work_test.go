@@ -368,7 +368,7 @@ func TestWorkManagerBanAfterBadSubmits(t *testing.T) {
 		targetMod:       1000000,
 		leaseSec:        30,
 		claimPerMin:     100,
-		submitPerMin:    100,
+		submitPerMin:    1000,
 		banSec:          60,
 		badStrikesToBan: 2,
 		maxWorkers:      1000,
@@ -377,12 +377,17 @@ func TestWorkManagerBanAfterBadSubmits(t *testing.T) {
 		active:          make(map[workKey]leaseRecord),
 		worker:          make(map[string]workerPayoutStat),
 		abuse:           make(map[string]workerAbuseState),
+		ipAbuse:         make(map[string]workerAbuseState),
 	}
 	now := int64(1_700_000_000)
-	wm.markSubmitOutcome("w-abuse", "", "work_id_mismatch", now)
-	wm.markSubmitOutcome("w-abuse", "", "range_leased_to_another_worker", now)
-	if ok, reason := wm.allowSubmit("w-abuse", "", now+1); ok || reason != "worker_temporarily_banned" {
-		t.Fatalf("expected worker_temporarily_banned, got ok=%v reason=%q", ok, reason)
+	// Spoofable mismatch reasons must NOT ban the nominal worker_id (shared-token DoS).
+	wm.markSubmitOutcome("w-abuse", "203.0.113.9", "work_id_mismatch", now)
+	wm.markSubmitOutcome("w-abuse", "203.0.113.9", "range_leased_to_another_worker", now)
+	if ok, reason := wm.allowSubmit("w-abuse", "", now+1); !ok {
+		t.Fatalf("spoofable mismatch must not ban worker, got reason=%q", reason)
+	}
+	if ok, reason := wm.allowSubmit("w-abuse", "203.0.113.9", now+1); ok || reason != "worker_temporarily_banned" {
+		t.Fatalf("expected attacker IP banned, got ok=%v reason=%q", ok, reason)
 	}
 	wm.markSubmitOutcome("w-replay", "", "replay", now)
 	wm.markSubmitOutcome("w-replay", "", "replay", now)
@@ -396,8 +401,52 @@ func TestWorkManagerBanAfterBadSubmits(t *testing.T) {
 	if ok, reason := wm.allowSubmit("w-stale", "", now+1); !ok {
 		t.Fatalf("stale/closed-range alone must not ban worker, got reason=%q", reason)
 	}
-	if ok, _ := wm.allowSubmit("w-abuse", "", now+61); !ok {
+	if ok, _ := wm.allowSubmit("w-abuse", "203.0.113.9", now+61); !ok {
 		t.Fatal("ban should expire")
+	}
+}
+
+func TestClaimAsVictimRejectedWhenPayoutLocked(t *testing.T) {
+	pub, _, _ := ed25519.GenerateKey(nil)
+	wm := &workManager{
+		hybridSignerEnabled: true,
+		claimRequirePubKey:  false, // even with require off…
+		worker: map[string]workerPayoutStat{
+			"victim-rig": {PayoutAddress: signerAddr(pub)},
+		},
+	}
+	if ok, reason := wm.checkClaimMinerIdentity("victim-rig", "", ""); ok || reason != "claim_pubkey_required" {
+		t.Fatalf("empty claim against locked payout must fail: ok=%v reason=%q", ok, reason)
+	}
+	pub2, _, _ := ed25519.GenerateKey(nil)
+	if ok, reason := wm.checkClaimMinerIdentity("victim-rig", hex.EncodeToString(pub2), ""); ok || !strings.HasPrefix(reason, "payout_address_locked") {
+		t.Fatalf("wrong key must fail: ok=%v reason=%q", ok, reason)
+	}
+	if ok, reason := wm.checkClaimMinerIdentity("victim-rig", hex.EncodeToString(pub), ""); !ok {
+		t.Fatalf("matching key must pass: %s", reason)
+	}
+}
+
+func TestSignatureRequiredDoesNotStrikeBoundWorker(t *testing.T) {
+	wm := &workManager{
+		banSec:          60,
+		badStrikesToBan: 2,
+		submitPerMin:    1000,
+		claimPerMin:     1000,
+		abuse:           make(map[string]workerAbuseState),
+		ipAbuse:         make(map[string]workerAbuseState),
+		worker: map[string]workerPayoutStat{
+			"bound-miner": {PayoutAddress: "HMC-bound0000000000"},
+		},
+	}
+	now := int64(1_700_000_100)
+	wm.markSubmitOutcome("bound-miner", "198.51.100.7", "signature_required", now)
+	wm.markSubmitOutcome("bound-miner", "198.51.100.7", "signature_required", now)
+	if ok, reason := wm.allowSubmit("bound-miner", "", now+1); !ok {
+		t.Fatalf("unsigned/forged sig must not ban bound worker, got %q", reason)
+	}
+	if ok, reason := wm.allowSubmit("bound-miner", "198.51.100.7", now+1); ok || reason != "worker_temporarily_banned" {
+		t.Fatalf("expected attacker IP banned, got ok=%v reason=%q", ok, reason)
 	}
 }
 

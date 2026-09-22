@@ -115,7 +115,7 @@ func TestClient_SubmitRetryDoesNotDuplicateAcceptedWork(t *testing.T) {
 		Token:   "tok",
 		HTTP:    NewHTTPClient(3 * time.Second),
 	}
-	cr, err := clClean.Claim("w-dedup", 500)
+	cr, err := clClean.Claim("w-dedup", 500, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

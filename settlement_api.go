@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -147,19 +148,6 @@ func fetchCanonicalSettlementStateHTTP(ctx context.Context) (workerSettlementSta
 	return out, nil
 }
 
-func persistCanonicalSettlementSnapshot(st workerSettlementState) {
-	p := canonicalSettlementStateFile()
-	if p == "" {
-		return
-	}
-	b, err := json.MarshalIndent(st, "", "  ")
-	if err != nil {
-		return
-	}
-	_ = os.MkdirAll(filepath.Dir(p), 0o700)
-	_ = os.WriteFile(p, b, 0o600)
-}
-
 // fetchCanonicalSettlementState returns live canonical HTTP only.
 // A stale on-disk settlement_canonical_public.json must NOT be treated as live
 // canonical for merge: when /api/settlement/canonical.json is 404/unreachable,
@@ -248,14 +236,72 @@ func persistWorkerSettlementState(path string, state workerSettlementState) {
 	if strings.TrimSpace(path) == "" {
 		return
 	}
-	_ = withSettlementStateLock(path, func() error {
+	if err := withSettlementStateLock(path, func() error {
 		b, err := json.MarshalIndent(state, "", "  ")
 		if err != nil {
-			return nil
+			return err
 		}
-		_ = os.MkdirAll(filepath.Dir(path), 0o700)
-		return os.WriteFile(path, b, 0o600)
-	})
+		return atomicWriteFile(path, b, 0o600)
+	}); err != nil {
+		log.Printf("settlement: persist worker state failed path=%s: %v", path, err)
+	}
+}
+
+func persistCanonicalSettlementSnapshot(st workerSettlementState) {
+	p := canonicalSettlementStateFile()
+	if p == "" {
+		return
+	}
+	if err := withSettlementStateLock(p, func() error {
+		b, err := json.MarshalIndent(st, "", "  ")
+		if err != nil {
+			return err
+		}
+		return atomicWriteFile(p, b, 0o600)
+	}); err != nil {
+		log.Printf("settlement: persist canonical snapshot failed path=%s: %v", p, err)
+	}
+}
+
+// atomicWriteFile writes via temp+rename so concurrent readers never see a
+// truncate-then-write hole (Windows settlement display corruption class).
+func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fmt.Errorf("empty path")
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp.*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpName)
+		}
+	}()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	_ = os.Chmod(tmpName, perm)
+	if err := replaceFileAtomic(tmpName, path); err != nil {
+		return err
+	}
+	cleanup = false
+	return nil
 }
 
 func parseAnyFloat(v any) float64 {

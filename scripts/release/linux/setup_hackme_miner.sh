@@ -69,6 +69,9 @@ HACKME_GPU_BACKEND=${GPU_BACKEND}
 # External/systemd workers: set HACKME_WORKER_WATCHDOG=0 and WORKER_AUTOSTART=0 in your unit.
 HACKME_WORKER_WATCHDOG=1
 WORKER_AUTOSTART=1
+HACKME_WORKER_LOCK_DIR=${INSTALL_DIR}/logs
+HACKME_WORKER_HEARTBEAT_STALE_SEC=180
+HACKME_WORKER_HEARTBEAT_GRACE_SEC=120
 # Worker pool token is not hub admin — keep settle pull off (parity with Windows write_hackme_env.ps1).
 HACKME_FUZZ_SETTLE_PULL=0
 # GPU desktop: prefer direct coordinator for pool sync/settle (avoid CF timeouts).

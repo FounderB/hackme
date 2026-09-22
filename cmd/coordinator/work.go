@@ -366,8 +366,9 @@ func newWorkManagerFromEnv() *workManager {
 	if v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_POOL_HYBRID_REQUIRE_FOUND_SIG"))); v != "" {
 		hybridRequireFoundSig = v == "1" || v == "true" || v == "yes" || v == "on"
 	}
-	// Opt-in: require miner_pubkey on claim (CLAIM-01). Default off so existing workerpoh stays online.
-	claimRequirePubKey := false
+	// Claim pubkey: default ON when hybrid signing is enabled (closes identity-free
+	// claim-as-victim abuse). Explicit HACKME_POOL_CLAIM_REQUIRE_PUBKEY=0 keeps legacy off.
+	claimRequirePubKey := hybridSignerEnabled
 	if v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_POOL_CLAIM_REQUIRE_PUBKEY"))); v != "" {
 		claimRequirePubKey = v == "1" || v == "true" || v == "yes" || v == "on"
 	}
@@ -1088,14 +1089,18 @@ func (m *workManager) markSubmitOutcome(workerID, ipKey, reason string, now int6
 	ipStrike := false
 	sigFail := false
 	switch reason {
-	case "work_id_mismatch", "range_leased_to_another_worker",
-		"found_nonce_out_of_range", "result_hash_required_for_found", "duplicate_found_nonce":
+	case "work_id_mismatch", "range_leased_to_another_worker":
+		// Spoofable with shared pool token: attacker leases as self, submits with
+		// victim worker_id. Never charge the nominal worker — IP only.
+		ipStrike = true
+	case "found_nonce_out_of_range", "result_hash_required_for_found", "duplicate_found_nonce":
+		// Requires a live lease under worker_id (identity gated when payout locked).
 		workerStrike = true
 		ipStrike = true
 	case "invalid_signature", "invalid_pubkey", "pubkey_address_mismatch", "missing_signature_fields",
 		"signature_required", "found_signature_required", "duplicate_signed_payload", "unsupported_sig_alg":
-		// M3: shared pool token — do not ban victim worker_id on forged sigs unless
-		// that worker already bound a payout address (prior good submit).
+		// Shared pool token — do not ban worker_id on forged/unsigned sigs.
+		// IP still accumulates (rotating proxies cost attacker).
 		sigFail = true
 		ipStrike = true
 	case "replay", "unknown_or_already_closed_range", "lease_expired":
@@ -1108,11 +1113,9 @@ func (m *workManager) markSubmitOutcome(workerID, ipKey, reason string, now int6
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if sigFail && workerID != "" {
-		if locked := strings.TrimSpace(m.worker[workerID].PayoutAddress); locked != "" {
-			workerStrike = true
-		}
-	}
+	// Never promote sigFail → workerStrike based on locked payout: that inverted M3
+	// and let claim-as-victim + unsigned submit temp-ban real miners.
+	_ = sigFail
 	applyStrike := func(s workerAbuseState) workerAbuseState {
 		if !workerStrike && !ipStrike {
 			return s
@@ -1288,8 +1291,10 @@ func payoutAddressLockedReason(locked, submitted string) string {
 	return fmt.Sprintf("payout_address_locked:locked=%s:submitted=%s", locked, submitted)
 }
 
-// checkClaimMinerIdentity binds optional claim pubkey/address to a locked worker payout.
-// When claimRequirePubKey is set, miner_pubkey is mandatory under hybrid signing.
+// checkClaimMinerIdentity binds claim pubkey/address to a locked worker payout.
+// When claimRequirePubKey is set (default under hybrid), miner_pubkey is mandatory.
+// Even when require is off: a worker_id that already bound a payout address MUST present
+// matching identity — otherwise shared-token attackers claim-as-victim and poison abuse state.
 func (m *workManager) checkClaimMinerIdentity(workerID, pubHex, addrHint string) (ok bool, reason string) {
 	if m == nil {
 		return true, ""
@@ -1297,8 +1302,13 @@ func (m *workManager) checkClaimMinerIdentity(workerID, pubHex, addrHint string)
 	pubHex = strings.TrimSpace(pubHex)
 	addrHint = strings.TrimSpace(addrHint)
 	require := m.claimRequirePubKey && m.hybridSignerEnabled
+
+	m.mu.Lock()
+	locked := strings.TrimSpace(m.worker[workerID].PayoutAddress)
+	m.mu.Unlock()
+
 	if pubHex == "" && addrHint == "" {
-		if require {
+		if require || locked != "" {
 			return false, "claim_pubkey_required"
 		}
 		return true, ""
@@ -1319,9 +1329,6 @@ func (m *workManager) checkClaimMinerIdentity(workerID, pubHex, addrHint string)
 			return false, "invalid_miner_address"
 		}
 	}
-	m.mu.Lock()
-	locked := strings.TrimSpace(m.worker[workerID].PayoutAddress)
-	m.mu.Unlock()
 	if locked != "" && !strings.EqualFold(locked, derived) {
 		return false, payoutAddressLockedReason(locked, derived)
 	}

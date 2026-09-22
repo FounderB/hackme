@@ -17,6 +17,9 @@ var (
 	ErrFuzzEscrowDepleted      = errors.New("chain: fuzz escrow pool depleted")
 	ErrFuzzEscrowAlreadyPaid   = errors.New("chain: fuzz bounty already paid")
 	ErrFuzzInsufficientBalance = errors.New("chain: insufficient wallet balance for fuzz escrow")
+	// ErrFuzzWalletMissing is returned when wallet id=1 is absent (no genesis).
+	// Mapped to HTTP escrow_unavailable — never surface sql.ErrNoRows to clients.
+	ErrFuzzWalletMissing = errors.New("chain: genesis required (wallet row missing)")
 )
 
 // FuzzEscrowRow is the locked 20/80 state for a campaign.
@@ -101,6 +104,9 @@ func (s *Service) OpenFuzzEscrowSplit(ctx context.Context, campaignID string, bu
 	var balUnits uint64
 	var walletAddr string
 	if err := tx.QueryRowContext(ctx, `SELECT address, balance_units FROM wallet WHERE id=1`).Scan(&walletAddr, &balUnits); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrFuzzWalletMissing
+		}
 		return nil, err
 	}
 	if balUnits < split.TotalUnits {

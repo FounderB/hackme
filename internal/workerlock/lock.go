@@ -39,7 +39,10 @@ func Acquire(kind, workerID, dir string) (*Guard, error) {
 	}
 	if err := lockFile(f); err != nil {
 		_ = f.Close()
-		return nil, fmt.Errorf("%w: %s (kind=%s worker_id=%s)", ErrAlreadyRunning, path, kind, workerID)
+		if isLockBusy(err) {
+			return nil, fmt.Errorf("%w: %s (kind=%s worker_id=%s)", ErrAlreadyRunning, path, kind, workerID)
+		}
+		return nil, fmt.Errorf("workerlock acquire %s: %w", path, err)
 	}
 	if err := f.Truncate(0); err != nil {
 		_ = unlockFile(f)
@@ -93,7 +96,8 @@ func Held(kind, workerID, dir string) bool {
 	path := filepath.Join(dir, fmt.Sprintf("workerlock-%s-%s.pid", kind, workerID))
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
-		return false
+		// Fail closed: unknown lock state must not look "free" (orphan DoS class).
+		return true
 	}
 	defer f.Close()
 	if err := lockFile(f); err != nil {

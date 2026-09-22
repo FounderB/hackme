@@ -192,18 +192,18 @@ func pushWorkSnapshot(cl *http.Client, coordURL, token, workerID, workerName str
 	_ = res.Body.Close()
 }
 
-// loadHybridSigningMaterial returns (priv, pubHex, true) when a miner seed is available
+// loadHybridSigningMaterial returns (priv, pubHex, payoutAddr, hybrid) when a miner seed is available
 // (HACKME_MINER_ED25519_SEED_HEX, HACKME_MINER_SEED_FILE, or desktop node seed).
-func loadHybridSigningMaterial() (ed25519.PrivateKey, string, bool, error) {
-	priv, pubHex, _, hybrid, err := workerfuzzloop.LoadHybridKey()
+func loadHybridSigningMaterial() (ed25519.PrivateKey, string, string, bool, error) {
+	priv, pubHex, addr, hybrid, err := workerfuzzloop.LoadHybridKey()
 	if err != nil {
 		msg := err.Error()
 		if strings.Contains(msg, "required") || strings.Contains(msg, "SEED") {
-			return nil, "", false, nil
+			return nil, "", "", false, nil
 		}
-		return nil, "", false, err
+		return nil, "", "", false, err
 	}
-	return priv, pubHex, hybrid, nil
+	return priv, pubHex, strings.TrimSpace(addr), hybrid, nil
 }
 
 type searcher interface {
@@ -690,7 +690,9 @@ func main() {
 		if err != nil {
 			if errors.Is(err, workerlock.ErrAlreadyRunning) {
 				fmt.Fprintf(os.Stderr, "workerpoh: %v\n", err)
-				os.Exit(0)
+				// Non-zero so the node Wait() path clears running state instead of
+				// treating a lock collision as a clean exit (orphan DoS after node crash).
+				os.Exit(2)
 			}
 			fmt.Fprintf(os.Stderr, "workerpoh: instance lock: %v\n", err)
 			os.Exit(1)
@@ -698,7 +700,7 @@ func main() {
 		defer g.Release()
 	}
 
-	priv, pubHex, signHybrid, err := loadHybridSigningMaterial()
+	priv, pubHex, claimMinerAddr, signHybrid, err := loadHybridSigningMaterial()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "bad signing material:", err.Error())
 		os.Exit(2)
@@ -764,8 +766,15 @@ func main() {
 	}
 	var okSubmits int64
 	for {
-		// claim
+		// claim — include hybrid identity so coordinator can reject claim-as-victim
+		// (shared pool token + empty identity abuse / temp-ban poisoning).
 		claimBody := map[string]any{"worker_id": *workerID, "batch_size": *batch}
+		if signHybrid && pubHex != "" {
+			claimBody["miner_pubkey_ed25519"] = pubHex
+			if claimMinerAddr != "" {
+				claimBody["miner_address"] = claimMinerAddr
+			}
+		}
 		cb, _ := json.Marshal(claimBody)
 		req, _ := http.NewRequest(http.MethodPost, strings.TrimRight(*coordURL, "/")+"/api/work/claim", bytes.NewReader(cb))
 		req.Header.Set("Content-Type", "application/json")

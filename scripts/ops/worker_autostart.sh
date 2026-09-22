@@ -48,8 +48,10 @@ mkdir -p "$LOG_DIR"
 LOCK_FILE="${LOG_DIR}/.worker_autostart.lock"
 exec 200>"$LOCK_FILE"
 if ! flock -n 200; then
-  echo "[worker-autostart] another instance is already running (lock ${LOCK_FILE}); exiting"
-  exit 0
+  echo "[worker-autostart] another instance is already running (lock ${LOCK_FILE}); exiting" >&2
+  # Non-zero so supervisors/node Wait() do not treat lock collision as clean success
+  # (same class as workerpoh ErrAlreadyRunning → exit 2).
+  exit 2
 fi
 
 mining_paused() {

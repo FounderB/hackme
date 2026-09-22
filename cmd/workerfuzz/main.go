@@ -44,7 +44,7 @@ func main() {
 		if err != nil {
 			if errors.Is(err, workerlock.ErrAlreadyRunning) {
 				fmt.Fprintf(os.Stderr, "workerfuzz: %v\n", err)
-				os.Exit(0)
+				os.Exit(2)
 			}
 			fmt.Fprintf(os.Stderr, "workerfuzz: instance lock: %v\n", err)
 			os.Exit(1)

@@ -301,7 +301,7 @@ func Run(ctx context.Context, cfg Config, st *Stats) error {
 }
 
 func runOne(ctx context.Context, cfg Config, base string, st *Stats) {
-	cr, err := Claim(ctx, cfg.HTTPClient, base, cfg.Token, cfg.WorkerID)
+	cr, err := Claim(ctx, cfg.HTTPClient, base, cfg.Token, cfg.WorkerID, cfg.PubHex, cfg.MinerAddr)
 	if err != nil {
 		sleep := backoffForErr(err)
 		fmt.Fprintf(os.Stderr, "%s: claim: %v (sleep %s)\n", cfg.LogPrefix, err, sleep)
@@ -411,9 +411,17 @@ func backoffForReason(reason string) time.Duration {
 }
 
 // Claim leases one fuzz work item.
-func Claim(ctx context.Context, cl *http.Client, base, token, workerID string) (ClaimResp, error) {
+func Claim(ctx context.Context, cl *http.Client, base, token, workerID, pubHex, minerAddr string) (ClaimResp, error) {
 	var out ClaimResp
-	body, _ := json.Marshal(map[string]any{"worker_id": workerID})
+	bodyMap := map[string]any{"worker_id": workerID}
+	if pub := strings.TrimSpace(pubHex); pub != "" {
+		bodyMap["miner_pubkey"] = pub
+		bodyMap["miner_pubkey_ed25519"] = pub
+	}
+	if addr := strings.TrimSpace(minerAddr); addr != "" {
+		bodyMap["miner_address"] = addr
+	}
+	body, _ := json.Marshal(bodyMap)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/fuzz/work/claim", bytes.NewReader(body))
 	if err != nil {
 		return out, err
