@@ -24,6 +24,7 @@ Reports: `reports/tests/security_full_20260828T190633Z/` · `reports/gates/redte
 | `GET /api/mining/logs/stream` requires admin token (or desktop loopback) | `main.go` |
 | Public node bind requires `HACKME_P2P_TOKEN` | `main.go` startup |
 | Settlement state writes take exclusive lock on `*.flock` (**Unix flock + Windows LockFileEx**; fail-closed) + atomic temp+rename | `settlement_flock_*.go`, `atomicWriteFile` in `settlement_api.go` |
+| Hunt harness supply-chain (report #6): binary `harness_content_sha256` attestation + coordinator-only fetch | `internal/hunt/artifact.go`, claim payload, worker materialize |
 | `govulncheck` in CI; `go 1.25.13` toolchain pin | `.github/workflows/ci.yml`, `go.mod` |
 
 ---
@@ -80,6 +81,7 @@ Automated smoke: `scripts/tests/security_assertions.sh`, `scripts/tests/redteam_
 | H5 | `WORKER_PAYOUT_MAP` misconfiguration | Ops discipline; audit map before cron |
 | H6 | P2P open if `HACKME_P2P_TOKEN` unset | Always set P2P token when P2P is exposed |
 | H7 | `tasks/from_code` = compiler execution | Admin-only; disable on public followers |
+| H8 | Hunt harness fetch RCE (no binary attestation; arbitrary HTTPS URL) | **Fixed 2026-09-22:** claim carries `harness_content_sha256`; worker verifies before cache write/exec; fetch restricted to configured coordinator host; unattested cache quarantined |
 
 ---
 

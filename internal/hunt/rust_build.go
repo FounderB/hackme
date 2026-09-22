@@ -56,16 +56,19 @@ func BuildInventoryRustHarness(ctx context.Context, repoRoot string, req Harness
 		return nil, err
 	}
 	if st, err := SafeStatUnder(repoRoot, cachePath); err == nil && st.Mode().IsRegular() {
-		harnessCache.Store(hash, cachePath)
-		return &HarnessBuildResult{
-			HarnessHash: hash,
-			BinaryPath:  cachePath,
-			SourceRel:   sourceRel,
-			Language:    "rust",
-			PinSHA:      req.Pin.CommitSHA,
-			BuildOK:     true,
-			Note:        "cached rust harness",
-		}, nil
+		if _, _, verr := readVerifiedHarnessCache(cachePath, ""); verr == nil {
+			harnessCache.Store(hash, cachePath)
+			return &HarnessBuildResult{
+				HarnessHash: hash,
+				BinaryPath:  cachePath,
+				SourceRel:   sourceRel,
+				Language:    "rust",
+				PinSHA:      req.Pin.CommitSHA,
+				BuildOK:     true,
+				Note:        "cached rust harness",
+			}, nil
+		}
+		quarantineHarnessCache(cachePath)
 	}
 	if err := requireRustNightlyASAN(); err != nil {
 		return nil, err
@@ -118,6 +121,10 @@ func BuildInventoryRustHarness(ctx context.Context, repoRoot string, req Harness
 	}
 	if err := SafeRenameUnder(repoRoot, tmp, cachePath); err != nil {
 		_ = os.Remove(tmp)
+		return nil, err
+	}
+	if err := writeHarnessCacheAttestation(cachePath, contentSHA256Hex(in)); err != nil {
+		quarantineHarnessCache(cachePath)
 		return nil, err
 	}
 	harnessCache.Store(hash, cachePath)

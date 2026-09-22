@@ -54,6 +54,7 @@ type ClaimResp struct {
 	HuntPinPath          string           `json:"hunt_pin_path,omitempty"`
 	HuntSourceRel        string           `json:"hunt_source_rel,omitempty"`
 	HarnessFetchURL      string           `json:"harness_fetch_url,omitempty"`
+	HarnessContentSHA256 string           `json:"harness_content_sha256,omitempty"`
 	HuntDetectLeaks      bool             `json:"hunt_detect_leaks,omitempty"`
 }
 

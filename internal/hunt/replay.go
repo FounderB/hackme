@@ -2,6 +2,7 @@ package hunt
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,18 +40,20 @@ func RepoRoot() string {
 
 // ReplayShardOpts runs one Hunt pool shard input chain on the catalog harness.
 type ReplayShardOpts struct {
-	RepoRoot        string
-	Spec            HarnessSpec
-	TargetID        string
-	HarnessHash     string
-	HarnessFetchURL string
-	CampaignID      string
-	InputN          uint64
-	Config          map[string]any
-	CorpusSeeds     []fuzzengine.PoolCorpusSeed
-	Input           []byte
-	MaxInput        int
-	ExecPer         int
+	RepoRoot             string
+	Spec                 HarnessSpec
+	TargetID             string
+	HarnessHash          string
+	HarnessFetchURL      string
+	HarnessContentSHA256 string  // sha256 hex of published binary (required for HTTP/cache)
+	ArtifactDB           *sql.DB // optional: load published harness without HTTP
+	CampaignID           string
+	InputN               uint64
+	Config               map[string]any
+	CorpusSeeds          []fuzzengine.PoolCorpusSeed
+	Input                []byte
+	MaxInput             int
+	ExecPer              int
 }
 
 // ReplayShardResult is coordinator/worker replay output for one shard.
@@ -85,11 +88,12 @@ func EnsureHarnessBinary(ctx context.Context, repoRoot, targetID, harnessHash st
 	if v, ok := harnessCache.Load(wantHash); ok {
 		if p, ok := v.(string); ok && p != "" {
 			if safe, err := MustUnderRoot(repoRoot, p); err == nil {
-				if st, err := SafeStatUnder(repoRoot, safe); err == nil && st.Mode().IsRegular() {
+				if _, _, verr := readVerifiedHarnessCache(safe, ""); verr == nil {
 					return safe, nil
 				}
 			}
 		}
+		harnessCache.Delete(wantHash)
 	}
 	cacheDir, err := SafeJoinUnder(repoRoot, ".cache", "hunt-harness")
 	if err != nil {
@@ -105,10 +109,11 @@ func EnsureHarnessBinary(ctx context.Context, repoRoot, targetID, harnessHash st
 	if err != nil {
 		return "", err
 	}
-	if st, err := SafeStatUnder(repoRoot, cachePath); err == nil && st.Mode().IsRegular() {
+	if _, _, err := readVerifiedHarnessCache(cachePath, ""); err == nil {
 		harnessCache.Store(wantHash, cachePath)
 		return cachePath, nil
 	}
+	quarantineHarnessCache(cachePath)
 	t, err := CatalogTarget(repoRoot, targetID)
 	if err != nil {
 		return "", err
@@ -143,6 +148,10 @@ func EnsureHarnessBinary(ctx context.Context, repoRoot, targetID, harnessHash st
 		if reSafeAbsPath.MatchString(tmp) {
 			_ = os.Remove(tmp)
 		}
+		return "", err
+	}
+	if err := writeHarnessCacheAttestation(cachePath, contentSHA256Hex(in)); err != nil {
+		quarantineHarnessCache(cachePath)
 		return "", err
 	}
 	harnessCache.Store(wantHash, cachePath)
@@ -227,18 +236,21 @@ func resolveHarnessBinary(ctx context.Context, opts ReplayShardOpts) (string, er
 		hash = strings.TrimSpace(opts.HarnessHash)
 	}
 	if hash != "" {
-		p, err := MaterializeHarness(ctx, opts.RepoRoot, hash, opts.HarnessFetchURL, nil)
+		p, err := MaterializeHarness(ctx, opts.RepoRoot, hash, opts.HarnessFetchURL, opts.HarnessContentSHA256, opts.ArtifactDB)
 		if err == nil && p != "" {
 			return p, nil
 		}
-		// Pool Hunt shards publish a harness_hash — do not silently fall back to a
-		// multi-minute local ASAN rebuild when fetch/auth fails (workers hang / lease stick).
-		if strings.TrimSpace(opts.HarnessFetchURL) != "" || poolHarnessFetchConfigured() {
+		// Attested / absolute remote fetch: fail closed (do not rebuild a different binary).
+		requireRemote := ValidContentSHA256(opts.HarnessContentSHA256) ||
+			strings.HasPrefix(strings.TrimSpace(opts.HarnessFetchURL), "http://") ||
+			strings.HasPrefix(strings.TrimSpace(opts.HarnessFetchURL), "https://")
+		if requireRemote {
 			if err != nil {
 				return "", fmt.Errorf("hunt harness fetch failed for %s: %w", hash, err)
 			}
 			return "", fmt.Errorf("hunt harness fetch failed for %s: empty path", hash)
 		}
+		// Relative default path without attestation → local catalog/inventory rebuild (tests/dev).
 	}
 	if spec.Source == "" {
 		spec = HarnessSpec{

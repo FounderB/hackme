@@ -81,6 +81,7 @@ type ClaimedWork struct {
 	HuntPinPath          string
 	HuntSourceRel        string
 	HarnessFetchURL      string
+	HarnessContentSHA256 string
 	IterationsPerShard   int
 	HuntDetectLeaks      bool
 }

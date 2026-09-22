@@ -591,6 +591,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			if u := strings.TrimSpace(work.HarnessFetchURL); u != "" {
 				payload["harness_fetch_url"] = u
 			}
+			if sha := strings.TrimSpace(work.HarnessContentSHA256); sha != "" {
+				payload["harness_content_sha256"] = sha
+			}
 			payload["hunt_detect_leaks"] = work.HuntDetectLeaks
 			payload["shard_spec"] = map[string]any{
 				"iterations_per_shard": work.IterationsPerShard,
@@ -864,6 +867,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		}
 		if path, ok := hunt.GetHarnessArtifactPath(hash); ok {
 			w.Header().Set("Content-Type", "application/octet-stream")
+			if fp, err := hunt.GetHarnessContentSHA256(r.Context(), pf.DB, hash); err == nil && fp != "" {
+				w.Header().Set("X-Hackme-Content-SHA256", fp)
+			}
 			http.ServeFile(w, r, path)
 			return
 		}
@@ -873,6 +879,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			return
 		}
 		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("X-Hackme-Content-SHA256", hunt.ContentFingerprint(data))
 		if r.Method == http.MethodHead {
 			w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 			return

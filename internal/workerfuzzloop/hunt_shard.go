@@ -64,16 +64,17 @@ func RunHuntShard(ctx context.Context, cr ClaimResp, timeoutMS int) (checkResult
 			PinPath:     strings.TrimSpace(cr.HuntPinPath),
 			SourceRel:   strings.TrimSpace(cr.HuntSourceRel),
 		},
-		TargetID:        targetID,
-		HarnessHash:     strings.TrimSpace(cr.HarnessHash),
-		HarnessFetchURL: huntFetchURL(cr),
-		CampaignID:      strings.TrimSpace(cr.CampaignID),
-		InputN:          cr.InputN,
-		Config:          cfg,
-		CorpusSeeds:     seeds,
-		Input:           inputB,
-		MaxInput:        maxB,
-		ExecPer:         execPer,
+		TargetID:             targetID,
+		HarnessHash:          strings.TrimSpace(cr.HarnessHash),
+		HarnessFetchURL:      huntFetchURL(cr),
+		HarnessContentSHA256: strings.TrimSpace(cr.HarnessContentSHA256),
+		CampaignID:           strings.TrimSpace(cr.CampaignID),
+		InputN:               cr.InputN,
+		Config:               cfg,
+		CorpusSeeds:          seeds,
+		Input:                inputB,
+		MaxInput:             maxB,
+		ExecPer:              execPer,
 	})
 	if err != nil {
 		return 0, int(time.Since(start).Milliseconds()), "build: " + err.Error(), 0
@@ -99,6 +100,11 @@ func HuntClaimMissingFields(cr ClaimResp) error {
 	}
 	if strings.TrimSpace(cr.InputBytesHex) == "" {
 		return fmt.Errorf("hunt claim missing input_bytes_hex")
+	}
+	if strings.TrimSpace(cr.HarnessHash) != "" {
+		if !hunt.ValidContentSHA256(cr.HarnessContentSHA256) {
+			return fmt.Errorf("hunt claim missing harness_content_sha256")
+		}
 	}
 	return nil
 }

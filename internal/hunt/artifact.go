@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -241,20 +240,160 @@ func PublishHarnessFile(ctx context.Context, db *sql.DB, hash, path, sourceRel s
 	return PutHarnessArtifact(ctx, db, hash, data, sourceRel)
 }
 
-// MaterializeHarness writes a harness to repo cache, loading from DB or HTTP fetch URL when needed.
-func MaterializeHarness(ctx context.Context, repoRoot, hash, fetchURL string, db *sql.DB) (string, error) {
-	hash = strings.TrimSpace(hash)
+// GetHarnessContentSHA256 returns the attested sha256 hex of published harness bytes.
+// If metadata is empty but bytes exist, it computes and backfills content_sha256.
+func GetHarnessContentSHA256(ctx context.Context, db *sql.DB, hash string) (string, error) {
+	if db == nil {
+		return "", fmt.Errorf("hunt artifact: no database")
+	}
+	hash = strings.TrimSpace(strings.ToLower(hash))
 	if !ValidHarnessHash(hash) {
 		return "", fmt.Errorf("hunt artifact: invalid harness hash")
 	}
+	var fp string
+	err := db.QueryRowContext(ctx,
+		`SELECT COALESCE(content_sha256,'') FROM hunt_harness_artifacts WHERE harness_hash=?`, hash).
+		Scan(&fp)
+	if err == sql.ErrNoRows {
+		return "", fmt.Errorf("hunt artifact: %s not found", hash)
+	}
+	if err != nil {
+		return "", err
+	}
+	fp = strings.TrimSpace(strings.ToLower(fp))
+	if fp != "" && len(fp) == 64 {
+		return fp, nil
+	}
+	data, err := GetHarnessArtifact(ctx, db, hash)
+	if err != nil {
+		return "", err
+	}
+	fp = contentSHA256Hex(data)
+	_, _ = db.ExecContext(ctx,
+		`UPDATE hunt_harness_artifacts SET content_sha256=? WHERE harness_hash=?`, fp, hash)
+	return fp, nil
+}
+
+// ValidContentSHA256 reports a full sha256 hex digest.
+func ValidContentSHA256(s string) bool {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if len(s) != 64 {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func verifyHarnessBytes(data []byte, expectedContentSHA256 string) error {
+	want := strings.TrimSpace(strings.ToLower(expectedContentSHA256))
+	if want == "" {
+		return fmt.Errorf("hunt artifact: missing harness_content_sha256 attestation")
+	}
+	if !ValidContentSHA256(want) {
+		return fmt.Errorf("hunt artifact: invalid harness_content_sha256")
+	}
+	got := contentSHA256Hex(data)
+	if got != want {
+		return fmt.Errorf("hunt artifact: content sha256 mismatch (got %s want %s)", got, want)
+	}
+	return nil
+}
+
+func quarantineHarnessCache(cachePath string) {
+	if strings.TrimSpace(cachePath) == "" {
+		return
+	}
+	_ = os.Remove(cachePath)
+	_ = os.Remove(cachePath + ".sha256")
+	_ = os.Remove(cachePath + ".bad")
+}
+
+func harnessCacheAttestationPath(cachePath string) string {
+	return cachePath + ".sha256"
+}
+
+func writeHarnessCacheAttestation(cachePath, contentSHA string) error {
+	contentSHA = strings.TrimSpace(strings.ToLower(contentSHA))
+	if !ValidContentSHA256(contentSHA) {
+		return fmt.Errorf("hunt artifact: invalid attestation")
+	}
+	return os.WriteFile(harnessCacheAttestationPath(cachePath), []byte(contentSHA+"\n"), 0o600)
+}
+
+func readVerifiedHarnessCache(cachePath, expectedContentSHA256 string) ([]byte, string, error) {
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		return nil, "", err
+	}
+	if len(data) == 0 {
+		return nil, "", fmt.Errorf("hunt artifact: empty cache file")
+	}
+	got := contentSHA256Hex(data)
+	want := strings.TrimSpace(strings.ToLower(expectedContentSHA256))
+	sideBytes, sideErr := os.ReadFile(harnessCacheAttestationPath(cachePath))
+	side := strings.TrimSpace(strings.ToLower(string(sideBytes)))
+	if sideErr == nil && side != "" {
+		if side != got {
+			quarantineHarnessCache(cachePath)
+			return nil, "", fmt.Errorf("hunt artifact: cache attestation mismatch")
+		}
+		if want != "" && side != want {
+			quarantineHarnessCache(cachePath)
+			return nil, "", fmt.Errorf("hunt artifact: cache content sha256 mismatch")
+		}
+		return data, side, nil
+	}
+	// Legacy cache without sidecar: require expected attestation, then stamp sidecar.
+	if want == "" {
+		quarantineHarnessCache(cachePath)
+		return nil, "", fmt.Errorf("hunt artifact: unattested cache rejected")
+	}
+	if verr := verifyHarnessBytes(data, want); verr != nil {
+		quarantineHarnessCache(cachePath)
+		return nil, "", verr
+	}
+	_ = writeHarnessCacheAttestation(cachePath, want)
+	return data, want, nil
+}
+
+// MaterializeHarness writes a harness to repo cache, loading from DB or HTTP fetch URL when needed.
+// expectedContentSHA256 is required whenever bytes come from cache or HTTP (supply-chain attestation).
+// Local DB loads may omit it; the stored content_sha256 is used instead.
+func MaterializeHarness(ctx context.Context, repoRoot, hash, fetchURL, expectedContentSHA256 string, db *sql.DB) (string, error) {
+	hash = strings.TrimSpace(strings.ToLower(hash))
+	if !ValidHarnessHash(hash) {
+		return "", fmt.Errorf("hunt artifact: invalid harness hash")
+	}
+	want := strings.TrimSpace(strings.ToLower(expectedContentSHA256))
 	if repoRoot == "" {
 		repoRoot = RepoRoot()
 	}
 	cachePath := huntHarnessCachePath(repoRoot, hash)
+
+	// Cache hit: always re-hash; never execute unverified bytes.
 	if st, err := osStat(cachePath); err == nil && st {
-		harnessCache.Store(hash, cachePath)
-		return cachePath, nil
+		att := want
+		if att == "" && db != nil {
+			if fp, gerr := GetHarnessContentSHA256(ctx, db, hash); gerr == nil {
+				att = fp
+			}
+		}
+		if cached, gotSHA, rerr := readVerifiedHarnessCache(cachePath, att); rerr == nil && len(cached) > 0 {
+			_ = cached
+			harnessCache.Store(hash, cachePath)
+			if want == "" {
+				want = gotSHA
+			}
+			return cachePath, nil
+		}
+		quarantineHarnessCache(cachePath)
+		harnessCache.Delete(hash)
 	}
+
 	var data []byte
 	var err error
 	if db != nil {
@@ -262,11 +401,31 @@ func MaterializeHarness(ctx context.Context, repoRoot, hash, fetchURL string, db
 		if err != nil && strings.TrimSpace(fetchURL) == "" {
 			return "", err
 		}
+		if len(data) > 0 {
+			att := want
+			if att == "" {
+				if fp, gerr := GetHarnessContentSHA256(ctx, db, hash); gerr == nil {
+					att = fp
+				} else {
+					att = contentSHA256Hex(data)
+				}
+			}
+			if verr := verifyHarnessBytes(data, att); verr != nil {
+				return "", verr
+			}
+			want = att
+		}
 	}
 	if len(data) == 0 && strings.TrimSpace(fetchURL) != "" {
+		if want == "" || !ValidContentSHA256(want) {
+			return "", fmt.Errorf("hunt artifact: HTTP fetch requires harness_content_sha256 attestation")
+		}
 		data, err = fetchHarnessHTTP(ctx, fetchURL)
 		if err != nil {
 			return "", err
+		}
+		if verr := verifyHarnessBytes(data, want); verr != nil {
+			return "", verr
 		}
 	}
 	if len(data) == 0 {
@@ -284,6 +443,14 @@ func MaterializeHarness(ctx context.Context, repoRoot, hash, fetchURL string, db
 	}
 	if err := SafeRenameUnder(repoRoot, tmp, cachePath); err != nil {
 		_ = os.Remove(tmp)
+		return "", err
+	}
+	att := want
+	if att == "" {
+		att = contentSHA256Hex(data)
+	}
+	if err := writeHarnessCacheAttestation(cachePath, att); err != nil {
+		quarantineHarnessCache(cachePath)
 		return "", err
 	}
 	harnessCache.Store(hash, cachePath)
@@ -357,9 +524,10 @@ func fetchHarnessHTTP(ctx context.Context, rawURL string) ([]byte, error) {
 	return data, nil
 }
 
-// SafeHarnessFetchURL allows relative coordinator harness paths, same-host coordinator
-// absolute URLs (incl. :port and /pool/coordinator prefix), or https public hosts
-// with the harness path (blocks SSRF/private IPs).
+// SafeHarnessFetchURL allows relative coordinator harness paths, or absolute URLs
+// that match the configured coordinator host only (no arbitrary public HTTPS).
+// Scheme must match the configured coordinator (https preferred); plain HTTP is
+// allowed only when the coordinator URL itself is http (pool-direct / lab).
 func SafeHarnessFetchURL(raw string) bool {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -376,34 +544,48 @@ func SafeHarnessFetchURL(raw string) bool {
 	if _, ok := harnessFetchPathHash(u); !ok {
 		return false
 	}
-	if coord := strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_URL")); coord != "" {
-		if sameCoordinatorHost(coord, u) {
-			return true
-		}
-	}
-	if coord := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_URL")); coord != "" {
-		if sameCoordinatorHost(coord, u) {
-			return true
-		}
-	}
-	if coord := strings.TrimSpace(os.Getenv("COORD_URL")); coord != "" {
-		if sameCoordinatorHost(coord, u) {
-			return true
-		}
-	}
-	if u.Scheme != "https" {
+	coord := firstCoordinatorURL()
+	if coord == "" {
 		return false
 	}
-	host := u.Hostname()
-	if host == "localhost" || host == "127.0.0.1" || host == "::1" || strings.HasSuffix(host, ".local") {
+	cu, err := url.Parse(strings.TrimSpace(coord))
+	if err != nil || cu.Host == "" {
 		return false
 	}
-	if ip := net.ParseIP(host); ip != nil {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+	if !sameCoordinatorHost(coord, u) {
+		return false
+	}
+	// TLS policy: if coordinator is https, reject http absolute fetches.
+	if strings.EqualFold(cu.Scheme, "https") && !strings.EqualFold(u.Scheme, "https") {
+		return false
+	}
+	if strings.EqualFold(u.Scheme, "http") {
+		allowHTTP := falsyEnv("HACKME_HUNT_HARNESS_REQUIRE_TLS") == false &&
+			(strings.EqualFold(cu.Scheme, "http") || truthyEnv("HACKME_HUNT_HARNESS_ALLOW_HTTP"))
+		if !allowHTTP {
 			return false
 		}
 	}
 	return true
+}
+
+func firstCoordinatorURL() string {
+	for _, k := range []string{"HACKME_POOL_COORDINATOR_URL", "HACKME_COORDINATOR_URL", "COORD_URL"} {
+		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func truthyEnv(key string) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+func falsyEnv(key string) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	return v == "0" || v == "false" || v == "no" || v == "off"
 }
 
 func harnessFetchPathHash(u *url.URL) (string, bool) {
