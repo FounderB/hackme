@@ -416,8 +416,8 @@ func TestClaimAsVictimRejectedWhenPayoutLocked(t *testing.T) {
 			"victim-rig": {PayoutAddress: signerAddr(pub)},
 		},
 	}
-	if ok, reason := wm.checkClaimMinerIdentity("victim-rig", "", ""); ok || reason != "claim_pubkey_required" {
-		t.Fatalf("empty claim against locked payout must fail: ok=%v reason=%q", ok, reason)
+	if ok, reason := wm.checkClaimMinerIdentity("victim-rig", "", ""); !ok {
+		t.Fatalf("legacy empty claim must pass when require is off: ok=%v reason=%q", ok, reason)
 	}
 	pub2, _, _ := ed25519.GenerateKey(nil)
 	if ok, reason := wm.checkClaimMinerIdentity("victim-rig", hex.EncodeToString(pub2), ""); ok || !strings.HasPrefix(reason, "payout_address_locked") {

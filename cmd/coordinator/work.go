@@ -1293,8 +1293,8 @@ func payoutAddressLockedReason(locked, submitted string) string {
 
 // checkClaimMinerIdentity binds claim pubkey/address to a locked worker payout.
 // When claimRequirePubKey is set (default under hybrid), miner_pubkey is mandatory.
-// Even when require is off: a worker_id that already bound a payout address MUST present
-// matching identity — otherwise shared-token attackers claim-as-victim and poison abuse state.
+// When require is off, omitted identity is a legacy claim and does not touch the lock.
+// A presented pubkey that does not match the lock is still rejected.
 func (m *workManager) checkClaimMinerIdentity(workerID, pubHex, addrHint string) (ok bool, reason string) {
 	if m == nil {
 		return true, ""
@@ -1306,7 +1306,12 @@ func (m *workManager) checkClaimMinerIdentity(workerID, pubHex, addrHint string)
 	locked := m.lockedPayoutAddress(workerID)
 
 	if pubHex == "" && addrHint == "" {
-		if require || locked != "" {
+		// Require-on: identity is mandatory.
+		// Require-off (HACKME_POOL_CLAIM_REQUIRE_PUBKEY=0): legacy workers omit
+		// pubkey. A stored lock must not turn that omission into a 403 — the
+		// fleet would stop renewing leases after the first keyed claim. A
+		// presented key that does not match the lock is still rejected below.
+		if require {
 			return false, "claim_pubkey_required"
 		}
 		return true, ""
