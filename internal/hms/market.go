@@ -382,11 +382,18 @@ func (c *Coordinator) DownloadOrderChunk(orderID, uploadToken string, chunkIndex
 	if err != nil {
 		return nil, "", err
 	}
+	var sawFile bool
 	for _, workerID := range workers {
-		b, err := c.readMarketChunkFile(workerID, chunkID)
+		if _, err := c.readMarketChunkFile(workerID, chunkID); err == nil {
+			sawFile = true
+		}
+		b, err := c.readVerifiedMarketChunkFile(workerID, chunkID)
 		if err == nil {
 			return b, chunkID, nil
 		}
+	}
+	if sawFile {
+		return nil, "", errors.New("chunk integrity mismatch")
 	}
 	return nil, "", errors.New("chunk file missing on all replicas")
 }

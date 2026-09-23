@@ -1,6 +1,8 @@
 package hms
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -137,6 +139,41 @@ func (c *Coordinator) readMarketChunkFile(workerID, chunkID string) ([]byte, err
 		if err == nil {
 			return b, nil
 		}
+	}
+	return nil, fmt.Errorf("chunk file missing for worker %s", workerID)
+}
+
+// readVerifiedMarketChunkFile returns replica bytes only when they match the
+// ciphertext_sha256 registered at upload. A swapped file on the worker path
+// is skipped when another copy of the same replica still matches.
+func (c *Coordinator) readVerifiedMarketChunkFile(workerID, chunkID string) ([]byte, error) {
+	var want []byte
+	if err := c.db.QueryRow(`SELECT ciphertext_sha256 FROM hms_chunks WHERE chunk_id=?`, chunkID).Scan(&want); err != nil {
+		return nil, err
+	}
+	if len(want) != sha256.Size {
+		return nil, fmt.Errorf("chunk %s has no registered ciphertext hash", chunkID)
+	}
+	var saw bool
+	for _, p := range []string{
+		filepathJoinMarket(marketStorageRoot(), workerID, chunkID+".dat"),
+		filepathJoinMarket(marketDataRoot(), workerID, chunkID+".dat"),
+	} {
+		if p == "" {
+			continue
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		saw = true
+		sum := sha256.Sum256(b)
+		if bytes.Equal(sum[:], want) {
+			return b, nil
+		}
+	}
+	if saw {
+		return nil, fmt.Errorf("chunk %s ciphertext hash mismatch", chunkID)
 	}
 	return nil, fmt.Errorf("chunk file missing for worker %s", workerID)
 }

@@ -225,3 +225,42 @@ func TestImportPoHBlockCreditsBaseReward(t *testing.T) {
 		t.Fatalf("wallet: before=%d after=%d want +%d", walletBefore, walletAfter, want)
 	}
 }
+
+func TestImportPoHBlockRejectsPayloadTargetMod(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(filepath.Join(t.TempDir(), "import-mod.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := New(db)
+	addr := "HMC-importmod000001"
+	if _, _, err := svc.InitGenesis(ctx, addr); err != nil {
+		t.Fatal(err)
+	}
+	chainMod, err := svc.PoHTargetMod(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attackerMod := PoHTargetMinMod
+	if attackerMod == chainMod {
+		t.Fatal("fixture needs a payload mod different from the chain")
+	}
+	n, ev := firstPoHHit(attackerMod)
+	h, tip, _ := svc.Tip(ctx)
+	b := block.NewPoHBlock(h+1, tip, addr, n, ev, attackerMod, "", PoHFormulaLabelForIndex(h+1))
+	if err := svc.ImportPoHBlock(ctx, b); err == nil {
+		t.Fatal("import accepted payload target_mod")
+	}
+	h2, _, _ := svc.Tip(ctx)
+	if h2 != h {
+		t.Fatalf("tip moved to %d", h2)
+	}
+	got, err := svc.PoHTargetMod(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != chainMod {
+		t.Fatalf("chain mod changed %d -> %d", chainMod, got)
+	}
+}

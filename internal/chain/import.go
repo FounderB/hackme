@@ -44,16 +44,13 @@ func (s *Service) ImportPoHBlock(ctx context.Context, b *block.Block) error {
 		return fmt.Errorf("%w: order_task_id=%s", ErrImportOrderEscrowDenied, orderTaskID)
 	}
 
-	nonce, eval, mod, err := pohFieldsFromPayload(b.Task.Payload)
+	nonce, eval, payloadMod, err := pohFieldsFromPayload(b.Task.Payload)
 	if err != nil {
 		return err
 	}
 	// Prefer header nonce when present (payload mirrors it for PoH blocks).
 	if b.Nonce != 0 {
 		nonce = b.Nonce
-	}
-	if err := validatePoHSubmission(b.Index, nonce, eval, mod); err != nil {
-		return err
 	}
 
 	s.mu.Lock()
@@ -77,6 +74,18 @@ func (s *Service) ImportPoHBlock(ctx context.Context, b *block.Block) error {
 	}
 	if strings.TrimSpace(b.PrevHash) != strings.TrimSpace(tipHash) {
 		return fmt.Errorf("chain: import prev_hash mismatch")
+	}
+	// Report #8: the payload modulus is attacker-controlled. Validate and
+	// retarget against this node's poh_target_mod, the same rule AppendPoHBlock uses.
+	chainMod, err := s.poHTargetModFromDB(ctx, s.db)
+	if err != nil {
+		return err
+	}
+	if payloadMod != chainMod {
+		return fmt.Errorf("chain: import target mod mismatch (chain %d, payload %d)", chainMod, payloadMod)
+	}
+	if err := validatePoHSubmission(b.Index, nonce, eval, chainMod); err != nil {
+		return err
 	}
 
 	rewardHMC := BaseRewardForBlockIndex(b.Index)
@@ -218,7 +227,7 @@ func (s *Service) ImportPoHBlock(ctx context.Context, b *block.Block) error {
 	}
 
 	// Advance target mod using the imported block's timestamp (matches AppendPoHBlock retarget).
-	nextMod, err := s.nextPoHTargetModTx(ctx, tx, b, mod)
+	nextMod, err := s.nextPoHTargetModTx(ctx, tx, b, chainMod)
 	if err != nil {
 		return err
 	}

@@ -349,3 +349,76 @@ func TestIntegrityStoredSHA256InDB(t *testing.T) {
 	}
 	assertOrderInvariants(t, coord, created.Order.OrderID)
 }
+
+func TestSwappedReplicaIsNotHealthyOrRestored(t *testing.T) {
+	coord, dir := setupIntegrityCoord(t, "w-a", "w-b")
+	created, err := coord.CreateStorageOrder("swap", "u1", 4096, 30, "", "", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oid := created.Order.OrderID
+	tok := created.UploadToken
+	original := []byte("customer-original-backup-data")
+	out, err := coord.UploadOrderChunk(oid, tok, 0, original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chunkID := out["chunk_id"].(string)
+
+	swapped := []byte("replaced-chunk-bytes-not-the-original")
+	for _, root := range []string{"storage", "market"} {
+		p := filepath.Join(dir, root, "w-a", chunkID+".dat")
+		if err := os.WriteFile(p, swapped, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if coord.replicaFileOK("w-a", chunkID) {
+		t.Fatal("swapped replica must not count as healthy")
+	}
+	if !coord.replicaFileOK("w-b", chunkID) {
+		t.Fatal("untouched replica must stay healthy")
+	}
+	got, _, err := coord.DownloadOrderChunk(oid, tok, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatalf("restore returned %q", got)
+	}
+
+	for _, root := range []string{"storage", "market"} {
+		for _, w := range []string{"w-a", "w-b"} {
+			fp := filepath.Join(dir, root, w, chunkID+".dat")
+			_ = os.WriteFile(fp, swapped, 0o600)
+		}
+	}
+	if coord.replicaFileOK("w-a", chunkID) || coord.replicaFileOK("w-b", chunkID) {
+		t.Fatal("every swapped replica must fail the hash check")
+	}
+	if _, _, err := coord.DownloadOrderChunk(oid, tok, 0); err == nil {
+		t.Fatal("restore must refuse when no replica matches ciphertext_sha256")
+	}
+	if err := coord.RunHealthTick(); err != nil {
+		t.Fatal(err)
+	}
+	var health string
+	if err := coord.db.QueryRow(`SELECT health_status FROM hms_orders WHERE order_id=?`, oid).Scan(&health); err != nil {
+		t.Fatal(err)
+	}
+	if health == HealthOK {
+		t.Fatalf("health=%s, want degraded or failed", health)
+	}
+	stale := time.Now().Unix() - 3600
+	_, _ = coord.db.Exec(`UPDATE hms_workers SET last_seen_unix=? WHERE worker_id=?`, stale, "w-a")
+	if err := coord.RegisterStorageWorker("w-c", repeatHex(64), 100); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.MkdirAll(filepath.Join(dir, "storage", "w-c"), 0o755)
+	if err := coord.RunHealthTick(); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := coord.readMarketChunkFile("w-c", chunkID); err == nil && bytes.Equal(b, swapped) {
+		t.Fatal("repair cloned swapped bytes onto a new worker")
+	}
+}

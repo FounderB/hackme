@@ -2,6 +2,7 @@ package hms
 
 import (
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"os"
@@ -24,15 +25,14 @@ func TestCoordinatorStorageRoundtrip(t *testing.T) {
 	if err := coord.RegisterStorageWorker("w1", pubHex, 100); err != nil {
 		t.Fatal(err)
 	}
-	ct := make([]byte, 32)
-	for i := range ct {
-		ct[i] = byte(i)
+	data := make([]byte, 512)
+	for i := range data {
+		data[i] = byte(i)
 	}
-	if err := coord.AssignChunk("chunk1", "w1", ct, 512, nil); err != nil {
+	sum := sha256.Sum256(data)
+	if err := coord.AssignChunk("chunk1", "w1", sum[:], 512, nil); err != nil {
 		t.Fatal(err)
 	}
-	data := make([]byte, 512)
-	copy(data, ct)
 	if err := coord.writeMarketChunkFile("w1", "chunk1", data); err != nil {
 		t.Fatal(err)
 	}
@@ -56,6 +56,20 @@ func TestCoordinatorStorageRoundtrip(t *testing.T) {
 	st := coord.PoolStats()
 	if st["storage_workers"].(int) != 1 {
 		t.Fatalf("stats: %+v", st)
+	}
+}
+
+func TestSectorOffsetUsesFullChallengeNonce(t *testing.T) {
+	var ob [8]byte
+	ob[5] = 1 // uint64 big-endian = 65536, outside the old one-byte window
+	const size int64 = 100_000
+	got := sectorOffset(size, ob)
+	const want = uint64(65536)
+	if got != want {
+		t.Fatalf("offset=%d want %d", got, want)
+	}
+	if got <= 255 {
+		t.Fatal("offset stayed inside the single-byte window")
 	}
 }
 
