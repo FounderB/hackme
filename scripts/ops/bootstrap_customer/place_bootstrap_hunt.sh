@@ -56,7 +56,7 @@ if [[ -x "$INSTALL/scripts/bootstrap_customer/bootstrap_resync_pool.sh" ]]; then
     >>"$LOG_DIR/${CID}.resync.log" 2>&1 || true
 fi
 for i in 1 2 3 4 5; do
-  prog="$(curl -fsS --max-time 20 "$COORD/api/fuzz/pool/campaigns/progress?id=${cid_out}" 2>/dev/null || echo '{}')"
+  prog="$(curl -fsS --max-time 20 -H "X-Hackme-Admin-Token: ${HACKME_COORDINATOR_ADMIN_TOKEN:-${HACKME_POOL_COORDINATOR_TOKEN:-}}" "$COORD/api/fuzz/pool/campaigns/progress?id=${cid_out}" 2>/dev/null || echo '{}')"
   if echo "$prog" | jq -e '.ok==true' >/dev/null 2>&1; then
     echo "$prog" | jq -c '{ok,id,status,runs_done,budget_runs,title}'
     exit 0

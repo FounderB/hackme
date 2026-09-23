@@ -19,6 +19,21 @@ import (
 	"hackme/internal/poolfuzz"
 )
 
+// coordPoolReadOK allows the pool admin token or the worker token.
+// Empty tokens are accepted only in explicit insecure mode (report #12).
+func coordPoolReadOK(r *http.Request, adminToken, workerToken string, allowInsecure bool) bool {
+	if strings.TrimSpace(adminToken) == "" && strings.TrimSpace(workerToken) == "" && allowInsecure {
+		return true
+	}
+	if adminToken != "" && coordAdminOK(r, adminToken) {
+		return true
+	}
+	if workerToken != "" && coordAdminOK(r, workerToken) {
+		return true
+	}
+	return false
+}
+
 func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInsecure bool, wm *workManager, pf *poolfuzz.Service) {
 	if pf == nil {
 		return
@@ -92,6 +107,10 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 	mux.HandleFunc("/api/fuzz/pool/campaigns/progress", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !coordPoolReadOK(r, adminToken, workerToken, allowInsecure) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		id := strings.TrimSpace(r.URL.Query().Get("id"))

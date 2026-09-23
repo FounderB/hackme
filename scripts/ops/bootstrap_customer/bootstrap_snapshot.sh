@@ -27,7 +27,7 @@ if [[ -n "$COORD_ADMIN" ]]; then
 fi
 
 if [[ -n "${CAMPAIGN_ID:-}" ]]; then
-  curl -fsS --max-time 30 "$COORD/api/fuzz/pool/campaigns/progress?id=${CAMPAIGN_ID}" 2>/dev/null \
+  curl -fsS --max-time 30 -H "X-Hackme-Admin-Token: ${ADMIN:-${HACKME_COORDINATOR_ADMIN_TOKEN:-${HACKME_POOL_COORDINATOR_TOKEN:-}}}" "$COORD/api/fuzz/pool/campaigns/progress?id=${CAMPAIGN_ID}" 2>/dev/null \
     | jq . >"$OUT/campaign_progress.json" || true
   curl -fsS --max-time 30 -H "X-Hackme-Admin-Token: $ADMIN" \
     "$BASE/api/fuzz/campaigns/${CAMPAIGN_ID}/escrow" 2>/dev/null | jq . >"$OUT/campaign_escrow.json" || true

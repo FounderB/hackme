@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"hackme/internal/fuzzengine"
@@ -64,33 +65,39 @@ func RunInputDetailed(ctx context.Context, binPath string, input []byte, opts Ru
 	} else {
 		tail = strings.TrimSpace(blob)
 	}
-	info = ClassifySanitizer(blob)
-	crash = info.Raw != "" || info.Class != ""
-	if crash && info.Raw == "" {
-		info = ClassifySanitizer(blob + "\nSUMMARY: AddressSanitizer: signal")
+	if runErr != nil && runCtx.Err() == context.DeadlineExceeded {
+		return false, SanitizerInfo{}, tail, fmt.Errorf("fuzzupstream: exec timeout: %w", runErr)
 	}
-	if crash {
-		return true, info, tail, nil
-	}
-	if runErr != nil {
-		if runCtx.Err() == context.DeadlineExceeded {
-			return false, SanitizerInfo{}, tail, fmt.Errorf("fuzzupstream: exec timeout: %w", runErr)
-		}
-		if _, ok := runErr.(*exec.ExitError); ok && strings.Contains(blob, "Sanitizer") {
-			info = ClassifySanitizer(blob)
-			if info.Raw == "" {
-				info.Raw = "signal"
-			}
-			return true, info, tail, nil
-		}
-		if _, ok := runErr.(*exec.ExitError); ok {
-			// Non-sanitizer exit: treat as clean (no crash), not as verifier failure.
-			return false, SanitizerInfo{}, tail, nil
-		}
+	ee, isExit := runErr.(*exec.ExitError)
+	if runErr != nil && !isExit {
 		// Start/permission/not-found and other infra errors must not fail-open as CLEAN.
 		return false, SanitizerInfo{}, tail, runErr
 	}
+	if runErr == nil {
+		// Exit 0: a target that echoes "heap-buffer-overflow" is not an ASAN crash (report #14).
+		return false, SanitizerInfo{}, tail, nil
+	}
+	info = ClassifySanitizer(blob)
+	if info.Class == "asan" && !hasASANBanner(blob) {
+		info = SanitizerInfo{}
+	}
+	if info.Class != "" {
+		return true, info, tail, nil
+	}
+	if exitSignaled(ee) {
+		// Deadly signal without a sanitizer banner: needs triage, not a bounty and not CLEAN.
+		return true, SanitizerInfo{Class: "signal", Subtype: "needs_triage", Raw: "signal", Security: false}, tail, nil
+	}
+	// Ordinary non-zero exit (parse error, exit 1) stays clean.
 	return false, SanitizerInfo{}, tail, nil
+}
+
+func exitSignaled(ee *exec.ExitError) bool {
+	if ee == nil {
+		return false
+	}
+	ws, ok := ee.Sys().(syscall.WaitStatus)
+	return ok && ws.Signaled()
 }
 
 func detectSanitizer(blob string) string {

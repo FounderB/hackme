@@ -204,7 +204,7 @@ func TestFuzzGateHonesty_MixedCrashNoise_EvidenceWindowCaps(t *testing.T) {
 				map[string]any{"depth_tier": tc.depthTierValue}, 1000, "completed")
 
 			now := time.Now()
-			// Newest entries (top of evidence window) are noise-only, so limit=2 should PASS.
+			// Newest entries are noise. The older crash must still fail the gate at limit=2 (report #11).
 			insertFuzzFinding(t, db, camp, "noise-1", "property_violation", "critical", "noise-critical-1", "aa1", "", now.Add(30*time.Minute))
 			insertFuzzFinding(t, db, camp, "noise-2", "security_violation", "high", "noise-high-2", "aa2", "", now.Add(25*time.Minute))
 
@@ -238,8 +238,8 @@ func TestFuzzGateHonesty_MixedCrashNoise_EvidenceWindowCaps(t *testing.T) {
 
 				criticalCount := intFromAny(obs["critical_count"])
 				if limit == 2 {
-					if gate["pass"] != true || criticalCount != 0 {
-						t.Fatalf("limit=2 should PASS with noise-only fetched window; critical_count=%d gate=%+v", criticalCount, gate)
+					if gate["pass"] != false || criticalCount == 0 {
+						t.Fatalf("limit=2 must FAIL: crash-class exists outside the display window; critical_count=%d gate=%+v", criticalCount, gate)
 					}
 				} else if limit == 5 {
 					// Evidence window includes crash-1 when limit >= 5.

@@ -1303,9 +1303,7 @@ func (m *workManager) checkClaimMinerIdentity(workerID, pubHex, addrHint string)
 	addrHint = strings.TrimSpace(addrHint)
 	require := m.claimRequirePubKey && m.hybridSignerEnabled
 
-	m.mu.Lock()
-	locked := strings.TrimSpace(m.worker[workerID].PayoutAddress)
-	m.mu.Unlock()
+	locked := m.lockedPayoutAddress(workerID)
 
 	if pubHex == "" && addrHint == "" {
 		if require || locked != "" {
@@ -1332,7 +1330,37 @@ func (m *workManager) checkClaimMinerIdentity(workerID, pubHex, addrHint string)
 	if locked != "" && !strings.EqualFold(locked, derived) {
 		return false, payoutAddressLockedReason(locked, derived)
 	}
+	if locked == "" && derived != "" {
+		m.notePayoutLock(workerID, derived)
+	}
 	return true, ""
+}
+
+// notePayoutLock binds worker_id to the first claim identity and persists it.
+func (m *workManager) notePayoutLock(workerID, addr string) {
+	if m == nil {
+		return
+	}
+	workerID = strings.TrimSpace(workerID)
+	addr = strings.TrimSpace(addr)
+	if workerID == "" || addr == "" {
+		return
+	}
+	m.mu.Lock()
+	if m.worker == nil {
+		m.worker = map[string]workerPayoutStat{}
+	}
+	st := m.worker[workerID]
+	cur := strings.TrimSpace(st.PayoutAddress)
+	if cur == "" {
+		st.PayoutAddress = addr
+		m.worker[workerID] = st
+		cur = addr
+	}
+	m.mu.Unlock()
+	if strings.EqualFold(cur, addr) {
+		m.persistPayoutLock(workerID, addr)
+	}
 }
 
 func canonicalSubmitBytes(req submitWorkRequest) []byte {
@@ -1789,6 +1817,7 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if signerAddr != "" {
 		if strings.TrimSpace(st.PayoutAddress) == "" {
 			st.PayoutAddress = signerAddr
+			m.persistPayoutLock(req.WorkerID, signerAddr)
 		}
 		st.SignedSubmits++
 	}
@@ -1974,9 +2003,11 @@ func mergeWorkerStat(dst, src workerPayoutStat) (workerPayoutStat, bool) {
 	dstAddr := strings.TrimSpace(dst.PayoutAddress)
 	srcAddr := strings.TrimSpace(src.PayoutAddress)
 	addrConflict := dstAddr != "" && srcAddr != "" && !strings.EqualFold(dstAddr, srcAddr)
-	if addrConflict {
+	if addrConflict || dst.AddressConflict || src.AddressConflict {
 		// Keep accruals visible for ops/settle drift detection; clear address so
 		// autopilot cannot pay the wrong HMC target after a fleet merge.
+		// Conflict is sticky for the rest of this fold: a later -gpuN row must
+		// not reinstall its own address into the blanked slot (report #17).
 		dst.PayoutAddress = ""
 		dst.AddressConflict = true
 	}
@@ -2000,7 +2031,7 @@ func mergeWorkerStat(dst, src workerPayoutStat) (workerPayoutStat, bool) {
 	if src.LastFuzzSeenUnix > dst.LastFuzzSeenUnix {
 		dst.LastFuzzSeenUnix = src.LastFuzzSeenUnix
 	}
-	if !addrConflict && dst.PayoutAddress == "" && srcAddr != "" {
+	if !dst.AddressConflict && !addrConflict && dst.PayoutAddress == "" && srcAddr != "" {
 		dst.PayoutAddress = srcAddr
 	}
 	if dst.LastClientIP == "" && src.LastClientIP != "" {

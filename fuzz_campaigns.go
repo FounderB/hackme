@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -940,6 +941,27 @@ func (a *app) handleFuzzCampaignStatus(w http.ResponseWriter, r *http.Request, c
 	writeJSON(w, map[string]any{"ok": true, "campaign": c})
 }
 
+func (a *app) fullCrashClassSeverityCounts(ctx context.Context, campaignID string) (critical, high, medium, low, info int, err error) {
+	rows, err := a.db.QueryContext(ctx, `SELECT finding_type, severity FROM fuzz_findings WHERE campaign_id=?`, campaignID)
+	if err != nil {
+		return 0, 0, 0, 0, 0, err
+	}
+	defer rows.Close()
+	var all []fuzzFinding
+	for rows.Next() {
+		var f fuzzFinding
+		if err := rows.Scan(&f.FindingType, &f.Severity); err != nil {
+			return 0, 0, 0, 0, 0, err
+		}
+		all = append(all, f)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, 0, 0, 0, 0, err
+	}
+	critical, high, medium, low, info = crashClassSeverityCounts(all)
+	return critical, high, medium, low, info, nil
+}
+
 func (a *app) tryCloseFuzzEscrowForStatus(ctx context.Context, campaignID, status string) {
 	if a.chain == nil {
 		return
@@ -948,9 +970,12 @@ func (a *app) tryCloseFuzzEscrowForStatus(ctx context.Context, campaignID, statu
 	case "cancelled":
 		_, _ = a.chain.CancelFuzzEscrow(ctx, campaignID)
 	case "completed":
-		// Drain run/finding settles first so Finalize does not refund unpaid work
-		// and the pull consumer cannot ACK those rows as "closed" no-ops.
-		a.pullFuzzSettleOutbox(ctx)
+		// Drain run/finding settles first so Finalize does not refund unpaid work.
+		// A failed pull must not finalize: pending worker payouts would hit a closed escrow (report #12).
+		if err := a.pullFuzzSettleOutbox(ctx); err != nil {
+			log.Printf("fuzz escrow: refuse finalize %s: settle pull failed: %v", campaignID, err)
+			return
+		}
 		_, _ = a.chain.FinalizeFuzzEscrow(ctx, campaignID)
 	}
 }
@@ -2041,6 +2066,10 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 	annotateTopIssuesWithFamilyCounts(topIssues, familySummary)
 	annotateTopIssuesWithFamilyCounts(sanitizerHygiene, familySummary)
 	crashCrit, crashHigh, crashMed, crashLow, crashInfo := crashClassSeverityCounts(findings)
+	if fc, fh, fm, fl, fi, err := a.fullCrashClassSeverityCounts(ctx, campaignID); err == nil {
+		// Gate and verdict use the whole campaign, not the newest-first display window (report #11).
+		crashCrit, crashHigh, crashMed, crashLow, crashInfo = fc, fh, fm, fl, fi
+	}
 	crashScore := crashClassSeverityScore(crashCrit, crashHigh, crashMed, crashLow, crashInfo)
 
 	critical := bySeverity["critical"]

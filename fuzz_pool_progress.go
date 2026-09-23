@@ -114,6 +114,9 @@ func (a *app) fetchCoordinatorPoolCampaignProgress(ctx context.Context, campaign
 	if err != nil {
 		return coordinatorPoolCampaign{}, false
 	}
+	if tok := coordinatorAdminToken(); tok != "" {
+		req.Header.Set("X-Hackme-Admin-Token", tok)
+	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return coordinatorPoolCampaign{}, false
@@ -361,8 +364,8 @@ func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campa
 	if err != nil {
 		return err
 	}
-	if nextStatus == "completed" || nextStatus == "cancelled" {
-		a.tryCloseFuzzEscrowForStatus(ctx, campaignID, nextStatus)
-	}
+	// Progress sync may refresh marketplace status. It must not close escrow:
+	// the progress response is not a signed money event (report #12).
+	// Escrow cancel/finalize stays on the admin status path.
 	return nil
 }

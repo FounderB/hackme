@@ -12,9 +12,9 @@ import (
 	"hackme/internal/poolsync"
 )
 
-func (a *app) pullFuzzSettleOutbox(ctx context.Context) {
+func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 	if a.chain == nil || !poolSyncCoordinatorConfigured() {
-		return
+		return nil
 	}
 	// Multi-pass catch-up: a few foreign/stale head rows used to pin the oldest-first
 	// outbox window so local campaigns never drained (seen with leftover b2b-* rows).
@@ -23,7 +23,7 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) {
 		items, err := poolsync.FetchSettleOutbox(ctx, 256)
 		if err != nil {
 			log.Printf("fuzz settle pull: fetch outbox: %v", err)
-			return
+			return err
 		}
 		if len(items) == 0 {
 			break
@@ -75,7 +75,7 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) {
 		}
 		if err := poolsync.AckSettleOutbox(ctx, acked); err != nil {
 			log.Printf("fuzz settle pull: ack: %v", err)
-			return
+			return err
 		}
 		totalAcked += len(acked)
 		if len(acked) < 64 {
@@ -85,6 +85,7 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) {
 	if totalAcked > 0 {
 		log.Printf("fuzz settle pull: applied %d outbox row(s)", totalAcked)
 	}
+	return nil
 }
 
 func (a *app) localFuzzEscrowStatus(ctx context.Context, campaignID string) (status string, ok bool) {

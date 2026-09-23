@@ -25,6 +25,13 @@ Reports: `reports/tests/security_full_20260828T190633Z/` · `reports/gates/redte
 | Public node bind requires `HACKME_P2P_TOKEN` | `main.go` startup |
 | Settlement state writes take exclusive lock on `*.flock` (**Unix flock + Windows LockFileEx**; fail-closed) + atomic temp+rename | `settlement_flock_*.go`, `atomicWriteFile` in `settlement_api.go` |
 | Hunt harness supply-chain (report #6): binary `harness_content_sha256` attestation + coordinator-only fetch | `internal/hunt/artifact.go`, claim payload, worker materialize |
+| Fleet merge payout capture (report #17): address conflict stays sticky; settle scripts skip `address_conflict` | `mergeWorkerStat`, `settle_worker_payouts.sh`, `settle_worker_sup.sh` |
+| Public settlement GET is read-only and keeps `pending_settle` (report #13) | `settlement_api.go` |
+| Worker payout lock persists across restart and idle prune (report #18) | `worker_payout_lock` in coordinator SQLite |
+| ASAN bounty requires a non-zero exit and a canonical AddressSanitizer banner (report #14) | `internal/fuzzupstream/fuzz.go` |
+| CI gate crash counts use the full finding history, not the display window (report #11) | `fullCrashClassSeverityCounts` |
+| Campaign progress requires a pool token and does not close escrow; finalize waits for settle pull (report #12) | `fuzz_pool.go`, `fuzz_pool_progress.go` |
+| WASM check timeout closes the interpreter on context deadline (report #15) | `WithCloseOnContextDone` |
 | `govulncheck` in CI; `go 1.25.13` toolchain pin | `.github/workflows/ci.yml`, `go.mod` |
 
 ---

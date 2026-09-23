@@ -24,6 +24,9 @@ type workerSettlementStateEntry struct {
 	PayoutAddress  string  `json:"payout_address,omitempty"`
 	LastTxHash     string  `json:"last_tx_hash,omitempty"`
 	LastSettleUnix int64   `json:"last_settle_unix,omitempty"`
+	// PendingSettle is the payout script's anti-double-pay marker. It must
+	// survive any Go round-trip of this file (report #13).
+	PendingSettle json.RawMessage `json:"pending_settle,omitempty"`
 }
 
 type workerSettlementMeta struct {
@@ -423,17 +426,14 @@ func (a *app) handleWorkerSettlement(w http.ResponseWriter, r *http.Request) {
 		canonTimeout = 2 * time.Second
 	}
 	canonCtx, canonCancel := context.WithTimeout(context.Background(), canonTimeout)
-	canonMerged := false
 	if canon, err := fetchCanonicalSettlementState(canonCtx); err == nil {
-		canonMerged = mergeCanonicalSettlementState(&state, canon)
+		// In-memory only. Do not persist from this public GET (report #13):
+		// rewriting the shared ledger dropped the payout script's pending_settle.
+		_ = mergeCanonicalSettlementState(&state, canon)
 	}
 	canonCancel()
 	ensureCoordinatorWorkersMap(ws)
-	repaired := repairWorkerSettlementState(&state, coordinatorWorkersMap(ws))
-	if canonMerged || repaired {
-		stateCopy := state
-		go persistWorkerSettlementState(statePath, stateCopy)
-	}
+	_ = repairWorkerSettlementState(&state, coordinatorWorkersMap(ws))
 	workers := coordinatorWorkersMap(ws)
 	minSettleHMC, dailyForceIntervalSec, dailyMinSettleHMC := settlementWindowConfigNow()
 	minSettleSUP := 0.01

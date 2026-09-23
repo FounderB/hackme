@@ -167,6 +167,59 @@ func TestHuntJsmnSmoke(t *testing.T) {
 	t.Logf("jsmn smoke: iterations=%d crashes=%d verdict=%s", rep.Iterations, len(rep.Crashes), rep.Verdict)
 }
 
+func writeBinScript(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "target.sh")
+	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestRunInputExitZeroEchoIsNotCrash(t *testing.T) {
+	bin := writeBinScript(t, "#!/bin/sh\ncat\nexit 0\n")
+	crash, info, _, err := RunInputDetailed(context.Background(), bin, []byte("unknown field 'heap-buffer-overflow' ignored\n"), DefaultRunInputOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if crash || info.Security {
+		t.Fatalf("exit 0 echo must not be an ASAN crash: crash=%v info=%+v", crash, info)
+	}
+}
+
+func TestRunInputNonZeroWithoutBannerIsNotBounty(t *testing.T) {
+	bin := writeBinScript(t, "#!/bin/sh\necho heap-buffer-overflow\nexit 1\n")
+	crash, info, _, err := RunInputDetailed(context.Background(), bin, nil, DefaultRunInputOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if crash || info.Security || info.Class == "asan" {
+		t.Fatalf("exit 1 plus a bare substring must stay clean: crash=%v info=%+v", crash, info)
+	}
+}
+
+func TestRunInputSignalWithoutBannerNeedsTriage(t *testing.T) {
+	bin := writeBinScript(t, "#!/bin/sh\nkill -ABRT $$\n")
+	crash, info, _, err := RunInputDetailed(context.Background(), bin, nil, DefaultRunInputOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !crash || info.Security || info.Subtype != "needs_triage" {
+		t.Fatalf("signal without banner: crash=%v info=%+v", crash, info)
+	}
+}
+
+func TestRunInputASANBannerIsSecurityCrash(t *testing.T) {
+	bin := writeBinScript(t, "#!/bin/sh\necho '==1==ERROR: AddressSanitizer: heap-buffer-overflow'\nexit 1\n")
+	crash, info, _, err := RunInputDetailed(context.Background(), bin, nil, DefaultRunInputOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !crash || !info.Security || info.Class != "asan" {
+		t.Fatalf("canonical ASAN banner: crash=%v info=%+v", crash, info)
+	}
+}
+
 func TestRunInputDetailedMissingBinaryDoesNotFailOpen(t *testing.T) {
 	crash, _, _, err := RunInputDetailed(context.Background(), filepath.Join(t.TempDir(), "no-such-bin"), []byte("{}"), DefaultRunInputOpts())
 	if crash {

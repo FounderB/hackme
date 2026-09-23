@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"hackme/internal/chain"
+	"hackme/internal/store"
 )
 
 func TestWorkManagerClaimMonotonic(t *testing.T) {
@@ -1391,6 +1392,38 @@ func TestMergeWorkerStatAddressConflictDoesNotStealPayout(t *testing.T) {
 	}
 	if merged3.PayoutHMC < 10 {
 		t.Fatalf("victim accrual must remain visible: %v", merged3.PayoutHMC)
+	}
+	// Report #17: after the address is blanked, the next fleet row must not
+	// reinstall the attacker's payout.
+	again, _ := mergeWorkerStat(merged3, richAttacker)
+	if again.PayoutAddress != "" || !again.AddressConflict {
+		t.Fatalf("conflict must stay sticky, got addr=%q conflict=%v", again.PayoutAddress, again.AddressConflict)
+	}
+}
+
+func TestPayoutLockSurvivesRestartAndPrune(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "locks.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	wm := newWorkManagerFromEnv()
+	wm.attachDedupDB(db)
+	const victim = "HMC-victim000000000"
+	wm.persistPayoutLock("rig1", victim)
+	wm2 := newWorkManagerFromEnv()
+	wm2.attachDedupDB(db)
+	pub, _, _ := ed25519.GenerateKey(nil)
+	ok, reason := wm2.checkClaimMinerIdentity("rig1", hex.EncodeToString(pub), "")
+	if ok || !strings.HasPrefix(reason, "payout_address_locked") {
+		t.Fatalf("restart must keep lock: ok=%v reason=%q", ok, reason)
+	}
+	wm2.mu.Lock()
+	delete(wm2.worker, "rig1")
+	wm2.mu.Unlock()
+	ok, reason = wm2.checkClaimMinerIdentity("rig1", hex.EncodeToString(pub), "")
+	if ok || !strings.HasPrefix(reason, "payout_address_locked") {
+		t.Fatalf("prune must not free the durable lock: ok=%v reason=%q", ok, reason)
 	}
 }
 

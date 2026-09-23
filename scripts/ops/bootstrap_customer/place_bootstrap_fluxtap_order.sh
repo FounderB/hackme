@@ -104,7 +104,7 @@ runs_done=0
 findings=0
 while [[ $(date +%s) -lt $deadline ]]; do
   sleep "$POLL_SEC"
-  prog="$(curl -fsS --max-time 30 "$COORD/api/fuzz/pool/campaigns/progress?id=${CID_OUT}" 2>/dev/null || echo '{}')"
+  prog="$(curl -fsS --max-time 30 -H "X-Hackme-Admin-Token: ${HACKME_COORDINATOR_ADMIN_TOKEN:-${HACKME_POOL_COORDINATOR_TOKEN:-}}" "$COORD/api/fuzz/pool/campaigns/progress?id=${CID_OUT}" 2>/dev/null || echo '{}')"
   runs_done="$(jq -r '.runs_done // 0' <<<"$prog")"
   findings="$(jq -r '.findings // 0' <<<"$prog")"
   status="$(jq -r '.status // ""' <<<"$prog")"

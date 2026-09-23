@@ -123,7 +123,9 @@ func Policy() PolicySnapshot {
 func ensureCheckRuntime() wazero.Runtime {
 	checkOnce.Do(func() {
 		checkRuntime = wazero.NewRuntimeWithConfig(context.Background(),
-			wazero.NewRuntimeConfigInterpreter().WithMemoryLimitPages(maxMemoryLimitPages()))
+			wazero.NewRuntimeConfigInterpreter().
+				WithMemoryLimitPages(maxMemoryLimitPages()).
+				WithCloseOnContextDone(true))
 	})
 	return checkRuntime
 }

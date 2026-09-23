@@ -4,11 +4,27 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestSettlementPendingSettleSurvivesRoundTrip(t *testing.T) {
+	raw := []byte(`{"workers":{"w1":{"settled_hmc":1,"pending_settle":{"delta_hmc":0.5,"payout_address":"HMC-abc"}}}}`)
+	var st workerSettlementState
+	if err := json.Unmarshal(raw, &st); err != nil {
+		t.Fatal(err)
+	}
+	out, err := json.Marshal(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "pending_settle") {
+		t.Fatalf("pending_settle dropped: %s", out)
+	}
+}
 
 func TestWithSettlementStateLockEmptyPath(t *testing.T) {
 	err := withSettlementStateLock("  ", func() error { return nil })
