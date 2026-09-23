@@ -92,6 +92,11 @@ func (a *app) reconcilePoolSyncCampaigns() {
 		_, ok := a.fetchCoordinatorPoolCampaignProgress(progCtx, id)
 		progCancel()
 		if ok {
+			syncCtx, syncCancel := context.WithTimeout(ctx, 20*time.Second)
+			if err := a.syncPoolCampaignProgressFromCoordinator(syncCtx, id); err != nil {
+				log.Printf("pool sync reconcile: %s progress: %v", id, err)
+			}
+			syncCancel()
 			continue
 		}
 		a.poolSyncMu.Lock()

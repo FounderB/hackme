@@ -348,6 +348,11 @@ func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campa
 		changed = true
 	}
 	if !changed {
+		if nextStatus == "completed" || nextStatus == "cancelled" {
+			// Local row already matches the coordinator. Still close escrow:
+			// an earlier sync may have written status without a settle.
+			a.tryCloseFuzzEscrowForStatus(ctx, campaignID, nextStatus)
+		}
 		return nil
 	}
 	summary["pool_workers"] = true
@@ -364,8 +369,10 @@ func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campa
 	if err != nil {
 		return err
 	}
-	// Progress sync may refresh marketplace status. It must not close escrow:
-	// the progress response is not a signed money event (report #12).
-	// Escrow cancel/finalize stays on the admin status path.
+	if nextStatus == "completed" || nextStatus == "cancelled" {
+		// Coordinator terminal status is enough to settle. tryClose still
+		// refuses finalize when the settle pull fails (report #12).
+		a.tryCloseFuzzEscrowForStatus(ctx, campaignID, nextStatus)
+	}
 	return nil
 }

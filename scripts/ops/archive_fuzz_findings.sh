@@ -168,12 +168,16 @@ log "stop coordinator → VACUUM → start (exclusive shrink)"
 # Note: COMPACT path is expanded locally; remote uses unquoted $COMPACT (set on remote).
 run_remote "set -euo pipefail
 systemctl stop hackme-coordinator
+# Drop sidecars after a clean stop. VACUUM INTO writes a new file; an old
+# -wal left beside it is replayed onto the wrong database.
+rm -f '${COORD_DB}-wal' '${COORD_DB}-shm'
 COMPACT='${COORD_DB}.compact.${STAMP}'
 sqlite3 -cmd '.timeout 120000' '${COORD_DB}' \"VACUUM INTO \\\"\$COMPACT\\\";\"
 chown --reference='${COORD_DB}' \"\$COMPACT\"
 chmod --reference='${COORD_DB}' \"\$COMPACT\"
 mv -f '${COORD_DB}' '${COORD_DB}.pre_vacuum_${STAMP}'
 mv -f \"\$COMPACT\" '${COORD_DB}'
+rm -f '${COORD_DB}-wal' '${COORD_DB}-shm'
 systemctl start hackme-coordinator
 swapoff -a 2>/dev/null || true
 swapon -a 2>/dev/null || true
@@ -188,4 +192,3 @@ AFTER="$(run_sql "SELECT finding_type, COUNT(*) FROM fuzz_findings GROUP BY 1 OR
 log "after vacuum:"
 echo "$AFTER" | sed 's/^/  /'
 log "done"
-)

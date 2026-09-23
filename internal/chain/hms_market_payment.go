@@ -161,7 +161,10 @@ func (s *Service) PayHMSStorageMarket(ctx context.Context, label string, sizeByt
 	if len(paymentID) > 120 {
 		paymentID = paymentID[:120]
 	}
-	proof, _ := hms.SignMarketPaymentProof(paymentID, q.QuoteHash, total)
+	proof, err := hms.SignMarketPaymentProof(paymentID, q.QuoteHash, total)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.checkEconomicInvariants(ctx, tx); err != nil {
 		return nil, err
 	}

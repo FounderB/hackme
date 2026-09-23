@@ -28,7 +28,8 @@ if [[ -f "$PID_FILE" ]]; then
   rm -f "$PID_FILE"
 fi
 
-port="${HACKME_BIND_ADDR##*:}"
+bind_addr="${HACKME_BIND_ADDR:-127.0.0.1:8080}"
+port="${bind_addr##*:}"
 port="${port:-8080}"
 if command -v fuser >/dev/null 2>&1; then
   fuser -k -TERM "${port}/tcp" >/dev/null 2>&1 || true

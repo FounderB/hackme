@@ -10,6 +10,7 @@ import (
 )
 
 func TestPayHMSStorageMarketDebitsWallet(t *testing.T) {
+	t.Setenv("HMS_MARKET_PAYMENT_HMAC_SECRET", "test-hmac-secret")
 	ctx := context.Background()
 	db, err := store.Open(filepath.Join(t.TempDir(), "chain.db"))
 	if err != nil {
@@ -28,7 +29,7 @@ func TestPayHMSStorageMarketDebitsWallet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.PaymentID == "" || res.TotalDebitHMC <= 0 {
+	if res.PaymentID == "" || res.PaymentProof == "" || res.TotalDebitHMC <= 0 {
 		t.Fatalf("bad payment: %+v", res)
 	}
 	if res.QuoteHash != q.QuoteHash {
@@ -37,6 +38,7 @@ func TestPayHMSStorageMarketDebitsWallet(t *testing.T) {
 }
 
 func TestPayHMSStorageMarketIdempotent(t *testing.T) {
+	t.Setenv("HMS_MARKET_PAYMENT_HMAC_SECRET", "test-hmac-secret")
 	ctx := context.Background()
 	db, err := store.Open(filepath.Join(t.TempDir(), "chain.db"))
 	if err != nil {
@@ -68,5 +70,37 @@ func TestPayHMSStorageMarketIdempotent(t *testing.T) {
 	}
 	if second.BalanceAfter != bal1 {
 		t.Fatalf("second call debited again: %v -> %v", bal1, second.BalanceAfter)
+	}
+}
+
+func TestPayHMSStorageMarketRefusesDebitWithoutProofSecret(t *testing.T) {
+	t.Setenv("HMS_MARKET_PAYMENT_HMAC_SECRET", "")
+	ctx := context.Background()
+	db, err := store.Open(filepath.Join(t.TempDir(), "chain.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := New(db)
+	if _, _, err := svc.InitGenesis(ctx, DevFeeAddress); err != nil {
+		t.Fatal(err)
+	}
+	var before uint64
+	if err := db.QueryRowContext(ctx, `SELECT balance_units FROM wallet WHERE id=1`).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	q, err := hms.QuoteStorageOrder(1<<30, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.PayHMSStorageMarket(ctx, "no-proof", 1<<30, 30, q.QuoteHash, "key-missing"); err == nil {
+		t.Fatal("expected missing HMAC secret to reject the debit")
+	}
+	var after uint64
+	if err := db.QueryRowContext(ctx, `SELECT balance_units FROM wallet WHERE id=1`).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatalf("balance changed without a proof: %d -> %d", before, after)
 	}
 }

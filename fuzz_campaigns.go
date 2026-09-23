@@ -738,6 +738,7 @@ func (a *app) handleFuzzCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		respEscrow := escrow
 		c, err := a.getFuzzCampaign(r.Context(), id)
 		if err != nil {
+			a.rollbackNewCampaignEscrow(r.Context(), id)
 			writeAPIError(w, http.StatusInternalServerError, "load_failed", "campaign created but readback failed", nil)
 			return
 		}
@@ -960,6 +961,22 @@ func (a *app) fullCrashClassSeverityCounts(ctx context.Context, campaignID strin
 	}
 	critical, high, medium, low, info = crashClassSeverityCounts(all)
 	return critical, high, medium, low, info, nil
+}
+
+// rollbackNewCampaignEscrow refunds a create that already locked escrow and then failed.
+func (a *app) rollbackNewCampaignEscrow(ctx context.Context, campaignID string) {
+	campaignID = strings.TrimSpace(campaignID)
+	if campaignID == "" {
+		return
+	}
+	if a.chain != nil {
+		if _, err := a.chain.CancelFuzzEscrow(ctx, campaignID); err != nil {
+			log.Printf("fuzz escrow: rollback %s: %v", campaignID, err)
+		}
+	}
+	if a.db != nil {
+		_, _ = a.db.ExecContext(ctx, `DELETE FROM fuzz_campaigns WHERE id=?`, campaignID)
+	}
 }
 
 func (a *app) tryCloseFuzzEscrowForStatus(ctx context.Context, campaignID, status string) {

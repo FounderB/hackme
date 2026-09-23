@@ -193,6 +193,7 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 	_, _ = a.db.ExecContext(r.Context(), `UPDATE fuzz_campaigns SET config_json=? WHERE id=?`, cfg, id)
 	c, err := a.getFuzzCampaign(r.Context(), id)
 	if err != nil {
+		a.rollbackNewCampaignEscrow(r.Context(), id)
 		writeAPIError(w, http.StatusInternalServerError, "load_failed", "campaign created but readback failed", nil)
 		return
 	}
@@ -209,12 +210,14 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 	mergeDeliverableURLs(resp, id)
 	if poolDistributedCampaign(cfgMap) {
 		if pubErr := a.publishHuntHarnessForConfig(r.Context(), cfgMap); pubErr != nil {
+			a.rollbackNewCampaignEscrow(r.Context(), id)
 			writeAPIError(w, http.StatusBadRequest, "harness_publish_failed", pubErr.Error(), nil)
 			return
 		}
 		cfg = marshalMapJSON(cfgMap)
 		_, _ = a.db.ExecContext(r.Context(), `UPDATE fuzz_campaigns SET config_json=? WHERE id=?`, cfg, id)
 		if syncErr := a.syncHuntHarnessToCoordinator(r.Context(), cfgMap); syncErr != nil {
+			a.rollbackNewCampaignEscrow(r.Context(), id)
 			writeAPIError(w, http.StatusBadGateway, "harness_pool_sync_failed", syncErr.Error(), map[string]any{
 				"harness_hash": cfgMap["harness_hash"],
 			})
