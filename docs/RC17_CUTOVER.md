@@ -20,7 +20,8 @@ Related: [HACKME_RC16.md](HACKME_RC16.md) · [exchange D0 checklist](https://git
 ## Deploy order (single maintenance window)
 
 1. **Static** — upload `hackme-exchange-d0-*.tar.gz` → `exchange.hackme.tech` path
-2. **Smoke** — `curl -sI https://exchange.hackme.tech/` · open `/?embed=hub` CSP headers
+2. **Smoke** — `curl -sI https://exchange.hackme.tech/` · open `/?embed=hub` CSP headers  
+   (if CF strips CSP / sets `X-Frame-Options: SAMEORIGIN`, see [EXCHANGE_CF_CSP.md](EXCHANGE_CF_CSP.md))
 3. **nginx** — `scripts/ops/nginx/hackme-site-domain.tls.conf` (SUP routes) → reload
 4. **Node** — build hackme-node rc17 · restart **hackme.tech hub only** (not exchange host)
 5. **Verify** — `bash scripts/ops/rc17_cutover_gate.sh` · hub `#exchange` · wallet SUP send
