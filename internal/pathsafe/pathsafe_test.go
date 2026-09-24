@@ -35,11 +35,11 @@ func TestWithinRoot(t *testing.T) {
 func TestAllowWindowsDriveForm(t *testing.T) {
 	// Simulate ToSlash drive path matching (logic unit; Abs still OS-native).
 	slash := "C:/Users/hackme/data"
-	if m := reSafeAbs.FindString(slash); m != slash {
+	if m := AbsRE.FindString(slash); m != slash {
 		t.Fatalf("windows drive form rejected: %q", slash)
 	}
 	slashUnix := "/home/kapa/Desktop/HackMe"
-	if m := reSafeAbs.FindString(slashUnix); m != slashUnix {
+	if m := AbsRE.FindString(slashUnix); m != slashUnix {
 		t.Fatalf("unix form rejected: %q", slashUnix)
 	}
 }
