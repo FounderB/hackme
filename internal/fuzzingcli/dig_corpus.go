@@ -46,7 +46,7 @@ func LoadDigSeedFiles(dir string, maxSeeds int) ([][]byte, error) {
 		maxSeeds = defaultDigSeeds
 	}
 	safeDir, ok := pathsafe.Allow(dir)
-	if !ok {
+	if !ok || !pathsafe.AbsRE.MatchString(safeDir) {
 		return nil, nil
 	}
 	entries, err := os.ReadDir(safeDir)
@@ -74,11 +74,14 @@ func LoadDigSeedFiles(dir string, maxSeeds int) ([][]byte, error) {
 			continue
 		}
 		safePath, ok := pathsafe.JoinUnder(safeDir, name)
-		if !ok {
+		if !ok || !pathsafe.AbsRE.MatchString(safePath) {
 			continue
 		}
 		st, err := os.Stat(safePath)
 		if err != nil || st.IsDir() || st.Size() <= 0 || st.Size() > digSeedMaxBytes {
+			continue
+		}
+		if !pathsafe.AbsRE.MatchString(safePath) {
 			continue
 		}
 		b, err := os.ReadFile(safePath)

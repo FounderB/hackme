@@ -1,6 +1,6 @@
 // Package pathsafe provides CodeQL-recognized barriers for path-injection sinks.
-// Regex FindString + return of that match is the pattern GitHub code scanning accepts
-// (Rel/HasPrefix alone is often not enough for go/path-injection).
+// Barrier form that GitHub code scanning accepts: MatchString guard on the same
+// string later passed to the filesystem sink (see TaintedPath::RegexpCheck).
 package pathsafe
 
 import (
@@ -10,15 +10,14 @@ import (
 	"strings"
 )
 
-// Absolute paths with only safe path segments (Unix and Windows drive form).
-// Evaluated on filepath.ToSlash output after Abs+Clean.
-var reSafeAbs = regexp.MustCompile(`^([A-Za-z]:)?(/[A-Za-z0-9._+-]+)+$`)
+// AbsRE matches absolute paths with only safe segments (Unix and Windows drive form).
+// Callers should guard sinks with AbsRE.MatchString(p) on the path they pass to os.*.
+var AbsRE = regexp.MustCompile(`^([A-Za-z]:)?(/[A-Za-z0-9._+-]+)+$`)
 
-// Single relative filename (no separators).
-var reSafeBase = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
+// BaseRE matches a single relative filename (no separators).
+var BaseRE = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
 
-// Allow returns p only when it is a clean absolute path matching reSafeAbs.
-// The returned string is the FindString match itself (CodeQL barrier) — do not rebuild.
+// Allow cleans+Abs a path and returns it only when AbsRE matches (slash-normalized).
 func Allow(p string) (string, bool) {
 	p = filepath.Clean(strings.TrimSpace(p))
 	if p == "" || p == "." {
@@ -32,24 +31,39 @@ func Allow(p string) (string, bool) {
 	if slash == "/" || slash == "" {
 		return "", false
 	}
-	m := reSafeAbs.FindString(slash)
-	if m == "" || m != slash {
+	if !AbsRE.MatchString(slash) {
 		return "", false
 	}
-	return m, true
+	return slash, true
 }
 
-// Base returns a single path segment sanitized via filepath.Base + FindString.
+// Guard reports whether p is an allowlisted absolute path (CodeQL barrier when used as if-guard).
+func Guard(p string) bool {
+	return AbsRE.MatchString(p)
+}
+
+// Base returns a single path segment sanitized via filepath.Base + BaseRE guard.
 func Base(name string) (string, bool) {
 	name = filepath.Base(strings.TrimSpace(name))
 	if name == "" || name == "." || name == ".." {
 		return "", false
 	}
-	m := reSafeBase.FindString(name)
-	if m == "" || m != name {
+	if !BaseRE.MatchString(name) {
 		return "", false
 	}
-	return m, true
+	return name, true
+}
+
+// DirAllow returns filepath.Dir(p) after Allow+Guard (for MkdirAll sinks).
+func DirAllow(p string) (string, bool) {
+	if !Guard(p) {
+		return "", false
+	}
+	d := filepath.ToSlash(filepath.Dir(p))
+	if !AbsRE.MatchString(d) {
+		return "", false
+	}
+	return d, true
 }
 
 // JoinUnder joins Base(elem...) under root and returns an Allow-listed absolute path.
@@ -84,7 +98,10 @@ func JoinUnder(root string, elem ...string) (string, bool) {
 	if out != rootSlash && out != absRoot && !strings.HasPrefix(out, rootSlash+"/") {
 		return "", false
 	}
-	return Allow(out)
+	if !AbsRE.MatchString(out) {
+		return "", false
+	}
+	return out, true
 }
 
 // WithinRoot rebuilds path under root if it resolves inside root (Allow-listed).
@@ -107,7 +124,10 @@ func WithinRoot(root, path string) (string, bool) {
 	if out != rootSlash && out != absRoot && !strings.HasPrefix(out, rootSlash+"/") {
 		return "", false
 	}
-	return Allow(out)
+	if !AbsRE.MatchString(out) {
+		return "", false
+	}
+	return out, true
 }
 
 func hasDrive(p string) bool {

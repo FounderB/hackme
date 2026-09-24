@@ -330,11 +330,18 @@ func (c *Coordinator) writeMarketChunkFile(workerID, chunkID string, ciphertext 
 			return fmt.Errorf("invalid market storage path")
 		}
 		safe, ok := pathsafe.Allow(p)
-		if !ok {
+		if !ok || !pathsafe.AbsRE.MatchString(safe) {
 			return fmt.Errorf("invalid market storage path")
 		}
-		if err := os.MkdirAll(filepath.Dir(safe), 0o755); err != nil {
+		dir, ok := pathsafe.DirAllow(safe)
+		if !ok || !pathsafe.AbsRE.MatchString(dir) {
+			return fmt.Errorf("invalid market storage dir")
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
+		}
+		if !pathsafe.AbsRE.MatchString(safe) {
+			return fmt.Errorf("invalid market storage path")
 		}
 		if err := os.WriteFile(safe, ciphertext, 0o600); err != nil {
 			return err
@@ -346,11 +353,18 @@ func (c *Coordinator) writeMarketChunkFile(workerID, chunkID string, ciphertext 
 		return fmt.Errorf("invalid market data path")
 	}
 	safe, ok := pathsafe.Allow(p)
-	if !ok {
+	if !ok || !pathsafe.AbsRE.MatchString(safe) {
 		return fmt.Errorf("invalid market data path")
 	}
-	if err := os.MkdirAll(filepath.Dir(safe), 0o755); err != nil {
+	dir, ok := pathsafe.DirAllow(safe)
+	if !ok || !pathsafe.AbsRE.MatchString(dir) {
+		return fmt.Errorf("invalid market data dir")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
+	}
+	if !pathsafe.AbsRE.MatchString(safe) {
+		return fmt.Errorf("invalid market data path")
 	}
 	return os.WriteFile(safe, ciphertext, 0o600)
 }

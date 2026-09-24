@@ -79,7 +79,7 @@ func workerSubmitNonceHeartbeatUnix(logDir, workerID string) int64 {
 			}
 			// Confine Glob hits to logDir (CodeQL path-injection / symlink escape).
 			safePath, ok := pathsafe.WithinRoot(logDir, p)
-			if !ok {
+			if !ok || !pathsafe.AbsRE.MatchString(safePath) {
 				continue
 			}
 			fi, err := os.Stat(safePath)

@@ -253,9 +253,13 @@ func sanitizeCodeID(s string) string {
 }
 
 // pathWithinRoot returns a path rebuilt under root if it resolves inside root
-// (CodeQL path-injection barrier via pathsafe.Allow regex MatchString).
+// (CodeQL path-injection barrier via pathsafe.Guard MatchString at sinks).
 func pathWithinRoot(root, path string) (string, bool) {
-	return pathsafe.WithinRoot(root, path)
+	out, ok := pathsafe.WithinRoot(root, path)
+	if !ok || !pathsafe.AbsRE.MatchString(out) {
+		return "", false
+	}
+	return out, true
 }
 
 func compileTaskWASM(ctx context.Context, lang, srcPath, outPath string) (string, error) {

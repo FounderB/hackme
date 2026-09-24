@@ -165,7 +165,7 @@ func (c *Coordinator) readVerifiedMarketChunkFile(workerID, chunkID string) ([]b
 			continue
 		}
 		safe, ok := pathsafe.Allow(p)
-		if !ok {
+		if !ok || !pathsafe.AbsRE.MatchString(safe) {
 			continue
 		}
 		b, err := os.ReadFile(safe)
