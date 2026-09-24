@@ -10,15 +10,26 @@ echo "[coord-perf] build coordinator + node"
 (cd "$ROOT" && go build -o /tmp/hackme-coordinator ./cmd/coordinator/ && go build -o /tmp/hackme-node .)
 
 echo "[coord-perf] rsync binaries + ops scripts"
-rsync -avz /tmp/hackme-coordinator /tmp/hackme-node \
+RSYNC_EXTRA=()
+for f in \
   "$ROOT/scripts/ops/vps_patch_coordinator_nginx_query.sh" \
   "$ROOT/scripts/ops/settle_worker_payouts.sh" \
   "$ROOT/scripts/ops/sync_settlement_admin_token.sh" \
   "$ROOT/scripts/ops/repair_worker_settlement_state.sh" \
-  "$ROOT/scripts/ops/systemd/hackme-worker-settlement.service" \
+  "$ROOT/scripts/ops/systemd/hackme-worker-settlement.service"
+do
+  if [[ -f "$f" ]]; then
+    RSYNC_EXTRA+=("$f")
+  else
+    echo "[coord-perf] skip missing $f"
+  fi
+done
+rsync -avz /tmp/hackme-coordinator /tmp/hackme-node "${RSYNC_EXTRA[@]}" \
   "$NODE_SSH:$DEPLOY/"
-rsync -avz "$ROOT/scripts/ops/systemd/hackme-worker-settlement.service" \
-  "$NODE_SSH:/tmp/hackme-worker-settlement.service"
+if [[ -f "$ROOT/scripts/ops/systemd/hackme-worker-settlement.service" ]]; then
+  rsync -avz "$ROOT/scripts/ops/systemd/hackme-worker-settlement.service" \
+    "$NODE_SSH:/tmp/hackme-worker-settlement.service"
+fi
 
 ssh -o BatchMode=yes "$NODE_SSH" "bash -s" <<REMOTE
 set -euo pipefail
