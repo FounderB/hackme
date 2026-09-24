@@ -509,9 +509,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
 		var req struct {
 			WorkerID        string `json:"worker_id"`
-			MinerPubKey      string `json:"miner_pubkey"`
-			MinerPubKeyEd    string `json:"miner_pubkey_ed25519"`
-			MinerAddress     string `json:"miner_address"`
+			MinerPubKey     string `json:"miner_pubkey"`
+			MinerPubKeyEd   string `json:"miner_pubkey_ed25519"`
+			MinerAddress    string `json:"miner_address"`
 			WorkerVersion   string `json:"worker_version"`
 			HuntHarnessExec string `json:"hunt_harness_exec"`
 		}
@@ -587,11 +587,11 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"ok":                 false,
-				"reason":             "worker_outdated_for_hunt",
-				"need_hunt_harness":  poolfuzz.HuntHarnessLibFuzzerOneshot,
-				"got_hunt_harness":   strings.TrimSpace(req.HuntHarnessExec),
-				"hint":               "rebuild/redeploy workerfuzz with libFuzzer one-shot RunInputDetailed",
+				"ok":                false,
+				"reason":            "worker_outdated_for_hunt",
+				"need_hunt_harness": poolfuzz.HuntHarnessLibFuzzerOneshot,
+				"got_hunt_harness":  strings.TrimSpace(req.HuntHarnessExec),
+				"hint":              "rebuild/redeploy workerfuzz with libFuzzer one-shot RunInputDetailed",
 			})
 			return
 		}

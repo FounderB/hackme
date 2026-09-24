@@ -14,7 +14,7 @@ type SettleOutboxItem struct {
 	ID           int64  `json:"id"`
 	CampaignID   string `json:"campaign_id"`
 	Kind         string `json:"kind"`
-	MinerAddress  string `json:"miner_address"`
+	MinerAddress string `json:"miner_address"`
 	Severity     string `json:"severity"`
 	WorkItemID   int64  `json:"work_item_id,omitempty"`
 	CreatedAt    int64  `json:"created_at"`

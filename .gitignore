@@ -16,6 +16,10 @@ hackme-coordinator
 /workerfuzz
 /hackme-fuzzing
 /hmscoordinator
+/hackme-hms-coordinator
+/hackme-hms-*
+*.deb
+!scripts/release/**/*.deb
 
 # Local social drafts and crash telemetry (never commit)
 local_social_drafts/

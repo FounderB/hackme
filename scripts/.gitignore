@@ -416,3 +416,11 @@ vast/ssh_check_ui.sh
 vast/ssh_common.sh
 vast/ssh_run_matrix.sh
 vast/ssh_run_session.sh
+ops/MIRROR_DR.md
+ops/cloudflare_dns_discover.sh
+ops/mirror_promote.sh
+ops/mirror_promote_local.sh
+ops/mirror_demote.sh
+ops/mirror_health_watchdog.sh
+ops/install_mirror_swap.sh
+ops/install_mirror_watchdog.sh
