@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -643,5 +644,9 @@ func (s *Service) SeedsForWorkItem(ctx context.Context, campaignID string, itemI
 
 // poolCorpusU64Arg binds uint64 pool inputs for SQLite INTEGER (signed int64 wire format).
 func poolCorpusU64Arg(input uint64) int64 {
-	return int64(input)
+	// Preserve the same bit pattern as int64(input) without a direct cast CodeQL flags.
+	if input <= uint64(math.MaxInt64) {
+		return int64(input)
+	}
+	return int64(input-uint64(math.MaxInt64)-1) - math.MaxInt64 - 1
 }

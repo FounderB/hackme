@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -99,11 +100,10 @@ func maxMemoryLimitPages() uint32 {
 	if v > 1024 {
 		v = 1024
 	}
-	// Explicit non-negative bound for CodeQL integer-conversion check.
-	if v < 0 {
+	if v < 0 || v > math.MaxUint32 {
 		v = 32
 	}
-	return uint32(v) //nolint:gosec // v clamped to [32,1024]
+	return uint32(v)
 }
 
 // Policy returns active sandbox policy values.

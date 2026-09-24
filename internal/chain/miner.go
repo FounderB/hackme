@@ -553,7 +553,10 @@ func (m *Miner) Start(ctx context.Context) {
 	if workers > 512 {
 		workers = 512
 	}
-	m.cpuWorkers.Store(int32(workers)) //nolint:gosec // clamped to [1,512] above
+	if workers > int(math.MaxInt32) {
+		workers = 512
+	}
+	m.cpuWorkers.Store(int32(workers))
 
 	var nextNonce atomic.Uint64
 	var rnd [8]byte

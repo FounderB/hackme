@@ -2906,8 +2906,11 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 						wc = v
 					}
 				case float64:
-					if v > 0 && v < float64(math.MaxInt) {
-						wc = int(v)
+					if v > 0 && v <= float64(math.MaxInt) {
+						n := int64(v)
+						if float64(n) == v && n <= math.MaxInt {
+							wc = int(n)
+						}
 					}
 				}
 			}
