@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"hackme/internal/logsafe"
 	"hackme/internal/workerlock"
 )
 
@@ -43,11 +44,11 @@ func reapLockDir(dir string, workerID string) {
 	results, err := workerlock.ReapAll(dir)
 	for _, res := range results {
 		if res.Killed {
-			log.Printf("pool worker: reaped orphan %s worker_id=%s pid=%d dir=%s", res.Kind, res.Worker, res.PID, dir)
+			log.Printf("pool worker: reaped orphan %s worker_id=%s pid=%d dir=%s", res.Kind, logsafe.ID(res.Worker), res.PID, logsafe.ID(dir))
 		}
 	}
 	if err != nil {
-		log.Printf("pool worker: orphan reap dir=%s: %v", dir, err)
+		log.Printf("pool worker: orphan reap dir=%s: %v", logsafe.ID(dir), err)
 	}
 	wid := strings.TrimSpace(workerID)
 	if wid == "" {
@@ -56,9 +57,9 @@ func reapLockDir(dir string, workerID string) {
 	for _, kind := range []string{"workerpoh", "workerfuzz"} {
 		res, err := workerlock.Reap(kind, wid, dir)
 		if res.Killed {
-			log.Printf("pool worker: reaped orphan %s worker_id=%s pid=%d", kind, wid, res.PID)
+			log.Printf("pool worker: reaped orphan %s worker_id=%s pid=%d", kind, logsafe.ID(wid), res.PID)
 		} else if res.WasHeld && err != nil {
-			log.Printf("pool worker: orphan reap %s worker_id=%s: %v", kind, wid, err)
+			log.Printf("pool worker: orphan reap %s worker_id=%s: %v", kind, logsafe.ID(wid), err)
 		}
 	}
 }
@@ -103,7 +104,7 @@ func reapOrphanPoolWorkers(logDir, workerID, repoRoot string) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	if wid != "" && (workerlock.Held("workerpoh", wid, lockDir) || workerlock.Held("workerfuzz", wid, lockDir)) {
-		log.Printf("pool worker: warning: lock still held after orphan reap worker_id=%s dir=%s", wid, lockDir)
+		log.Printf("pool worker: warning: lock still held after orphan reap worker_id=%s dir=%s", logsafe.ID(wid), logsafe.ID(lockDir))
 	}
 }
 

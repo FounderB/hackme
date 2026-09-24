@@ -18,6 +18,7 @@ import (
 
 	"hackme/internal/hunt"
 	"hackme/internal/lanpool"
+	"hackme/internal/logsafe"
 	"hackme/internal/logsetup"
 	"hackme/internal/poolfuzz"
 	"hackme/internal/store"
@@ -201,7 +202,7 @@ func main() {
 		if peerFlusher != nil {
 			peerFlusher.mark(id)
 		} else if err := persistPeer(r.Context(), db, id, reg); err != nil {
-			log.Printf("peer persist %s: %v", id, err)
+			log.Printf("peer persist %s: %v", logsafe.ID(id), err)
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "worker_id": id})

@@ -196,11 +196,16 @@ func filepathJoinMarket(root, workerID, name string) string {
 	if name == "" || name == "." || name == ".." {
 		return ""
 	}
-	full := filepath.Clean(filepath.Join(root, workerID, name))
 	rootClean := filepath.Clean(root)
-	sep := string(filepath.Separator)
-	if full != rootClean && !strings.HasPrefix(full, rootClean+sep) {
+	full := filepath.Clean(filepath.Join(rootClean, workerID, name))
+	rel, err := filepath.Rel(rootClean, full)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return ""
 	}
-	return full
+	// Rebuild under root so ReadFile/WriteFile sinks see a confined path.
+	out := filepath.Join(rootClean, rel)
+	if out != rootClean && !strings.HasPrefix(out, rootClean+string(os.PathSeparator)) {
+		return ""
+	}
+	return out
 }

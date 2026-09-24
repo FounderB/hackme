@@ -251,15 +251,20 @@ func sanitizeCodeID(s string) string {
 	return out
 }
 
-// pathWithinRoot returns cleaned path if it resolves under root (CodeQL path-injection guard).
+// pathWithinRoot returns a path rebuilt under root if it resolves inside root
+// (CodeQL path-injection barrier: Rel + HasPrefix + Join rebuild).
 func pathWithinRoot(root, path string) (string, bool) {
 	root = filepath.Clean(root)
 	full := filepath.Clean(path)
-	sep := string(os.PathSeparator)
-	if full != root && !strings.HasPrefix(full, root+sep) {
+	rel, err := filepath.Rel(root, full)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", false
 	}
-	return full, true
+	out := filepath.Join(root, rel)
+	if out != root && !strings.HasPrefix(out, root+string(os.PathSeparator)) {
+		return "", false
+	}
+	return out, true
 }
 
 func compileTaskWASM(ctx context.Context, lang, srcPath, outPath string) (string, error) {
@@ -333,6 +338,12 @@ func compileTaskWASM(ctx context.Context, lang, srcPath, outPath string) (string
 		}
 		return logText, err
 	}
+	outRoot := filepath.Clean(filepath.Dir(outPath))
+	safeOut, ok := pathWithinRoot(outRoot, outPath)
+	if !ok {
+		return "invalid compiled output path", errors.New("invalid compiled output path")
+	}
+	outPath = safeOut
 	if _, statErr := os.Stat(outPath); statErr != nil {
 		// Some TinyGo builds may emit wasm into cwd even with -o.
 		if lang == "tinygo" {
@@ -429,6 +440,11 @@ func (a *app) compileTaskFromCode(ctx context.Context, req taskFromCodeRequest) 
 	compileLog, compileErr := compileTaskWASM(cctx, req.Language, srcPath, outPath)
 	if compileErr != nil {
 		return nil, "", "", compileLog, compileErr
+	}
+	if safe, ok := pathWithinRoot(artifactRootAbs, outPath); !ok {
+		return nil, "", "", compileLog, errors.New("invalid artifact path")
+	} else {
+		outPath = safe
 	}
 	wasmBytes, err = os.ReadFile(outPath)
 	if err != nil {

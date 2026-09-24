@@ -104,7 +104,7 @@ func serveChunkPush(listen, dir, pushToken string) {
 		}
 		chunkID := strings.TrimPrefix(r.URL.Path, "/api/worker/storage/chunks/")
 		chunkID = filepath.Base(strings.TrimSpace(chunkID))
-		if chunkID == "" || chunkID == "." || chunkID == ".." {
+		if chunkID == "" || chunkID == "." || chunkID == ".." || strings.Contains(chunkID, "..") {
 			http.Error(w, "bad chunk id", http.StatusBadRequest)
 			return
 		}
@@ -114,8 +114,17 @@ func serveChunkPush(listen, dir, pushToken string) {
 			http.Error(w, "read body", http.StatusBadRequest)
 			return
 		}
-		path := filepath.Join(dir, chunkID+".dat")
-		if err := os.WriteFile(path, data, 0o600); err != nil {
+		cleanDir := filepath.Clean(dir)
+		name := chunkID + ".dat"
+		path := filepath.Clean(filepath.Join(cleanDir, name))
+		rel, rerr := filepath.Rel(cleanDir, path)
+		if rerr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) ||
+			(path != cleanDir && !strings.HasPrefix(path, cleanDir+string(os.PathSeparator))) {
+			http.Error(w, "bad path", http.StatusBadRequest)
+			return
+		}
+		safePath := filepath.Join(cleanDir, rel)
+		if err := os.WriteFile(safePath, data, 0o600); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

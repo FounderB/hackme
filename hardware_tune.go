@@ -17,6 +17,7 @@ import (
 	"hackme/internal/chain"
 	"hackme/internal/gpuhost"
 	"hackme/internal/gputune"
+	"hackme/internal/logsafe"
 )
 
 type gpuTuneDevice struct {
@@ -481,7 +482,7 @@ func (a *app) handleHardwareTune(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			log.Printf("hardware tune: soft CPU cap set to %.1f%%", in.SoftCapPct)
+			log.Printf("hardware tune: soft CPU cap set to %s%%", logsafe.ID(strconv.FormatFloat(in.SoftCapPct, 'f', 1, 64)))
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"ok":           true,
@@ -620,7 +621,7 @@ func (a *app) handleHardwareTune(w http.ResponseWriter, r *http.Request) {
 		cmd.Stderr = &out
 		if err := cmd.Run(); err != nil {
 			detail := strings.TrimSpace(out.String())
-			log.Printf("hardware tune: nvidia-smi -pl: %v: %s", err, detail)
+			log.Printf("hardware tune: nvidia-smi -pl: %v: %s", err, logsafe.ID(detail))
 			code := "nvidia_smi_error"
 			hint := "Windows: run elevated if -pl is rejected; confirm driver supports power limits."
 			lower := strings.ToLower(detail)
@@ -640,7 +641,8 @@ func (a *app) handleHardwareTune(w http.ResponseWriter, r *http.Request) {
 		}
 		// Re-read actual power limit with short retries to avoid race with driver state update.
 		appliedLimitW, exactApplied := waitAppliedPowerLimitW(body.GPUIndex, targetW, 6, 200*time.Millisecond)
-		log.Printf("hardware tune: set GPU %d power limit requested=%dW applied=%.0fW (ok)", body.GPUIndex, targetW, appliedLimitW)
+		log.Printf("hardware tune: set GPU %s power limit requested=%sW applied=%sW (ok)",
+			logsafe.ID(strconv.Itoa(body.GPUIndex)), logsafe.ID(strconv.Itoa(targetW)), logsafe.ID(strconv.FormatFloat(appliedLimitW, 'f', 0, 64)))
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		resp := map[string]any{
 			"ok":                      true,

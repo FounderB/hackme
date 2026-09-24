@@ -75,7 +75,18 @@ func workerSubmitNonceHeartbeatUnix(logDir, workerID string) int64 {
 			if !workerNonceFilenameOwnsWorker(base, safe) {
 				continue
 			}
-			fi, err := os.Stat(p)
+			// Confine Glob hits to logDir (CodeQL path-injection / symlink escape).
+			cleanLog := filepath.Clean(logDir)
+			cleanP := filepath.Clean(p)
+			rel, rerr := filepath.Rel(cleanLog, cleanP)
+			if rerr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+				continue
+			}
+			if cleanP != cleanLog && !strings.HasPrefix(cleanP, cleanLog+string(os.PathSeparator)) {
+				continue
+			}
+			safePath := filepath.Join(cleanLog, rel)
+			fi, err := os.Stat(safePath)
 			if err != nil || fi.IsDir() {
 				continue
 			}

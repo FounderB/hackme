@@ -20,7 +20,11 @@ func DigSeedDir(repoRoot, packID string) string {
 	if repoRoot == "" {
 		repoRoot = "."
 	}
-	return filepath.Join(repoRoot, ".cache", "dig-seeds", strings.TrimSpace(packID))
+	packID = filepath.Base(strings.TrimSpace(packID))
+	if packID == "" || packID == "." || packID == ".." {
+		packID = "_"
+	}
+	return filepath.Join(repoRoot, ".cache", "dig-seeds", packID)
 }
 
 // LoadDigSeedFiles reads seed inputs from a Dig seed cache directory.
@@ -48,17 +52,27 @@ func LoadDigSeedFiles(dir string, maxSeeds int) ([][]byte, error) {
 		if ent.IsDir() {
 			continue
 		}
-		name := ent.Name()
+		name := filepath.Base(ent.Name())
 		low := strings.ToLower(name)
-		if strings.HasPrefix(low, ".") || strings.HasPrefix(low, "crash-") || low == "readme" {
+		if name == "" || name == "." || name == ".." ||
+			strings.HasPrefix(low, ".") || strings.HasPrefix(low, "crash-") || low == "readme" {
 			continue
 		}
-		path := filepath.Join(dir, name)
-		st, err := os.Stat(path)
+		cleanDir := filepath.Clean(dir)
+		path := filepath.Clean(filepath.Join(cleanDir, name))
+		rel, rerr := filepath.Rel(cleanDir, path)
+		if rerr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			continue
+		}
+		if path != cleanDir && !strings.HasPrefix(path, cleanDir+string(os.PathSeparator)) {
+			continue
+		}
+		safePath := filepath.Join(cleanDir, rel)
+		st, err := os.Stat(safePath)
 		if err != nil || st.IsDir() || st.Size() <= 0 || st.Size() > digSeedMaxBytes {
 			continue
 		}
-		b, err := os.ReadFile(path)
+		b, err := os.ReadFile(safePath)
 		if err != nil || len(b) == 0 {
 			continue
 		}

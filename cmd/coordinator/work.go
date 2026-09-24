@@ -23,6 +23,7 @@ import (
 
 	"hackme/internal/chain"
 	"hackme/internal/lanpool"
+	"hackme/internal/logsafe"
 	"hackme/internal/poolauth"
 	"hackme/internal/worksubmit"
 )
@@ -2648,7 +2649,7 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 			if peerFlusher != nil {
 				peerFlusher.mark(workerID)
 			} else if err := persistPeer(r.Context(), db, workerID, reg); err != nil {
-				log.Printf("peer persist %s: %v", workerID, err)
+				log.Printf("peer persist %s: %v", logsafe.ID(workerID), err)
 			}
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")

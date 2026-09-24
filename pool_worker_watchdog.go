@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"hackme/internal/logsafe"
 )
 
 func envPoolWorkerWatchdogEnabled() bool {
@@ -208,13 +210,13 @@ func (a *app) startPoolWorkerWatchdog() {
 				}
 				first = false
 				if err := a.forceRestartPoolWorker(detail); err != nil {
-					log.Printf("pool worker watchdog: %s restart failed (%s): %v", action, detail, err)
+					log.Printf("pool worker watchdog: %s restart failed (%s): %v", action, logsafe.ID(detail), err)
 				} else {
 					lastRestartUnix = now
 					a.workerMu.Lock()
 					wid := a.workerID
 					a.workerMu.Unlock()
-					log.Printf("pool worker watchdog: %s worker=%s reason=%s", action, wid, detail)
+					log.Printf("pool worker watchdog: %s worker=%s reason=%s", action, logsafe.ID(wid), logsafe.ID(detail))
 				}
 			}
 			time.Sleep(interval)

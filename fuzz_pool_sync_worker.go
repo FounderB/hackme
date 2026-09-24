@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/logsafe"
 	"hackme/internal/poolfuzz"
 	"hackme/internal/poolsync"
 )
@@ -94,7 +95,7 @@ func (a *app) reconcilePoolSyncCampaigns() {
 		if ok {
 			syncCtx, syncCancel := context.WithTimeout(ctx, 20*time.Second)
 			if err := a.syncPoolCampaignProgressFromCoordinator(syncCtx, id); err != nil {
-				log.Printf("pool sync reconcile: %s progress: %v", id, err)
+				log.Printf("pool sync reconcile: %s progress: %v", logsafe.ID(id), err)
 			}
 			syncCancel()
 			continue
@@ -106,9 +107,9 @@ func (a *app) reconcilePoolSyncCampaigns() {
 			ID: id, OwnerRef: ownerRef, BudgetRuns: budgetRuns, BudgetSeconds: budgetSec, ConfigJSON: cfgJSON,
 		})
 		if warn != "" {
-			log.Printf("pool sync reconcile: %s warn=%s", id, warn)
+			log.Printf("pool sync reconcile: %s warn=%s", logsafe.ID(id), logsafe.ID(warn))
 		} else {
-			log.Printf("pool sync reconcile: %s mode=%s", id, mode)
+			log.Printf("pool sync reconcile: %s mode=%s", logsafe.ID(id), logsafe.ID(mode))
 		}
 	}
 }
@@ -145,7 +146,7 @@ func (a *app) retryFailedPoolSyncCampaigns() {
 		_, _ = a.schedulePoolFuzzSync(ctx, fuzzAutoCampaign{
 			ID: id, OwnerRef: ownerRef, BudgetRuns: budgetRuns, BudgetSeconds: budgetSec, ConfigJSON: cfgJSON,
 		})
-		log.Printf("pool sync: retry queued for %s", id)
+		log.Printf("pool sync: retry queued for %s", logsafe.ID(id))
 	}
 }
 
@@ -167,7 +168,7 @@ func (a *app) runPoolSyncJob(job poolSyncJob) {
 	// shards against a missing ASAN binary (yyjson-class lease spin).
 	if poolfuzz.IsHuntCampaign(cfg) {
 		if herr := a.syncHuntHarnessToCoordinator(ctx, cfg); herr != nil {
-			log.Printf("pool sync: campaign %s harness upload failed: %v", job.campaign.ID, herr)
+			log.Printf("pool sync: campaign %s harness upload failed: %v", logsafe.ID(job.campaign.ID), herr)
 			a.poolSyncMarkFailed(job.campaign.ID, herr)
 			return
 		}
@@ -184,14 +185,14 @@ func (a *app) runPoolSyncJob(job poolSyncJob) {
 	}
 	err := poolsync.RegisterWithRetry(ctx, req)
 	if err != nil {
-		log.Printf("pool sync: campaign %s failed after retries: %v", job.campaign.ID, err)
+		log.Printf("pool sync: campaign %s failed after retries: %v", logsafe.ID(job.campaign.ID), err)
 		a.poolSyncMarkFailed(job.campaign.ID, err)
 		return
 	}
 	if fuzzengine.CorpusPersistEnabled(cfg) {
 		a.syncCorpusNamespaceToCoordinator(ctx, cfg)
 	}
-	log.Printf("pool sync: campaign %s registered on coordinator", job.campaign.ID)
+	log.Printf("pool sync: campaign %s registered on coordinator", logsafe.ID(job.campaign.ID))
 	a.poolSyncMarkOK(job.campaign.ID)
 }
 

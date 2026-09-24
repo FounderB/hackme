@@ -323,7 +323,10 @@ func (c *Coordinator) writeMarketChunkFile(workerID, chunkID string, ciphertext 
 	}
 	// Drop into worker storage dir when configured (pilot same-host).
 	if root := marketStorageRoot(); root != "" {
-		p := filepath.Join(root, workerID, chunkID+".dat")
+		p := filepathJoinMarket(root, workerID, chunkID+".dat")
+		if p == "" {
+			return fmt.Errorf("invalid market storage path")
+		}
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			return err
 		}
@@ -332,8 +335,10 @@ func (c *Coordinator) writeMarketChunkFile(workerID, chunkID string, ciphertext 
 		}
 	}
 	// Always keep coordinator copy for restore API later.
-	root := filepath.Join(marketDataRoot(), workerID)
-	p := filepath.Join(root, chunkID+".dat")
+	p := filepathJoinMarket(marketDataRoot(), workerID, chunkID+".dat")
+	if p == "" {
+		return fmt.Errorf("invalid market data path")
+	}
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}

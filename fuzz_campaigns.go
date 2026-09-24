@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/logsafe"
 	"hackme/internal/poolfuzz"
 )
 
@@ -972,7 +973,7 @@ func (a *app) rollbackNewCampaignEscrow(ctx context.Context, campaignID string) 
 	}
 	if a.chain != nil {
 		if _, err := a.chain.CancelFuzzEscrow(ctx, campaignID); err != nil {
-			log.Printf("fuzz escrow: rollback %s: %v", campaignID, err)
+			log.Printf("fuzz escrow: rollback %s: %v", logsafe.ID(campaignID), err)
 		}
 	}
 	if a.db != nil {
@@ -991,7 +992,7 @@ func (a *app) tryCloseFuzzEscrowForStatus(ctx context.Context, campaignID, statu
 		// Drain run/finding settles first so Finalize does not refund unpaid work.
 		// A failed pull must not finalize: pending worker payouts would hit a closed escrow (report #12).
 		if err := a.pullFuzzSettleOutbox(ctx); err != nil {
-			log.Printf("fuzz escrow: refuse finalize %s: settle pull failed: %v", campaignID, err)
+			log.Printf("fuzz escrow: refuse finalize %s: settle pull failed: %v", logsafe.ID(campaignID), err)
 			return
 		}
 		_, _ = a.chain.FinalizeFuzzEscrow(ctx, campaignID)
