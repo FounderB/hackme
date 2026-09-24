@@ -384,10 +384,8 @@ func MaterializeHarness(ctx context.Context, repoRoot, hash, fetchURL, expectedC
 		}
 		if cached, gotSHA, rerr := readVerifiedHarnessCache(cachePath, att); rerr == nil && len(cached) > 0 {
 			_ = cached
+			_ = gotSHA
 			harnessCache.Store(hash, cachePath)
-			if want == "" {
-				want = gotSHA
-			}
 			return cachePath, nil
 		}
 		quarantineHarnessCache(cachePath)

@@ -35,10 +35,6 @@ func CampaignConfig(ctx context.Context, repoRoot string, req CreateRequest) (ma
 	if budgetHMC < minBudget {
 		return nil, "", fmt.Errorf("hunt: budget_hmc below minimum %.0f for %s", minBudget, pkgKey)
 	}
-	shards := req.BudgetShards
-	if shards <= 0 {
-		shards = preset.BudgetShards
-	}
 
 	var pin *RepoPinResult
 	var invRoot string
