@@ -508,10 +508,12 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
 		var req struct {
-			WorkerID      string `json:"worker_id"`
-			MinerPubKey   string `json:"miner_pubkey"`
-			MinerPubKeyEd string `json:"miner_pubkey_ed25519"`
-			MinerAddress  string `json:"miner_address"`
+			WorkerID        string `json:"worker_id"`
+			MinerPubKey      string `json:"miner_pubkey"`
+			MinerPubKeyEd    string `json:"miner_pubkey_ed25519"`
+			MinerAddress     string `json:"miner_address"`
+			WorkerVersion   string `json:"worker_version"`
+			HuntHarnessExec string `json:"hunt_harness_exec"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
@@ -520,6 +522,19 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		workerID := strings.TrimSpace(req.WorkerID)
 		if !validCoordinatorWorkerID(workerID) {
 			http.Error(w, "invalid worker_id", http.StatusBadRequest)
+			return
+		}
+		minVer := poolfuzz.MinWorkerVersion()
+		if !poolfuzz.WorkerVersionAllowed(req.WorkerVersion, minVer) {
+			wm.recordDrop("worker_outdated")
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok":                 false,
+				"reason":             "worker_outdated",
+				"min_worker_version": minVer,
+				"worker_version":     strings.TrimSpace(req.WorkerVersion),
+			})
 			return
 		}
 		pub := strings.TrimSpace(req.MinerPubKey)
@@ -563,6 +578,21 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			wm.recordDrop("no_fuzz_work")
 			w.WriteHeader(http.StatusTooManyRequests)
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": "no_fuzz_work"})
+			return
+		}
+		isHunt := work.TaskClass == "hunt" || work.WorkKind == "hunt_shard"
+		if isHunt && !poolfuzz.HuntHarnessCapable(req.HuntHarnessExec) {
+			_ = pf.ReleaseWorkLease(r.Context(), work.CampaignID, work.ItemID, workerID)
+			wm.recordDrop("worker_outdated_for_hunt")
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok":                 false,
+				"reason":             "worker_outdated_for_hunt",
+				"need_hunt_harness":  poolfuzz.HuntHarnessLibFuzzerOneshot,
+				"got_hunt_harness":   strings.TrimSpace(req.HuntHarnessExec),
+				"hint":               "rebuild/redeploy workerfuzz with libFuzzer one-shot RunInputDetailed",
+			})
 			return
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -735,6 +765,8 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			SegmentExecDone: req.SegmentExecDone,
 		})
 		if err != nil {
+			// Free lease on reject (segment mismatch / replay fail) so shards do not burn TTL.
+			_ = pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, req.WorkerID)
 			wm.markSubmitOutcome(req.WorkerID, ipKey, "fuzz_submit_failed", now)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -770,6 +802,43 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			}
 		}
 		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	mux.HandleFunc("/api/fuzz/work/release", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !coordinatorWorkPOSTAuthed(r, adminToken, workerToken, allowInsecure) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
+			http.Error(w, "coordinator authentication required", http.StatusUnauthorized)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
+		var req struct {
+			WorkerID   string `json:"worker_id"`
+			CampaignID string `json:"campaign_id"`
+			ItemID     int64  `json:"item_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		workerID := strings.TrimSpace(req.WorkerID)
+		if !validCoordinatorWorkerID(workerID) {
+			http.Error(w, "invalid worker_id", http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(req.CampaignID) == "" || req.ItemID <= 0 {
+			http.Error(w, "campaign_id and item_id required", http.StatusBadRequest)
+			return
+		}
+		if err := pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, workerID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "released": true})
 	})
 
 	mux.HandleFunc("/api/fuzz/work/replay-status", func(w http.ResponseWriter, r *http.Request) {

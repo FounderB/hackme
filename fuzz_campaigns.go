@@ -752,7 +752,7 @@ func (a *app) handleFuzzCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		if poolDistributedCampaign(cfgMap) {
 			resp["pool_distributed"] = true
-			fc := fuzzAutoCampaign{ID: id, BudgetRuns: req.BudgetRuns, BudgetSeconds: req.BudgetSeconds, ConfigJSON: cfg}
+			fc := fuzzAutoCampaign{ID: id, OwnerRef: strings.TrimSpace(req.OwnerRef), BudgetRuns: req.BudgetRuns, BudgetSeconds: req.BudgetSeconds, ConfigJSON: cfg}
 			a.applyPoolSyncResponse(resp, r.Context(), fc)
 		}
 		writeJSON(w, resp)
@@ -774,6 +774,7 @@ func (a *app) handleFuzzCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		resp["pool_distributed"] = true
 		fc := fuzzAutoCampaign{
 			ID:            id,
+			OwnerRef:      strings.TrimSpace(req.OwnerRef),
 			BudgetRuns:    req.BudgetRuns,
 			BudgetSeconds: req.BudgetSeconds,
 			ConfigJSON:    cfg,

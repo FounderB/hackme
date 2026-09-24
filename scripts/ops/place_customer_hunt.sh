@@ -104,12 +104,14 @@ CREATE="$(curl -fsS --max-time 900 -X POST "${NODE}/api/hunt/campaigns" \
     --arg pkg "$PACKAGE" \
     --arg p "$REPO" \
     --arg rel "$SOURCE_REL" \
+    --arg owner "customer:$(basename "$REPO" | tr -c 'a-zA-Z0-9' '-' | tr '[:upper:]' '[:lower:]')" \
     --argjson shards "$SHARDS" \
     --argjson repo "$repo_obj" \
     '{
       id: $id,
       package: $pkg,
       title: $title,
+      owner_ref: $owner,
       pool_distributed: true,
       budget_shards: $shards,
       status: "running",

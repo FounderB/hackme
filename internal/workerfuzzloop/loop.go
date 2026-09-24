@@ -26,6 +26,10 @@ import (
 	"hackme/internal/sandbox"
 )
 
+// Version is stamped at link time (-X hackme/internal/workerfuzzloop.Version=…).
+// Falls back to a fleet-gate baseline when unset.
+var Version = "0.1.0-rc17.1"
+
 // ClaimResp is one leased fuzz work item from the coordinator.
 type ClaimResp struct {
 	OK                   bool             `json:"ok"`
@@ -71,6 +75,11 @@ type Config struct {
 	Priv   ed25519.PrivateKey
 	PubHex string
 	Hybrid bool
+
+	// WorkerVersion reported on claim (default: Version / HACKME_WORKER_VERSION).
+	WorkerVersion string
+	// HuntHarnessExec capability (default: poolfuzz.HuntHarnessLibFuzzerOneshot).
+	HuntHarnessExec string
 
 	// Concurrency is max in-flight claim→run→submit cycles (default 1).
 	Concurrency int
@@ -302,7 +311,7 @@ func Run(ctx context.Context, cfg Config, st *Stats) error {
 }
 
 func runOne(ctx context.Context, cfg Config, base string, st *Stats) {
-	cr, err := Claim(ctx, cfg.HTTPClient, base, cfg.Token, cfg.WorkerID, cfg.PubHex, cfg.MinerAddr)
+	cr, err := Claim(ctx, cfg.HTTPClient, base, cfg.Token, cfg.WorkerID, cfg.PubHex, cfg.MinerAddr, claimCaps(cfg))
 	if err != nil {
 		sleep := backoffForErr(err)
 		fmt.Fprintf(os.Stderr, "%s: claim: %v (sleep %s)\n", cfg.LogPrefix, err, sleep)
@@ -321,6 +330,11 @@ func runOne(ctx context.Context, cfg Config, base string, st *Stats) {
 		return
 	}
 	st.ClaimsOK.Add(1)
+	release := func(why string) {
+		if rerr := ReleaseLease(ctx, cfg.HTTPClient, base, cfg.Token, cfg.WorkerID, cr.CampaignID, cr.ItemID); rerr != nil {
+			fmt.Fprintf(os.Stderr, "%s: release lease after %s: %v\n", cfg.LogPrefix, why, rerr)
+		}
+	}
 	var checkRet int32
 	var durMS int
 	var trap string
@@ -328,15 +342,28 @@ func runOne(ctx context.Context, cfg Config, base string, st *Stats) {
 	if IsHuntClaim(cr) {
 		if err := HuntClaimMissingFields(cr); err != nil {
 			fmt.Fprintf(os.Stderr, "%s: %v\n", cfg.LogPrefix, err)
+			release("hunt_missing_fields")
 			return
 		}
 		checkRet, durMS, trap, execDone = RunHuntShard(ctx, cr, cfg.TimeoutMS)
+		// Incomplete mid-shard — do not submit cheated progress; free lease for reclaim.
+		want := cr.ExecPerUnit
+		if want < 1 {
+			want = 1
+		}
+		if execDone < want {
+			fmt.Fprintf(os.Stderr, "%s: hunt incomplete shard exec_done=%d want=%d trap=%q — releasing\n",
+				cfg.LogPrefix, execDone, want, trap)
+			release("hunt_incomplete_shard")
+			return
+		}
 	} else {
 		checkRet, durMS, trap, execDone = RunSegmentCheck(ctx, cr, cfg.TimeoutMS)
 	}
 	nonce := uint64(time.Now().UnixNano())
 	if err := Submit(ctx, cfg.HTTPClient, base, cfg.Token, cfg.WorkerID, cfg.MinerAddr, cfg.Priv, cfg.PubHex, cfg.Hybrid, nonce, cr, checkRet, durMS, trap, execDone); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: submit: %v\n", cfg.LogPrefix, err)
+		release("submit_reject")
 		return
 	}
 	st.SubmitsOK.Add(1)
@@ -411,8 +438,29 @@ func backoffForReason(reason string) time.Duration {
 	return 2 * time.Second
 }
 
+// ClaimCaps are optional claim identity fields for fleet gates.
+type ClaimCaps struct {
+	WorkerVersion   string
+	HuntHarnessExec string
+}
+
+func claimCaps(cfg Config) ClaimCaps {
+	ver := strings.TrimSpace(cfg.WorkerVersion)
+	if ver == "" {
+		ver = strings.TrimSpace(os.Getenv("HACKME_WORKER_VERSION"))
+	}
+	if ver == "" {
+		ver = strings.TrimSpace(Version)
+	}
+	exec := strings.TrimSpace(cfg.HuntHarnessExec)
+	if exec == "" {
+		exec = poolfuzz.HuntHarnessLibFuzzerOneshot
+	}
+	return ClaimCaps{WorkerVersion: ver, HuntHarnessExec: exec}
+}
+
 // Claim leases one fuzz work item.
-func Claim(ctx context.Context, cl *http.Client, base, token, workerID, pubHex, minerAddr string) (ClaimResp, error) {
+func Claim(ctx context.Context, cl *http.Client, base, token, workerID, pubHex, minerAddr string, caps ClaimCaps) (ClaimResp, error) {
 	var out ClaimResp
 	bodyMap := map[string]any{"worker_id": workerID}
 	if pub := strings.TrimSpace(pubHex); pub != "" {
@@ -421,6 +469,12 @@ func Claim(ctx context.Context, cl *http.Client, base, token, workerID, pubHex, 
 	}
 	if addr := strings.TrimSpace(minerAddr); addr != "" {
 		bodyMap["miner_address"] = addr
+	}
+	if v := strings.TrimSpace(caps.WorkerVersion); v != "" {
+		bodyMap["worker_version"] = v
+	}
+	if h := strings.TrimSpace(caps.HuntHarnessExec); h != "" {
+		bodyMap["hunt_harness_exec"] = h
 	}
 	body, _ := json.Marshal(bodyMap)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/fuzz/work/claim", bytes.NewReader(body))
@@ -440,6 +494,36 @@ func Claim(ctx context.Context, cl *http.Client, base, token, workerID, pubHex, 
 		return out, fmt.Errorf("HTTP %d %s", res.StatusCode, shortHTTPBody(res.StatusCode, b))
 	}
 	return out, nil
+}
+
+// ReleaseLease returns a leased work item to pending (worker give-up).
+func ReleaseLease(ctx context.Context, cl *http.Client, base, token, workerID, campaignID string, itemID int64) error {
+	campaignID = strings.TrimSpace(campaignID)
+	workerID = strings.TrimSpace(workerID)
+	if campaignID == "" || itemID <= 0 || workerID == "" {
+		return errors.New("release lease requires campaign_id, item_id, worker_id")
+	}
+	body, _ := json.Marshal(map[string]any{
+		"worker_id":   workerID,
+		"campaign_id": campaignID,
+		"item_id":     itemID,
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/fuzz/work/release", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Hackme-Admin-Token", token)
+	res, err := cl.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d %s", res.StatusCode, shortHTTPBody(res.StatusCode, b))
+	}
+	return nil
 }
 
 // RunCheck executes the leased WASM check in-process (wazero) — single exec fallback.

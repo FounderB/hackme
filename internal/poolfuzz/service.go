@@ -986,13 +986,20 @@ func campaignClaimTier(id, title, ownerRef string) string {
 	if strings.Contains(id, "bootstrap") || strings.Contains(title, "bootstrap") || strings.HasPrefix(owner, "bootstrap:") {
 		return "bootstrap"
 	}
+	// Explicit customer Hunt / B2B markers (even when owner_ref was omitted at create).
+	if strings.HasPrefix(id, "hunt-customer-") ||
+		strings.Contains(title, "customer hunt") ||
+		strings.HasPrefix(owner, "customer:") {
+		return "customer"
+	}
 	if owner != "" &&
 		!strings.HasPrefix(owner, "qa:") &&
 		!strings.HasPrefix(owner, "e2e:") &&
 		!strings.HasPrefix(owner, "fleet:") &&
 		!strings.HasPrefix(owner, "diag:") &&
 		!strings.HasPrefix(owner, "test:") &&
-		!strings.HasPrefix(owner, "matrix:") {
+		!strings.HasPrefix(owner, "matrix:") &&
+		!strings.HasPrefix(owner, "founder:") {
 		return "customer"
 	}
 	return "other"

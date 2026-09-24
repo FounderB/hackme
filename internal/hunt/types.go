@@ -63,6 +63,7 @@ type CreateRequest struct {
 	BudgetShards    int             `json:"budget_shards,omitempty"`
 	Status          string          `json:"status,omitempty"`
 	PoolDistributed bool            `json:"pool_distributed,omitempty"`
+	OwnerRef        string          `json:"owner_ref,omitempty"`
 }
 
 // HarnessBuildAPIRequest is POST /api/hunt/harness/build body.

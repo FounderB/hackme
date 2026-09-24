@@ -7,10 +7,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,7 +32,9 @@ func RunInput(ctx context.Context, binPath string, input []byte, maxInput int) (
 	return crash, sanitizer, tail, err
 }
 
-// RunInputDetailed executes bin with stdin data and returns normalized sanitizer info.
+// RunInputDetailed executes one ASAN/UBSan harness input and returns normalized sanitizer info.
+// Hunt stdin drivers get the bytes on stdin. cargo-fuzz / libFuzzer binaries ignore stdin and
+// would spin forever — those are run once via a temp file and -runs=1.
 func RunInputDetailed(ctx context.Context, binPath string, input []byte, opts RunInputOpts) (crash bool, info SanitizerInfo, tail string, err error) {
 	if opts.MaxInput <= 0 {
 		opts.MaxInput = 65536
@@ -38,8 +42,6 @@ func RunInputDetailed(ctx context.Context, binPath string, input []byte, opts Ru
 	if len(input) > opts.MaxInput {
 		input = input[:opts.MaxInput]
 	}
-	runCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
 	bin := filepath.Clean(strings.TrimSpace(binPath))
 	if _, verr := ValidateBinPath(bin); verr != nil {
 		return false, SanitizerInfo{}, "", verr
@@ -47,19 +49,57 @@ func RunInputDetailed(ctx context.Context, binPath string, input []byte, opts Ru
 	if !reAbsBinPath.MatchString(bin) {
 		return false, SanitizerInfo{}, "", errors.New("fuzzupstream: binary path rejected by allowlist")
 	}
+	if binaryLooksLikeLibFuzzer(bin) {
+		return runLibFuzzerOnce(ctx, bin, input, opts)
+	}
+	return runStdinOnce(ctx, bin, input, opts)
+}
+
+func runStdinOnce(ctx context.Context, bin string, input []byte, opts RunInputOpts) (crash bool, info SanitizerInfo, tail string, err error) {
+	runCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	cmd := exec.CommandContext(runCtx, bin)
 	cmd.Stdin = bytes.NewReader(input)
-	cmd.Env = []string{
+	cmd.Env = harnessExecEnv(opts)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	runErr := cmd.Run()
+	return classifyHarnessRun(runCtx, runErr, stdout.String()+stderr.String())
+}
+
+func runLibFuzzerOnce(ctx context.Context, bin string, input []byte, opts RunInputOpts) (crash bool, info SanitizerInfo, tail string, err error) {
+	dir, err := os.MkdirTemp("", "hunt-lf-in-*")
+	if err != nil {
+		return false, SanitizerInfo{}, "", err
+	}
+	defer os.RemoveAll(dir)
+	inPath := filepath.Join(dir, "input")
+	if err := os.WriteFile(inPath, input, 0o600); err != nil {
+		return false, SanitizerInfo{}, "", err
+	}
+	runCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	// One-shot: feed a single corpus file; never start the interactive fuzz loop.
+	cmd := exec.CommandContext(runCtx, bin, inPath, "-runs=1", "-timeout=2", fmt.Sprintf("-max_len=%d", opts.MaxInput))
+	cmd.Env = harnessExecEnv(opts)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	runErr := cmd.Run()
+	return classifyHarnessRun(runCtx, runErr, stdout.String()+stderr.String())
+}
+
+func harnessExecEnv(opts RunInputOpts) []string {
+	return []string{
 		"PATH=/usr/bin:/bin",
 		"ASAN_OPTIONS=" + asanOptions(opts.DetectLeaks),
 		"UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1",
 		"HOME=/tmp",
 	}
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	runErr := cmd.Run()
-	blob := stdout.String() + stderr.String()
+}
+
+func classifyHarnessRun(runCtx context.Context, runErr error, blob string) (crash bool, info SanitizerInfo, tail string, err error) {
 	if len(blob) > 800 {
 		tail = strings.TrimSpace(blob[len(blob)-800:])
 	} else {
@@ -90,6 +130,63 @@ func RunInputDetailed(ctx context.Context, binPath string, input []byte, opts Ru
 	}
 	// Ordinary non-zero exit (parse error, exit 1) stays clean.
 	return false, SanitizerInfo{}, tail, nil
+}
+
+var libFuzzerDetectCache sync.Map // abs path → libFuzzerDetectEntry
+
+type libFuzzerDetectEntry struct {
+	size    int64
+	modNano int64
+	isLF    bool
+}
+
+func binaryLooksLikeLibFuzzer(bin string) bool {
+	st, err := os.Stat(bin)
+	if err != nil || !st.Mode().IsRegular() {
+		return false
+	}
+	modNano := st.ModTime().UnixNano()
+	if v, ok := libFuzzerDetectCache.Load(bin); ok {
+		e := v.(libFuzzerDetectEntry)
+		if e.size == st.Size() && e.modNano == modNano {
+			return e.isLF
+		}
+	}
+	isLF := scanLibFuzzerMarkers(bin)
+	libFuzzerDetectCache.Store(bin, libFuzzerDetectEntry{size: st.Size(), modNano: modNano, isLF: isLF})
+	return isLF
+}
+
+func scanLibFuzzerMarkers(bin string) bool {
+	f, err := os.Open(bin)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	markers := [][]byte{
+		[]byte("LLVMFuzzerRunDriver"),
+		[]byte("SUMMARY: libFuzzer:"),
+		[]byte("libFuzzer: deadly signal"),
+		[]byte("ERROR: libFuzzer:"),
+	}
+	buf := make([]byte, 1<<20)
+	for {
+		n, rerr := f.Read(buf)
+		if n > 0 {
+			chunk := buf[:n]
+			for _, m := range markers {
+				if bytes.Contains(chunk, m) {
+					return true
+				}
+			}
+		}
+		if rerr == io.EOF {
+			return false
+		}
+		if rerr != nil {
+			return false
+		}
+	}
 }
 
 func exitSignaled(ee *exec.ExitError) bool {

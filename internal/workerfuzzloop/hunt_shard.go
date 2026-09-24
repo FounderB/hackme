@@ -77,7 +77,8 @@ func RunHuntShard(ctx context.Context, cr ClaimResp, timeoutMS int) (checkResult
 		ExecPer:              execPer,
 	})
 	if err != nil {
-		return 0, int(time.Since(start).Milliseconds()), "build: " + err.Error(), 0
+		// Preserve partial segment progress when replay fails mid-shard (e.g. infra timeout).
+		return 0, int(time.Since(start).Milliseconds()), "build: " + err.Error(), rep.ExecDone
 	}
 	if rep.Crash {
 		return 1, int(time.Since(start).Milliseconds()), rep.Trap, execPer

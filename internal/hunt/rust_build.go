@@ -156,6 +156,8 @@ func planRustHarness(pinPath, sourceRel string, content []byte) (*rustHarnessPla
 		if err == nil {
 			if st, err := SafeStatUnder(pinPath, cargoToml); err == nil && !st.IsDir() {
 				plan.Mode = "cargo_fuzz"
+				// cargo-fuzz must run at the package root (parent of fuzz/), not inside fuzz/.
+				plan.CargoRoot = pinPath
 				if target := cargoFuzzTargetName(sourceRel); target != "" {
 					plan.FuzzTarget = target
 				}
@@ -310,7 +312,7 @@ publish = false
 name = "%s"
 path = "main.rs"
 `, rustStdinBin)
-	if plan.PackageName != "" && plan.CargoRoot != "" && plan.CargoRoot != pinPath {
+	if plan.PackageName != "" && plan.CargoRoot != "" {
 		abs, _ := filepath.Abs(plan.CargoRoot)
 		manifest += fmt.Sprintf("\n[dependencies]\n%s = { path = %q }\n", plan.PackageName, abs)
 	}

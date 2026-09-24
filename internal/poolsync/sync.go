@@ -19,6 +19,7 @@ type RegisterRequest struct {
 	CampaignType  string         `json:"campaign_type"`
 	Title         string         `json:"title"`
 	Description   string         `json:"description"`
+	OwnerRef      string         `json:"owner_ref,omitempty"`
 	Status        string         `json:"status"`
 	BudgetRuns    int            `json:"budget_runs"`
 	BudgetSeconds int            `json:"budget_seconds"`

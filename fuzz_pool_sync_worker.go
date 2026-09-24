@@ -65,7 +65,7 @@ func (a *app) reconcilePoolSyncCampaigns() {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	rows, err := a.db.QueryContext(ctx,
-		`SELECT id, budget_runs, budget_seconds, config_json FROM fuzz_campaigns
+		`SELECT id, COALESCE(owner_ref,''), budget_runs, budget_seconds, config_json FROM fuzz_campaigns
 		 WHERE status IN ('planned','running')
 		   AND json_extract(config_json, '$.pool_distributed') IN (1, 'true', '1')
 		 ORDER BY created_at DESC LIMIT 64`)
@@ -74,9 +74,9 @@ func (a *app) reconcilePoolSyncCampaigns() {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, cfgJSON string
+		var id, ownerRef, cfgJSON string
 		var budgetRuns, budgetSec int
-		if err := rows.Scan(&id, &budgetRuns, &budgetSec, &cfgJSON); err != nil {
+		if err := rows.Scan(&id, &ownerRef, &budgetRuns, &budgetSec, &cfgJSON); err != nil {
 			continue
 		}
 		id = strings.TrimSpace(id)
@@ -103,7 +103,7 @@ func (a *app) reconcilePoolSyncCampaigns() {
 		delete(a.poolSyncQueued, id)
 		a.poolSyncMu.Unlock()
 		mode, warn := a.schedulePoolFuzzSync(ctx, fuzzAutoCampaign{
-			ID: id, BudgetRuns: budgetRuns, BudgetSeconds: budgetSec, ConfigJSON: cfgJSON,
+			ID: id, OwnerRef: ownerRef, BudgetRuns: budgetRuns, BudgetSeconds: budgetSec, ConfigJSON: cfgJSON,
 		})
 		if warn != "" {
 			log.Printf("pool sync reconcile: %s warn=%s", id, warn)
@@ -123,7 +123,7 @@ func (a *app) retryFailedPoolSyncCampaigns() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	rows, err := a.db.QueryContext(ctx,
-		`SELECT id, budget_runs, budget_seconds, config_json FROM fuzz_campaigns
+		`SELECT id, COALESCE(owner_ref,''), budget_runs, budget_seconds, config_json FROM fuzz_campaigns
 		 WHERE status IN ('planned','running')
 		   AND json_extract(config_json, '$.pool_distributed') IN (1, 'true', '1')`)
 	if err != nil {
@@ -131,9 +131,9 @@ func (a *app) retryFailedPoolSyncCampaigns() {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, cfgJSON string
+		var id, ownerRef, cfgJSON string
 		var budgetRuns, budgetSec int
-		if err := rows.Scan(&id, &budgetRuns, &budgetSec, &cfgJSON); err != nil {
+		if err := rows.Scan(&id, &ownerRef, &budgetRuns, &budgetSec, &cfgJSON); err != nil {
 			continue
 		}
 		if _, ok := failed[id]; !ok {
@@ -143,7 +143,7 @@ func (a *app) retryFailedPoolSyncCampaigns() {
 		delete(a.poolSyncQueued, id)
 		a.poolSyncMu.Unlock()
 		_, _ = a.schedulePoolFuzzSync(ctx, fuzzAutoCampaign{
-			ID: id, BudgetRuns: budgetRuns, BudgetSeconds: budgetSec, ConfigJSON: cfgJSON,
+			ID: id, OwnerRef: ownerRef, BudgetRuns: budgetRuns, BudgetSeconds: budgetSec, ConfigJSON: cfgJSON,
 		})
 		log.Printf("pool sync: retry queued for %s", id)
 	}
@@ -222,10 +222,13 @@ func (a *app) poolSyncFailedIDs() map[string]string {
 
 func (a *app) schedulePoolFuzzSync(ctx context.Context, c fuzzAutoCampaign) (syncMode string, syncWarning string) {
 	a.startPoolSyncWorker()
-	var title, desc, ctype string
+	var title, desc, ctype, ownerRef string
 	_ = a.db.QueryRowContext(ctx,
-		`SELECT title, description, campaign_type FROM fuzz_campaigns WHERE id=?`, c.ID).
-		Scan(&title, &desc, &ctype)
+		`SELECT title, description, campaign_type, COALESCE(owner_ref,'') FROM fuzz_campaigns WHERE id=?`, c.ID).
+		Scan(&title, &desc, &ctype, &ownerRef)
+	if strings.TrimSpace(c.OwnerRef) == "" {
+		c.OwnerRef = ownerRef
+	}
 	job := poolSyncJob{campaign: c, title: title, desc: desc, ctype: ctype}
 
 	// Dedupe: skip if already queued recently (fuzz_runner may call sync repeatedly).
@@ -268,6 +271,7 @@ func (a *app) syncPoolFuzzCampaignSync(ctx context.Context, c fuzzAutoCampaign, 
 		CampaignType:  ctype,
 		Title:         title,
 		Description:   desc,
+		OwnerRef:      c.OwnerRef,
 		Status:        "running",
 		BudgetRuns:    c.BudgetRuns,
 		BudgetSeconds: c.BudgetSeconds,
