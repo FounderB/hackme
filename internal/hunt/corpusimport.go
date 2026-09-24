@@ -13,6 +13,8 @@ import (
 const (
 	libFuzzerSeedMaxBytes = 65536
 	defaultLibFuzzerSeeds = 512
+	// rankedLibFuzzerSeedCap keeps L2 imports lean — dump-all seeds can hurt first-hit.
+	rankedLibFuzzerSeedCap = 64
 )
 
 // LibFuzzerSeedDir is the on-disk import path for libFuzzer corpus files per catalog target.
@@ -96,6 +98,7 @@ func LoadLibFuzzerSeedFiles(dir string, maxSeeds int) ([][]byte, error) {
 }
 
 // MergeLibFuzzerSeedCorpus imports cached libFuzzer seeds into campaign config seed_byte_corpus.
+// Seeds are rarity-ranked and capped (not dump-all) so Hunt shards start with a lean L2 set.
 // Returns the number of newly merged seeds.
 func MergeLibFuzzerSeedCorpus(cfg map[string]any, repoRoot, targetID string) (int, error) {
 	if cfg == nil || strings.TrimSpace(targetID) == "" {
@@ -108,11 +111,48 @@ func MergeLibFuzzerSeedCorpus(cfg map[string]any, repoRoot, targetID string) (in
 	if len(seeds) == 0 {
 		return 0, nil
 	}
+	seeds = RankLibFuzzerSeeds(seeds, rankedLibFuzzerSeedCap)
 	merged := mergeSeedByteCorpus(cfg, seeds)
 	if merged > 0 {
 		ApplyLocalCorpusGuidedDefaults(cfg)
 	}
 	return merged, nil
+}
+
+// RankLibFuzzerSeeds orders LF corpus by structural rarity / compactness and keeps at most cap.
+func RankLibFuzzerSeeds(seeds [][]byte, capN int) [][]byte {
+	if len(seeds) == 0 {
+		return nil
+	}
+	if capN <= 0 {
+		capN = rankedLibFuzzerSeedCap
+	}
+	pool := make([]fuzzengine.PoolCorpusSeed, 0, len(seeds))
+	for _, b := range seeds {
+		if len(b) == 0 {
+			continue
+		}
+		edge, path := fuzzengine.CoverageBucketsStructural(b)
+		pool = append(pool, fuzzengine.PoolCorpusSeed{
+			InputBytes: append([]byte(nil), b...),
+			Energy:     2,
+			Edge:       edge,
+			Path:       path,
+		})
+	}
+	if len(pool) == 0 {
+		return nil
+	}
+	rarity := fuzzengine.BuildEdgeHitCounts(pool)
+	order := fuzzengine.RankCorpusForCull(pool, rarity)
+	if len(order) > capN {
+		order = order[:capN]
+	}
+	out := make([][]byte, 0, len(order))
+	for _, i := range order {
+		out = append(out, pool[i].InputBytes)
+	}
+	return out
 }
 
 // ApplyLocalCorpusGuidedDefaults enables L2-style scheduling for node-local Hunt runs.

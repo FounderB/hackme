@@ -36,6 +36,22 @@ func TestMergeLibFuzzerSeedCorpus(t *testing.T) {
 	}
 }
 
+func TestRankLibFuzzerSeedsCaps(t *testing.T) {
+	seeds := make([][]byte, 0, 100)
+	for i := 0; i < 100; i++ {
+		seeds = append(seeds, []byte{byte(i), byte(i ^ 0x5a), '{', '}'})
+	}
+	got := RankLibFuzzerSeeds(seeds, 16)
+	if len(got) != 16 {
+		t.Fatalf("cap: got %d want 16", len(got))
+	}
+	// Same inputs → same ranking (replay-ish stability for import).
+	again := RankLibFuzzerSeeds(seeds, 16)
+	if len(again) != 16 || string(got[0]) != string(again[0]) {
+		t.Fatalf("ranking not stable")
+	}
+}
+
 func TestApplyHuntPowerScheduling(t *testing.T) {
 	cfg := map[string]any{"power_mut_cap": 2}
 	ApplyHuntPowerScheduling(cfg, "hunt_standard")
