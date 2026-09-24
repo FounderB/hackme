@@ -168,7 +168,7 @@ func (a *app) runPoolSyncJob(job poolSyncJob) {
 	// shards against a missing ASAN binary (yyjson-class lease spin).
 	if poolfuzz.IsHuntCampaign(cfg) {
 		if herr := a.syncHuntHarnessToCoordinator(ctx, cfg); herr != nil {
-			log.Printf("pool sync: campaign %s harness upload failed: %v", logsafe.ID(job.campaign.ID), herr)
+			log.Printf("pool sync: campaign %s harness upload failed: %s", logsafe.ID(job.campaign.ID), logsafe.Err(herr))
 			a.poolSyncMarkFailed(job.campaign.ID, herr)
 			return
 		}

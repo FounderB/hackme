@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"hackme/internal/pathsafe"
 )
 
 func marketReplicaCount() int {
@@ -162,7 +164,11 @@ func (c *Coordinator) readVerifiedMarketChunkFile(workerID, chunkID string) ([]b
 		if p == "" {
 			continue
 		}
-		b, err := os.ReadFile(p)
+		safe, ok := pathsafe.Allow(p)
+		if !ok {
+			continue
+		}
+		b, err := os.ReadFile(safe)
 		if err != nil {
 			continue
 		}

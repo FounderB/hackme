@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"hackme/internal/pathsafe"
 )
 
 const (
@@ -327,10 +329,14 @@ func (c *Coordinator) writeMarketChunkFile(workerID, chunkID string, ciphertext 
 		if p == "" {
 			return fmt.Errorf("invalid market storage path")
 		}
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		safe, ok := pathsafe.Allow(p)
+		if !ok {
+			return fmt.Errorf("invalid market storage path")
+		}
+		if err := os.MkdirAll(filepath.Dir(safe), 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(p, ciphertext, 0o600); err != nil {
+		if err := os.WriteFile(safe, ciphertext, 0o600); err != nil {
 			return err
 		}
 	}
@@ -339,10 +345,14 @@ func (c *Coordinator) writeMarketChunkFile(workerID, chunkID string, ciphertext 
 	if p == "" {
 		return fmt.Errorf("invalid market data path")
 	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	safe, ok := pathsafe.Allow(p)
+	if !ok {
+		return fmt.Errorf("invalid market data path")
+	}
+	if err := os.MkdirAll(filepath.Dir(safe), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(p, ciphertext, 0o600)
+	return os.WriteFile(safe, ciphertext, 0o600)
 }
 
 // ListOrderChunks returns chunk metadata for restore.

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/pathsafe"
 )
 
 const (
@@ -24,6 +25,9 @@ func DigSeedDir(repoRoot, packID string) string {
 	if packID == "" || packID == "." || packID == ".." {
 		packID = "_"
 	}
+	if p, ok := pathsafe.JoinUnder(repoRoot, ".cache", "dig-seeds", packID); ok {
+		return p
+	}
 	return filepath.Join(repoRoot, ".cache", "dig-seeds", packID)
 }
 
@@ -36,7 +40,11 @@ func LoadDigSeedFiles(dir string, maxSeeds int) ([][]byte, error) {
 	if maxSeeds <= 0 {
 		maxSeeds = defaultDigSeeds
 	}
-	entries, err := os.ReadDir(dir)
+	safeDir, ok := pathsafe.Allow(dir)
+	if !ok {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(safeDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -52,22 +60,18 @@ func LoadDigSeedFiles(dir string, maxSeeds int) ([][]byte, error) {
 		if ent.IsDir() {
 			continue
 		}
-		name := filepath.Base(ent.Name())
+		name, ok := pathsafe.Base(ent.Name())
+		if !ok {
+			continue
+		}
 		low := strings.ToLower(name)
-		if name == "" || name == "." || name == ".." ||
-			strings.HasPrefix(low, ".") || strings.HasPrefix(low, "crash-") || low == "readme" {
+		if strings.HasPrefix(low, ".") || strings.HasPrefix(low, "crash-") || low == "readme" {
 			continue
 		}
-		cleanDir := filepath.Clean(dir)
-		path := filepath.Clean(filepath.Join(cleanDir, name))
-		rel, rerr := filepath.Rel(cleanDir, path)
-		if rerr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		safePath, ok := pathsafe.JoinUnder(safeDir, name)
+		if !ok {
 			continue
 		}
-		if path != cleanDir && !strings.HasPrefix(path, cleanDir+string(os.PathSeparator)) {
-			continue
-		}
-		safePath := filepath.Join(cleanDir, rel)
 		st, err := os.Stat(safePath)
 		if err != nil || st.IsDir() || st.Size() <= 0 || st.Size() > digSeedMaxBytes {
 			continue
@@ -111,6 +115,9 @@ func MergeDigSeedCorpus(cfg map[string]any, repoRoot, packID string) (int, error
 // ExportDigSeeds writes seed files into the Dig import cache for a pack.
 func ExportDigSeeds(repoRoot, packID string, seeds [][]byte) (int, error) {
 	dir := DigSeedDir(repoRoot, packID)
+	if safe, ok := pathsafe.Allow(dir); ok {
+		dir = safe
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return 0, err
 	}
@@ -120,7 +127,10 @@ func ExportDigSeeds(repoRoot, packID string, seeds [][]byte) (int, error) {
 			continue
 		}
 		name := fmt.Sprintf("seed-%04d-%s.bin", i+1, hex.EncodeToString(b[:min(4, len(b))]))
-		path := filepath.Join(dir, name)
+		path, ok := pathsafe.JoinUnder(dir, name)
+		if !ok {
+			continue
+		}
 		if err := os.WriteFile(path, b, 0o644); err != nil {
 			return written, err
 		}

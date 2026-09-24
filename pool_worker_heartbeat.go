@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"hackme/internal/pathsafe"
 )
 
 // poolWorkerHeartbeatStaleSec is how long submit activity may be silent before
@@ -76,16 +78,10 @@ func workerSubmitNonceHeartbeatUnix(logDir, workerID string) int64 {
 				continue
 			}
 			// Confine Glob hits to logDir (CodeQL path-injection / symlink escape).
-			cleanLog := filepath.Clean(logDir)
-			cleanP := filepath.Clean(p)
-			rel, rerr := filepath.Rel(cleanLog, cleanP)
-			if rerr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			safePath, ok := pathsafe.WithinRoot(logDir, p)
+			if !ok {
 				continue
 			}
-			if cleanP != cleanLog && !strings.HasPrefix(cleanP, cleanLog+string(os.PathSeparator)) {
-				continue
-			}
-			safePath := filepath.Join(cleanLog, rel)
 			fi, err := os.Stat(safePath)
 			if err != nil || fi.IsDir() {
 				continue

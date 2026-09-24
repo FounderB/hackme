@@ -30,3 +30,11 @@ func ID(s string) string {
 	}
 	return out
 }
+
+// Err sanitizes error text for logs (CodeQL log-injection barrier on %v err sinks).
+func Err(err error) string {
+	if err == nil {
+		return "-"
+	}
+	return ID(err.Error())
+}

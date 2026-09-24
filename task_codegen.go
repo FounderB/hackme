@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"hackme/internal/chain"
+	"hackme/internal/pathsafe"
 	"hackme/internal/sandbox"
 )
 
@@ -252,19 +253,9 @@ func sanitizeCodeID(s string) string {
 }
 
 // pathWithinRoot returns a path rebuilt under root if it resolves inside root
-// (CodeQL path-injection barrier: Rel + HasPrefix + Join rebuild).
+// (CodeQL path-injection barrier via pathsafe.Allow regex MatchString).
 func pathWithinRoot(root, path string) (string, bool) {
-	root = filepath.Clean(root)
-	full := filepath.Clean(path)
-	rel, err := filepath.Rel(root, full)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return "", false
-	}
-	out := filepath.Join(root, rel)
-	if out != root && !strings.HasPrefix(out, root+string(os.PathSeparator)) {
-		return "", false
-	}
-	return out, true
+	return pathsafe.WithinRoot(root, path)
 }
 
 func compileTaskWASM(ctx context.Context, lang, srcPath, outPath string) (string, error) {

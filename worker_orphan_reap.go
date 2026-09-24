@@ -59,7 +59,7 @@ func reapLockDir(dir string, workerID string) {
 		if res.Killed {
 			log.Printf("pool worker: reaped orphan %s worker_id=%s pid=%d", kind, logsafe.ID(wid), res.PID)
 		} else if res.WasHeld && err != nil {
-			log.Printf("pool worker: orphan reap %s worker_id=%s: %v", kind, logsafe.ID(wid), err)
+			log.Printf("pool worker: orphan reap %s worker_id=%s: %s", kind, logsafe.ID(wid), logsafe.Err(err))
 		}
 	}
 }
