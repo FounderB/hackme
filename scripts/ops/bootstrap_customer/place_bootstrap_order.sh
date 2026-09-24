@@ -23,6 +23,9 @@ if [[ "$BUDGET_RUNS" -gt "$MAX_BUDGET_RUNS" ]]; then
 fi
 
 ADMIN="$(grep -m1 '^HACKME_ADMIN_TOKEN=' "$INSTALL/.env" | cut -d= -f2- | tr -d '\r\n')"
+# shellcheck source=load_coord_token.sh
+source "$(dirname "$0")/load_coord_token.sh"
+load_bootstrap_coord_token
 # PoH order gate must be solvable for pool M finds. Dig "bounds_guard" / detector wasm
 # rejects almost all nonces and leaves progress stuck at 0/N while leases look healthy.
 # Prefer dedicated order gate (embedded in coordinator; or WASM_FILE / tracked artifact).
@@ -129,11 +132,19 @@ ORDERS_PUBLIC="${ORDERS_PUBLIC:-https://hackme.tech}"
 deadline=$(( $(date +%s) + MAX_WAIT ))
 runs_done=0
 poh_progress=0
+if [[ -z "$COORD_POLL_TOKEN" ]]; then
+  log "WARN COORD_POLL_TOKEN empty — progress will look like runs_done=0 (unauthorized)"
+fi
 while [[ $(date +%s) -lt $deadline ]]; do
   sleep "$POLL_SEC"
-  prog="$(curl -fsS --max-time 30 -H "X-Hackme-Admin-Token: ${HACKME_COORDINATOR_ADMIN_TOKEN:-${HACKME_POOL_COORDINATOR_TOKEN:-}}" "$COORD/api/fuzz/pool/campaigns/progress?id=${CID_OUT}" 2>/dev/null || echo '{}')"
+  prog="$(curl -fsS --max-time 30 -H "X-Hackme-Admin-Token: ${COORD_POLL_TOKEN}" "$COORD/api/fuzz/pool/campaigns/progress?id=${CID_OUT}" 2>/dev/null || echo '{}')"
   runs_done="$(jq -r '.runs_done // 0' <<<"$prog")"
   status="$(jq -r '.status // ""' <<<"$prog")"
+  # Kick local node sync (pulse) so report/escrow see the same runs_done as the pool.
+  if [[ -n "$TOK" ]]; then
+    curl -fsS --max-time 20 "$BASE/api/fuzz/campaigns/${CID_OUT}/pulse" \
+      -H "X-Hackme-Report-Token: $TOK" >/dev/null 2>&1 || true
+  fi
   work="$(curl -fsS --max-time 15 "$COORD/api/work/stats" 2>/dev/null || echo '{}')"
   # PoH progress lives on the command chain /api/tasks (not fuzz runs_done).
   poh_progress="$(curl -fsS --max-time 30 "$ORDERS_PUBLIC/api/tasks" 2>/dev/null \

@@ -318,6 +318,52 @@ func TestFuzzGateHonesty_DuplicateFindingsAffectCrashCounters(t *testing.T) {
 	}
 }
 
+func TestFuzzReportHonesty_IncompleteNotCleanWhenRunsDoneZero(t *testing.T) {
+	a, db := newWalletTestApp(t)
+	const token = "incomplete-token"
+	camp := "camp-incomplete-zero-runs"
+	seedCustomerFuzzCampaignWithConfig(t, a, db, camp, token,
+		map[string]any{"pool_distributed": true, "depth_tier": "bytes_corpus"}, 0, "running")
+
+	r, err := a.buildFuzzReport(context.Background(), camp, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r["verdict"] != "incomplete" {
+		t.Fatalf("verdict=%v want incomplete (not false clean)", r["verdict"])
+	}
+	gate, _ := r["gate"].(map[string]any)
+	if gate["pass"] != false {
+		t.Fatalf("gate must fail-closed on incomplete: %+v", gate)
+	}
+}
+
+func TestFuzzReportHonesty_PoolFindingsHintNotClean(t *testing.T) {
+	a, db := newWalletTestApp(t)
+	const token = "pool-findings-token"
+	camp := "camp-pool-findings-hint"
+	seedCustomerFuzzCampaignWithConfig(t, a, db, camp, token,
+		map[string]any{"pool_distributed": true, "depth_tier": "bytes_corpus"}, 64, "completed")
+	_, err := db.ExecContext(context.Background(),
+		`UPDATE fuzz_campaigns SET summary_json=? WHERE id=?`,
+		`{"runs_done":64,"unique_crashes":34}`, camp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := a.buildFuzzReport(context.Background(), camp, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r["verdict"] != "warn_pool_findings" {
+		t.Fatalf("verdict=%v want warn_pool_findings", r["verdict"])
+	}
+	gate, _ := r["gate"].(map[string]any)
+	if gate["pass"] != false {
+		t.Fatalf("gate must fail-closed when pool findings pending: %+v", gate)
+	}
+}
+
 func minInt(a, b int) int {
 	if a < b {
 		return a

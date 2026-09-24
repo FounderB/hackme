@@ -8,6 +8,7 @@ import (
 func TestAllowFuzzClaimByGHSDefersDigOnlyWhenHybridOnline(t *testing.T) {
 	t.Setenv("HACKME_FUZZ_CLAIM_GHS_PRIORITY", "1")
 	t.Setenv("HACKME_FUZZ_CLAIM_GHS_DIG_ONLY_PCT", "25")
+	t.Setenv("HACKME_FUZZ_CLAIM_GHS_EXEMPT_PREFIXES", "") // disable bootstrap exempt for this test
 	now := time.Now().Unix()
 	wm := &workManager{worker: map[string]workerPayoutStat{
 		"gpu-1": {
@@ -40,6 +41,31 @@ func TestAllowFuzzClaimByGHSDefersDigOnlyWhenHybridOnline(t *testing.T) {
 	}
 	if admitHits == 0 {
 		t.Fatal("dig-only must still get minority admit slots")
+	}
+}
+
+func TestAllowFuzzClaimBootstrapFuzzExemptFromDefer(t *testing.T) {
+	t.Setenv("HACKME_FUZZ_CLAIM_GHS_PRIORITY", "1")
+	t.Setenv("HACKME_FUZZ_CLAIM_GHS_DIG_ONLY_PCT", "0") // hard defer everyone else
+	t.Setenv("HACKME_FUZZ_CLAIM_GHS_EXEMPT_PREFIXES", "bootstrap-fuzz-")
+	now := time.Now().Unix()
+	wm := &workManager{worker: map[string]workerPayoutStat{
+		"gpu-1": {
+			LastHashrateGHS: 40, LastSeenUnix: now,
+			LastPoHSeenUnix: now, LastFuzzSeenUnix: now,
+		},
+		"bootstrap-fuzz-01": {LastHashrateGHS: 0, LastSeenUnix: now, LastFuzzSeenUnix: now},
+		"dig-cheap":         {LastHashrateGHS: 0, LastSeenUnix: now, LastFuzzSeenUnix: now},
+	}}
+	// Stay inside the 90s freshness window so hybrid capacity remains online.
+	for w := int64(0); w < 8; w++ {
+		ts := now + w*10
+		if ok, reason := wm.allowFuzzClaimByGHS("bootstrap-fuzz-01", ts); !ok {
+			t.Fatalf("bootstrap-fuzz must be exempt: %s", reason)
+		}
+		if ok, reason := wm.allowFuzzClaimByGHS("dig-cheap", ts); ok || reason != "ghs_priority_defer" {
+			t.Fatalf("non-exempt dig-only must defer: ok=%v reason=%q", ok, reason)
+		}
 	}
 }
 
@@ -116,6 +142,7 @@ func TestFuzzFleetCapacityIgnoresGhostAndPoHOnly(t *testing.T) {
 func TestAllowFuzzClaimGhostLosesHybridPriority(t *testing.T) {
 	t.Setenv("HACKME_FUZZ_CLAIM_GHS_PRIORITY", "1")
 	t.Setenv("HACKME_FUZZ_CLAIM_GHS_DIG_ONLY_PCT", "0") // hard defer dig-only when hybrid present
+	t.Setenv("HACKME_FUZZ_CLAIM_GHS_EXEMPT_PREFIXES", "")
 	now := time.Now().Unix()
 	wm := &workManager{worker: map[string]workerPayoutStat{
 		"hybrid": {

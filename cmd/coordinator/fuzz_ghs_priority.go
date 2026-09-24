@@ -75,15 +75,55 @@ func workerHybridCapacity(st workerPayoutStat, now int64) bool {
 	return workerHybridClaimEligible(st, now) && workerFuzzFresh(st, now)
 }
 
+// fuzzClaimGHSExemptPrefixes returns worker-id prefixes that skip dig-only defer.
+// Default: bootstrap dedicated dig fleets (bootstrap-fuzz-*, bootstrap-dig-*).
+// Override with HACKME_FUZZ_CLAIM_GHS_EXEMPT_PREFIXES=comma,separated (empty string disables).
+func fuzzClaimGHSExemptPrefixes() []string {
+	v, set := os.LookupEnv("HACKME_FUZZ_CLAIM_GHS_EXEMPT_PREFIXES")
+	if set {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return nil
+		}
+		parts := strings.Split(v, ",")
+		out := make([]string, 0, len(parts))
+		for _, p := range parts {
+			p = strings.ToLower(strings.TrimSpace(p))
+			if p != "" {
+				out = append(out, p)
+			}
+		}
+		return out
+	}
+	return []string{"bootstrap-fuzz-", "bootstrap-dig-"}
+}
+
+func fuzzClaimGHSExemptWorker(workerID string) bool {
+	id := strings.ToLower(strings.TrimSpace(workerID))
+	if id == "" {
+		return false
+	}
+	for _, p := range fuzzClaimGHSExemptPrefixes() {
+		if strings.HasPrefix(id, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // allowFuzzClaimByGHS soft-defers dig-only (no recent PoH GH/s) workers when live hybrid
 // Dig/Hunt capacity is on the pool. When no hybrid capacity is online, dig-only fleets
-// keep full access (bootstrap / dedicated dig).
+// keep full access (bootstrap / dedicated dig). Dedicated bootstrap-fuzz workers are
+// always exempt so customer dig fleets are not idle behind the dig-only lottery.
 func (m *workManager) allowFuzzClaimByGHS(workerID string, now int64) (bool, string) {
 	if m == nil || !fuzzClaimGHSPriorityEnabled() {
 		return true, ""
 	}
 	workerID = strings.TrimSpace(workerID)
 	if workerID == "" {
+		return true, ""
+	}
+	if fuzzClaimGHSExemptWorker(workerID) {
 		return true, ""
 	}
 	m.mu.Lock()

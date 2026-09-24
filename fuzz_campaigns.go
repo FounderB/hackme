@@ -2023,6 +2023,14 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 	if err != nil {
 		return nil, err
 	}
+	// Pool campaigns: pull live runs_done / unique_crashes before verdict so we never
+	// claim "clean" from a stale local summary while the coordinator already finished work.
+	if poolDistributedCampaign(c.Config) {
+		_ = a.syncPoolCampaignProgressFromCoordinator(ctx, campaignID)
+		if c2, err2 := a.getFuzzCampaign(ctx, campaignID); err2 == nil {
+			c = c2
+		}
+	}
 	fullFindingsTotal := 0
 	_ = a.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM fuzz_findings WHERE campaign_id=?`, campaignID).Scan(&fullFindingsTotal)
 	rows, err := a.db.QueryContext(ctx,
@@ -2129,6 +2137,32 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 	if runsDone == 0 {
 		runsDone = intFromAny(c.Summary["executions"])
 	}
+	poolDist := poolDistributedCampaign(c.Config)
+	poolFindingHint := intFromAny(c.Summary["unique_crashes"])
+	if poolFindingHint == 0 {
+		poolFindingHint = intFromAny(c.Summary["findings"])
+	}
+	// Honesty for pool-distributed campaigns:
+	// 1) Coordinator findings not yet mirrored locally → never claim clean.
+	// 2) Zero runs while still open / never started → incomplete, not clean.
+	if poolDist && crashCount == 0 && poolFindingHint > 0 && verdict == "clean" {
+		verdict = "warn_pool_findings"
+		recommendations = append([]string{
+			fmt.Sprintf("Pool reported %d finding(s); local crash mirror pending settle/sync — do not treat as clean.", poolFindingHint),
+		}, recommendations...)
+	}
+	if verdict == "clean" && runsDone <= 0 {
+		st := strings.ToLower(strings.TrimSpace(c.Status))
+		switch st {
+		case "cancelled":
+			verdict = "cancelled"
+		default:
+			verdict = "incomplete"
+		}
+		recommendations = append([]string{
+			"No verified runs yet (runs_done=0) — progress sync missing or campaign not started; not a clean bill of health.",
+		}, recommendations...)
+	}
 	if runsDone >= 10_000 {
 		confidence = "high"
 	} else if runsDone >= 500 {
@@ -2184,6 +2218,13 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 	} else if crashScore > 0 {
 		gatePass = false
 		gateReasons = []string{"crash severity_score exceeds threshold"}
+	}
+	if verdict == "incomplete" || verdict == "cancelled" {
+		gatePass = false
+		gateReasons = []string{"campaign incomplete or cancelled (runs_done=0) — gate fail-closed"}
+	} else if verdict == "warn_pool_findings" {
+		gatePass = false
+		gateReasons = []string{"pool findings reported but not mirrored locally — gate fail-closed"}
 	}
 	verdictCard := buildVerdictCard(runsDone, crashCount, crashCrit, gatePass, moneySpent)
 	fingerprint := buildTargetFingerprint(c.Config)
