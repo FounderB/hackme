@@ -20,7 +20,7 @@ func TestReleaseLeasePostsBody(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 	}))
 	defer srv.Close()
-	err := ReleaseLease(context.Background(), srv.Client(), srv.URL, "tok", "w1", "camp-1", 42)
+	err := ReleaseLease(context.Background(), srv.Client(), srv.URL, "tok", "w1", "camp-1", 42, "pub", "HMC-aaaaaaaaaaaaaaaa")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,6 +29,18 @@ func TestReleaseLeasePostsBody(t *testing.T) {
 	}
 	if int64(got["item_id"].(float64)) != 42 {
 		t.Fatalf("item_id=%v", got["item_id"])
+	}
+	if got["miner_pubkey"] != "pub" {
+		t.Fatalf("pubkey=%v", got["miner_pubkey"])
+	}
+}
+
+func TestClaimCapsOmitHarnessByDefault(t *testing.T) {
+	t.Setenv("HACKME_HUNT_HARNESS_EXEC", "")
+	t.Setenv("HACKME_WORKER_VERSION", "")
+	caps := claimCaps(Config{})
+	if caps.HuntHarnessExec != "" {
+		t.Fatalf("expected empty hunt harness, got %q", caps.HuntHarnessExec)
 	}
 }
 

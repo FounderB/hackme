@@ -810,11 +810,12 @@ func (s *Service) clearEmptyClaimCache() {
 }
 
 // ReleaseWorkLease returns a leased item to pending (auth reject / worker give-up).
-func (s *Service) ReleaseWorkLease(ctx context.Context, campaignID string, itemID int64, workerID string) error {
+// released is false when no matching lease was held (caller should treat as failure).
+func (s *Service) ReleaseWorkLease(ctx context.Context, campaignID string, itemID int64, workerID string) (released bool, err error) {
 	campaignID = strings.TrimSpace(campaignID)
 	workerID = strings.TrimSpace(workerID)
 	if campaignID == "" || itemID <= 0 || workerID == "" {
-		return fmt.Errorf("poolfuzz: release lease requires campaign_id, item_id, worker_id")
+		return false, fmt.Errorf("poolfuzz: release lease requires campaign_id, item_id, worker_id")
 	}
 	now := time.Now().Unix()
 	res, err := s.DB.ExecContext(ctx, `
@@ -823,12 +824,14 @@ func (s *Service) ReleaseWorkLease(ctx context.Context, campaignID string, itemI
 		 WHERE id=? AND campaign_id=? AND status='leased' AND lease_owner=?`,
 		now, itemID, campaignID, workerID)
 	if err != nil {
-		return err
+		return false, err
 	}
-	if aff, _ := res.RowsAffected(); aff > 0 {
+	aff, _ := res.RowsAffected()
+	if aff > 0 {
 		s.clearEmptyClaimCache()
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
 // claimOnePendingInCampaign leases the oldest pending row in one campaign.

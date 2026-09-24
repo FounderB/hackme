@@ -73,18 +73,19 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	cfg := workerfuzzloop.Config{
-		CoordURL:    base,
-		Token:       *token,
-		WorkerID:    *workerID,
-		MinerAddr:   *minerAddr,
-		TimeoutMS:   *timeoutMS,
-		HTTPClient:  cl,
-		Priv:        priv,
-		PubHex:      pubHex,
-		Hybrid:      hybrid,
-		Concurrency: workerfuzzloop.EnvInt("HACKME_WORKER_HYBRID_FUZZ_CONCURRENCY", 1),
-		MinClaimGap: workerfuzzloop.EnvDurationMS("HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS", 50),
-		LogPrefix:   "workerfuzz",
+		CoordURL:        base,
+		Token:           *token,
+		WorkerID:        *workerID,
+		MinerAddr:       *minerAddr,
+		TimeoutMS:       *timeoutMS,
+		HTTPClient:      cl,
+		Priv:            priv,
+		PubHex:          pubHex,
+		Hybrid:          hybrid,
+		HuntHarnessExec: workerfuzzloop.EnvHuntHarnessOrLibFuzzer(),
+		Concurrency:     workerfuzzloop.EnvInt("HACKME_WORKER_HYBRID_FUZZ_CONCURRENCY", 1),
+		MinClaimGap:     workerfuzzloop.EnvDurationMS("HACKME_WORKER_HYBRID_FUZZ_CLAIM_GAP_MS", 50),
+		LogPrefix:       "workerfuzz",
 	}
 	var st workerfuzzloop.Stats
 	if err := workerfuzzloop.Run(ctx, cfg, &st); err != nil && ctx.Err() == nil {

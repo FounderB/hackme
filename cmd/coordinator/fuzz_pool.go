@@ -582,7 +582,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		}
 		isHunt := work.TaskClass == "hunt" || work.WorkKind == "hunt_shard"
 		if isHunt && !poolfuzz.HuntHarnessCapable(req.HuntHarnessExec) {
-			_ = pf.ReleaseWorkLease(r.Context(), work.CampaignID, work.ItemID, workerID)
+			_, _ = pf.ReleaseWorkLease(r.Context(), work.CampaignID, work.ItemID, workerID)
 			wm.recordDrop("worker_outdated_for_hunt")
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.WriteHeader(http.StatusForbidden)
@@ -735,7 +735,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			if locked != "" && !strings.EqualFold(locked, payoutAddr) {
 				wm.markSubmitOutcome(req.WorkerID, ipKey, "payout_address_locked", now)
 				// Free the shard so other workers can progress (was holding lease until expiry).
-				_ = pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, req.WorkerID)
+				_, _ = pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, req.WorkerID)
 				w.WriteHeader(http.StatusForbidden)
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"ok":                       false,
@@ -766,7 +766,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		})
 		if err != nil {
 			// Free lease on reject (segment mismatch / replay fail) so shards do not burn TTL.
-			_ = pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, req.WorkerID)
+			_, _ = pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, req.WorkerID)
 			wm.markSubmitOutcome(req.WorkerID, ipKey, "fuzz_submit_failed", now)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -816,9 +816,12 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
 		var req struct {
-			WorkerID   string `json:"worker_id"`
-			CampaignID string `json:"campaign_id"`
-			ItemID     int64  `json:"item_id"`
+			WorkerID      string `json:"worker_id"`
+			CampaignID    string `json:"campaign_id"`
+			ItemID        int64  `json:"item_id"`
+			MinerPubKey   string `json:"miner_pubkey"`
+			MinerPubKeyEd string `json:"miner_pubkey_ed25519"`
+			MinerAddress  string `json:"miner_address"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
@@ -833,11 +836,41 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "campaign_id and item_id required", http.StatusBadRequest)
 			return
 		}
-		if err := pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, workerID); err != nil {
+		// Admin may release any lease; shared worker token must bind worker_id→payout lock
+		// (same as claim) so one fleet peer cannot snipe another's lease by forging worker_id.
+		isAdmin := adminToken != "" && coordAdminOK(r, adminToken)
+		if !isAdmin {
+			pub := strings.TrimSpace(req.MinerPubKey)
+			if pub == "" {
+				pub = strings.TrimSpace(req.MinerPubKeyEd)
+			}
+			if okID, reasonID := wm.checkClaimMinerIdentity(workerID, pub, req.MinerAddress); !okID {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusForbidden)
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reasonID})
+				return
+			}
+			ipKey := clientIPKey(r)
+			now := time.Now().Unix()
+			if ok, reason := wm.allowClaim(workerID, ipKey, now); !ok {
+				wm.recordDrop("release_" + reason)
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reason})
+				return
+			}
+		}
+		released, err := pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, workerID)
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		if !released {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": "lease_not_held", "released": false})
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "released": true})
 	})
 

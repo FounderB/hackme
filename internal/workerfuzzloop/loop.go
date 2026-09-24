@@ -78,7 +78,8 @@ type Config struct {
 
 	// WorkerVersion reported on claim (default: Version / HACKME_WORKER_VERSION).
 	WorkerVersion string
-	// HuntHarnessExec capability (default: poolfuzz.HuntHarnessLibFuzzerOneshot).
+	// HuntHarnessExec capability advertised on claim. Empty = dig-only / Hunt-ineligible.
+	// Do not default to libfuzzer_oneshot — dig fleets must opt in (workerfuzz sets it).
 	HuntHarnessExec string
 
 	// Concurrency is max in-flight claim→run→submit cycles (default 1).
@@ -331,7 +332,7 @@ func runOne(ctx context.Context, cfg Config, base string, st *Stats) {
 	}
 	st.ClaimsOK.Add(1)
 	release := func(why string) {
-		if rerr := ReleaseLease(ctx, cfg.HTTPClient, base, cfg.Token, cfg.WorkerID, cr.CampaignID, cr.ItemID); rerr != nil {
+		if rerr := ReleaseLease(ctx, cfg.HTTPClient, base, cfg.Token, cfg.WorkerID, cr.CampaignID, cr.ItemID, cfg.PubHex, cfg.MinerAddr); rerr != nil {
 			fmt.Fprintf(os.Stderr, "%s: release lease after %s: %v\n", cfg.LogPrefix, why, rerr)
 		}
 	}
@@ -454,7 +455,7 @@ func claimCaps(cfg Config) ClaimCaps {
 	}
 	exec := strings.TrimSpace(cfg.HuntHarnessExec)
 	if exec == "" {
-		exec = poolfuzz.HuntHarnessLibFuzzerOneshot
+		exec = strings.TrimSpace(os.Getenv("HACKME_HUNT_HARNESS_EXEC"))
 	}
 	return ClaimCaps{WorkerVersion: ver, HuntHarnessExec: exec}
 }
@@ -497,17 +498,25 @@ func Claim(ctx context.Context, cl *http.Client, base, token, workerID, pubHex, 
 }
 
 // ReleaseLease returns a leased work item to pending (worker give-up).
-func ReleaseLease(ctx context.Context, cl *http.Client, base, token, workerID, campaignID string, itemID int64) error {
+func ReleaseLease(ctx context.Context, cl *http.Client, base, token, workerID, campaignID string, itemID int64, pubHex, minerAddr string) error {
 	campaignID = strings.TrimSpace(campaignID)
 	workerID = strings.TrimSpace(workerID)
 	if campaignID == "" || itemID <= 0 || workerID == "" {
 		return errors.New("release lease requires campaign_id, item_id, worker_id")
 	}
-	body, _ := json.Marshal(map[string]any{
+	bodyMap := map[string]any{
 		"worker_id":   workerID,
 		"campaign_id": campaignID,
 		"item_id":     itemID,
-	})
+	}
+	if pub := strings.TrimSpace(pubHex); pub != "" {
+		bodyMap["miner_pubkey"] = pub
+		bodyMap["miner_pubkey_ed25519"] = pub
+	}
+	if addr := strings.TrimSpace(minerAddr); addr != "" {
+		bodyMap["miner_address"] = addr
+	}
+	body, _ := json.Marshal(bodyMap)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/fuzz/work/release", bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -709,4 +718,13 @@ func EnvDurationMS(key string, fallbackMS int) time.Duration {
 		ms = fallbackMS
 	}
 	return time.Duration(ms) * time.Millisecond
+}
+
+// EnvHuntHarnessOrLibFuzzer returns HACKME_HUNT_HARNESS_EXEC or libfuzzer_oneshot.
+// Used by cmd/workerfuzz (Hunt-capable). Dig-only workers must leave HuntHarnessExec empty.
+func EnvHuntHarnessOrLibFuzzer() string {
+	if v := strings.TrimSpace(os.Getenv("HACKME_HUNT_HARNESS_EXEC")); v != "" {
+		return v
+	}
+	return poolfuzz.HuntHarnessLibFuzzerOneshot
 }

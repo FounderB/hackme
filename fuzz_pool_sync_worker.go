@@ -178,6 +178,7 @@ func (a *app) runPoolSyncJob(job poolSyncJob) {
 		CampaignType:  ctype,
 		Title:         job.title,
 		Description:   job.desc,
+		OwnerRef:      job.campaign.OwnerRef,
 		Status:        "running",
 		BudgetRuns:    job.campaign.BudgetRuns,
 		BudgetSeconds: job.campaign.BudgetSeconds,
