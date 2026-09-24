@@ -32,16 +32,25 @@ func TestWithinRoot(t *testing.T) {
 	}
 }
 
-func TestBase(t *testing.T) {
-	if _, ok := Base("../etc/passwd"); ok {
-		// Base of that is "passwd" which is allowlisted — ok as single segment
+func TestAllowWindowsDriveForm(t *testing.T) {
+	// Simulate ToSlash drive path matching (logic unit; Abs still OS-native).
+	slash := "C:/Users/hackme/data"
+	if m := reSafeAbs.FindString(slash); m != slash {
+		t.Fatalf("windows drive form rejected: %q", slash)
 	}
+	slashUnix := "/home/kapa/Desktop/HackMe"
+	if m := reSafeAbs.FindString(slashUnix); m != slashUnix {
+		t.Fatalf("unix form rejected: %q", slashUnix)
+	}
+}
+
+func TestBase(t *testing.T) {
 	got, ok := Base("seed-01.bin")
 	if !ok || got != "seed-01.bin" {
 		t.Fatalf("got %q ok=%v", got, ok)
 	}
-	if _, ok := Base("bad/name"); ok {
-		// Base collapses to "name"
-		_ = ok
+	got, ok = Base("../etc/passwd")
+	if !ok || got != "passwd" {
+		t.Fatalf("Base should collapse to passwd, got %q ok=%v", got, ok)
 	}
 }

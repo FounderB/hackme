@@ -10,8 +10,9 @@ import (
 	"strings"
 )
 
-// Absolute paths with only safe path segments (Unix). Used after Clean+Abs.
-var reSafeAbs = regexp.MustCompile(`^(/[A-Za-z0-9._+-]+)+$`)
+// Absolute paths with only safe path segments (Unix and Windows drive form).
+// Evaluated on filepath.ToSlash output after Abs+Clean.
+var reSafeAbs = regexp.MustCompile(`^([A-Za-z]:)?(/[A-Za-z0-9._+-]+)+$`)
 
 // Single relative filename (no separators).
 var reSafeBase = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
@@ -20,7 +21,7 @@ var reSafeBase = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
 // Callers must pass the returned string to filesystem sinks.
 func Allow(p string) (string, bool) {
 	p = filepath.Clean(strings.TrimSpace(p))
-	if p == "" || p == "." || p == "/" {
+	if p == "" || p == "." {
 		return "", false
 	}
 	abs, err := filepath.Abs(p)
@@ -28,10 +29,43 @@ func Allow(p string) (string, bool) {
 		return "", false
 	}
 	abs = filepath.Clean(abs)
-	if !reSafeAbs.MatchString(abs) {
+	slash := filepath.ToSlash(abs)
+	if slash == "/" || slash == "" {
 		return "", false
 	}
-	return abs, true
+	// CodeQL barrier: FindString returns only the allowlisted form.
+	if m := reSafeAbs.FindString(slash); m == "" || m != slash {
+		return "", false
+	}
+	// Rebuild native separators from allowlisted slash form.
+	return fromSlash(slash), true
+}
+
+func fromSlash(slash string) string {
+	if slash == "" {
+		return ""
+	}
+	vol := ""
+	rest := slash
+	if len(slash) >= 2 && slash[1] == ':' {
+		vol = slash[:2]
+		rest = slash[2:]
+	}
+	parts := strings.Split(rest, "/")
+	out := vol
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		out = filepath.Join(out, part)
+	}
+	if vol != "" && !strings.HasPrefix(out, vol) {
+		out = vol + string(filepath.Separator) + strings.TrimPrefix(out, string(filepath.Separator))
+	}
+	if filepath.IsAbs(slash) && !filepath.IsAbs(out) && vol == "" {
+		out = string(filepath.Separator) + out
+	}
+	return filepath.Clean(out)
 }
 
 // Base returns a single path segment sanitized via filepath.Base + allowlist.
@@ -40,7 +74,7 @@ func Base(name string) (string, bool) {
 	if name == "" || name == "." || name == ".." {
 		return "", false
 	}
-	if !reSafeBase.MatchString(name) {
+	if m := reSafeBase.FindString(name); m == "" || m != name {
 		return "", false
 	}
 	return name, true

@@ -21,14 +21,19 @@ func DigSeedDir(repoRoot, packID string) string {
 	if repoRoot == "" {
 		repoRoot = "."
 	}
+	absRoot, err := filepath.Abs(repoRoot)
+	if err != nil {
+		absRoot = repoRoot
+	}
 	packID = filepath.Base(strings.TrimSpace(packID))
 	if packID == "" || packID == "." || packID == ".." {
 		packID = "_"
 	}
-	if p, ok := pathsafe.JoinUnder(repoRoot, ".cache", "dig-seeds", packID); ok {
+	if p, ok := pathsafe.JoinUnder(absRoot, ".cache", "dig-seeds", packID); ok {
 		return p
 	}
-	return filepath.Join(repoRoot, ".cache", "dig-seeds", packID)
+	// Fail closed: do not return an unsanitized relative path that LoadDigSeedFiles would ignore.
+	return ""
 }
 
 // LoadDigSeedFiles reads seed inputs from a Dig seed cache directory.
@@ -115,9 +120,14 @@ func MergeDigSeedCorpus(cfg map[string]any, repoRoot, packID string) (int, error
 // ExportDigSeeds writes seed files into the Dig import cache for a pack.
 func ExportDigSeeds(repoRoot, packID string, seeds [][]byte) (int, error) {
 	dir := DigSeedDir(repoRoot, packID)
-	if safe, ok := pathsafe.Allow(dir); ok {
-		dir = safe
+	if dir == "" {
+		return 0, fmt.Errorf("dig seeds: invalid repo/pack path")
 	}
+	safe, ok := pathsafe.Allow(dir)
+	if !ok {
+		return 0, fmt.Errorf("dig seeds: path rejected")
+	}
+	dir = safe
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return 0, err
 	}
