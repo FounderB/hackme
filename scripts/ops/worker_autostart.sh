@@ -406,6 +406,8 @@ worker_run_loop_slot() {
     run_log="${LOG_DIR}/workerpoh-${worker_id}-${ts}.log"
     echo "[worker-autostart] launch worker=${worker_id} backend=${slot_backend} bin=${slot_bin} device=${gpu_dev:-auto} batch=${slot_batch} log=${run_log}"
     set +e
+    # Append directly to the run log (no `tee`): if the supervisor dies, a broken
+    # pipe must not SIGPIPE-kill the miner mid-Search (#1 write-stall class).
     "${slot_bin}" \
       -coord "${COORD_URL}" \
       -token "${COORD_TOKEN}" \
@@ -416,8 +418,8 @@ worker_run_loop_slot() {
       "${backend_flag[@]}" \
       "${dev_flag[@]}" \
       "${disable_flag[@]}" \
-      2>&1 | tee -a "${run_log}"
-    rc="${PIPESTATUS[0]}"
+      >>"${run_log}" 2>&1
+    rc=$?
     set -e
     echo "[worker-autostart] worker=${worker_id} exited rc=${rc}; restart in ${backoff}s"
     sleep "${backoff}"

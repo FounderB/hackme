@@ -83,12 +83,15 @@ stop_all_workers() {
     -H "X-Hackme-Admin-Token: ${HACKME_ADMIN_TOKEN}" >/dev/null 2>&1 || true
 
   echo "[worker-reset] killing stray worker_loop / workerpoh processes..."
-  pkill -f 'scripts/ops/worker_loop.sh' 2>/dev/null || true
-  pkill -f 'scripts/ops/worker_autostart.sh' 2>/dev/null || true
-  pkill -f 'workerpoh-opencl' 2>/dev/null || true
-  pkill -f 'workerpoh-cuda' 2>/dev/null || true
-  pkill -f 'workerpoh-cpu' 2>/dev/null || true
-  pkill -f 'workerpoh ' 2>/dev/null || true
+  # Exact binary names only — never `pkill -f workerpoh-cuda` (matches agent shells).
+  killall -q workerpoh-opencl workerpoh-cuda workerpoh-cpu workerpoh hm-cuda-miner 2>/dev/null || true
+  # Supervisor scripts: match argv0 path carefully via pgrep + kill.
+  while read -r pid; do
+    [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
+  done < <(pgrep -f '[s]cripts/ops/worker_loop.sh' 2>/dev/null || true)
+  while read -r pid; do
+    [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
+  done < <(pgrep -f '[s]cripts/ops/worker_autostart.sh' 2>/dev/null || true)
   sleep 2
 
   echo "[worker-reset] rotating pool worker log (preserve prior; avoid sparse holes)..."
@@ -138,7 +141,9 @@ start_cuda_worker_direct() {
   export HACKME_MINER_NONCE_FILE="$ROOT_DIR/logs/miner_submit_nonce.${safe_wid}.seq"
 
   echo "[worker-reset] CUDA direct start: bin=$cuda_bin worker=$WORKER_ID batch=$BATCH_SIZE"
-  if [[ -x "$ROOT_DIR/scripts/ops/build_cuda_worker.sh" ]]; then
+  # Never rebuild here by default: build_cuda_worker.sh needs OpenCL headers and can
+  # wipe a good bin/workerpoh-cuda on failure. Rebuild only when explicitly requested.
+  if [[ "${FORCE_CUDA_REBUILD:-0}" == "1" && -x "$ROOT_DIR/scripts/ops/build_cuda_worker.sh" ]]; then
     bash "$ROOT_DIR/scripts/ops/build_cuda_worker.sh"
     cuda_bin="$ROOT_DIR/bin/workerpoh-cuda"
   fi
@@ -146,11 +151,12 @@ start_cuda_worker_direct() {
   local apid=$!
   echo "[worker-reset] worker_autostart pid=$apid (log=logs/worker_participant.log)"
   sleep 4
-  if pgrep -af workerpoh-cuda >/dev/null 2>&1; then
-    echo "[worker-reset] OK: workerpoh-cuda running"
-    pgrep -af workerpoh-cuda || true
+  if pgrep -x workerpoh-cuda >/dev/null 2>&1 || pgrep -x hm-cuda-miner >/dev/null 2>&1; then
+    echo "[worker-reset] OK: cuda worker running"
+    pgrep -a -x workerpoh-cuda 2>/dev/null || true
+    pgrep -a -x hm-cuda-miner 2>/dev/null || true
     local latest
-    latest="$(ls -t "$ROOT_DIR"/logs/workerpoh-"${WORKER_ID}"-*.log 2>/dev/null | head -1 || true)"
+    latest="$(find "$ROOT_DIR/logs" -maxdepth 1 -name "workerpoh-${WORKER_ID}-*.log" -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2- || true)"
     if [[ -n "$latest" ]]; then
       echo "[worker-reset] latest worker log ($latest):"
       tail -n 5 "$latest" || true

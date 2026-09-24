@@ -58,6 +58,8 @@ import (
 	"time"
 	"unsafe"
 
+	"hackme/internal/hotlog"
+
 	"github.com/pkg/errors"
 )
 
@@ -198,7 +200,7 @@ func (a *oclAccel) Search(ctx context.Context, base, count, mod uint64) (found b
 	recordOCLKernelDuration(kernelSec)
 	if os.Getenv("HACKME_OPENCL_VERBOSE") == "1" {
 		ghs := float64(count) / kernelSec / 1e9
-		fmt.Fprintf(os.Stderr, "gpupoh: opencl search count=%d elapsed=%s ~%.2f GH/s\n",
+		hotlog.VerboseStderrf("gpupoh: opencl search count=%d elapsed=%s ~%.2f GH/s",
 			count, time.Duration(kernelSec*float64(time.Second)).Round(time.Millisecond), ghs)
 	}
 
