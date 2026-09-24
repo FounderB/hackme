@@ -87,7 +87,8 @@ bash "\$DEPLOY/scripts/ops/sync_settlement_admin_token.sh" 2>/dev/null || true
 bash "\$DEPLOY/scripts/ops/repair_worker_settlement_state.sh" 2>/dev/null || true
 systemctl start hackme-worker-settlement.service || true
 echo "[coord-perf] coordinator: \$(systemctl is-active hackme-coordinator) node: \$(systemctl is-active hackme-node)"
-curl -fsS http://127.0.0.1:18081/api/pool/stats | head -c 160
+sleep 2
+curl -fsS -m 8 http://127.0.0.1:18081/api/fuzz/pool/stats | head -c 160 || true
 echo
 REMOTE
 

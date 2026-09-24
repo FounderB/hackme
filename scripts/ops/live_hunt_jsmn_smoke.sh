@@ -76,7 +76,7 @@ st, out = req("POST", coord + "/api/fuzz/pool/campaigns", {
 print("[live-hunt] campaign", st, out)
 print("[live-hunt] CID", cid)
 
-best = 0
+best_ok = 0
 for i in range(16):
     time.sleep(10)
     try:
@@ -84,17 +84,21 @@ for i in range(16):
     except Exception as e:
         print(f"[live-hunt] progress[{i}] err {e}")
         continue
-    done = d.get("runs_done") or d.get("done_ok") or d.get("items_done") or 0
+    # Prefer runs_ok (result_ok=1). runs_done alone includes failed Hunt replays.
+    if "runs_ok" not in d and "failed_checks" not in d:
+        print(f"[live-hunt] progress[{i}] missing runs_ok/failed_checks — coordinator too old; refuse false pass")
+        raise SystemExit(2)
     try:
-        done = int(done)
+        ok = int(d.get("runs_ok") if d.get("runs_ok") is not None else max(0, int(d.get("runs_done") or 0) - int(d.get("failed_checks") or 0)))
+        failed = int(d.get("failed_checks") or 0)
     except Exception:
-        done = 0
-    best = max(best, done)
-    print(f"[live-hunt] progress[{i}] done={done} status={d.get('status')} keys={sorted(d.keys())[:10]}")
-    if done >= 4:
-        print("[live-hunt] PASS shards>=4")
+        ok, failed = 0, 0
+    best_ok = max(best_ok, ok)
+    print(f"[live-hunt] progress[{i}] runs_ok={ok} failed={failed} done={d.get('runs_done')} status={d.get('status')}")
+    if ok >= 4:
+        print("[live-hunt] PASS clean_shards>=4")
         raise SystemExit(0)
 
-print(f"[live-hunt] FAIL best_done={best}")
+print(f"[live-hunt] FAIL best_runs_ok={best_ok}")
 raise SystemExit(1)
 PY

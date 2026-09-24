@@ -1784,6 +1784,14 @@ func (s *Service) CampaignProgress(ctx context.Context, campaignID string) (map[
 	}
 	summary := parseConfigJSON(summaryJSON)
 	runsDone := runsDoneForCampaign(ctx, s.DB, campaignID, summary)
+	var failedChecks int
+	_ = s.DB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM fuzz_work_items WHERE campaign_id=? AND status='done' AND result_ok=0`,
+		campaignID).Scan(&failedChecks)
+	runsOK := runsDone - failedChecks
+	if runsOK < 0 {
+		runsOK = 0
+	}
 	var findings int
 	_ = s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM fuzz_findings WHERE campaign_id=?`, campaignID).Scan(&findings)
 	displayStatus := status
@@ -1794,6 +1802,7 @@ func (s *Service) CampaignProgress(ctx context.Context, campaignID string) (map[
 		// runs_done=0 and resurrected "ETA warming up" zombies after node close.
 		now := time.Now().Unix()
 		summary["runs_done"] = runsDone
+		summary["failed_checks"] = failedChecks
 		_, _ = s.DB.ExecContext(ctx,
 			`UPDATE fuzz_campaigns
 			 SET status='completed',
@@ -1804,14 +1813,16 @@ func (s *Service) CampaignProgress(ctx context.Context, campaignID string) (map[
 		completedAt = now
 	}
 	return map[string]any{
-		"ok":           true,
-		"id":           campaignID,
-		"title":        title,
-		"status":       displayStatus,
-		"budget_runs":  budgetRuns,
-		"runs_done":    runsDone,
-		"findings":     findings,
-		"completed_at": completedAt,
+		"ok":            true,
+		"id":            campaignID,
+		"title":         title,
+		"status":        displayStatus,
+		"budget_runs":   budgetRuns,
+		"runs_done":     runsDone,
+		"runs_ok":       runsOK,
+		"failed_checks": failedChecks,
+		"findings":      findings,
+		"completed_at":  completedAt,
 	}, nil
 }
 
