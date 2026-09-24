@@ -1,5 +1,5 @@
 // Package pathsafe provides CodeQL-recognized barriers for path-injection sinks.
-// Regex MatchString + rebuild is the pattern GitHub code scanning accepts
+// Regex FindString + return of that match is the pattern GitHub code scanning accepts
 // (Rel/HasPrefix alone is often not enough for go/path-injection).
 package pathsafe
 
@@ -18,7 +18,7 @@ var reSafeAbs = regexp.MustCompile(`^([A-Za-z]:)?(/[A-Za-z0-9._+-]+)+$`)
 var reSafeBase = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
 
 // Allow returns p only when it is a clean absolute path matching reSafeAbs.
-// Callers must pass the returned string to filesystem sinks.
+// The returned string is the FindString match itself (CodeQL barrier) — do not rebuild.
 func Allow(p string) (string, bool) {
 	p = filepath.Clean(strings.TrimSpace(p))
 	if p == "" || p == "." {
@@ -28,56 +28,28 @@ func Allow(p string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	abs = filepath.Clean(abs)
-	slash := filepath.ToSlash(abs)
+	slash := filepath.ToSlash(filepath.Clean(abs))
 	if slash == "/" || slash == "" {
 		return "", false
 	}
-	// CodeQL barrier: FindString returns only the allowlisted form.
-	if m := reSafeAbs.FindString(slash); m == "" || m != slash {
+	m := reSafeAbs.FindString(slash)
+	if m == "" || m != slash {
 		return "", false
 	}
-	// Rebuild native separators from allowlisted slash form.
-	return fromSlash(slash), true
+	return m, true
 }
 
-func fromSlash(slash string) string {
-	if slash == "" {
-		return ""
-	}
-	vol := ""
-	rest := slash
-	if len(slash) >= 2 && slash[1] == ':' {
-		vol = slash[:2]
-		rest = slash[2:]
-	}
-	parts := strings.Split(rest, "/")
-	out := vol
-	for _, part := range parts {
-		if part == "" {
-			continue
-		}
-		out = filepath.Join(out, part)
-	}
-	if vol != "" && !strings.HasPrefix(out, vol) {
-		out = vol + string(filepath.Separator) + strings.TrimPrefix(out, string(filepath.Separator))
-	}
-	if filepath.IsAbs(slash) && !filepath.IsAbs(out) && vol == "" {
-		out = string(filepath.Separator) + out
-	}
-	return filepath.Clean(out)
-}
-
-// Base returns a single path segment sanitized via filepath.Base + allowlist.
+// Base returns a single path segment sanitized via filepath.Base + FindString.
 func Base(name string) (string, bool) {
 	name = filepath.Base(strings.TrimSpace(name))
 	if name == "" || name == "." || name == ".." {
 		return "", false
 	}
-	if m := reSafeBase.FindString(name); m == "" || m != name {
+	m := reSafeBase.FindString(name)
+	if m == "" || m != name {
 		return "", false
 	}
-	return name, true
+	return m, true
 }
 
 // JoinUnder joins Base(elem...) under root and returns an Allow-listed absolute path.
@@ -100,15 +72,16 @@ func JoinUnder(root string, elem ...string) (string, bool) {
 	}
 	joined := absRoot
 	if len(parts) > 0 {
-		joined = filepath.Join(append([]string{absRoot}, parts...)...)
+		joined = filepath.ToSlash(filepath.Join(append([]string{absRoot}, parts...)...))
 	}
-	joined = filepath.Clean(joined)
-	rel, err := filepath.Rel(absRoot, joined)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+	joined = filepath.ToSlash(filepath.Clean(joined))
+	rel, err := filepath.Rel(filepath.FromSlash(absRoot), filepath.FromSlash(joined))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || strings.HasPrefix(rel, "../") {
 		return "", false
 	}
-	out := filepath.Join(absRoot, rel)
-	if out != absRoot && !strings.HasPrefix(out, absRoot+string(os.PathSeparator)) {
+	out := filepath.ToSlash(filepath.Join(absRoot, filepath.ToSlash(rel)))
+	rootSlash := strings.TrimSuffix(absRoot, "/")
+	if out != rootSlash && out != absRoot && !strings.HasPrefix(out, rootSlash+"/") {
 		return "", false
 	}
 	return Allow(out)
@@ -121,17 +94,23 @@ func WithinRoot(root, path string) (string, bool) {
 		return "", false
 	}
 	full := filepath.Clean(path)
-	if !filepath.IsAbs(full) {
-		full = filepath.Join(absRoot, full)
+	if !filepath.IsAbs(full) && !strings.HasPrefix(filepath.ToSlash(full), "/") && !hasDrive(full) {
+		full = filepath.Join(filepath.FromSlash(absRoot), full)
 	}
-	full = filepath.Clean(full)
-	rel, err := filepath.Rel(absRoot, full)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+	fullSlash := filepath.ToSlash(filepath.Clean(full))
+	rel, err := filepath.Rel(filepath.FromSlash(absRoot), filepath.FromSlash(fullSlash))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || strings.HasPrefix(rel, "../") {
 		return "", false
 	}
-	out := filepath.Join(absRoot, rel)
-	if out != absRoot && !strings.HasPrefix(out, absRoot+string(os.PathSeparator)) {
+	out := filepath.ToSlash(filepath.Join(absRoot, filepath.ToSlash(rel)))
+	rootSlash := strings.TrimSuffix(absRoot, "/")
+	if out != rootSlash && out != absRoot && !strings.HasPrefix(out, rootSlash+"/") {
 		return "", false
 	}
 	return Allow(out)
+}
+
+func hasDrive(p string) bool {
+	p = filepath.ToSlash(p)
+	return len(p) >= 2 && p[1] == ':'
 }

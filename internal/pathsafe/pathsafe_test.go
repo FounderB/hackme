@@ -14,7 +14,7 @@ func TestJoinUnderRejectsEscape(t *testing.T) {
 	if !ok {
 		t.Fatal("expected ok")
 	}
-	want := filepath.Join(root, "a", "b.c")
+	want := filepath.ToSlash(filepath.Join(root, "a", "b.c"))
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
@@ -24,7 +24,7 @@ func TestWithinRoot(t *testing.T) {
 	root := t.TempDir()
 	inside := filepath.Join(root, "x.dat")
 	got, ok := WithinRoot(root, inside)
-	if !ok || got != inside {
+	if !ok || got != filepath.ToSlash(inside) {
 		t.Fatalf("inside: ok=%v got=%q", ok, got)
 	}
 	if _, ok := WithinRoot(root, filepath.Join(root, "..", "outside")); ok {
