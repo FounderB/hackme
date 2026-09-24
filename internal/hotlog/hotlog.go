@@ -90,13 +90,6 @@ var (
 	lastVerbose   atomic.Int64 // unix nano
 )
 
-func tryNonblock(f *os.File) {
-	if f == nil {
-		return
-	}
-	_ = syscall.SetNonblock(int(f.Fd()), true)
-}
-
 func configureGap() {
 	gapMS := 500
 	if v := strings.TrimSpace(os.Getenv("HACKME_HOTLOG_VERBOSE_MS")); v != "" {
