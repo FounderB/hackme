@@ -25,7 +25,7 @@ func withSettlementStateLock(path string, fn func() error) error {
 	if err != nil {
 		return err
 	}
-	defer lf.Close()
+	defer func() { _ = lf.Close() }()
 	if err := syscall.Flock(int(lf.Fd()), syscall.LOCK_EX); err != nil {
 		return err
 	}

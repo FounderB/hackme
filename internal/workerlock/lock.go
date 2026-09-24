@@ -99,7 +99,7 @@ func Held(kind, workerID, dir string) bool {
 		// Fail closed: unknown lock state must not look "free" (orphan DoS class).
 		return true
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if err := lockFile(f); err != nil {
 		return true
 	}

@@ -1719,9 +1719,6 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		}
 		if ok {
 			issuedAt = rec.IssuedAt
-			if rec.TargetMod > 0 {
-				leaseMod = rec.TargetMod
-			}
 		}
 	}
 

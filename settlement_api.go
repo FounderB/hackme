@@ -458,8 +458,9 @@ func (a *app) handleWorkerSettlement(w http.ResponseWriter, r *http.Request) {
 	coordOmittedBreakdown := len(workers) == 0 && asUint64(ws["workers_count"]) > 0
 	payoutMap := workerPayoutMapFromEnv()
 	displayWallet := settlementDisplayWalletAddress(a.nodeID, payoutMap)
-	walletAccrued, walletSettled, walletUnpaid, accrualSource := walletAccrualFromCoordinator(ws, state.Workers, a.nodeID, a.workerID, payoutMap, a.workerProcessRunning())
-	walletAccruedSUP, walletSettledSUP, walletUnpaidSUP := walletAccrualSUPFromCoordinator(ws, state.Workers, a.nodeID, a.workerID, payoutMap)
+	walletAccrued, _, walletUnpaid, accrualSource := walletAccrualFromCoordinator(ws, state.Workers, a.nodeID, a.workerID, payoutMap, a.workerProcessRunning())
+	walletAccruedSUP, _, walletUnpaidSUP := walletAccrualSUPFromCoordinator(ws, state.Workers, a.nodeID, a.workerID, payoutMap)
+	var walletSettled, walletSettledSUP float64
 	desktopWorkerID := strings.TrimSpace(a.workerID)
 	if desktopWorkerID == "" {
 		desktopWorkerID = workerid.DefaultDesktop()

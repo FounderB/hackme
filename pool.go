@@ -2352,10 +2352,7 @@ func walletAccrualSUPFromCoordinator(ws map[string]any, stateWorkers map[string]
 		return 0, 0, 0
 	}
 	nodeAddr := settlementDisplayWalletAddress(nodeAddress, payoutMap)
-	wid := strings.TrimSpace(desktopWorkerID)
-	if wid == "" {
-		wid = workerid.DefaultDesktop()
-	}
+	_ = desktopWorkerID
 	var sumAccrued, sumSettled float64
 	for workerID, v := range workers {
 		if !walletWorkerRowMatches(nodeAddr, workerID, mapFromAny(v), ws, payoutMap) {
@@ -2397,10 +2394,7 @@ func walletAccrualFromCoordinator(ws map[string]any, stateWorkers map[string]wor
 		workers = coordinatorWorkersMap(ws)
 	}
 	nodeAddr := settlementDisplayWalletAddress(nodeAddress, payoutMap)
-	wid := strings.TrimSpace(desktopWorkerID)
-	if wid == "" {
-		wid = workerid.DefaultDesktop()
-	}
+	_ = desktopWorkerID
 	var sumAccrued, sumSettled float64
 	for workerID, v := range workers {
 		if !walletWorkerRowMatches(nodeAddr, workerID, mapFromAny(v), ws, payoutMap) {

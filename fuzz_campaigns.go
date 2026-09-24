@@ -2183,7 +2183,7 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 		}
 	}
 	assuranceNote := buildAssuranceNote(runsDone, crashCrit, crashHigh, "crash/hang/ASan/memory")
-	humanSummary := buildHumanSummaryLine(runsDone, edges, paths, crashCount, crashCrit)
+	var humanSummary string
 	digDepthCard := map[string]any(nil)
 	if strings.EqualFold(strings.TrimSpace(c.CampaignType), "hunt") {
 		critNote := "no ASAN crash-class"

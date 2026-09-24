@@ -118,7 +118,6 @@ func (m *workManager) supQualityMult(workerID string, now int64) float64 {
 	stale := meta.RollingStale
 	total := accepts + stale
 	if total > 2000 {
-		accepts = accepts * 2000 / total
 		stale = stale * 2000 / total
 		total = 2000
 	}
