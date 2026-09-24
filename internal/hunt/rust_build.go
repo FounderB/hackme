@@ -313,8 +313,10 @@ name = "%s"
 path = "main.rs"
 `, rustStdinBin)
 	if plan.PackageName != "" && plan.CargoRoot != "" {
-		abs, _ := filepath.Abs(plan.CargoRoot)
-		manifest += fmt.Sprintf("\n[dependencies]\n%s = { path = %q }\n", plan.PackageName, abs)
+		if st, err := os.Stat(filepath.Join(plan.CargoRoot, "Cargo.toml")); err == nil && !st.IsDir() {
+			abs, _ := filepath.Abs(plan.CargoRoot)
+			manifest += fmt.Sprintf("\n[dependencies]\n%s = { path = %q }\n", plan.PackageName, abs)
+		}
 	}
 	if err := os.WriteFile(filepath.Join(crateDir, "Cargo.toml"), []byte(manifest), 0o644); err != nil {
 		return "", "", err
