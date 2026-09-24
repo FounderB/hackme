@@ -59,13 +59,62 @@ func QueueJobVerified(ctx context.Context, db *sql.DB, findingID, campaignID, in
 	return err
 }
 
+// ProcessPendingEnabled gates coordinator Tick native ASAN/repro drain.
+// Default ON. Set HACKME_FUZZ_NATIVE_PROCESS=0 to pause when a huge backlog
+// would starve claim/submit (nginx upstream timeouts → miner 502).
+func ProcessPendingEnabled() bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_FUZZ_NATIVE_PROCESS")))
+	if v == "" {
+		return true
+	}
+	switch v {
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
+
+// ReclaimStuckRunning resets native_queue rows stuck in 'running' (crashed mid-job).
+func ReclaimStuckRunning(ctx context.Context, db *sql.DB, olderThanSec int64, limit int) (int64, error) {
+	if db == nil || olderThanSec < 60 {
+		return 0, nil
+	}
+	if limit <= 0 || limit > 5000 {
+		limit = 500
+	}
+	cut := time.Now().Unix() - olderThanSec
+	res, err := db.ExecContext(ctx,
+		`UPDATE fuzz_native_queue SET status='pending', updated_at=?
+		 WHERE id IN (
+		   SELECT id FROM fuzz_native_queue
+		   WHERE status='running' AND updated_at>0 AND updated_at<?
+		   ORDER BY updated_at ASC LIMIT ?
+		 )`,
+		time.Now().Unix(), cut, limit)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 // ProcessPending runs up to limit native repro jobs and updates campaign summary native_status.
 func ProcessPending(ctx context.Context, db *sql.DB, pins *PinManifest, limit int) (processed int, err error) {
 	if db == nil {
 		return 0, fmt.Errorf("fuzznative: no database")
 	}
+	if !ProcessPendingEnabled() {
+		return 0, nil
+	}
 	if limit <= 0 || limit > 50 {
 		limit = 10
+	}
+	// Soft-cap when backlog is huge so Tick cannot monopolize the coordinator CPU.
+	var pending int
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM fuzz_native_queue WHERE status='pending'`).Scan(&pending)
+	if pending > 5000 && limit > 1 {
+		limit = 1
 	}
 	repoRoot := strings.TrimSpace(os.Getenv("HACKME_REPO_ROOT"))
 	if repoRoot == "" {

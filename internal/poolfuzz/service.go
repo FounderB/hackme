@@ -639,6 +639,7 @@ func (s *Service) Tick(ctx context.Context) error {
 	}
 	if len(pool) == 0 {
 		if pins, err := fuzznative.LoadPins(""); err == nil {
+			_, _ = fuzznative.ReclaimStuckRunning(ctx, s.DB, 3600, 200)
 			_, _ = fuzznative.ProcessPending(ctx, s.DB, pins, 5)
 		}
 		_ = s.flushDeferredBounties(ctx)
@@ -664,6 +665,7 @@ func (s *Service) Tick(ctx context.Context) error {
 		}
 	}
 	if pins, err := fuzznative.LoadPins(""); err == nil {
+		_, _ = fuzznative.ReclaimStuckRunning(ctx, s.DB, 3600, 200)
 		_, _ = fuzznative.ProcessPending(ctx, s.DB, pins, 5)
 	}
 	_ = s.flushDeferredBounties(ctx)

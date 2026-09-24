@@ -55,11 +55,28 @@ func (m *workManager) attachDedupDB(db *sql.DB) {
 func workDedupTTLSec() int64 {
 	v := strings.TrimSpace(os.Getenv("HACKME_WORK_DEDUP_TTL_SEC"))
 	if v == "" {
-		return 7 * 24 * 3600
+		// 24h is enough to block submit replays; 7d maps grew to multi‑million
+		// entries and starved the coordinator (GC / nginx upstream timeouts).
+		return 24 * 3600
 	}
 	n, err := strconv.ParseInt(v, 10, 64)
 	if err != nil || n < 3600 {
-		return 7 * 24 * 3600
+		return 24 * 3600
+	}
+	return n
+}
+
+func workDedupMaxInMemory() int {
+	v := strings.TrimSpace(os.Getenv("HACKME_WORK_DEDUP_MAX_IN_MEMORY"))
+	if v == "" {
+		return 500_000
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 10_000 {
+		return 500_000
+	}
+	if n > 5_000_000 {
+		return 5_000_000
 	}
 	return n
 }
@@ -71,7 +88,11 @@ func (m *workManager) loadDurableDedup() {
 	cutoff := time.Now().Unix() - workDedupTTLSec()
 	_, _ = m.dedupDB.Exec(`DELETE FROM work_signed_payload_dedup WHERE seen_at < ?`, cutoff)
 	_, _ = m.dedupDB.Exec(`DELETE FROM work_result_hash_dedup WHERE seen_at < ?`, cutoff)
-	rows, err := m.dedupDB.Query(`SELECT payload_hash FROM work_signed_payload_dedup WHERE seen_at >= ?`, cutoff)
+	maxN := workDedupMaxInMemory()
+	// Newest first so the in-memory cap keeps the hottest anti-replay window.
+	rows, err := m.dedupDB.Query(
+		`SELECT payload_hash FROM work_signed_payload_dedup WHERE seen_at >= ? ORDER BY seen_at DESC LIMIT ?`,
+		cutoff, maxN)
 	if err == nil {
 		for rows.Next() {
 			var h string
@@ -81,7 +102,9 @@ func (m *workManager) loadDurableDedup() {
 		}
 		rows.Close()
 	}
-	rows, err = m.dedupDB.Query(`SELECT result_hash FROM work_result_hash_dedup WHERE seen_at >= ?`, cutoff)
+	rows, err = m.dedupDB.Query(
+		`SELECT result_hash FROM work_result_hash_dedup WHERE seen_at >= ? ORDER BY seen_at DESC LIMIT ?`,
+		cutoff, maxN)
 	if err == nil {
 		for rows.Next() {
 			var h string
@@ -91,8 +114,8 @@ func (m *workManager) loadDurableDedup() {
 		}
 		rows.Close()
 	}
-	log.Printf("work dedup loaded: signed=%d results=%d ttl_sec=%d",
-		len(m.acceptedSignedPayloads), len(m.acceptedResultHashes), workDedupTTLSec())
+	log.Printf("work dedup loaded: signed=%d results=%d ttl_sec=%d max_in_memory=%d",
+		len(m.acceptedSignedPayloads), len(m.acceptedResultHashes), workDedupTTLSec(), maxN)
 }
 
 func (m *workManager) persistSignedPayload(key string) {
