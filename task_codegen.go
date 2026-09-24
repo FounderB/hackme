@@ -339,19 +339,25 @@ func compileTaskWASM(ctx context.Context, lang, srcPath, outPath string) (string
 		return "invalid compiled output path", errors.New("invalid compiled output path")
 	}
 	outPath = safeOut
+	if !pathsafe.AbsRE.MatchString(outPath) {
+		return "invalid compiled output path", errors.New("invalid compiled output path")
+	}
 	if _, statErr := os.Stat(outPath); statErr != nil {
 		// Some TinyGo builds may emit wasm into cwd even with -o.
 		if lang == "tinygo" {
 			if candidates, _ := filepath.Glob(filepath.Join(workDir, "*.wasm")); len(candidates) > 0 {
 				cand := filepath.Base(candidates[0])
-				if safe, ok := pathWithinRoot(workDir, filepath.Join(workDir, cand)); ok {
+				if safe, ok := pathWithinRoot(workDir, filepath.Join(workDir, cand)); ok && pathsafe.AbsRE.MatchString(safe) {
 					if b, rerr := os.ReadFile(safe); rerr == nil {
-						if outSafe, ok2 := pathWithinRoot(filepath.Dir(outPath), outPath); ok2 {
+						if outSafe, ok2 := pathWithinRoot(filepath.Dir(outPath), outPath); ok2 && pathsafe.AbsRE.MatchString(outSafe) {
 							_ = os.WriteFile(outSafe, b, 0o644)
 						}
 					}
 				}
 			}
+		}
+		if !pathsafe.AbsRE.MatchString(outPath) {
+			return "invalid compiled output path", errors.New("invalid compiled output path")
 		}
 		if _, statErr2 := os.Stat(outPath); statErr2 != nil {
 			msg := "compiled wasm output not produced: " + statErr2.Error()
@@ -436,10 +442,13 @@ func (a *app) compileTaskFromCode(ctx context.Context, req taskFromCodeRequest) 
 	if compileErr != nil {
 		return nil, "", "", compileLog, compileErr
 	}
-	if safe, ok := pathWithinRoot(artifactRootAbs, outPath); !ok {
+	if safe, ok := pathWithinRoot(artifactRootAbs, outPath); !ok || !pathsafe.AbsRE.MatchString(safe) {
 		return nil, "", "", compileLog, errors.New("invalid artifact path")
 	} else {
 		outPath = safe
+	}
+	if !pathsafe.AbsRE.MatchString(outPath) {
+		return nil, "", "", compileLog, errors.New("invalid artifact path")
 	}
 	wasmBytes, err = os.ReadFile(outPath)
 	if err != nil {
@@ -448,14 +457,20 @@ func (a *app) compileTaskFromCode(ctx context.Context, req taskFromCodeRequest) 
 	if req.Language == "tinygo" || req.Language == "zig" || req.Language == "assemblyscript" {
 		if sanitized, serr := tinygoSanitizeWasm(wasmBytes); serr == nil {
 			wasmBytes = sanitized
-			_ = os.WriteFile(outPath, wasmBytes, 0o644)
+			if pathsafe.AbsRE.MatchString(outPath) {
+				_ = os.WriteFile(outPath, wasmBytes, 0o644)
+			}
 		} else {
-			_ = os.Remove(outPath)
+			if pathsafe.AbsRE.MatchString(outPath) {
+				_ = os.Remove(outPath)
+			}
 			return nil, "", "", compileLog, serr
 		}
 	}
 	if err := sandbox.ValidateCheckWasm(ctx, wasmBytes); err != nil {
-		_ = os.Remove(outPath)
+		if pathsafe.AbsRE.MatchString(outPath) {
+			_ = os.Remove(outPath)
+		}
 		return nil, "", "", compileLog, err
 	}
 	sum := sha256.Sum256(wasmBytes)
