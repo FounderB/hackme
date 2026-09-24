@@ -948,7 +948,7 @@ func main() {
 		if hybridFuzz != nil {
 			hybridFuzz.notePoHGHS(ghs, gpuCalibratedGHS)
 		}
-		hotlog.Stdoutf("submit ok found=%v batch=%d mod=%d ghs=%.6f inst_ghs=%.2f", found, cr.BatchSize, cr.TargetMod, ghs, instGHS)
+		hotlog.Stdoutf("submit ok found=%v batch=%d mod=%d ghs=%.6f inst_ghs=%.2f t_ms=%d", found, cr.BatchSize, cr.TargetMod, ghs, instGHS, time.Now().UnixMilli())
 		if ms := effectiveClaimCooldownMS(mode, ghs); ms > 0 {
 			time.Sleep(time.Duration(ms) * time.Millisecond)
 		}
