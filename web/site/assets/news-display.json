@@ -9,6 +9,21 @@
       "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.2"
     },
     {
+      "id": "2026-09-22-rc17-1-hotpatch",
+      "date": "2026-09-22",
+      "title": "0.1.0-rc17.2 — worker lifecycle + claim-identity hotpatch",
+      "summary": "Runtime/UI channel bumped to 0.1.0-rc17.2: orphan lock reap, settlement Windows flock, escrow ErrNoRows honesty, hybrid claim pubkey required. Superseded by 0.1.0-rc17.2 full bundle (2026-09-25).",
+      "impact": "Hub/source builds report 0.1.0-rc17.2. Superseded: installers/ISO now on 0.1.0-rc17.2.",
+      "action": "Channel notes: https://hackme.tech/downloads.html · Bug bounty: https://github.com/jokeez/hackme/blob/main/docs/BUG_BOUNTY.md",
+      "tags": [
+        "release",
+        "rc17.1",
+        "hotpatch",
+        "security"
+      ],
+      "status": "published"
+    },
+    {
       "id": "2026-09-15-release-rc17-live",
       "date": "2026-09-15",
       "title": "0.1.0-rc17 LIVE — paper Exchange · SUP · Hunt · Dig · installers published",

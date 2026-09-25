@@ -14,7 +14,7 @@
       "title": "0.1.0-rc17.2 — worker lifecycle + claim-identity hotpatch",
       "summary": "Runtime/UI channel bumped to 0.1.0-rc17.2: orphan lock reap, settlement Windows flock, escrow ErrNoRows honesty, hybrid claim pubkey required. Superseded by 0.1.0-rc17.2 full bundle (2026-09-25).",
       "impact": "Hub/source builds report 0.1.0-rc17.2. Superseded: installers/ISO now on 0.1.0-rc17.2.",
-      "action": "Channel notes: https://hackme.tech/downloads.html · Bug bounty: https://github.com/jokeez/hackme/blob/main/docs/BUG_BOUNTY.md · Commit: 89e3b5e",
+      "action": "Channel notes: https://hackme.tech/downloads.html · Bug bounty: https://github.com/jokeez/hackme/blob/main/docs/BUG_BOUNTY.md",
       "tags": [
         "release",
         "rc17.1",
@@ -426,82 +426,6 @@
       },
       "links": {
         "day12": "https://hackme.tech/reports/oss-cve-watch-libheif/day12.html",
-        "hub": "https://hackme.tech/reports/oss-cve-watch-libheif/",
-        "research": "https://hackme.tech/research.html"
-      }
-    },
-    {
-      "id": "2026-08-04-oss-cve-watch-libheif-day11-libfuzzer",
-      "date": "2026-08-04",
-      "title": "OSS CVE Watch · libheif Day 11/14 · 140.36M libFuzzer exec · CLEAN",
-      "summary": "libheif Day 11: 16.1h libFuzzer, 140,357,572 exec at ~2,428/s. Corpus 3005, 7290 coverage edges. ASAN=0 — CLEAN.",
-      "impact": "Cumulative Days 1–11: ~1754.64M exec on persistent HEIF/AVIF corpus.",
-      "action": "Day 11: https://hackme.tech/reports/oss-cve-watch-libheif/day11.html",
-      "tags": [
-        "research",
-        "oss-cve",
-        "fuzzing",
-        "libheif",
-        "day11"
-      ],
-      "status": "published",
-      "telegram": {
-        "headline": "OSS CVE Watch · libheif Day 11/14 · CLEAN",
-        "lead": "140.4M libFuzzer exec · ~16.1h ASAN · corpus 3005 · 0 crashes",
-        "bullets": [
-          "Day 11 libheif: ~140.4M executions @ ~2,428/s · 16.1h",
-          "ASAN=0 · verdict CLEAN",
-          "Persistent HEIF/AVIF corpus: 3005 inputs · 7290 coverage edges",
-          "Ledger: https://hackme.tech/reports/oss-cve-watch-libheif/day11.html",
-          "Series Days 1–11 cumulative ~1754.6M exec on the same corpus"
-        ],
-        "footer": "hackme.tech/reports/oss-cve-watch-libheif/ · research · not a CVE claim"
-      },
-      "discord": {
-        "title": "OSS CVE Watch · libheif Day 11 CLEAN",
-        "body": "**libheif Day 11/14 — CLEAN**\n\n• **~140.4M** libFuzzer exec · ~16.1h · ~2,428/s\n• Corpus **3005** · **7290** edges · **ASAN=0**\n• [Day 11 ledger](https://hackme.tech/reports/oss-cve-watch-libheif/day11.html)\n",
-        "ping": "#announcements"
-      },
-      "links": {
-        "day11": "https://hackme.tech/reports/oss-cve-watch-libheif/day11.html",
-        "hub": "https://hackme.tech/reports/oss-cve-watch-libheif/",
-        "research": "https://hackme.tech/research.html"
-      }
-    },
-    {
-      "id": "2026-08-03-oss-cve-watch-libheif-day10-libfuzzer",
-      "date": "2026-08-03",
-      "title": "OSS CVE Watch · libheif Day 10/14 · 198.55M libFuzzer exec · CLEAN",
-      "summary": "libheif Day 10: 23.6h libFuzzer, 198,550,711 exec at ~2,338/s. Corpus 2975, 7255 coverage edges. ASAN=0 — CLEAN.",
-      "impact": "Cumulative Days 1–10: ~1614.28M exec on persistent HEIF/AVIF corpus.",
-      "action": "Day 10: https://hackme.tech/reports/oss-cve-watch-libheif/day10.html",
-      "tags": [
-        "research",
-        "oss-cve",
-        "fuzzing",
-        "libheif",
-        "day10"
-      ],
-      "status": "published",
-      "telegram": {
-        "headline": "OSS CVE Watch · libheif Day 10/14 · CLEAN",
-        "lead": "198.6M libFuzzer exec · ~23.6h ASAN · corpus 2975 · 0 crashes",
-        "bullets": [
-          "Day 10 libheif: ~198.6M executions @ ~2,338/s · 23.6h",
-          "ASAN=0 · verdict CLEAN",
-          "Persistent HEIF/AVIF corpus: 2975 inputs · 7255 coverage edges",
-          "Ledger: https://hackme.tech/reports/oss-cve-watch-libheif/day10.html",
-          "Series Days 1–10 cumulative ~1614.3M exec on the same corpus"
-        ],
-        "footer": "hackme.tech/reports/oss-cve-watch-libheif/ · research · not a CVE claim"
-      },
-      "discord": {
-        "title": "OSS CVE Watch · libheif Day 10 CLEAN",
-        "body": "**libheif Day 10/14 — CLEAN**\n\n• **~198.6M** libFuzzer exec · ~23.6h · ~2,338/s\n• Corpus **2975** · **7255** edges · **ASAN=0**\n• [Day 10 ledger](https://hackme.tech/reports/oss-cve-watch-libheif/day10.html)\n",
-        "ping": "#announcements"
-      },
-      "links": {
-        "day10": "https://hackme.tech/reports/oss-cve-watch-libheif/day10.html",
         "hub": "https://hackme.tech/reports/oss-cve-watch-libheif/",
         "research": "https://hackme.tech/research.html"
       }
