@@ -10,6 +10,10 @@ By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
    ```bash
    bash scripts/ops/verify_project_health.sh
    ```
+   The first run needs the wasm task packs used by `lang_static` and some tests: they are
+   gitignored build artifacts — build them once per docs/RUST_CPP_TASKS_QUICKSTART.md
+   (rustc with the `wasm32-unknown-unknown` target + clang), via
+   `bash scripts/build_task_wasm.sh` and `bash scripts/build_security_task_pack.sh`.
 2. Keep changes focused; match existing Go and shell style.
 3. Do not commit secrets, databases, or local env files (see `.gitignore` and [docs/SECURITY_REPO.md](docs/SECURITY_REPO.md)).
 4. User-facing strings in **new** UI or public docs should be **English**.
