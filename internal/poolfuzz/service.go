@@ -84,6 +84,11 @@ type ClaimedWork struct {
 	HarnessContentSHA256 string
 	IterationsPerShard   int
 	HuntDetectLeaks      bool
+	// PowerMutCap / HavocDeepV28 are the mutation-scheduling values the worker
+	// must replay with; sent on the claim so worker exec inputs stay identical
+	// to the coordinator's verification replay.
+	PowerMutCap  int
+	HavocDeepV28 bool
 }
 
 type SubmitRequest struct {

@@ -149,5 +149,16 @@ func huntShardConfigFromClaim(cr ClaimResp, corpusGuided bool) map[string]any {
 	if cr.HuntDetectLeaks {
 		cfg["hunt_detect_leaks"] = true
 	}
+	// Keep exec input derivation byte-identical to the coordinator's replay:
+	// PowerScheduleStage and the deep-havoc stack both depend on these keys.
+	if cr.PowerMutCap > 0 {
+		cfg["power_mut_cap"] = cr.PowerMutCap
+	}
+	if cr.HavocDeepV28 {
+		cfg["havoc_deep_v28"] = true
+	}
+	// The campaign's mutator dict is a pure function of the target id, so it can
+	// be rebuilt locally instead of shipped on every claim.
+	hunt.ApplyHuntMutatorDict(cfg, strings.TrimSpace(cr.UpstreamTargetID))
 	return cfg
 }
