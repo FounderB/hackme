@@ -768,8 +768,8 @@ func main() {
 	srch, cleanup, mode := pickSearcher(preferredBackend, *gpuDevice, *gpuDisable)
 	defer cleanup()
 	syncWorkerGPUBackendFromSearcher(srch, mode)
-	fmt.Fprintf(os.Stderr, "workerpoh: searcher=%s mode=%s backend=%s hybrid_sign=%v\n",
-		srch.Label(), mode, effectiveGPUBackend(), signHybrid)
+	fmt.Fprintf(os.Stderr, "workerpoh: searcher=%s mode=%s backend=%s hybrid_sign=%v chunk=%d search_timeout_ms=%d\n",
+		srch.Label(), mode, effectiveGPUBackend(), signHybrid, *gpuChunk, *searchTimeoutMS)
 	if mode == "gpu" && gpuBackendConfigured() {
 		calibMod := uint64(19_485_298)
 		if v := strings.TrimSpace(os.Getenv("HACKME_GPU_CALIBRATE_MOD")); v != "" {
