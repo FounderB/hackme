@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"hackme/internal/chain"
 )
@@ -18,7 +19,19 @@ func writeFuzzEscrowFailed(w http.ResponseWriter, err error) {
 		writeAPIError(w, http.StatusPaymentRequired, "escrow_failed",
 			"insufficient wallet balance for escrow", nil)
 	default:
-		writeAPIError(w, http.StatusPaymentRequired, "escrow_failed",
-			"escrow open failed", nil)
+		// Surface stable validation messages (shards/budget floors) without sql driver leaks.
+		msg := "escrow open failed"
+		if err != nil {
+			s := err.Error()
+			switch {
+			case strings.Contains(s, "budget_shards below minimum"),
+				strings.Contains(s, "per-shard payout below minimum"),
+				strings.Contains(s, "budget below minimum"),
+				strings.Contains(s, "budget above maximum"),
+				strings.Contains(s, "already exists"):
+				msg = s
+			}
+		}
+		writeAPIError(w, http.StatusPaymentRequired, "escrow_failed", msg, nil)
 	}
 }

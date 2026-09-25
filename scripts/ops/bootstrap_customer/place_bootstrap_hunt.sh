@@ -21,6 +21,12 @@ TITLE="Bootstrap Hunt · ${TARGET} · ${PKG}"
 LOG_DIR="${LOG_DIR:-$INSTALL/logs/bootstrap/hunt}"
 mkdir -p "$LOG_DIR"
 
+# Hunt escrow enforces HuntMinShards=8 (internal/fuzzescrow/hunt.go).
+if [[ "$SHARDS" -lt 8 ]]; then
+  echo "[bootstrap-hunt] clamp shards $SHARDS -> 8 (HuntMinShards)" >&2
+  SHARDS=8
+fi
+
 ADMIN="$(grep -m1 '^HACKME_ADMIN_TOKEN=' "$INSTALL/.env" | cut -d= -f2- | tr -d '\r\n')"
 [[ -n "$ADMIN" ]] || { echo "[bootstrap-hunt] missing HACKME_ADMIN_TOKEN" >&2; exit 2; }
 # shellcheck source=load_coord_token.sh

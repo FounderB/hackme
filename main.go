@@ -3142,7 +3142,7 @@ func parseWorkerpohGHField(line, key string) float64 {
 			continue
 		}
 		rest := strings.TrimSpace(tok[len(key):])
-		if f, err := strconv.ParseFloat(rest, 64); err == nil && f > 0 && f <= 500 {
+		if f, err := strconv.ParseFloat(rest, 64); err == nil && f > 0 && f <= 5000 {
 			return f
 		}
 	}

@@ -214,5 +214,9 @@ func BudgetForCreate(req CreateRequest) (budgetHMC float64, shards int, pkgKey s
 	if shards <= 0 {
 		shards = preset.BudgetShards
 	}
+	// Clamp to escrow floor so tiny smoke shards don't fail OpenHuntEscrow.
+	if shards < fuzzescrow.HuntMinShards {
+		shards = fuzzescrow.HuntMinShards
+	}
 	return budgetHMC, shards, pkgKey, nil
 }

@@ -49,6 +49,9 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
+log "step 0: purge cold fuzz rows (work_items/native_queue/outbox/corpus)"
+NODE_SSH="$NODE_SSH" KEEP_DAYS="${KEEP_DAYS:-5}" bash "$ROOT/scripts/ops/purge_coordinator_fuzz_cold.sh" || log "purge skipped/failed (non-fatal)"
+
 log "step 1: coordinator fuzz queue cleanup"
 NODE_SSH="$NODE_SSH" COORD_URL="$COORD_URL" bash "$ROOT/scripts/ops/coordinator_fuzz_queue_cleanup.sh"
 

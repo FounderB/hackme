@@ -250,6 +250,33 @@ func TestPoolWorkerWatchdogTickMissing(t *testing.T) {
 	}
 }
 
+func TestPoolWorkerWatchdogTickDesktopRecentSubmit(t *testing.T) {
+	dir := t.TempDir()
+	logDir := filepath.Join(dir, "logs")
+	_ = os.MkdirAll(logDir, 0o755)
+	t.Setenv("HACKME_REPO_ROOT", dir)
+	t.Setenv("HACKME_MINING_PAUSED", "0")
+	t.Setenv("HACKME_DESKTOP_MODE", "1")
+
+	wid := "desk-w"
+	safe := sanitizeWorkerIDForNonce(wid)
+	nonce := filepath.Join(logDir, "miner_submit_nonce."+safe+".seq")
+	if err := os.WriteFile(nonce, []byte("42\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	a := &app{dataDir: filepath.Join(dir, "data"), workerID: wid}
+	a.workerRunningCacheMu.Lock()
+	a.workerRunningCached = false
+	a.workerRunningCacheAt = time.Now().Unix()
+	a.workerRunningCacheMu.Unlock()
+
+	action, detail := a.poolWorkerWatchdogTick(time.Now().Unix())
+	if action != "ok" || detail != "desktop_recent_submit" {
+		t.Fatalf("got action=%q detail=%q want ok/desktop_recent_submit", action, detail)
+	}
+}
+
 func TestWorkerStopStartViaAPILoopback(t *testing.T) {
 	t.Setenv("HACKME_ADMIN_TOKEN", "test-admin-token-heartbeat")
 	t.Setenv("HACKME_DESKTOP_MODE", "1")

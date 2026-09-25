@@ -100,7 +100,11 @@ func main() {
 	}
 
 	startCoordWALMaint := func(label, absPath string, handle *sql.DB) {
-		if err := store.SetWALAutocheckpoint(handle, 500); err != nil {
+		pages := 500
+		if label == "fuzz_db" {
+			pages = 250 // ~1MiB — fuzz claim/submit writers; keep -wal small (IOERR 522 class)
+		}
+		if err := store.SetWALAutocheckpoint(handle, pages); err != nil {
 			log.Printf("sqlite %s wal_autocheckpoint: %v", label, err)
 		}
 		store.StartWALMaintenanceWithConfig(context.Background(), absPath, handle, store.WALMaintenanceConfig{

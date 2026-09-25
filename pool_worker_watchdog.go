@@ -157,6 +157,19 @@ func (a *app) poolWorkerWatchdogTick(nowUnix int64) (action string, detail strin
 
 	alive := a.workerProcessRunning()
 	if !alive {
+		// Desktop CUDA/autostart often runs outside a.workerCmd. Detection can lag
+		// briefly after submit; treating that as "missing" causes forceRestart →
+		// killall → SIGTERM loops every watchdog interval (worker never stays up).
+		if envBool("HACKME_DESKTOP_MODE", false) {
+			hb := workerSubmitHeartbeatUnixSince(logRoot, wid, 0)
+			if hb > 0 && nowUnix-hb < poolWorkerHeartbeatStaleSec() {
+				return "ok", "desktop_recent_submit"
+			}
+			// Fresh workerpoh log with ghs= is enough even if lock/pidfile is mid-rotate.
+			if workerActiveFromLog(logRoot, poolWorkerHeartbeatStaleSec()) {
+				return "ok", "desktop_fresh_worker_log"
+			}
+		}
 		return "restart_missing", "process_not_running"
 	}
 
@@ -204,7 +217,12 @@ func (a *app) startPoolWorkerWatchdog() {
 			case "paused", "ok":
 				// nothing
 			case "restart_missing", "restart_frozen":
-				if !first && now-lastRestartUnix < 30 {
+				// Desktop: avoid thrash — CUDA init + first submits need headroom.
+				minGap := int64(30)
+				if envBool("HACKME_DESKTOP_MODE", false) {
+					minGap = 120
+				}
+				if !first && now-lastRestartUnix < minGap {
 					time.Sleep(interval)
 					continue
 				}
