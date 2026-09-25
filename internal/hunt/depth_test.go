@@ -3,10 +3,10 @@ package hunt
 import "testing"
 
 func TestIterationsPerShardForPackage(t *testing.T) {
-	if got := IterationsPerShardForPackage("hunt_lite"); got != 32 {
+	if got := IterationsPerShardForPackage("hunt_lite"); got != 48 {
 		t.Fatalf("lite=%d", got)
 	}
-	if got := IterationsPerShardForPackage("hunt_standard"); got != 128 {
+	if got := IterationsPerShardForPackage("hunt_standard"); got != 192 {
 		t.Fatalf("standard=%d", got)
 	}
 	if got := IterationsPerShardForPackage("hunt_heavy"); got != 256 {
@@ -24,7 +24,7 @@ func TestShardIterationsPerCap256(t *testing.T) {
 func TestApplyPackageDepthDefaultsPool(t *testing.T) {
 	cfg := map[string]any{}
 	ApplyPackageDepthDefaults(cfg, "hunt_standard", true)
-	if cfg["iterations_per_shard"] != 128 {
+	if cfg["iterations_per_shard"] != 192 {
 		t.Fatalf("iter=%v", cfg["iterations_per_shard"])
 	}
 	if cfg["hunt_overnight_local"] == true {

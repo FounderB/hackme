@@ -4,9 +4,9 @@
 
 | Version | Supported |
 |---------|-----------|
-| `0.1.0-rc17.1` | Yes (current runtime / hotpatch) |
-| `0.1.0-rc17` | Yes (published installers / ISO) |
-| `0.1.0-rc16` | Yes (last published artifacts) |
+| `0.1.0-rc17.2` | Yes (current runtime + published installers / ISO) |
+| `0.1.0-rc17` | Best effort (superseded by rc17.2) |
+| `0.1.0-rc16` | Best effort |
 | `0.1.0-rc15` | Yes |
 | `0.1.0-rc14x` | Best effort only |
 | `0.1.0-rc12w`–`rc11i` | Best effort only |

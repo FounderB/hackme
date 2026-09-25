@@ -18,16 +18,16 @@ func TestWorkerVersionAllowed(t *testing.T) {
 	if !WorkerVersionAllowed("", "") {
 		t.Fatal("no min allows empty")
 	}
-	if WorkerVersionAllowed("", "0.1.0-rc17.1") {
+	if WorkerVersionAllowed("", "0.1.0-rc17.2") {
 		t.Fatal("empty got fails when min set")
 	}
-	if !WorkerVersionAllowed("0.1.0-rc17.2", "0.1.0-rc17.1") {
+	if !WorkerVersionAllowed("0.1.0-rc17.2", "0.1.0-rc17.2") {
 		t.Fatal("newer rc")
 	}
-	if WorkerVersionAllowed("0.1.0-rc17.0", "0.1.0-rc17.1") {
+	if WorkerVersionAllowed("0.1.0-rc17.0", "0.1.0-rc17.2") {
 		t.Fatal("older rc")
 	}
-	if !WorkerVersionAllowed("0.1.0-rc17.1", "0.1.0-rc17.1") {
+	if !WorkerVersionAllowed("0.1.0-rc17.2", "0.1.0-rc17.2") {
 		t.Fatal("equal")
 	}
 	if versionCmpLoose("0.2.0", "0.1.9") <= 0 {

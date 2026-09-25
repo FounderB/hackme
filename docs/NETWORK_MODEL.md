@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**HackMe Network** · `0.1.0-rc17.1` (installers `0.1.0-rc17`) · [Pool](https://hackme.tech/pool/explorer) · [Telegram](https://t.me/hackme_tech)
+**HackMe Network** · `0.1.0-rc17.2` (full bundle) · [Pool](https://hackme.tech/pool/explorer) · [Telegram](https://t.me/hackme_tech)
 
 </div>
 

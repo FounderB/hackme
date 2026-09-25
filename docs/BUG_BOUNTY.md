@@ -1,7 +1,7 @@
 # Security rewards (bug bounty) — HackMe Network
 
 **Language:** English (public policy)  
-**Version:** `0.1.0-rc17.1` channel (hotpatch on rc17 LIVE artifacts)  
+**Version:** `0.1.0-rc17.2` channel (hotpatch on rc17 LIVE artifacts)  
 **Payout asset:** on-chain **HMC** (discretionary, not a token sale or investment)
 
 ---

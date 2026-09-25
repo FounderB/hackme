@@ -6,7 +6,7 @@
     {
       "kind": "release",
       "badge": "HOTPATCH",
-      "title": "0.1.0-rc17.1 — worker lifecycle + claim identity",
+      "title": "0.1.0-rc17.2 — worker lifecycle + claim identity",
       "detail": "Runtime channel rc17.1 · installers still rc17 — verify SHA256SUMS",
       "cta": "Downloads",
       "href": "/downloads.html#start",

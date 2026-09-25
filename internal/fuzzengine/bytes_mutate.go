@@ -18,9 +18,14 @@ func MutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 }
 
 // MutateBytesForHunt applies mutations with static dict + optional corpus autodict + crossover.
+// When cfg enables havoc_deep_v28, a second deterministic deep stack is applied (replay-safe opt-in).
 func MutateBytesForHunt(base []byte, stage MutationStage, salt uint64, maxLen int, cfg map[string]any, corpus [][]byte) []byte {
 	dict := EffectiveMutatorDict(cfg, corpus)
-	return mutateBytesWithDict(base, stage, salt, maxLen, dict, corpus)
+	out := mutateBytesWithDict(base, stage, salt, maxLen, dict, corpus)
+	if DeepHavocV28(cfg) {
+		out = applyDeepHavocV28(out, stage, salt, maxLen, dict, corpus)
+	}
+	return out
 }
 
 // MutateBytesForConfig applies byte mutations with optional pack mutator_dict.

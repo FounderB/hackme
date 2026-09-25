@@ -3,8 +3,8 @@ package hunt
 import "strings"
 
 const (
-	huntIterPerShardLite     = 32
-	huntIterPerShardStandard = 128
+	huntIterPerShardLite     = 48  // was 32 — deeper L1 chain per shard (v2.8)
+	huntIterPerShardStandard = 192 // was 128
 	huntIterPerShardHeavy    = 256
 	maxShardIterationsPer    = 256
 

@@ -55,7 +55,7 @@ func TestRankLibFuzzerSeedsCaps(t *testing.T) {
 func TestApplyHuntPowerScheduling(t *testing.T) {
 	cfg := map[string]any{"power_mut_cap": 2}
 	ApplyHuntPowerScheduling(cfg, "hunt_standard")
-	if cfg["power_mut_cap"] != 10 {
+	if cfg["power_mut_cap"] != 14 {
 		t.Fatalf("cap=%v", cfg["power_mut_cap"])
 	}
 }

@@ -1,6 +1,14 @@
 {
   "items": [
     {
+      "id": "20260925-rc17.2-live",
+      "date": "2026-09-25",
+      "title": "0.1.0-rc17.2 LIVE — Hunt deep-havoc v2.8 · full Win/Linux/ISO bundle",
+      "summary": "Full channel cut: runtime + installers + ISO on 0.1.0-rc17.2. Hunt deep-havoc v2.8 (opt-in), deeper shard budgets, fuzz release/capability harden, workerpoh GPU_CHUNK honor.",
+      "impact": "Upgrade via downloads / self-update / apt. Verify SHA256SUMS before install. Legacy Hunt campaigns without havoc_deep_v28 keep prior replay bytes.",
+      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.2"
+    },
+    {
       "id": "2026-09-15-release-rc17-live",
       "date": "2026-09-15",
       "title": "0.1.0-rc17 LIVE — paper Exchange · SUP · Hunt · Dig · installers published",

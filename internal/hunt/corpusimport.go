@@ -166,6 +166,7 @@ func ApplyLocalCorpusGuidedDefaults(cfg map[string]any) {
 	if _, ok := cfg["corpus_persist"]; !ok {
 		cfg["corpus_persist"] = true
 	}
+	fuzzengine.EnableDeepHavocV28(cfg)
 }
 
 // ApplyHuntPowerScheduling tunes pool/local mutation depth for Hunt packages.
@@ -177,11 +178,11 @@ func ApplyHuntPowerScheduling(cfg map[string]any, pkgKey string) {
 	minCap := 0
 	switch pkgKey {
 	case "hunt_standard", "standard":
-		minCap = 10
+		minCap = 14 // was 10 — deeper power stages with v2.8
 	case "hunt_heavy", "heavy":
-		minCap = 12
+		minCap = 16 // was 12
 	case "hunt_lite", "lite":
-		minCap = 6
+		minCap = 8 // was 6
 	}
 	if minCap > 0 {
 		cur := int(cfgInt(cfg, "power_mut_cap"))
