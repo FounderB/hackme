@@ -644,6 +644,13 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 				payload["harness_content_sha256"] = sha
 			}
 			payload["hunt_detect_leaks"] = work.HuntDetectLeaks
+			// Mutation scheduling — workers must derive the same exec inputs as replay.
+			if work.PowerMutCap > 0 {
+				payload["power_mut_cap"] = work.PowerMutCap
+			}
+			if work.HavocDeepV28 {
+				payload["havoc_deep_v28"] = true
+			}
 			payload["shard_spec"] = map[string]any{
 				"iterations_per_shard": work.IterationsPerShard,
 				"check_semantics":      work.CheckSemantics,

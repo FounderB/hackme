@@ -47,6 +47,11 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 		return ClaimedWork{}, fmt.Errorf("poolfuzz: hunt harness not ready: %w", err)
 	}
 	iter := huntIterationsPerShard(cfg)
+	// Snapshot mutation scheduling before guided seeding: a seed merge can touch
+	// the in-memory cfg, but the claim must mirror the persisted campaign config
+	// the verification replay will use, so both sides derive identical inputs.
+	mutCap := fuzzengine.PowerMutCap(cfg)
+	deepV28 := fuzzengine.DeepHavocV28(cfg)
 	now := time.Now().Unix()
 	var inputB []byte
 	var inputU uint64
@@ -95,6 +100,8 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 		HarnessContentSHA256: contentSHA,
 		IterationsPerShard:   iter,
 		HuntDetectLeaks:      hunt.DetectLeaksFromConfig(cfg),
+		PowerMutCap:          mutCap,
+		HavocDeepV28:         deepV28,
 	}, nil
 }
 

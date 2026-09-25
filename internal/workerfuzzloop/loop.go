@@ -60,6 +60,10 @@ type ClaimResp struct {
 	HarnessFetchURL      string           `json:"harness_fetch_url,omitempty"`
 	HarnessContentSHA256 string           `json:"harness_content_sha256,omitempty"`
 	HuntDetectLeaks      bool             `json:"hunt_detect_leaks,omitempty"`
+	// PowerMutCap / HavocDeepV28 mirror the campaign's mutation scheduling so the
+	// worker's exec chain derives the same inputs as the coordinator's replay.
+	PowerMutCap  int  `json:"power_mut_cap,omitempty"`
+	HavocDeepV28 bool `json:"havoc_deep_v28,omitempty"`
 }
 
 // Config drives a supervised fuzz dig loop.
