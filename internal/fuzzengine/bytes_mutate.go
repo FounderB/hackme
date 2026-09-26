@@ -28,7 +28,8 @@ func MutateBytesForConfig(base []byte, stage MutationStage, salt uint64, maxLen 
 	return mutateBytesWithDict(base, stage, salt, maxLen, ParseMutatorDict(cfg), nil)
 }
 
-// HavocOpModulo is the havoc op grid size (v2.8: 80 CmpLog-aware ops).
+// HavocOpModulo is the havoc op grid size (v2.8+: 80 CmpLog-aware ops).
+// v2.9 selects ops via soft weight table (havocOpPick), not uniform modulo.
 const HavocOpModulo = 80
 
 // havocStackDepth returns how many stacked havoc ops to apply (AFL-like energy).
@@ -112,7 +113,8 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 	}
 	out := append([]byte(nil), base...)
 	// Corpus crossover before havoc — fleet diversity (deterministic from salt).
-	if len(corpus) >= 2 && (salt%4) == 0 {
+	// v2.9: denser pre-havoc (every 3rd) + ordered/two-point splice path.
+	if len(corpus) >= 2 && (salt%3) == 0 {
 		other := corpus[int((salt>>8)%uint64(len(corpus)))]
 		if len(other) > 0 && string(other) != string(out) {
 			out = crossoverBytes(out, other, salt^0xC0FFEE, maxLen)
@@ -126,7 +128,7 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 	rounds := havocStackDepth(stage, salt)
 	for i := 0; i < rounds; i++ {
 		mix := splitmix64(salt ^ uint64(s) ^ uint64(i)*0x517cc1b727220a95)
-		switch mix % HavocOpModulo {
+		switch havocOpPick(mix) {
 		case 0:
 			idx := int(mix % uint64(len(out)))
 			out[idx] ^= byte(1 << (mix % 8))

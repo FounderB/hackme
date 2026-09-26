@@ -112,7 +112,12 @@ func BitmapEdgeCount(bitmap []byte) int {
 
 // CorpusObserveBoostWithCoverage extends observe boost using structural edge novelty.
 func CorpusObserveBoostWithCoverage(cfg map[string]any, recordFinding bool, newEdge, newPath bool, edgeBitmap []byte) int {
-	boost := CorpusObserveBoost(recordFinding, newEdge, newPath)
+	return CorpusObserveBoostWithCoverageEx(cfg, recordFinding, false, newEdge, newPath, edgeBitmap)
+}
+
+// CorpusObserveBoostWithCoverageEx applies hang-aware observe boost (v2.9).
+func CorpusObserveBoostWithCoverageEx(cfg map[string]any, recordFinding, hangOnly, newEdge, newPath bool, edgeBitmap []byte) int {
+	boost := CorpusObserveBoostEx(recordFinding, hangOnly, newEdge, newPath)
 	if !CoverageFeedbackEnabled(cfg) {
 		return boost
 	}
@@ -128,7 +133,9 @@ func CorpusObserveBoostWithCoverage(cfg map[string]any, recordFinding bool, newE
 	if newEdge && newPath {
 		boost += 3 // dual novelty is high-value AFL-style find
 	}
-	if recordFinding {
+	if recordFinding && hangOnly {
+		boost += 1 // hang: smaller extras than crash
+	} else if recordFinding {
 		boost += 2
 	}
 	return boost
