@@ -18,7 +18,7 @@
 
 v2.8 @5k havoc grid: **unique≈4987 lens≈250**.
 
-v2.9 must hold: unique ≥ ~4987−40, lens ≥ 250.
+Measured v2.9 @5k: **unique=4986 lens=250** (−1 unique / +0 lens vs T0; within ≤40 unique jitter; lens holds). Gain vs upstream baseline: **+4.1% / +363%**.
 
 ## Honesty
 
