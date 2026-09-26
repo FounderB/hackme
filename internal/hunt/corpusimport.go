@@ -166,7 +166,7 @@ func ApplyLocalCorpusGuidedDefaults(cfg map[string]any) {
 	if _, ok := cfg["corpus_persist"]; !ok {
 		cfg["corpus_persist"] = true
 	}
-	fuzzengine.EnableDeepHavocV28(cfg)
+	fuzzengine.EnableDeepHavocV210(cfg)
 }
 
 // ApplyHuntPowerScheduling tunes pool/local mutation depth for Hunt packages.
