@@ -64,7 +64,10 @@ func main() {
 		key := c.SanitizerClass + "/" + c.SanitizerSubtype
 		bySub[key]++
 		bySig[key]++
-		fam := fuzzengine.FindingFamily(c.SanitizerClass, c.Sanitizer)
+		fam := strings.TrimSpace(c.SanitizerClass) + "/" + strings.TrimSpace(c.SanitizerSubtype)
+		if c.SanitizerClass == "" || c.SanitizerSubtype == "" {
+			fam = fuzzengine.FindingFamily(c.SanitizerClass, c.Sanitizer)
+		}
 		byFamily[fam]++
 		stackKey := ""
 		for _, line := range strings.Split(c.Sanitizer, "\n") {

@@ -165,7 +165,7 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 		out := append([]byte(nil), base...)
 		applyDeterministicByteStage(out, s, salt)
 		// v2.9: every 7th deterministic stage also applies CmpLog-inspired smash (replay-stable).
-		if (salt%7) == 0 {
+		if (salt % 7) == 0 {
 			out = cmpReplaceWithInteresting(out, salt^uint64(s)*0x9E37)
 			out = cmpArithTowardInteresting(out, salt^uint64(s)*0xC2B2)
 		}

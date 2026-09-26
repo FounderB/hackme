@@ -89,4 +89,3 @@ func interleaveCorpus(buf []byte, corpus [][]byte, mix uint64, maxLen int) []byt
 	}
 	return out
 }
-
