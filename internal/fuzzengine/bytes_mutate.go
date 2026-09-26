@@ -28,15 +28,18 @@ func MutateBytesForConfig(base []byte, stage MutationStage, salt uint64, maxLen 
 	return mutateBytesWithDict(base, stage, salt, maxLen, ParseMutatorDict(cfg), nil)
 }
 
+// HavocOpModulo is the havoc op grid size (v2.8: 80 CmpLog-aware ops).
+const HavocOpModulo = 80
+
 // havocStackDepth returns how many stacked havoc ops to apply (AFL-like energy).
 // Deterministic from stage+salt so coordinator replay stays stable.
 func havocStackDepth(stage MutationStage, salt uint64) int {
 	s := int(stage)
-	rounds := 1 + int((salt+uint64(s))%6)
+	rounds := 1 + int((salt+uint64(s))%7)
 	if s >= StageHavocBase {
 		extra := (s - StageHavocBase) / 2
-		if extra > 10 {
-			extra = 10
+		if extra > 12 {
+			extra = 12
 		}
 		rounds += extra
 		if (salt^uint64(s))%11 == 0 {
@@ -48,12 +51,15 @@ func havocStackDepth(stage MutationStage, salt uint64) int {
 		if (salt^uint64(s*31))%29 == 0 {
 			rounds += 2
 		}
+		if (salt^uint64(s*41))%37 == 0 {
+			rounds += 3 // v2.8 rare deep stacks
+		}
 	}
 	if rounds < 1 {
 		rounds = 1
 	}
-	if rounds > 32 {
-		rounds = 32
+	if rounds > 36 {
+		rounds = 36
 	}
 	return rounds
 }
@@ -79,7 +85,26 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 	if s < StageDeterministicMax {
 		out := append([]byte(nil), base...)
 		idx := s % len(out)
-		out[idx] ^= byte(1 << (salt % 8))
+		// v2.8: CmpLog-inspired deterministic queue (still keyed only by stage+salt).
+		switch (salt >> 3) % 6 {
+		case 0:
+			out[idx] ^= byte(1 << (salt % 8))
+		case 1:
+			arithAdd8(out, idx, int8((salt>>8)&0xff)-64)
+		case 2:
+			vals := Interesting8()
+			out[idx] = vals[int(salt>>8)%len(vals)]
+		case 3:
+			out = cmpReplaceWithInteresting(out, salt^uint64(s)*0x9E37)
+		case 4:
+			out = cmpArithTowardInteresting(out, salt^uint64(s)*0xC2B2)
+		default:
+			if len(out) >= 2 {
+				arithAdd16LE(out, idx%max(1, len(out)-1), int16((salt>>8)&0xffff)-128)
+			} else {
+				out[idx] ^= byte(1 << (salt % 8))
+			}
+		}
 		if len(out) > maxLen {
 			out = out[:maxLen]
 		}
@@ -87,16 +112,21 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 	}
 	out := append([]byte(nil), base...)
 	// Corpus crossover before havoc — fleet diversity (deterministic from salt).
-	if len(corpus) >= 2 && (salt%7) == 0 {
+	if len(corpus) >= 2 && (salt%4) == 0 {
 		other := corpus[int((salt>>8)%uint64(len(corpus)))]
 		if len(other) > 0 && string(other) != string(out) {
 			out = crossoverBytes(out, other, salt^0xC0FFEE, maxLen)
 		}
 	}
+	// Pre-extract CmpLog-ish constants once per mutation (replay-stable, CPU-only).
+	var cmpConsts [][]byte
+	if len(corpus) > 0 {
+		cmpConsts = ExtractCmpConstants(corpus...)
+	}
 	rounds := havocStackDepth(stage, salt)
 	for i := 0; i < rounds; i++ {
 		mix := splitmix64(salt ^ uint64(s) ^ uint64(i)*0x517cc1b727220a95)
-		switch mix % 64 {
+		switch mix % HavocOpModulo {
 		case 0:
 			idx := int(mix % uint64(len(out)))
 			out[idx] ^= byte(1 << (mix % 8))
@@ -379,10 +409,77 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 		case 62:
 			out = structureSmash(out, mix^0x5a5a5a5a, maxLen)
 			out = insertFootgunToken(out, int(mix%uint64(len(out)+1)), mix>>3, maxLen)
-		default: // 63 — JSON number overflow / nested smash combo
+		case 63: // JSON number overflow / nested smash combo
 			idx := int(mix % uint64(len(out)+1))
 			out = insertToken(out, idx, []byte("1e309"), maxLen)
 			out = nestBraces(out, mix>>8, maxLen)
+		// --- v2.8 ops (64–79): CmpLog-inspired + deeper shape churn ---
+		case 64:
+			out = cmpReplaceWithInteresting(out, mix)
+			if mix&8 != 0 {
+				out = cmpInsertBoundary(out, mix>>4, maxLen)
+			}
+		case 65:
+			out = cmpArithTowardInteresting(out, mix)
+			if mix&16 != 0 && len(out) < growCap {
+				out = insertToken(out, int(mix%uint64(len(out)+1)), []byte{byte(mix >> 24)}, maxLen)
+			}
+		case 66:
+			out = cmpSwapWithCorpusConst(out, cmpConsts, mix)
+			if mix&32 != 0 {
+				out = structureSmash(out, mix>>6, maxLen)
+			}
+		case 67:
+			out = cmpXorWindow(out, mix)
+			if mix&64 != 0 {
+				out = reverseWindow(out, mix>>8)
+			}
+		case 68:
+			out = cmpInsertBoundary(out, mix, maxLen)
+			out = nestBraces(out, mix>>5, maxLen)
+		case 69:
+			out = spliceCmpConst(out, corpus, mix, maxLen)
+			if len(corpus) > 0 {
+				out = spliceCorpusSlice(out, corpus, mix>>7, maxLen)
+			}
+		case 70:
+			out = repeatRareNibble(out, mix)
+			out = adjacentBitflip(out, mix>>3)
+		case 71:
+			idx := int(mix % uint64(len(out)+1))
+			out = insertUTF8Overlong(out, idx, mix, maxLen)
+			out = insertInvalidUTF8(out, idx, mix>>4, maxLen)
+		case 72:
+			out = widenThenNarrow(out, mix, maxLen)
+			out = chunkLengthMismatch(out, mix>>9)
+		case 73:
+			out = interleaveCorpus(out, corpus, mix, maxLen)
+			out = crossoverBytes(out, out, mix^0xF00D, maxLen) // self-skew cut
+		case 74: // dual CmpLog: replace then arith + boundary
+			out = cmpReplaceWithInteresting(out, mix)
+			out = cmpArithTowardInteresting(out, mix>>3)
+			out = cmpInsertBoundary(out, mix>>11, maxLen)
+		case 75: // corpus const overwrite + boundary insert + smash
+			out = cmpSwapWithCorpusConst(out, cmpConsts, mix)
+			out = cmpInsertBoundary(out, mix>>5, maxLen)
+			out = structureSmash(out, mix>>13, maxLen)
+		case 76: // XOR window then interesting magnitude + footgun
+			out = cmpXorWindow(out, mix)
+			out = setInterestingMagnitude(out, mix>>7)
+			out = insertFootgunToken(out, int(mix%uint64(len(out)+1)), mix>>15, maxLen)
+		case 77: // interleave + structure smash + nest
+			out = interleaveCorpus(out, corpus, mix, maxLen)
+			out = structureSmash(out, mix^0xC0C0C0C0, maxLen)
+			out = nestBraces(out, mix>>4, maxLen)
+		case 78: // widen/narrow + footgun + utf16
+			out = widenThenNarrow(out, mix, maxLen)
+			out = insertFootgunToken(out, int(mix%uint64(len(out)+1)), mix>>4, maxLen)
+			out = utf16LEExpand(out, mix>>8, maxLen)
+		default: // 79 — CmpLog triple + havoc shape
+			out = spliceCmpConst(out, corpus, mix, maxLen)
+			out = cmpArithTowardInteresting(out, mix>>9)
+			out = cmpInsertBoundary(out, mix>>17, maxLen)
+			out = widenThenNarrow(out, mix>>21, maxLen)
 		}
 		if len(out) == 0 {
 			out = []byte{byte(mix)}

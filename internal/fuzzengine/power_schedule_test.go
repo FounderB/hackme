@@ -74,15 +74,53 @@ func TestMeasureGuidedDiversity(t *testing.T) {
 	}
 }
 
-func TestRankCorpusForCullPrefersCrashAndRare(t *testing.T) {
+func TestCullCorpusKeepRareAndCrash(t *testing.T) {
 	seeds := []PoolCorpusSeed{
-		{InputBytes: []byte("a"), Energy: 2, Edge: 1},
-		{InputBytes: []byte("crash"), Energy: 2, Edge: 2, Crash: true},
-		{InputBytes: []byte("rare"), Energy: 2, Edge: 3},
+		{InputBytes: []byte("common-a"), Energy: 8, Edge: 1},
+		{InputBytes: []byte("common-b"), Energy: 8, Edge: 1},
+		{InputBytes: []byte("common-c"), Energy: 8, Edge: 1},
+		{InputBytes: []byte("rare"), Energy: 1, Edge: 99},
+		{InputBytes: []byte("crash"), Energy: 1, Edge: 2, Crash: true},
+		{InputBytes: []byte("filler"), Energy: 9, Edge: 3},
 	}
-	rarity := EdgeHitCounts{1: 50, 2: 1, 3: 1}
-	rank := RankCorpusForCull(seeds, rarity)
-	if !seeds[rank[0]].Crash {
-		t.Fatalf("crash should rank first: %+v", rank)
+	rarity := BuildEdgeHitCounts(seeds)
+	kept := CullCorpusKeep(seeds, rarity, 3)
+	if len(kept) != 3 {
+		t.Fatalf("want 3 kept, got %d", len(kept))
 	}
+	hasCrash, hasRare := false, false
+	for _, s := range kept {
+		if s.Crash {
+			hasCrash = true
+		}
+		if string(s.InputBytes) == "rare" {
+			hasRare = true
+		}
+	}
+	if !hasCrash || !hasRare {
+		t.Fatalf("must keep crash+rare under cull: %+v", kept)
+	}
+}
+
+func TestAutodictFrequencyPrefersRepeated(t *testing.T) {
+	toks := ExtractAutodictTokens(
+		[]byte(`{"userId":1}`),
+		[]byte(`{"userId":2}`),
+		[]byte(`{"userId":3,"other":9}`),
+	)
+	if len(toks) == 0 {
+		t.Fatal("expected tokens")
+	}
+	if string(toks[0]) != "userId" && !containsTok(toks, "userId") {
+		t.Fatalf("expected userId in autodict, got %v", toks)
+	}
+}
+
+func containsTok(toks [][]byte, want string) bool {
+	for _, t := range toks {
+		if string(t) == want {
+			return true
+		}
+	}
+	return false
 }

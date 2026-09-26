@@ -50,7 +50,7 @@ func PowerMutCap(cfg map[string]any) int {
 	}
 	if v, ok := cfg["power_mut_cap"]; ok {
 		n := intFromAny(v)
-		if n >= 1 && n <= 32 {
+		if n >= 1 && n <= 36 {
 			return n
 		}
 	}

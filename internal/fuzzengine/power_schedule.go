@@ -43,30 +43,35 @@ func SeedScheduleWeight(s PoolCorpusSeed, exploreV2 bool, rarity EdgeHitCounts) 
 		w += 5
 	}
 	if s.Crash {
-		w += 12
+		w += 18 // v2.8: crash seeds get stronger fleet pull
 	}
 	if s.Energy >= 8 {
-		w += 3
+		w += 4
+	}
+	if s.Energy >= 16 {
+		w += 4
 	}
 	// Rarity: prefer seeds whose structural edge is rarely seen (not high bucket ID!).
 	if rarity != nil && s.Edge > 0 {
 		hits := rarity[s.Edge]
 		switch {
 		case hits <= 1:
+			w += 36 // singleton edge — AFL rare-bitmap energy
+		case hits <= 2:
 			w += 24
-		case hits <= 3:
-			w += 12
+		case hits <= 4:
+			w += 14
 		case hits <= 8:
-			w += 6
+			w += 8
 		case hits <= 20:
-			w += 2
+			w += 3
 		}
 	} else if s.Edge > 0 {
 		// No rarity map — small fixed novelty hint only (edge present).
 		w += 2
 	}
 	if s.Path > 0 {
-		w += 1
+		w += 2
 	}
 	return w
 }
@@ -77,16 +82,21 @@ func PowerScheduleDepth(energy, edgeHits, cap int) int {
 	if cap < 1 {
 		cap = 4
 	}
-	if cap > 32 {
-		cap = 32
+	if cap > 36 {
+		cap = 36
 	}
 	depth := 1 + energy/2
 	if edgeHits <= 1 {
+		depth += 6
+	} else if edgeHits <= 2 {
 		depth += 4
 	} else if edgeHits <= 4 {
-		depth += 2
+		depth += 3
 	} else if edgeHits <= 12 {
 		depth += 1
+	}
+	if energy >= 12 {
+		depth += 2
 	}
 	if depth < 1 {
 		depth = 1
@@ -200,7 +210,7 @@ func CompactCorpusSeed(b []byte, maxLen int) []byte {
 }
 
 // RankCorpusForCull returns indices ordered best-first for keeping under pool_corpus_max.
-// Prefer crash > energy > rare edge > shorter compact length.
+// Prefer crash > rare singleton edges > energy/weight > shorter compact length.
 func RankCorpusForCull(seeds []PoolCorpusSeed, rarity EdgeHitCounts) []int {
 	idx := make([]int, len(seeds))
 	for i := range seeds {
@@ -217,9 +227,82 @@ func RankCorpusForCull(seeds []PoolCorpusSeed, rarity EdgeHitCounts) []int {
 	return idx
 }
 
+// CullCorpusKeep returns up to max seeds, always retaining crashes and singleton-edge seeds
+// when possible (AFL-ish rare-edge + crash preservation under pool_corpus_max).
+func CullCorpusKeep(seeds []PoolCorpusSeed, rarity EdgeHitCounts, max int) []PoolCorpusSeed {
+	if max < 1 || len(seeds) == 0 {
+		return nil
+	}
+	if len(seeds) <= max {
+		out := make([]PoolCorpusSeed, len(seeds))
+		copy(out, seeds)
+		return out
+	}
+	if rarity == nil {
+		rarity = BuildEdgeHitCounts(seeds)
+	}
+	rank := RankCorpusForCull(seeds, rarity)
+	kept := make([]PoolCorpusSeed, 0, max)
+	seen := map[int]struct{}{}
+
+	// Pass 1: mandatory crashes.
+	for _, i := range rank {
+		if len(kept) >= max {
+			break
+		}
+		if !seeds[i].Crash {
+			continue
+		}
+		kept = append(kept, seeds[i])
+		seen[i] = struct{}{}
+	}
+	// Pass 2: singleton (hits<=1) rare edges not yet kept.
+	for _, i := range rank {
+		if len(kept) >= max {
+			break
+		}
+		if _, ok := seen[i]; ok {
+			continue
+		}
+		if seeds[i].Edge > 0 && rarity[seeds[i].Edge] <= 1 {
+			kept = append(kept, seeds[i])
+			seen[i] = struct{}{}
+		}
+	}
+	// Pass 3: fill by rank.
+	for _, i := range rank {
+		if len(kept) >= max {
+			break
+		}
+		if _, ok := seen[i]; ok {
+			continue
+		}
+		kept = append(kept, seeds[i])
+		seen[i] = struct{}{}
+	}
+	return kept
+}
+
 func corpusBetter(a, b PoolCorpusSeed, rarity EdgeHitCounts) bool {
 	if a.Crash != b.Crash {
 		return a.Crash
+	}
+	// Prefer singleton rare edges before weight so cull keeps coverage diversity.
+	if rarity != nil {
+		ha, hb := 9999, 9999
+		if a.Edge > 0 {
+			ha = rarity[a.Edge]
+		}
+		if b.Edge > 0 {
+			hb = rarity[b.Edge]
+		}
+		ra, rb := ha <= 1, hb <= 1
+		if ra != rb {
+			return ra
+		}
+		if ha != hb && (ha <= 3 || hb <= 3) {
+			return ha < hb
+		}
 	}
 	wa := SeedScheduleWeight(a, true, rarity)
 	wb := SeedScheduleWeight(b, true, rarity)

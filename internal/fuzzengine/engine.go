@@ -1,4 +1,4 @@
-// Package fuzzengine implements fuzz_engine_v2.7 input derivation, coverage buckets,
+// Package fuzzengine implements fuzz_engine_v2.8 input derivation, coverage buckets,
 // and WASM check semantics shared by the node autorunner and pool coordinator workers.
 package fuzzengine
 
@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const Version = "fuzz_engine_v2.7"
+const Version = "fuzz_engine_v2.8"
 
 // CheckSemantics controls how WASM check(i64)->i32 results map to pass/finding.
 //   - pow_gate: pass when check != 0 (mining gate / accepts nonce)
