@@ -23,7 +23,7 @@
 | [HMS_PUBLIC_ROADMAP.md](HMS_PUBLIC_ROADMAP.md) | HackMe Storage (HMS) — prelaunch |
 | [HMS_BACKEND.md](HMS_BACKEND.md) | HMS coordinator + workers |
 | [SUPPORT_COIN_UTILITY.md](SUPPORT_COIN_UTILITY.md) | HackMe Support (SUP) accrual |
-| [HACKME_RC17.md](HACKME_RC17.md) | **Current** channel **0.1.0-rc17** LIVE — Exchange · SUP · Hunt; installers published |
+| [HACKME_RC17.md](HACKME_RC17.md) | **Current** runtime **0.1.0-rc17.2** · installers **0.1.0-rc17.2** LIVE — Exchange · SUP · Hunt |
 | [RC17_CUTOVER.md](RC17_CUTOVER.md) | Cutover deploy plan — hub exchange embed + SUP (ops window) |
 | [HACKME_RC16.md](HACKME_RC16.md) | Prior / superseded by rc17 — self-update + signed apt + ISO |
 | [HACKME_RC15.md](HACKME_RC15.md) | Previous rc15 — B2B fuzz Phase 2 + pool anticheat |

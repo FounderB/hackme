@@ -40,7 +40,8 @@ func (s *Service) ListPublicCampaigns(ctx context.Context, limit int) ([]map[str
 		return nil, err
 	}
 	defer rows.Close()
-	out := make([]map[string]any, 0, limit)
+	// Capacity uses the hard max, not the request-derived limit (CodeQL alloc size).
+	out := make([]map[string]any, 0, maxPublicCampaigns)
 	for rows.Next() {
 		var id, ctype, status, title, ownerRef, summaryJSON, cfgJSON, escrowStatus string
 		var budgetRuns int

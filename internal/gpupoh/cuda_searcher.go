@@ -12,6 +12,8 @@ import (
 	"time"
 	"unsafe"
 
+	"hackme/internal/hotlog"
+
 	"github.com/pkg/errors"
 	"gorgonia.org/cu"
 	"gorgonia.org/cu/nvrtc"
@@ -255,7 +257,8 @@ func (a *cudaAccel) Search(ctx context.Context, base, count, mod uint64) (found 
 	recordCUDAKernelDuration(kernelSec)
 	if os.Getenv("HACKME_CUDA_VERBOSE") == "1" {
 		ghs := float64(count) / kernelSec / 1e9
-		fmt.Fprintf(os.Stderr, "gpupoh: cuda search count=%d elapsed=%s ~%.2f GH/s\n", count, time.Duration(kernelSec*float64(time.Second)).Round(time.Millisecond), ghs)
+		// Non-blocking: AV/disk stalls on the log fd must not freeze the mining loop (#1).
+		hotlog.VerboseStderrf("gpupoh: cuda search count=%d elapsed=%s ~%.2f GH/s", count, time.Duration(kernelSec*float64(time.Second)).Round(time.Millisecond), ghs)
 	}
 
 	var out uint64

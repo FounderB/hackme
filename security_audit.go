@@ -226,11 +226,10 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 			if err == nil && supSt.BalanceSUP > 0 {
 				cash, supUsed := chain.ApplyAuditSUPDiscount(budgetHMC, supSt.BalanceSUP)
 				if supUsed > 0 {
-					units := chain.SUPToUnits(supUsed)
-					if code, err := a.chain.BurnSUPForService(r.Context(), payerWallet, units, "security_audit:"+campaignID); err == nil && code == "" {
-						escrowBudgetHMC = cash
-						supDiscountUsed = supUsed
-					}
+					// Burn only after the campaign escrow exists. A failed order
+					// must not destroy SUP with nothing to show for it.
+					escrowBudgetHMC = cash
+					supDiscountUsed = supUsed
 				}
 			}
 		}
@@ -410,14 +409,29 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 	escrow, err := openFuzzEscrowRetry(r.Context(), a.chain, campaignID, escrowBudgetHMC, budgetRuns)
 	if err != nil {
 		_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, campaignID)
-		writeAPIError(w, http.StatusPaymentRequired, "escrow_failed", err.Error(), nil)
+		writeFuzzEscrowFailed(w, err)
 		return
 	}
 
 	c, err := a.getFuzzCampaign(r.Context(), campaignID)
 	if err != nil {
+		a.rollbackNewCampaignEscrow(r.Context(), campaignID)
 		writeAPIError(w, http.StatusInternalServerError, "load_failed", "campaign created but readback failed", nil)
 		return
+	}
+
+	if supDiscountUsed > 0 {
+		units := chain.SUPToUnits(supDiscountUsed)
+		code, burnErr := a.chain.BurnSUPForService(r.Context(), payerWallet, units, "security_audit:"+campaignID)
+		if burnErr != nil || code != "" {
+			a.rollbackNewCampaignEscrow(r.Context(), campaignID)
+			msg := "sup burn failed"
+			if burnErr != nil {
+				msg = burnErr.Error()
+			}
+			writeAPIError(w, http.StatusBadRequest, "sup_burn_failed", msg, map[string]any{"code": code})
+			return
+		}
 	}
 
 	resp["campaign"] = c

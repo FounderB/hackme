@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"hackme/internal/chain"
+	"hackme/internal/pathsafe"
 	"hackme/internal/sandbox"
 )
 
@@ -251,15 +252,14 @@ func sanitizeCodeID(s string) string {
 	return out
 }
 
-// pathWithinRoot returns cleaned path if it resolves under root (CodeQL path-injection guard).
+// pathWithinRoot returns a path rebuilt under root if it resolves inside root
+// (CodeQL path-injection barrier via pathsafe.Guard MatchString at sinks).
 func pathWithinRoot(root, path string) (string, bool) {
-	root = filepath.Clean(root)
-	full := filepath.Clean(path)
-	sep := string(os.PathSeparator)
-	if full != root && !strings.HasPrefix(full, root+sep) {
+	out, ok := pathsafe.WithinRoot(root, path)
+	if !ok || !pathsafe.AbsRE.MatchString(out) {
 		return "", false
 	}
-	return full, true
+	return out, true
 }
 
 func compileTaskWASM(ctx context.Context, lang, srcPath, outPath string) (string, error) {
@@ -333,19 +333,31 @@ func compileTaskWASM(ctx context.Context, lang, srcPath, outPath string) (string
 		}
 		return logText, err
 	}
+	outRoot := filepath.Clean(filepath.Dir(outPath))
+	safeOut, ok := pathWithinRoot(outRoot, outPath)
+	if !ok {
+		return "invalid compiled output path", errors.New("invalid compiled output path")
+	}
+	outPath = safeOut
+	if !pathsafe.AbsRE.MatchString(outPath) {
+		return "invalid compiled output path", errors.New("invalid compiled output path")
+	}
 	if _, statErr := os.Stat(outPath); statErr != nil {
 		// Some TinyGo builds may emit wasm into cwd even with -o.
 		if lang == "tinygo" {
 			if candidates, _ := filepath.Glob(filepath.Join(workDir, "*.wasm")); len(candidates) > 0 {
 				cand := filepath.Base(candidates[0])
-				if safe, ok := pathWithinRoot(workDir, filepath.Join(workDir, cand)); ok {
+				if safe, ok := pathWithinRoot(workDir, filepath.Join(workDir, cand)); ok && pathsafe.AbsRE.MatchString(safe) {
 					if b, rerr := os.ReadFile(safe); rerr == nil {
-						if outSafe, ok2 := pathWithinRoot(filepath.Dir(outPath), outPath); ok2 {
+						if outSafe, ok2 := pathWithinRoot(filepath.Dir(outPath), outPath); ok2 && pathsafe.AbsRE.MatchString(outSafe) {
 							_ = os.WriteFile(outSafe, b, 0o644)
 						}
 					}
 				}
 			}
+		}
+		if !pathsafe.AbsRE.MatchString(outPath) {
+			return "invalid compiled output path", errors.New("invalid compiled output path")
 		}
 		if _, statErr2 := os.Stat(outPath); statErr2 != nil {
 			msg := "compiled wasm output not produced: " + statErr2.Error()
@@ -430,6 +442,14 @@ func (a *app) compileTaskFromCode(ctx context.Context, req taskFromCodeRequest) 
 	if compileErr != nil {
 		return nil, "", "", compileLog, compileErr
 	}
+	if safe, ok := pathWithinRoot(artifactRootAbs, outPath); !ok || !pathsafe.AbsRE.MatchString(safe) {
+		return nil, "", "", compileLog, errors.New("invalid artifact path")
+	} else {
+		outPath = safe
+	}
+	if !pathsafe.AbsRE.MatchString(outPath) {
+		return nil, "", "", compileLog, errors.New("invalid artifact path")
+	}
 	wasmBytes, err = os.ReadFile(outPath)
 	if err != nil {
 		return nil, "", "", compileLog, err
@@ -437,14 +457,20 @@ func (a *app) compileTaskFromCode(ctx context.Context, req taskFromCodeRequest) 
 	if req.Language == "tinygo" || req.Language == "zig" || req.Language == "assemblyscript" {
 		if sanitized, serr := tinygoSanitizeWasm(wasmBytes); serr == nil {
 			wasmBytes = sanitized
-			_ = os.WriteFile(outPath, wasmBytes, 0o644)
+			if pathsafe.AbsRE.MatchString(outPath) {
+				_ = os.WriteFile(outPath, wasmBytes, 0o644)
+			}
 		} else {
-			_ = os.Remove(outPath)
+			if pathsafe.AbsRE.MatchString(outPath) {
+				_ = os.Remove(outPath)
+			}
 			return nil, "", "", compileLog, serr
 		}
 	}
 	if err := sandbox.ValidateCheckWasm(ctx, wasmBytes); err != nil {
-		_ = os.Remove(outPath)
+		if pathsafe.AbsRE.MatchString(outPath) {
+			_ = os.Remove(outPath)
+		}
 		return nil, "", "", compileLog, err
 	}
 	sum := sha256.Sum256(wasmBytes)

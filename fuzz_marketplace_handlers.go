@@ -60,7 +60,16 @@ func (a *app) handleFuzzMarketplace(w http.ResponseWriter, r *http.Request) {
 	force := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("refresh"))) == "1"
 	if !force {
 		if cached, ok := a.fuzzMarketplaceCached(); ok {
-			writeJSON(w, map[string]any{"ok": true, "campaigns": cached, "cached": true})
+			cap, _ := a.fetchCoordinatorFleetCapacity(r.Context())
+			items := cloneMarketplaceCampaigns(cached)
+			if cap != nil {
+				poolfuzz.AnnotateCampaignFleetETA(items, floatFromAny(cap["est_shards_per_hour"]))
+			}
+			resp := map[string]any{"ok": true, "campaigns": items, "cached": true}
+			if cap != nil {
+				resp["fleet_capacity"] = cap
+			}
+			writeJSON(w, resp)
 			return
 		}
 	}
@@ -75,13 +84,21 @@ func (a *app) handleFuzzMarketplace(w http.ResponseWriter, r *http.Request) {
 
 	mergeCtx, mergeCancel := context.WithTimeout(context.Background(), 12*time.Second)
 	items = a.mergeCoordinatorPoolMarketplace(mergeCtx, items)
+	cap, _ := a.fetchCoordinatorFleetCapacity(mergeCtx)
 	mergeCancel()
 
 	if len(items) == 0 {
 		if stale, ok := a.fuzzMarketplaceStale(); ok {
-			resp := map[string]any{"ok": true, "campaigns": stale, "cached": true, "stale": true}
+			staleItems := cloneMarketplaceCampaigns(stale)
+			if cap != nil {
+				poolfuzz.AnnotateCampaignFleetETA(staleItems, floatFromAny(cap["est_shards_per_hour"]))
+			}
+			resp := map[string]any{"ok": true, "campaigns": staleItems, "cached": true, "stale": true}
 			if localWarn != "" {
 				resp["local_warning"] = localWarn
+			}
+			if cap != nil {
+				resp["fleet_capacity"] = cap
 			}
 			writeJSON(w, resp)
 			return
@@ -89,10 +106,17 @@ func (a *app) handleFuzzMarketplace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a.fuzzMarketplaceStore(items)
-	resp := map[string]any{"ok": true, "campaigns": items}
+	out := cloneMarketplaceCampaigns(items)
+	if cap != nil {
+		poolfuzz.AnnotateCampaignFleetETA(out, floatFromAny(cap["est_shards_per_hour"]))
+	}
+	resp := map[string]any{"ok": true, "campaigns": out}
 	if localWarn != "" {
 		resp["local_warning"] = localWarn
 		resp["source"] = "coordinator"
+	}
+	if cap != nil {
+		resp["fleet_capacity"] = cap
 	}
 	writeJSON(w, resp)
 }

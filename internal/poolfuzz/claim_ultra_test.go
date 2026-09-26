@@ -33,7 +33,7 @@ func TestReleaseWorkLeaseReturnsPending(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("claim: ok=%v err=%v", ok, err)
 	}
-	if err := svc.ReleaseWorkLease(ctx, work.CampaignID, work.ItemID, "worker-a"); err != nil {
+	if _, err := svc.ReleaseWorkLease(ctx, work.CampaignID, work.ItemID, "worker-a"); err != nil {
 		t.Fatal(err)
 	}
 	var status, owner string

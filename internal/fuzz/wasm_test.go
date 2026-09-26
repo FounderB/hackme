@@ -32,7 +32,12 @@ func TestMaliciousWasm_InfiniteLoopChild(t *testing.T) {
 	raw := decodeMaliciousHex(t, infiniteLoopCheckWasmHex)
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
-	_ = sandbox.ValidateCheckWasm(ctx, raw)
+	err := sandbox.ValidateCheckWasm(ctx, raw)
+	if err == nil {
+		return
+	}
+	// Non-zero exit is the expected outcome: the probe must be interrupted.
+	t.Fatalf("validation probe stopped: %v", err)
 }
 
 func TestMaliciousWasm_InfiniteLoopDoesNotHangTestProcess(t *testing.T) {
@@ -48,7 +53,7 @@ func TestMaliciousWasm_InfiniteLoopDoesNotHangTestProcess(t *testing.T) {
 	start := time.Now()
 	runErr := cmd.Run()
 	elapsed := time.Since(start)
-	if elapsed > 10*time.Second {
+	if elapsed > 3*time.Second {
 		t.Fatalf("infinite loop wasm hung test runner for %v", elapsed)
 	}
 	if runErr == nil {

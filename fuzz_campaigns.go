@@ -9,12 +9,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/logsafe"
 	"hackme/internal/poolfuzz"
 )
 
@@ -727,7 +729,7 @@ func (a *app) handleFuzzCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		escrow, err := a.chain.OpenFuzzEscrow(r.Context(), id, req.BudgetHMC, req.BudgetRuns)
 		if err != nil {
 			_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, id)
-			writeAPIError(w, http.StatusPaymentRequired, "escrow_failed", err.Error(), nil)
+			writeFuzzEscrowFailed(w, err)
 			return
 		}
 		cfgMap["budget_hmc"] = req.BudgetHMC
@@ -737,6 +739,7 @@ func (a *app) handleFuzzCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		respEscrow := escrow
 		c, err := a.getFuzzCampaign(r.Context(), id)
 		if err != nil {
+			a.rollbackNewCampaignEscrow(r.Context(), id)
 			writeAPIError(w, http.StatusInternalServerError, "load_failed", "campaign created but readback failed", nil)
 			return
 		}
@@ -750,7 +753,7 @@ func (a *app) handleFuzzCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		if poolDistributedCampaign(cfgMap) {
 			resp["pool_distributed"] = true
-			fc := fuzzAutoCampaign{ID: id, BudgetRuns: req.BudgetRuns, BudgetSeconds: req.BudgetSeconds, ConfigJSON: cfg}
+			fc := fuzzAutoCampaign{ID: id, OwnerRef: strings.TrimSpace(req.OwnerRef), BudgetRuns: req.BudgetRuns, BudgetSeconds: req.BudgetSeconds, ConfigJSON: cfg}
 			a.applyPoolSyncResponse(resp, r.Context(), fc)
 		}
 		writeJSON(w, resp)
@@ -772,6 +775,7 @@ func (a *app) handleFuzzCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		resp["pool_distributed"] = true
 		fc := fuzzAutoCampaign{
 			ID:            id,
+			OwnerRef:      strings.TrimSpace(req.OwnerRef),
 			BudgetRuns:    req.BudgetRuns,
 			BudgetSeconds: req.BudgetSeconds,
 			ConfigJSON:    cfg,
@@ -940,6 +944,43 @@ func (a *app) handleFuzzCampaignStatus(w http.ResponseWriter, r *http.Request, c
 	writeJSON(w, map[string]any{"ok": true, "campaign": c})
 }
 
+func (a *app) fullCrashClassSeverityCounts(ctx context.Context, campaignID string) (critical, high, medium, low, info int, err error) {
+	rows, err := a.db.QueryContext(ctx, `SELECT finding_type, severity FROM fuzz_findings WHERE campaign_id=?`, campaignID)
+	if err != nil {
+		return 0, 0, 0, 0, 0, err
+	}
+	defer rows.Close()
+	var all []fuzzFinding
+	for rows.Next() {
+		var f fuzzFinding
+		if err := rows.Scan(&f.FindingType, &f.Severity); err != nil {
+			return 0, 0, 0, 0, 0, err
+		}
+		all = append(all, f)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, 0, 0, 0, 0, err
+	}
+	critical, high, medium, low, info = crashClassSeverityCounts(all)
+	return critical, high, medium, low, info, nil
+}
+
+// rollbackNewCampaignEscrow refunds a create that already locked escrow and then failed.
+func (a *app) rollbackNewCampaignEscrow(ctx context.Context, campaignID string) {
+	campaignID = strings.TrimSpace(campaignID)
+	if campaignID == "" {
+		return
+	}
+	if a.chain != nil {
+		if _, err := a.chain.CancelFuzzEscrow(ctx, campaignID); err != nil {
+			log.Printf("fuzz escrow: rollback %s: %v", logsafe.ID(campaignID), err)
+		}
+	}
+	if a.db != nil {
+		_, _ = a.db.ExecContext(ctx, `DELETE FROM fuzz_campaigns WHERE id=?`, campaignID)
+	}
+}
+
 func (a *app) tryCloseFuzzEscrowForStatus(ctx context.Context, campaignID, status string) {
 	if a.chain == nil {
 		return
@@ -948,9 +989,12 @@ func (a *app) tryCloseFuzzEscrowForStatus(ctx context.Context, campaignID, statu
 	case "cancelled":
 		_, _ = a.chain.CancelFuzzEscrow(ctx, campaignID)
 	case "completed":
-		// Drain run/finding settles first so Finalize does not refund unpaid work
-		// and the pull consumer cannot ACK those rows as "closed" no-ops.
-		a.pullFuzzSettleOutbox(ctx)
+		// Drain run/finding settles first so Finalize does not refund unpaid work.
+		// A failed pull must not finalize: pending worker payouts would hit a closed escrow (report #12).
+		if err := a.pullFuzzSettleOutbox(ctx); err != nil {
+			log.Printf("fuzz escrow: refuse finalize %s: settle pull failed: %v", logsafe.ID(campaignID), err)
+			return
+		}
 		_, _ = a.chain.FinalizeFuzzEscrow(ctx, campaignID)
 	}
 }
@@ -1981,6 +2025,14 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 	if err != nil {
 		return nil, err
 	}
+	// Pool campaigns: pull live runs_done / unique_crashes before verdict so we never
+	// claim "clean" from a stale local summary while the coordinator already finished work.
+	if poolDistributedCampaign(c.Config) {
+		_ = a.syncPoolCampaignProgressFromCoordinator(ctx, campaignID)
+		if c2, err2 := a.getFuzzCampaign(ctx, campaignID); err2 == nil {
+			c = c2
+		}
+	}
 	fullFindingsTotal := 0
 	_ = a.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM fuzz_findings WHERE campaign_id=?`, campaignID).Scan(&fullFindingsTotal)
 	rows, err := a.db.QueryContext(ctx,
@@ -2041,6 +2093,10 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 	annotateTopIssuesWithFamilyCounts(topIssues, familySummary)
 	annotateTopIssuesWithFamilyCounts(sanitizerHygiene, familySummary)
 	crashCrit, crashHigh, crashMed, crashLow, crashInfo := crashClassSeverityCounts(findings)
+	if fc, fh, fm, fl, fi, err := a.fullCrashClassSeverityCounts(ctx, campaignID); err == nil {
+		// Gate and verdict use the whole campaign, not the newest-first display window (report #11).
+		crashCrit, crashHigh, crashMed, crashLow, crashInfo = fc, fh, fm, fl, fi
+	}
 	crashScore := crashClassSeverityScore(crashCrit, crashHigh, crashMed, crashLow, crashInfo)
 
 	critical := bySeverity["critical"]
@@ -2083,6 +2139,32 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 	if runsDone == 0 {
 		runsDone = intFromAny(c.Summary["executions"])
 	}
+	poolDist := poolDistributedCampaign(c.Config)
+	poolFindingHint := intFromAny(c.Summary["unique_crashes"])
+	if poolFindingHint == 0 {
+		poolFindingHint = intFromAny(c.Summary["findings"])
+	}
+	// Honesty for pool-distributed campaigns:
+	// 1) Coordinator findings not yet mirrored locally → never claim clean.
+	// 2) Zero runs while still open / never started → incomplete, not clean.
+	if poolDist && crashCount == 0 && poolFindingHint > 0 && verdict == "clean" {
+		verdict = "warn_pool_findings"
+		recommendations = append([]string{
+			fmt.Sprintf("Pool reported %d finding(s); local crash mirror pending settle/sync — do not treat as clean.", poolFindingHint),
+		}, recommendations...)
+	}
+	if verdict == "clean" && runsDone <= 0 {
+		st := strings.ToLower(strings.TrimSpace(c.Status))
+		switch st {
+		case "cancelled":
+			verdict = "cancelled"
+		default:
+			verdict = "incomplete"
+		}
+		recommendations = append([]string{
+			"No verified runs yet (runs_done=0) — progress sync missing or campaign not started; not a clean bill of health.",
+		}, recommendations...)
+	}
 	if runsDone >= 10_000 {
 		confidence = "high"
 	} else if runsDone >= 500 {
@@ -2101,7 +2183,7 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 		}
 	}
 	assuranceNote := buildAssuranceNote(runsDone, crashCrit, crashHigh, "crash/hang/ASan/memory")
-	humanSummary := buildHumanSummaryLine(runsDone, edges, paths, crashCount, crashCrit)
+	var humanSummary string
 	digDepthCard := map[string]any(nil)
 	if strings.EqualFold(strings.TrimSpace(c.CampaignType), "hunt") {
 		critNote := "no ASAN crash-class"
@@ -2138,6 +2220,13 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 	} else if crashScore > 0 {
 		gatePass = false
 		gateReasons = []string{"crash severity_score exceeds threshold"}
+	}
+	if verdict == "incomplete" || verdict == "cancelled" {
+		gatePass = false
+		gateReasons = []string{"campaign incomplete or cancelled (runs_done=0) — gate fail-closed"}
+	} else if verdict == "warn_pool_findings" {
+		gatePass = false
+		gateReasons = []string{"pool findings reported but not mirrored locally — gate fail-closed"}
 	}
 	verdictCard := buildVerdictCard(runsDone, crashCount, crashCrit, gatePass, moneySpent)
 	fingerprint := buildTargetFingerprint(c.Config)

@@ -18,10 +18,11 @@ import (
 
 // hybridFuzzState shares PoH hashrate with the inline fuzz loop for backpressure.
 type hybridFuzzState struct {
-	pohGHSMilli   atomic.Int64
-	calibGHSMilli atomic.Int64
-	stats         workerfuzzloop.Stats
-	cancel        context.CancelFunc
+	pohGHSMilli    atomic.Int64
+	calibGHSMilli  atomic.Int64
+	pohUpdatedUnix atomic.Int64
+	stats          workerfuzzloop.Stats
+	cancel         context.CancelFunc
 }
 
 func (h *hybridFuzzState) notePoHGHS(ghs, calib float64) {
@@ -30,6 +31,9 @@ func (h *hybridFuzzState) notePoHGHS(ghs, calib float64) {
 	}
 	if ghs > 0 {
 		h.pohGHSMilli.Store(int64(ghs * 1000))
+		h.pohUpdatedUnix.Store(time.Now().Unix())
+	} else {
+		h.pohGHSMilli.Store(0)
 	}
 	if calib > 0 {
 		h.calibGHSMilli.Store(int64(calib * 1000))
@@ -84,9 +88,7 @@ func runHybridFuzzInline(ctx context.Context, st *hybridFuzzState, coordURL, tok
 		floorPct = 100
 	}
 	boostPct := workerfuzzloop.EnvInt("HACKME_WORKER_HYBRID_FUZZ_DIG_BOOST_PCT", workerfuzzloop.DigBoostFloorPct)
-	if boostPct > 100 {
-		boostPct = 100
-	}
+	// Values >100 disable boost (see DigBoostFloorPct contract) — do not clamp.
 	httpTimeout := hybridDigHTTPTimeout()
 	cfg := workerfuzzloop.Config{
 		CoordURL:             coordURL,
@@ -103,6 +105,7 @@ func runHybridFuzzInline(ctx context.Context, st *hybridFuzzState, coordURL, tok
 		LogPrefix:            "workerpoh-fuzz",
 		PohGHSMilli:          &st.pohGHSMilli,
 		CalibGHSMilli:        &st.calibGHSMilli,
+		PohGHSUpdatedUnix:    &st.pohUpdatedUnix,
 		BackpressureFloorPct: floorPct,
 		DigBoostFloorPct:     boostPct,
 	}

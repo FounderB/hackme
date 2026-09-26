@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/logsafe"
 	"hackme/internal/poolfuzz"
 	"hackme/internal/poolsync"
 )
@@ -65,7 +66,7 @@ func (a *app) reconcilePoolSyncCampaigns() {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	rows, err := a.db.QueryContext(ctx,
-		`SELECT id, budget_runs, budget_seconds, config_json FROM fuzz_campaigns
+		`SELECT id, COALESCE(owner_ref,''), budget_runs, budget_seconds, config_json FROM fuzz_campaigns
 		 WHERE status IN ('planned','running')
 		   AND json_extract(config_json, '$.pool_distributed') IN (1, 'true', '1')
 		 ORDER BY created_at DESC LIMIT 64`)
@@ -74,9 +75,9 @@ func (a *app) reconcilePoolSyncCampaigns() {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, cfgJSON string
+		var id, ownerRef, cfgJSON string
 		var budgetRuns, budgetSec int
-		if err := rows.Scan(&id, &budgetRuns, &budgetSec, &cfgJSON); err != nil {
+		if err := rows.Scan(&id, &ownerRef, &budgetRuns, &budgetSec, &cfgJSON); err != nil {
 			continue
 		}
 		id = strings.TrimSpace(id)
@@ -92,18 +93,23 @@ func (a *app) reconcilePoolSyncCampaigns() {
 		_, ok := a.fetchCoordinatorPoolCampaignProgress(progCtx, id)
 		progCancel()
 		if ok {
+			syncCtx, syncCancel := context.WithTimeout(ctx, 20*time.Second)
+			if err := a.syncPoolCampaignProgressFromCoordinator(syncCtx, id); err != nil {
+				log.Printf("pool sync reconcile: %s progress: %v", logsafe.ID(id), err)
+			}
+			syncCancel()
 			continue
 		}
 		a.poolSyncMu.Lock()
 		delete(a.poolSyncQueued, id)
 		a.poolSyncMu.Unlock()
 		mode, warn := a.schedulePoolFuzzSync(ctx, fuzzAutoCampaign{
-			ID: id, BudgetRuns: budgetRuns, BudgetSeconds: budgetSec, ConfigJSON: cfgJSON,
+			ID: id, OwnerRef: ownerRef, BudgetRuns: budgetRuns, BudgetSeconds: budgetSec, ConfigJSON: cfgJSON,
 		})
 		if warn != "" {
-			log.Printf("pool sync reconcile: %s warn=%s", id, warn)
+			log.Printf("pool sync reconcile: %s warn=%s", logsafe.ID(id), logsafe.ID(warn))
 		} else {
-			log.Printf("pool sync reconcile: %s mode=%s", id, mode)
+			log.Printf("pool sync reconcile: %s mode=%s", logsafe.ID(id), logsafe.ID(mode))
 		}
 	}
 }
@@ -118,7 +124,7 @@ func (a *app) retryFailedPoolSyncCampaigns() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	rows, err := a.db.QueryContext(ctx,
-		`SELECT id, budget_runs, budget_seconds, config_json FROM fuzz_campaigns
+		`SELECT id, COALESCE(owner_ref,''), budget_runs, budget_seconds, config_json FROM fuzz_campaigns
 		 WHERE status IN ('planned','running')
 		   AND json_extract(config_json, '$.pool_distributed') IN (1, 'true', '1')`)
 	if err != nil {
@@ -126,9 +132,9 @@ func (a *app) retryFailedPoolSyncCampaigns() {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, cfgJSON string
+		var id, ownerRef, cfgJSON string
 		var budgetRuns, budgetSec int
-		if err := rows.Scan(&id, &budgetRuns, &budgetSec, &cfgJSON); err != nil {
+		if err := rows.Scan(&id, &ownerRef, &budgetRuns, &budgetSec, &cfgJSON); err != nil {
 			continue
 		}
 		if _, ok := failed[id]; !ok {
@@ -138,9 +144,9 @@ func (a *app) retryFailedPoolSyncCampaigns() {
 		delete(a.poolSyncQueued, id)
 		a.poolSyncMu.Unlock()
 		_, _ = a.schedulePoolFuzzSync(ctx, fuzzAutoCampaign{
-			ID: id, BudgetRuns: budgetRuns, BudgetSeconds: budgetSec, ConfigJSON: cfgJSON,
+			ID: id, OwnerRef: ownerRef, BudgetRuns: budgetRuns, BudgetSeconds: budgetSec, ConfigJSON: cfgJSON,
 		})
-		log.Printf("pool sync: retry queued for %s", id)
+		log.Printf("pool sync: retry queued for %s", logsafe.ID(id))
 	}
 }
 
@@ -162,7 +168,7 @@ func (a *app) runPoolSyncJob(job poolSyncJob) {
 	// shards against a missing ASAN binary (yyjson-class lease spin).
 	if poolfuzz.IsHuntCampaign(cfg) {
 		if herr := a.syncHuntHarnessToCoordinator(ctx, cfg); herr != nil {
-			log.Printf("pool sync: campaign %s harness upload failed: %v", job.campaign.ID, herr)
+			log.Printf("pool sync: campaign %s harness upload failed: %s", logsafe.ID(job.campaign.ID), logsafe.Err(herr))
 			a.poolSyncMarkFailed(job.campaign.ID, herr)
 			return
 		}
@@ -172,6 +178,7 @@ func (a *app) runPoolSyncJob(job poolSyncJob) {
 		CampaignType:  ctype,
 		Title:         job.title,
 		Description:   job.desc,
+		OwnerRef:      job.campaign.OwnerRef,
 		Status:        "running",
 		BudgetRuns:    job.campaign.BudgetRuns,
 		BudgetSeconds: job.campaign.BudgetSeconds,
@@ -179,14 +186,14 @@ func (a *app) runPoolSyncJob(job poolSyncJob) {
 	}
 	err := poolsync.RegisterWithRetry(ctx, req)
 	if err != nil {
-		log.Printf("pool sync: campaign %s failed after retries: %v", job.campaign.ID, err)
+		log.Printf("pool sync: campaign %s failed after retries: %v", logsafe.ID(job.campaign.ID), err)
 		a.poolSyncMarkFailed(job.campaign.ID, err)
 		return
 	}
 	if fuzzengine.CorpusPersistEnabled(cfg) {
 		a.syncCorpusNamespaceToCoordinator(ctx, cfg)
 	}
-	log.Printf("pool sync: campaign %s registered on coordinator", job.campaign.ID)
+	log.Printf("pool sync: campaign %s registered on coordinator", logsafe.ID(job.campaign.ID))
 	a.poolSyncMarkOK(job.campaign.ID)
 }
 
@@ -217,10 +224,13 @@ func (a *app) poolSyncFailedIDs() map[string]string {
 
 func (a *app) schedulePoolFuzzSync(ctx context.Context, c fuzzAutoCampaign) (syncMode string, syncWarning string) {
 	a.startPoolSyncWorker()
-	var title, desc, ctype string
+	var title, desc, ctype, ownerRef string
 	_ = a.db.QueryRowContext(ctx,
-		`SELECT title, description, campaign_type FROM fuzz_campaigns WHERE id=?`, c.ID).
-		Scan(&title, &desc, &ctype)
+		`SELECT title, description, campaign_type, COALESCE(owner_ref,'') FROM fuzz_campaigns WHERE id=?`, c.ID).
+		Scan(&title, &desc, &ctype, &ownerRef)
+	if strings.TrimSpace(c.OwnerRef) == "" {
+		c.OwnerRef = ownerRef
+	}
 	job := poolSyncJob{campaign: c, title: title, desc: desc, ctype: ctype}
 
 	// Dedupe: skip if already queued recently (fuzz_runner may call sync repeatedly).
@@ -263,6 +273,7 @@ func (a *app) syncPoolFuzzCampaignSync(ctx context.Context, c fuzzAutoCampaign, 
 		CampaignType:  ctype,
 		Title:         title,
 		Description:   desc,
+		OwnerRef:      c.OwnerRef,
 		Status:        "running",
 		BudgetRuns:    c.BudgetRuns,
 		BudgetSeconds: c.BudgetSeconds,

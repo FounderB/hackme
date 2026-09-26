@@ -30,6 +30,7 @@
         <strong>Hunt</strong> escrow is <strong>50/50</strong> — see <a href="./fuzz-guide.html">fuzz guide</a>.
         Dig pool tiers: Scan 1 · Audit 64 · Deep <strong>64 cap</strong> on hub.
         Create Dig with <code>wizard</code>; create Hunt with <code>hackme-fuzzing hunt …</code>.
+        Live fleet ETA uses hybrid GPU Dig priority + dig-only workers (ASAN stays on CPU).
       </p>
       <button type="button" class="btn btn-secondary" id="btn-refresh">Refresh</button>
       <a class="btn btn-secondary" href="./developers.html">Packages &amp; CLI</a>
@@ -44,12 +45,13 @@
         </div>
       </div>
       <p id="pool-stats" class="subtle"></p>
+      <p id="fleet-capacity" class="subtle" style="margin-top:0.25rem"></p>
       <div class="table-wrap">
         <table class="endpoint-table">
           <thead>
-            <tr><th>ID</th><th>Title</th><th>Status</th><th>Runs</th><th>Findings</th><th>Budget HMC</th></tr>
+            <tr><th>ID</th><th>Title</th><th>Status</th><th>Runs</th><th>ETA</th><th>Findings</th><th>Budget HMC</th></tr>
           </thead>
-          <tbody id="campaigns-body"><tr><td colspan="6">Loading…</td></tr></tbody>
+          <tbody id="campaigns-body"><tr><td colspan="7">Loading…</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -57,6 +59,7 @@
   <script>
     const COORD = '/pool/coordinator';
     let allCampaigns = [];
+    let fleetCapacity = null;
     let activeTab = 'active';
 
     function isNoise(c) {
@@ -77,13 +80,34 @@
       });
     }
 
+    function fmtEtaSec(sec) {
+      const n = Number(sec);
+      if (!Number.isFinite(n)) return '—';
+      if (n < 0) return 'warming';
+      if (n === 0) return 'done';
+      if (n < 120) return '~' + Math.ceil(n) + 's';
+      if (n < 7200) return '~' + Math.ceil(n / 60) + 'm';
+      return '~' + (n / 3600).toFixed(1) + 'h';
+    }
+
+    function etaForCampaign(c) {
+      if (c && c.eta_sec_fleet != null) return fmtEtaSec(c.eta_sec_fleet);
+      const bud = Number(c && c.budget_runs);
+      const done = Number(c && c.runs_done);
+      const sph = fleetCapacity && Number(fleetCapacity.est_shards_per_hour);
+      if (!(bud > 0) || !(sph >= 1)) return '—';
+      const rem = Math.max(0, bud - (Number.isFinite(done) ? done : 0));
+      if (rem === 0) return 'done';
+      return fmtEtaSec((rem / sph) * 3600);
+    }
+
     function renderRows(rows) {
       const body = document.getElementById('campaigns-body');
       if (!rows.length) {
         const hint = activeTab === 'active'
           ? 'No active pool campaigns right now — see Completed or All tabs.'
           : 'No campaigns in this view.';
-        body.innerHTML = '<tr><td colspan="6">' + hint + '</td></tr>';
+        body.innerHTML = '<tr><td colspan="7">' + hint + '</td></tr>';
         return;
       }
       body.innerHTML = rows.slice(0, 80).map(c => `<tr>
@@ -91,9 +115,30 @@
           <td>${escapeHtml(c.title || '')}</td>
           <td>${escapeHtml(String(c.status || ''))}</td>
           <td>${c.runs_done || 0} / ${c.budget_runs || 0}</td>
+          <td>${escapeHtml(etaForCampaign(c))}</td>
           <td>${c.findings || 0}</td>
           <td>${c.budget_hmc ? Number(c.budget_hmc).toFixed(2) : '—'}</td>
         </tr>`).join('');
+    }
+
+    function paintFleet(cap) {
+      const el = document.getElementById('fleet-capacity');
+      if (!el) return;
+      fleetCapacity = cap || null;
+      if (!cap) {
+        el.textContent = '';
+        return;
+      }
+      const hyb = Number(cap.hybrid_workers_online || 0);
+      const dig = Number(cap.dig_only_workers_online || 0);
+      const ghs = Number(cap.fleet_hashrate_gh_s || 0);
+      const sph = Number(cap.est_shards_per_hour || 0);
+      const ghsTxt = ghs >= 10 ? ghs.toFixed(0) : ghs.toFixed(1);
+      const sphTxt = sph >= 10 ? Math.round(sph) : sph.toFixed(1);
+      el.textContent =
+        `Fleet capacity: ${hyb} hybrid · ${dig} dig-only · ~${ghsTxt} GH/s live · ~${sphTxt} shards/h` +
+        (cap.ghs_priority_enabled ? ' · GHS priority on' : '') +
+        ' · GH/s steers Dig priority (ASAN on CPU)';
     }
 
     function paintStats(st) {
@@ -120,11 +165,13 @@
         const st = stRes.status === 'fulfilled' ? stRes.value : null;
         const list = listRes.status === 'fulfilled' ? listRes.value : null;
         allCampaigns = (list && list.campaigns) || [];
+        const cap = (list && list.fleet_capacity) || (st && st.fleet_capacity) || null;
         if (st) paintStats(st);
         else statsEl.textContent = allCampaigns.length ? (allCampaigns.length + ' campaigns') : 'Pool stats unavailable';
+        paintFleet(cap);
         renderRows(filterCampaigns(activeTab));
       } catch (e) {
-        body.innerHTML = '<tr><td colspan="6">Could not load pool data.</td></tr>';
+        body.innerHTML = '<tr><td colspan="7">Could not load pool data.</td></tr>';
         statsEl.textContent = String(e);
       }
     }

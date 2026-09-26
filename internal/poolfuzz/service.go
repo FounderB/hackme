@@ -81,8 +81,14 @@ type ClaimedWork struct {
 	HuntPinPath          string
 	HuntSourceRel        string
 	HarnessFetchURL      string
+	HarnessContentSHA256 string
 	IterationsPerShard   int
 	HuntDetectLeaks      bool
+	// PowerMutCap / HavocDeepV28 are the mutation-scheduling values the worker
+	// must replay with; sent on the claim so worker exec inputs stay identical
+	// to the coordinator's verification replay.
+	PowerMutCap  int
+	HavocDeepV28 bool
 }
 
 type SubmitRequest struct {
@@ -638,6 +644,7 @@ func (s *Service) Tick(ctx context.Context) error {
 	}
 	if len(pool) == 0 {
 		if pins, err := fuzznative.LoadPins(""); err == nil {
+			_, _ = fuzznative.ReclaimStuckRunning(ctx, s.DB, 3600, 200)
 			_, _ = fuzznative.ProcessPending(ctx, s.DB, pins, 5)
 		}
 		_ = s.flushDeferredBounties(ctx)
@@ -663,6 +670,7 @@ func (s *Service) Tick(ctx context.Context) error {
 		}
 	}
 	if pins, err := fuzznative.LoadPins(""); err == nil {
+		_, _ = fuzznative.ReclaimStuckRunning(ctx, s.DB, 3600, 200)
 		_, _ = fuzznative.ProcessPending(ctx, s.DB, pins, 5)
 	}
 	_ = s.flushDeferredBounties(ctx)
@@ -807,11 +815,12 @@ func (s *Service) clearEmptyClaimCache() {
 }
 
 // ReleaseWorkLease returns a leased item to pending (auth reject / worker give-up).
-func (s *Service) ReleaseWorkLease(ctx context.Context, campaignID string, itemID int64, workerID string) error {
+// released is false when no matching lease was held (caller should treat as failure).
+func (s *Service) ReleaseWorkLease(ctx context.Context, campaignID string, itemID int64, workerID string) (released bool, err error) {
 	campaignID = strings.TrimSpace(campaignID)
 	workerID = strings.TrimSpace(workerID)
 	if campaignID == "" || itemID <= 0 || workerID == "" {
-		return fmt.Errorf("poolfuzz: release lease requires campaign_id, item_id, worker_id")
+		return false, fmt.Errorf("poolfuzz: release lease requires campaign_id, item_id, worker_id")
 	}
 	now := time.Now().Unix()
 	res, err := s.DB.ExecContext(ctx, `
@@ -820,12 +829,14 @@ func (s *Service) ReleaseWorkLease(ctx context.Context, campaignID string, itemI
 		 WHERE id=? AND campaign_id=? AND status='leased' AND lease_owner=?`,
 		now, itemID, campaignID, workerID)
 	if err != nil {
-		return err
+		return false, err
 	}
-	if aff, _ := res.RowsAffected(); aff > 0 {
+	aff, _ := res.RowsAffected()
+	if aff > 0 {
 		s.clearEmptyClaimCache()
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
 // claimOnePendingInCampaign leases the oldest pending row in one campaign.
@@ -983,13 +994,20 @@ func campaignClaimTier(id, title, ownerRef string) string {
 	if strings.Contains(id, "bootstrap") || strings.Contains(title, "bootstrap") || strings.HasPrefix(owner, "bootstrap:") {
 		return "bootstrap"
 	}
+	// Explicit customer Hunt / B2B markers (even when owner_ref was omitted at create).
+	if strings.HasPrefix(id, "hunt-customer-") ||
+		strings.Contains(title, "customer hunt") ||
+		strings.HasPrefix(owner, "customer:") {
+		return "customer"
+	}
 	if owner != "" &&
 		!strings.HasPrefix(owner, "qa:") &&
 		!strings.HasPrefix(owner, "e2e:") &&
 		!strings.HasPrefix(owner, "fleet:") &&
 		!strings.HasPrefix(owner, "diag:") &&
 		!strings.HasPrefix(owner, "test:") &&
-		!strings.HasPrefix(owner, "matrix:") {
+		!strings.HasPrefix(owner, "matrix:") &&
+		!strings.HasPrefix(owner, "founder:") {
 		return "customer"
 	}
 	return "other"
@@ -1786,6 +1804,14 @@ func (s *Service) CampaignProgress(ctx context.Context, campaignID string) (map[
 	}
 	summary := parseConfigJSON(summaryJSON)
 	runsDone := runsDoneForCampaign(ctx, s.DB, campaignID, summary)
+	var failedChecks int
+	_ = s.DB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM fuzz_work_items WHERE campaign_id=? AND status='done' AND result_ok=0`,
+		campaignID).Scan(&failedChecks)
+	runsOK := runsDone - failedChecks
+	if runsOK < 0 {
+		runsOK = 0
+	}
 	var findings int
 	_ = s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM fuzz_findings WHERE campaign_id=?`, campaignID).Scan(&findings)
 	displayStatus := status
@@ -1796,6 +1822,7 @@ func (s *Service) CampaignProgress(ctx context.Context, campaignID string) (map[
 		// runs_done=0 and resurrected "ETA warming up" zombies after node close.
 		now := time.Now().Unix()
 		summary["runs_done"] = runsDone
+		summary["failed_checks"] = failedChecks
 		_, _ = s.DB.ExecContext(ctx,
 			`UPDATE fuzz_campaigns
 			 SET status='completed',
@@ -1806,14 +1833,16 @@ func (s *Service) CampaignProgress(ctx context.Context, campaignID string) (map[
 		completedAt = now
 	}
 	return map[string]any{
-		"ok":           true,
-		"id":           campaignID,
-		"title":        title,
-		"status":       displayStatus,
-		"budget_runs":  budgetRuns,
-		"runs_done":    runsDone,
-		"findings":     findings,
-		"completed_at": completedAt,
+		"ok":            true,
+		"id":            campaignID,
+		"title":         title,
+		"status":        displayStatus,
+		"budget_runs":   budgetRuns,
+		"runs_done":     runsDone,
+		"runs_ok":       runsOK,
+		"failed_checks": failedChecks,
+		"findings":      findings,
+		"completed_at":  completedAt,
 	}, nil
 }
 

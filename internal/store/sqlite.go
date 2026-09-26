@@ -18,9 +18,20 @@ const CurrentSchemaVersion = 18
 // sqliteDSN builds a shared coordinator/node DSN tuned for pool claim/submit under load.
 // cache_size(-131072) ≈ 128MiB page cache; temp_store=MEMORY; mmap_size=256MiB.
 func sqliteDSN(dbPath string) string {
+	return sqliteDSNWithWALCheckpoint(dbPath, 500)
+}
+
+// sqliteDSNWithWALCheckpoint is the shared DSN; pages≈2MiB per 500 with 4KiB pages.
+// Fuzz DB uses a lower autocheckpoint to shrink -wal under claim/submit stampede
+// (SQLITE_IOERR_WRITE / extended 522 observed when WAL + freelist balloon).
+func sqliteDSNWithWALCheckpoint(dbPath string, walAutocheckpointPages int) string {
+	if walAutocheckpointPages < 100 {
+		walAutocheckpointPages = 100
+	}
 	return fmt.Sprintf(
-		"file:%s?_pragma=busy_timeout(60000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=wal_autocheckpoint(500)&_pragma=cache_size(-131072)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)",
+		"file:%s?_pragma=busy_timeout(60000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=wal_autocheckpoint(%d)&_pragma=cache_size(-131072)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)",
 		filepath.ToSlash(dbPath),
+		walAutocheckpointPages,
 	)
 }
 
@@ -66,12 +77,12 @@ func Open(dbPath string) (*sql.DB, error) {
 }
 
 // OpenFuzz opens a fuzz-only SQLite database (campaigns, escrow, settle outbox).
-// Same DSN pragmas as Open, but does not create blocks/wallet/tasks/chain tables.
+// Same DSN family as Open, but wal_autocheckpoint(250) ≈ 1MiB and fuzz-tuned pool.
 func OpenFuzz(dbPath string) (*sql.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil && filepath.Dir(dbPath) != "." {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", sqliteDSN(dbPath))
+	db, err := sql.Open("sqlite", sqliteDSNWithWALCheckpoint(dbPath, 250))
 	if err != nil {
 		return nil, err
 	}

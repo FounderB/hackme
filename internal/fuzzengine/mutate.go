@@ -21,8 +21,7 @@ func dictPick(mix uint64) byte {
 func MutateInput(base uint64, stage MutationStage, salt uint64) uint64 {
 	s := int(stage)
 	if s < StageDeterministicMax {
-		bit := uint(s % 64)
-		return base ^ (uint64(1) << bit)
+		return mutateInputDeterministic(base, s, salt)
 	}
 	out := base
 	rounds := 1 + int((salt+uint64(s))%4)
@@ -52,6 +51,24 @@ func MutateInput(base uint64, stage MutationStage, salt uint64) uint64 {
 			out = PackWasmCheckInput(op^int(mix&0xff), itemID^int(mix>>8&0xffff), int64(mix>>24))
 		}
 	}
+	return out
+}
+
+func mutateInputDeterministic(base uint64, stage int, salt uint64) uint64 {
+	s := stage % StageDeterministicMax
+	mix := splitmix64(salt ^ uint64(s)*0x9e3779b97f4a7c15)
+	buf := U64LayoutToBytes(base)
+	applyDeterministicByteStage(buf, s, salt)
+	var out uint64
+	for i := 0; i < 8 && i < len(buf); i++ {
+		out |= uint64(buf[i]) << (8 * i)
+	}
+	if out == base {
+		// Guarantee progress when interesting overwrite lands on same bytes.
+		bit := uint((mix ^ uint64(s)) % 64)
+		out = base ^ (uint64(1) << bit)
+	}
+	_ = mix
 	return out
 }
 

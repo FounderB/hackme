@@ -18,9 +18,14 @@ func MutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 }
 
 // MutateBytesForHunt applies mutations with static dict + optional corpus autodict + crossover.
+// When cfg enables havoc_deep_v28, a second deterministic deep stack is applied (replay-safe opt-in).
 func MutateBytesForHunt(base []byte, stage MutationStage, salt uint64, maxLen int, cfg map[string]any, corpus [][]byte) []byte {
 	dict := EffectiveMutatorDict(cfg, corpus)
-	return mutateBytesWithDict(base, stage, salt, maxLen, dict, corpus)
+	out := mutateBytesWithDict(base, stage, salt, maxLen, dict, corpus)
+	if DeepHavocV28(cfg) {
+		out = applyDeepHavocV28(out, stage, salt, maxLen, dict, corpus)
+	}
+	return out
 }
 
 // MutateBytesForConfig applies byte mutations with optional pack mutator_dict.
@@ -65,6 +70,75 @@ func havocStackDepth(stage MutationStage, salt uint64) int {
 	return rounds
 }
 
+func applyDeterministicByteStage(out []byte, stage int, salt uint64) {
+	if len(out) == 0 {
+		return
+	}
+	s := stage % StageDeterministicMax
+	mix := splitmix64(salt ^ uint64(s)*0x9e3779b97f4a7c15)
+	switch {
+	case s < 16:
+		// Walking bitflip: stage picks bit lane; salt walks byte offset.
+		bit := uint(s % 8)
+		idx := int((mix ^ uint64(s)) % uint64(len(out)))
+		out[idx] ^= byte(1 << bit)
+		if len(out) > 1 && s >= 8 {
+			idx2 := (idx + 1 + int(mix%uint64(len(out)-1))) % len(out)
+			out[idx2] ^= byte(1 << ((bit + 1) % 8))
+		}
+	case s < 32:
+		idx := int(mix % uint64(len(out)))
+		delta := int8(1 + int(s-16)%35)
+		if (mix>>8)&1 == 1 {
+			delta = -delta
+		}
+		arithAdd8(out, idx, delta)
+	case s < 48:
+		vals := Interesting8()
+		idx := int(mix % uint64(len(out)))
+		out[idx] = vals[int(mix>>8)%len(vals)]
+		if len(out) > 1 && s >= 40 {
+			idx2 := (idx + 1) % len(out)
+			out[idx2] = vals[int(mix>>16)%len(vals)]
+		}
+	default:
+		idx := int(mix % uint64(len(out)))
+		switch s % 4 {
+		case 0:
+			if len(out) >= 2 {
+				vals := Interesting16LE()
+				writeU16LE(out, idx%(len(out)-1), vals[int(mix>>8)%len(vals)])
+			} else {
+				out[idx] ^= 0xff
+			}
+		case 1:
+			if len(out) >= 2 {
+				vals := Interesting16BE()
+				writeU16BE(out, idx%(len(out)-1), vals[int(mix>>8)%len(vals)])
+			} else {
+				out[idx] = 0
+			}
+		case 2:
+			if len(out) >= 4 {
+				vals := Interesting32LE()
+				writeU32LE(out, idx%(len(out)-3), vals[int(mix>>8)%len(vals)])
+			} else if len(out) >= 2 {
+				arithAdd16LE(out, idx%(len(out)-1), int16(1+int(mix%35)))
+			} else {
+				arithAdd8(out, idx, 1)
+			}
+		default:
+			if len(out) >= 4 {
+				vals := Interesting32BE()
+				writeU32BE(out, idx%(len(out)-3), vals[int(mix>>8)%len(vals)])
+			} else if len(out) >= 2 {
+				arithAdd16LE(out, idx%(len(out)-1), -int16(1+int(mix%35)))
+			} else {
+				arithAdd8(out, idx, -1)
+			}
+		}
+	}
+}
 func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen int, dict []byte, corpus [][]byte) []byte {
 	if maxLen <= 0 {
 		maxLen = DefaultMaxInputBytesStd
@@ -85,26 +159,11 @@ func mutateBytesWithDict(base []byte, stage MutationStage, salt uint64, maxLen i
 	s := int(stage)
 	if s < StageDeterministicMax {
 		out := append([]byte(nil), base...)
-		idx := s % len(out)
-		// v2.8: CmpLog-inspired deterministic queue (still keyed only by stage+salt).
-		switch (salt >> 3) % 6 {
-		case 0:
-			out[idx] ^= byte(1 << (salt % 8))
-		case 1:
-			arithAdd8(out, idx, int8((salt>>8)&0xff)-64)
-		case 2:
-			vals := Interesting8()
-			out[idx] = vals[int(salt>>8)%len(vals)]
-		case 3:
+		applyDeterministicByteStage(out, s, salt)
+		// v2.9: every 7th deterministic stage also applies CmpLog-inspired smash (replay-stable).
+		if (salt%7) == 0 {
 			out = cmpReplaceWithInteresting(out, salt^uint64(s)*0x9E37)
-		case 4:
 			out = cmpArithTowardInteresting(out, salt^uint64(s)*0xC2B2)
-		default:
-			if len(out) >= 2 {
-				arithAdd16LE(out, idx%max(1, len(out)-1), int16((salt>>8)&0xffff)-128)
-			} else {
-				out[idx] ^= byte(1 << (salt % 8))
-			}
 		}
 		if len(out) > maxLen {
 			out = out[:maxLen]

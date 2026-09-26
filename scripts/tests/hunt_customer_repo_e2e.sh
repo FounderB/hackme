@@ -192,7 +192,7 @@ echo "$CREATE" | jq -e '.ok == true and (.pool_sync == "ok" or .pool_sync == "qu
 
 # Wait until coordinator lists the campaign.
 for _ in $(seq 1 40); do
-  if curl -fsS --max-time 5 "${COORD_BASE}/api/fuzz/pool/campaigns/progress?id=${CID}" \
+  if curl -fsS --max-time 5 -H "X-Hackme-Admin-Token: ${HACKME_COORDINATOR_ADMIN_TOKEN:-${HACKME_POOL_COORDINATOR_TOKEN:-}}" "${COORD_BASE}/api/fuzz/pool/campaigns/progress?id=${CID}" \
     | jq -e '.ok == true' >/dev/null 2>&1; then
     break
   fi

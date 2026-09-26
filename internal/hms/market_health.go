@@ -51,7 +51,7 @@ func (c *Coordinator) workerOnline(workerID string) bool {
 }
 
 func (c *Coordinator) replicaFileOK(workerID, chunkID string) bool {
-	_, err := c.readMarketChunkFile(workerID, chunkID)
+	_, err := c.readVerifiedMarketChunkFile(workerID, chunkID)
 	return err == nil
 }
 
@@ -148,7 +148,7 @@ func (c *Coordinator) tryRepairChunk(orderID string, chunkIndex int, chunkID str
 		if !c.replicaFileOK(wid, chunkID) {
 			continue
 		}
-		b, err := c.readMarketChunkFile(wid, chunkID)
+		b, err := c.readVerifiedMarketChunkFile(wid, chunkID)
 		if err == nil && len(b) > 0 {
 			src = b
 			srcWorker = wid

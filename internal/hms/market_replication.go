@@ -1,6 +1,8 @@
 package hms
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -8,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"hackme/internal/pathsafe"
 )
 
 func marketReplicaCount() int {
@@ -141,6 +145,45 @@ func (c *Coordinator) readMarketChunkFile(workerID, chunkID string) ([]byte, err
 	return nil, fmt.Errorf("chunk file missing for worker %s", workerID)
 }
 
+// readVerifiedMarketChunkFile returns replica bytes only when they match the
+// ciphertext_sha256 registered at upload. A swapped file on the worker path
+// is skipped when another copy of the same replica still matches.
+func (c *Coordinator) readVerifiedMarketChunkFile(workerID, chunkID string) ([]byte, error) {
+	var want []byte
+	if err := c.db.QueryRow(`SELECT ciphertext_sha256 FROM hms_chunks WHERE chunk_id=?`, chunkID).Scan(&want); err != nil {
+		return nil, err
+	}
+	if len(want) != sha256.Size {
+		return nil, fmt.Errorf("chunk %s has no registered ciphertext hash", chunkID)
+	}
+	var saw bool
+	for _, p := range []string{
+		filepathJoinMarket(marketStorageRoot(), workerID, chunkID+".dat"),
+		filepathJoinMarket(marketDataRoot(), workerID, chunkID+".dat"),
+	} {
+		if p == "" {
+			continue
+		}
+		safe, ok := pathsafe.Allow(p)
+		if !ok || !pathsafe.AbsRE.MatchString(safe) {
+			continue
+		}
+		b, err := os.ReadFile(safe)
+		if err != nil {
+			continue
+		}
+		saw = true
+		sum := sha256.Sum256(b)
+		if bytes.Equal(sum[:], want) {
+			return b, nil
+		}
+	}
+	if saw {
+		return nil, fmt.Errorf("chunk %s ciphertext hash mismatch", chunkID)
+	}
+	return nil, fmt.Errorf("chunk file missing for worker %s", workerID)
+}
+
 func filepathJoinMarket(root, workerID, name string) string {
 	root = strings.TrimSpace(root)
 	if root == "" {
@@ -159,11 +202,16 @@ func filepathJoinMarket(root, workerID, name string) string {
 	if name == "" || name == "." || name == ".." {
 		return ""
 	}
-	full := filepath.Clean(filepath.Join(root, workerID, name))
 	rootClean := filepath.Clean(root)
-	sep := string(filepath.Separator)
-	if full != rootClean && !strings.HasPrefix(full, rootClean+sep) {
+	full := filepath.Clean(filepath.Join(rootClean, workerID, name))
+	rel, err := filepath.Rel(rootClean, full)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return ""
 	}
-	return full
+	// Rebuild under root so ReadFile/WriteFile sinks see a confined path.
+	out := filepath.Join(rootClean, rel)
+	if out != rootClean && !strings.HasPrefix(out, rootClean+string(os.PathSeparator)) {
+		return ""
+	}
+	return out
 }

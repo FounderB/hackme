@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestBuildAllTargets(t *testing.T) {
@@ -167,6 +168,59 @@ func TestHuntJsmnSmoke(t *testing.T) {
 	t.Logf("jsmn smoke: iterations=%d crashes=%d verdict=%s", rep.Iterations, len(rep.Crashes), rep.Verdict)
 }
 
+func writeBinScript(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "target.sh")
+	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestRunInputExitZeroEchoIsNotCrash(t *testing.T) {
+	bin := writeBinScript(t, "#!/bin/sh\ncat\nexit 0\n")
+	crash, info, _, err := RunInputDetailed(context.Background(), bin, []byte("unknown field 'heap-buffer-overflow' ignored\n"), DefaultRunInputOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if crash || info.Security {
+		t.Fatalf("exit 0 echo must not be an ASAN crash: crash=%v info=%+v", crash, info)
+	}
+}
+
+func TestRunInputNonZeroWithoutBannerIsNotBounty(t *testing.T) {
+	bin := writeBinScript(t, "#!/bin/sh\necho heap-buffer-overflow\nexit 1\n")
+	crash, info, _, err := RunInputDetailed(context.Background(), bin, nil, DefaultRunInputOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if crash || info.Security || info.Class == "asan" {
+		t.Fatalf("exit 1 plus a bare substring must stay clean: crash=%v info=%+v", crash, info)
+	}
+}
+
+func TestRunInputSignalWithoutBannerNeedsTriage(t *testing.T) {
+	bin := writeBinScript(t, "#!/bin/sh\nkill -ABRT $$\n")
+	crash, info, _, err := RunInputDetailed(context.Background(), bin, nil, DefaultRunInputOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !crash || info.Security || info.Subtype != "needs_triage" {
+		t.Fatalf("signal without banner: crash=%v info=%+v", crash, info)
+	}
+}
+
+func TestRunInputASANBannerIsSecurityCrash(t *testing.T) {
+	bin := writeBinScript(t, "#!/bin/sh\necho '==1==ERROR: AddressSanitizer: heap-buffer-overflow'\nexit 1\n")
+	crash, info, _, err := RunInputDetailed(context.Background(), bin, nil, DefaultRunInputOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !crash || !info.Security || info.Class != "asan" {
+		t.Fatalf("canonical ASAN banner: crash=%v info=%+v", crash, info)
+	}
+}
+
 func TestRunInputDetailedMissingBinaryDoesNotFailOpen(t *testing.T) {
 	crash, _, _, err := RunInputDetailed(context.Background(), filepath.Join(t.TempDir(), "no-such-bin"), []byte("{}"), DefaultRunInputOpts())
 	if crash {
@@ -174,6 +228,34 @@ func TestRunInputDetailedMissingBinaryDoesNotFailOpen(t *testing.T) {
 	}
 	if err == nil {
 		t.Fatal("missing binary must return error (not CLEAN fail-open)")
+	}
+}
+
+func TestRunInputDetailedLibFuzzerUsesFileOnce(t *testing.T) {
+	// Fake cargo-fuzz/libFuzzer driver: marker in the script body triggers detection;
+	// hang forever on empty argv (stdin mode), exit 0 when given a file + -runs=1.
+	bin := writeBinScript(t, `#!/bin/sh
+# SUMMARY: libFuzzer: timeout
+if [ -n "$1" ] && [ "$2" = "-runs=1" ]; then
+  cat "$1" >/dev/null
+  exit 0
+fi
+sleep 30
+exit 1
+`)
+	if !binaryLooksLikeLibFuzzer(bin) {
+		t.Fatal("expected libFuzzer marker detection")
+	}
+	start := time.Now()
+	crash, _, _, err := RunInputDetailed(context.Background(), bin, []byte("AAAA"), DefaultRunInputOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if crash {
+		t.Fatal("fake libFuzzer one-shot must be CLEAN")
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Fatalf("libFuzzer one-shot took too long: %v", time.Since(start))
 	}
 }
 

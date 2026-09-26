@@ -86,24 +86,21 @@ func maxMemoryLimitPages() uint32 {
 	case "permissive":
 		v = 256
 	}
+	pages := uint32(v)
+	if pages < 32 {
+		pages = 32
+	}
+	if pages > 1024 {
+		pages = 1024
+	}
 	if !sandboxLocked() && sandboxProfile() == "permissive" {
 		if s := strings.TrimSpace(os.Getenv("HACKME_SANDBOX_MEMORY_PAGES")); s != "" {
-			if x, err := strconv.Atoi(s); err == nil {
-				v = x
+			if x, err := strconv.Atoi(s); err == nil && x >= 32 && x <= 1024 {
+				pages = uint32(x)
 			}
 		}
 	}
-	if v < 32 {
-		v = 32
-	}
-	if v > 1024 {
-		v = 1024
-	}
-	// Explicit non-negative bound for CodeQL integer-conversion check.
-	if v < 0 {
-		v = 32
-	}
-	return uint32(v) //nolint:gosec // v clamped to [32,1024]
+	return pages
 }
 
 // Policy returns active sandbox policy values.
@@ -123,7 +120,9 @@ func Policy() PolicySnapshot {
 func ensureCheckRuntime() wazero.Runtime {
 	checkOnce.Do(func() {
 		checkRuntime = wazero.NewRuntimeWithConfig(context.Background(),
-			wazero.NewRuntimeConfigInterpreter().WithMemoryLimitPages(maxMemoryLimitPages()))
+			wazero.NewRuntimeConfigInterpreter().
+				WithMemoryLimitPages(maxMemoryLimitPages()).
+				WithCloseOnContextDone(true))
 	})
 	return checkRuntime
 }

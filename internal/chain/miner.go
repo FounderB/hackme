@@ -543,7 +543,7 @@ func (m *Miner) Start(ctx context.Context) {
 		workers--
 	}
 	if ev := strings.TrimSpace(os.Getenv("HACKME_MINER_CPU_WORKERS")); ev != "" {
-		if n, err := strconv.Atoi(ev); err == nil && n >= 1 {
+		if n, err := strconv.Atoi(ev); err == nil && n >= 1 && n <= 512 {
 			workers = n
 		}
 	}
@@ -553,7 +553,7 @@ func (m *Miner) Start(ctx context.Context) {
 	if workers > 512 {
 		workers = 512
 	}
-	m.cpuWorkers.Store(int32(workers)) //nolint:gosec // clamped to [1,512] above
+	m.cpuWorkers.Store(int32(workers))
 
 	var nextNonce atomic.Uint64
 	var rnd [8]byte

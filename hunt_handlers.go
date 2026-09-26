@@ -147,6 +147,10 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := cleanFuzzID(req.ID, "hunt")
+	ownerRef := strings.TrimSpace(req.OwnerRef)
+	if ownerRef == "" && strings.HasPrefix(id, "hunt-customer-") {
+		ownerRef = "customer:" + strings.TrimPrefix(id, "hunt-customer-")
+	}
 	now := time.Now().Unix()
 	reportToken := newReportToken()
 	reportTokenHashHex := reportTokenHash(reportToken)
@@ -174,8 +178,8 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 	err = execContextRetryBusy(r.Context(), a.db,
 		`INSERT INTO fuzz_campaigns
 		 (id, campaign_type, status, title, description, owner_ref, task_id, target_ref, budget_runs, budget_seconds, config_json, summary_json, report_token_hash, report_token_issued_at, created_at, started_at, completed_at)
-		 VALUES (?, 'hunt', ?, ?, '', '', '', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-		id, status, title, cfgMap["upstream_target_id"], shards, budgetSeconds, cfg, marshalMapJSON(initialSummary), reportTokenHashHex, now, now, startedAt)
+		 VALUES (?, 'hunt', ?, ?, '', ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+		id, status, title, ownerRef, cfgMap["upstream_target_id"], shards, budgetSeconds, cfg, marshalMapJSON(initialSummary), reportTokenHashHex, now, now, startedAt)
 	if err != nil {
 		writeAPIError(w, http.StatusConflict, "create_failed", "campaign create failed", map[string]any{"detail": err.Error()})
 		return
@@ -183,7 +187,7 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 	escrow, err := a.chain.OpenHuntEscrow(r.Context(), id, budgetHMC, shards)
 	if err != nil {
 		_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, id)
-		writeAPIError(w, http.StatusPaymentRequired, "escrow_failed", err.Error(), nil)
+		writeFuzzEscrowFailed(w, err)
 		return
 	}
 	cfgMap["budget_hmc"] = budgetHMC
@@ -193,6 +197,7 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 	_, _ = a.db.ExecContext(r.Context(), `UPDATE fuzz_campaigns SET config_json=? WHERE id=?`, cfg, id)
 	c, err := a.getFuzzCampaign(r.Context(), id)
 	if err != nil {
+		a.rollbackNewCampaignEscrow(r.Context(), id)
 		writeAPIError(w, http.StatusInternalServerError, "load_failed", "campaign created but readback failed", nil)
 		return
 	}
@@ -209,12 +214,14 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 	mergeDeliverableURLs(resp, id)
 	if poolDistributedCampaign(cfgMap) {
 		if pubErr := a.publishHuntHarnessForConfig(r.Context(), cfgMap); pubErr != nil {
+			a.rollbackNewCampaignEscrow(r.Context(), id)
 			writeAPIError(w, http.StatusBadRequest, "harness_publish_failed", pubErr.Error(), nil)
 			return
 		}
 		cfg = marshalMapJSON(cfgMap)
 		_, _ = a.db.ExecContext(r.Context(), `UPDATE fuzz_campaigns SET config_json=? WHERE id=?`, cfg, id)
 		if syncErr := a.syncHuntHarnessToCoordinator(r.Context(), cfgMap); syncErr != nil {
+			a.rollbackNewCampaignEscrow(r.Context(), id)
 			writeAPIError(w, http.StatusBadGateway, "harness_pool_sync_failed", syncErr.Error(), map[string]any{
 				"harness_hash": cfgMap["harness_hash"],
 			})
@@ -223,7 +230,7 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		a.syncCorpusNamespaceToCoordinator(r.Context(), cfgMap)
 		resp["pool_distributed"] = true
 		resp["harness_fetch_path"] = cfgMap["harness_fetch_path"]
-		fc := fuzzAutoCampaign{ID: id, BudgetRuns: shards, BudgetSeconds: 86400, ConfigJSON: cfg}
+		fc := fuzzAutoCampaign{ID: id, BudgetRuns: shards, BudgetSeconds: 86400, ConfigJSON: cfg, OwnerRef: ownerRef}
 		a.applyPoolSyncResponse(resp, r.Context(), fc)
 	}
 	writeJSON(w, resp)

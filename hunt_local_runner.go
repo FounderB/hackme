@@ -26,7 +26,11 @@ func (a *app) huntLocalAutorunTick(ctx context.Context, c fuzzAutoCampaign, cfg 
 			 SET status='completed', completed_at=CASE WHEN completed_at=0 THEN ? ELSE completed_at END, summary_json=?
 			 WHERE id=? AND status<>'completed'`,
 			now, marshalMapJSON(hunt.LocalAutorunStateToSummary(summary, st)), c.ID)
-		return err
+		if err != nil {
+			return err
+		}
+		a.tryCloseFuzzEscrowForStatus(ctx, c.ID, "completed")
+		return nil
 	}
 	newSt, rep, err := hunt.LocalAutorunTick(ctx, a.repoRoot(), cfg, st, now)
 	if err != nil {
@@ -53,6 +57,9 @@ func (a *app) huntLocalAutorunTick(ctx context.Context, c fuzzAutoCampaign, cfg 
 		status, now, marshalMapJSON(summary), status, completedAt, c.ID)
 	if err != nil {
 		return err
+	}
+	if newSt.Completed {
+		a.tryCloseFuzzEscrowForStatus(ctx, c.ID, "completed")
 	}
 	if rep != nil && len(rep.Crashes) > 0 {
 		log.Printf("hunt local autorun campaign=%s iter=%d crashes=%d verdict=%s",

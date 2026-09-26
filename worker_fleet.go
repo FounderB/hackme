@@ -75,7 +75,7 @@ func resolveWorkerExeForSlot(repoRoot, backend string) (string, error) {
 	return resolveWorkerpohExePathForBackend(backend)
 }
 
-func startWorkerFleetProcesses(repoRoot, coordURL, coordToken, workerBase string, batchSize uint64, logPath string) ([]*exec.Cmd, error) {
+func startWorkerFleetProcesses(repoRoot, coordURL, coordToken, workerBase string, batchSize uint64, logPath string, extraEnv []string) ([]*exec.Cmd, error) {
 	plan := buildWorkerFleetPlan(repoRoot, workerBase)
 	if plan.TotalSlots <= 1 && len(plan.Slots) == 1 {
 		return nil, fmt.Errorf("single_slot")
@@ -114,7 +114,8 @@ func startWorkerFleetProcesses(repoRoot, coordURL, coordToken, workerBase string
 		cmd := exec.Command(exe, args...)
 		cmd.Stdout = logF
 		cmd.Stderr = logF
-		env := os.Environ()
+		env := append([]string{}, os.Environ()...)
+		env = append(env, extraEnv...)
 		for k, v := range slot.Env {
 			env = append(env, k+"="+v)
 		}
@@ -122,6 +123,7 @@ func startWorkerFleetProcesses(repoRoot, coordURL, coordToken, workerBase string
 			env = append(env, "HACKME_FORCE_OPENCL=1")
 		}
 		cmd.Env = env
+		configurePoolWorkerCmd(cmd)
 		if err := cmd.Start(); err != nil {
 			_ = logF.Close()
 			for _, c := range cmds {
@@ -142,10 +144,30 @@ func killExternalWorkerFleet(repoRoot string) {
 		_ = exec.Command("taskkill", "/F", "/IM", "workerpoh.exe").Run()
 		_ = exec.Command("taskkill", "/F", "/IM", "workerpoh-cuda.exe").Run()
 		_ = exec.Command("taskkill", "/F", "/IM", "workerpoh-opencl.exe").Run()
+		_ = exec.Command("taskkill", "/F", "/IM", "workerpoh-cpu.exe").Run()
 		return
 	}
-	_ = exec.Command("pkill", "-f", "workerpoh-cuda").Run()
-	_ = exec.Command("pkill", "-f", "workerpoh-opencl").Run()
-	_ = exec.Command("pkill", "-f", "scripts/ops/worker_autostart.sh").Run()
-	_ = repoRoot
+	// Keep parity with scripts/ops/stop_pool_workers.sh — plain bin/workerpoh
+	// orphans (non-cuda suffix) must die too or they keep flock after node crash.
+	patterns := []string{
+		"scripts/ops/worker_autostart.sh",
+		"scripts/ops/worker_loop.sh",
+		"worker_autostart.sh",
+		"worker_loop.sh",
+		"workerpoh-cuda",
+		"workerpoh-opencl",
+		"workerpoh-cpu",
+		"bin/workerpoh",
+		"workerpoh ",
+	}
+	for _, pattern := range patterns {
+		_ = exec.Command("pkill", "-f", pattern).Run()
+	}
+	for _, pattern := range []string{"workerpoh-cuda", "workerpoh-opencl", "workerpoh-cpu", "workerpoh "} {
+		_ = exec.Command("pkill", "-9", "-f", pattern).Run()
+	}
+	if repoRoot != "" {
+		_ = os.Remove(filepath.Join(repoRoot, "logs", ".worker_autostart.lock"))
+	}
+	_ = os.Remove(filepath.Join("logs", ".worker_autostart.lock"))
 }

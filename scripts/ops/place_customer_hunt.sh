@@ -104,12 +104,14 @@ CREATE="$(curl -fsS --max-time 900 -X POST "${NODE}/api/hunt/campaigns" \
     --arg pkg "$PACKAGE" \
     --arg p "$REPO" \
     --arg rel "$SOURCE_REL" \
+    --arg owner "customer:$(basename "$REPO" | tr -c 'a-zA-Z0-9' '-' | tr '[:upper:]' '[:lower:]')" \
     --argjson shards "$SHARDS" \
     --argjson repo "$repo_obj" \
     '{
       id: $id,
       package: $pkg,
       title: $title,
+      owner_ref: $owner,
       pool_distributed: true,
       budget_shards: $shards,
       status: "running",
@@ -137,7 +139,7 @@ deadline=$((SECONDS + WAIT_SEC))
 DONE=0
 while ((SECONDS < deadline)); do
   if [[ -n "$COORD" ]]; then
-    PROG="$(curl -fsS --max-time 15 "${COORD%/}/api/fuzz/pool/campaigns/progress?id=${CID}" 2>/dev/null || echo '{}')"
+    PROG="$(curl -fsS --max-time 15 -H "X-Hackme-Admin-Token: ${HACKME_COORDINATOR_ADMIN_TOKEN:-${HACKME_POOL_COORDINATOR_TOKEN:-}}" "${COORD%/}/api/fuzz/pool/campaigns/progress?id=${CID}" 2>/dev/null || echo '{}')"
     DONE="$(echo "$PROG" | jq -r '.runs_done // .done // 0' 2>/dev/null || echo 0)"
   else
     DONE="$(curl -fsS --max-time 15 "${NODE}/api/fuzz/campaigns/${CID}" \

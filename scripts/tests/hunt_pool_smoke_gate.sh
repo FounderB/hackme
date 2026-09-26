@@ -94,7 +94,7 @@ import json, os
 print(json.dumps({
   "id": os.environ["CID"],
   "campaign_type": "hunt",
-  "title": "hunt pool gate",
+  "title": "Hunt pool shard verify",
   "status": "running",
   "budget_runs": int(os.environ["BUDGET_RUNS"]),
   "budget_seconds": 300,
@@ -117,6 +117,22 @@ print(json.dumps({
 PY
 )" >/dev/null
 
+HARNESS_BIN="$ROOT/.cache/hunt-harness/${HARNESS_HASH}.bin"
+if [[ ! -f "$HARNESS_BIN" ]]; then
+  echo "[hunt-pool-gate] FAIL: harness missing at $HARNESS_BIN (prebuild should have created it)" >&2
+  exit 1
+fi
+echo "[hunt-pool-gate] publish harness $HARNESS_HASH ($(stat -c%s "$HARNESS_BIN") bytes)"
+B64_FILE="$(mktemp)"
+JSON_FILE="$(mktemp)"
+base64 -w0 "$HARNESS_BIN" >"$B64_FILE"
+jq -nc --arg h "$HARNESS_HASH" --rawfile b "$B64_FILE" --arg s "gate:${TARGET_ID}" \
+  '{harness_hash:$h, source_rel:$s, binary_b64:$b}' >"$JSON_FILE"
+curl -fsS -X POST "${BASE}/api/fuzz/pool/hunt/harness" \
+  -H "Content-Type: application/json" \
+  -d @"$JSON_FILE" | jq -e '.ok == true' >/dev/null
+rm -f "$B64_FILE" "$JSON_FILE"
+
 WORKERFUZZ_BIN="${WORKERFUZZ_BIN:-$ROOT/bin/workerfuzz-hunt-gate}"
 echo "[hunt-pool-gate] build workerfuzz → $WORKERFUZZ_BIN"
 go build -trimpath -o "$WORKERFUZZ_BIN" ./cmd/workerfuzz
@@ -125,7 +141,14 @@ export COORD_TOKEN="$HACKME_COORDINATOR_WORKER_TOKEN"
 export WORKERFUZZ_TIMEOUT_MS="${WORKERFUZZ_TIMEOUT_MS:-120000}"
 echo "[hunt-pool-gate] run workerfuzz (timeout_ms=$WORKERFUZZ_TIMEOUT_MS)"
 GATE_WALL_SEC="${GATE_WALL_SEC:-120}"
-WORKER_ID=hunt-w1 timeout "$GATE_WALL_SEC"s "$WORKERFUZZ_BIN" -coord "$BASE" -token "$HACKME_COORDINATOR_WORKER_TOKEN" -worker hunt-w1 -timeout-ms "$WORKERFUZZ_TIMEOUT_MS" || true
+set +e
+WORKER_ID=hunt-w1 timeout "$GATE_WALL_SEC"s "$WORKERFUZZ_BIN" -coord "$BASE" -token "$HACKME_COORDINATOR_WORKER_TOKEN" -worker hunt-w1 -timeout-ms "$WORKERFUZZ_TIMEOUT_MS"
+WF_EC=$?
+set -e
+# timeout exits 124; worker may exit 0 after wall — both OK if shards complete below
+if [[ "$WF_EC" -ne 0 && "$WF_EC" -ne 124 ]]; then
+  echo "[hunt-pool-gate] WARN: workerfuzz exit=$WF_EC (continuing to shard check)" >&2
+fi
 
 echo "[hunt-pool-gate] wait for async replay drain"
 for _ in $(seq 1 120); do

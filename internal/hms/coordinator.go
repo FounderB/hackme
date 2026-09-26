@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -312,14 +313,15 @@ func (c *Coordinator) IssueChallenge(workerID string) (map[string]any, error) {
 	if _, err := rand.Read(ob[:]); err != nil {
 		return nil, err
 	}
-	if size > 32 {
-		offset = uint64(ob[0]) % uint64(size-32)
-	}
+	offset = sectorOffset(size, ob)
 	binding := ProofBinding(ep.EpochID, workerID, chunkID, offset, ct)
 	var sectorExpected []byte
-	if ctBytes, readErr := c.readMarketChunkFile(workerID, chunkID); readErr == nil && len(ctBytes) > 0 {
+	ctBytes, readErr := c.readVerifiedMarketChunkFile(workerID, chunkID)
+	if readErr == nil && len(ctBytes) > 0 {
 		sector := SectorProofFromCiphertext(ctBytes, offset)
 		sectorExpected = sector[:]
+	} else if readErr != nil {
+		c.recordStorageProofFailure(workerID, chunkID)
 	}
 	chID := fmt.Sprintf("%d-%s-%x", ep.EpochID, workerID, ob)
 	expires := now + int64(c.cfg.ChallengeTTL.Seconds())
@@ -336,6 +338,15 @@ func (c *Coordinator) IssueChallenge(workerID string) (map[string]any, error) {
 		"expires_unix":  expires,
 		"binding_hex":   encodeHex(binding[:]),
 	}, nil
+}
+
+// sectorOffset spreads the PoST window across the whole chunk. A single
+// random byte only reaches the first 256 positions.
+func sectorOffset(size int64, ob [8]byte) uint64 {
+	if size <= 32 {
+		return 0
+	}
+	return binary.BigEndian.Uint64(ob[:]) % uint64(size-32)
 }
 
 func (c *Coordinator) epochNeedsSeal(ep epochRow) bool {
@@ -408,7 +419,7 @@ func (c *Coordinator) SubmitStorageProof(p StorageSubmitPayload, pubHex, sigHex 
 	if !verified {
 		var chunkWorker string
 		if err := c.db.QueryRow(`SELECT worker_id FROM hms_chunks WHERE chunk_id=?`, chunkID).Scan(&chunkWorker); err == nil {
-			if ctBytes, readErr := c.readMarketChunkFile(chunkWorker, chunkID); readErr == nil && len(ctBytes) > 0 {
+			if ctBytes, readErr := c.readVerifiedMarketChunkFile(chunkWorker, chunkID); readErr == nil && len(ctBytes) > 0 {
 				expected := SectorProofFromCiphertext(ctBytes, uint64(offset))
 				if sector == expected {
 					verified = true

@@ -22,6 +22,7 @@ import (
 	"hackme/internal/chain"
 	"hackme/internal/gpupoh"
 	"hackme/internal/gputune"
+	"hackme/internal/hotlog"
 	"hackme/internal/operator"
 	"hackme/internal/sandbox"
 	"hackme/internal/workerfuzzloop"
@@ -192,18 +193,18 @@ func pushWorkSnapshot(cl *http.Client, coordURL, token, workerID, workerName str
 	_ = res.Body.Close()
 }
 
-// loadHybridSigningMaterial returns (priv, pubHex, true) when a miner seed is available
+// loadHybridSigningMaterial returns (priv, pubHex, payoutAddr, hybrid) when a miner seed is available
 // (HACKME_MINER_ED25519_SEED_HEX, HACKME_MINER_SEED_FILE, or desktop node seed).
-func loadHybridSigningMaterial() (ed25519.PrivateKey, string, bool, error) {
-	priv, pubHex, _, hybrid, err := workerfuzzloop.LoadHybridKey()
+func loadHybridSigningMaterial() (ed25519.PrivateKey, string, string, bool, error) {
+	priv, pubHex, addr, hybrid, err := workerfuzzloop.LoadHybridKey()
 	if err != nil {
 		msg := err.Error()
 		if strings.Contains(msg, "required") || strings.Contains(msg, "SEED") {
-			return nil, "", false, nil
+			return nil, "", "", false, nil
 		}
-		return nil, "", false, err
+		return nil, "", "", false, err
 	}
-	return priv, pubHex, hybrid, nil
+	return priv, pubHex, strings.TrimSpace(addr), hybrid, nil
 }
 
 type searcher interface {
@@ -277,6 +278,33 @@ func envIntMs(envKey string, fallback int) int {
 	return x
 }
 
+// envIntPositive is envIntMs for values where zero is invalid (e.g. the GPU
+// search timeout: a zero-duration context is already expired, so every GPU
+// Search would fail and silently fall back to CPU).
+func envIntPositive(envKey string, fallback int) int {
+	v := strings.TrimSpace(os.Getenv(envKey))
+	if v == "" {
+		return fallback
+	}
+	x, err := strconv.Atoi(v)
+	if err != nil || x <= 0 {
+		return fallback
+	}
+	return x
+}
+
+func envUint64(envKey string, fallback uint64) uint64 {
+	v := strings.TrimSpace(os.Getenv(envKey))
+	if v == "" {
+		return fallback
+	}
+	x, err := strconv.ParseUint(v, 10, 64)
+	if err != nil || x == 0 {
+		return fallback
+	}
+	return x
+}
+
 func newWorkerHTTPClient(timeout time.Duration) *http.Client {
 	if timeout < 5*time.Second {
 		timeout = 5 * time.Second
@@ -307,7 +335,7 @@ func sleepWorkerBackoff(kind string, backoff *time.Duration) {
 	if wait < 2*time.Second {
 		wait = 2 * time.Second
 	}
-	fmt.Fprintf(os.Stderr, "%s: backing off %s (coordinator/network)\n", kind, wait.Round(time.Millisecond))
+	hotlog.Stderrf("%s: backing off %s (coordinator/network)", kind, wait.Round(time.Millisecond))
 	time.Sleep(wait)
 	next := wait * 2
 	if next > 45*time.Second {
@@ -524,7 +552,7 @@ func calibrateGPUHashrateGHS(srch searcher, batch, mod uint64) float64 {
 		_, _, _, err := srch.Search(60*time.Second, 1, batch, mod)
 		if err != nil {
 			if os.Getenv("HACKME_CUDA_VERBOSE") == "1" {
-				fmt.Fprintf(os.Stderr, "workerpoh: calib search err: %v\n", err)
+				hotlog.Stderrf("workerpoh: calib search err: %v", err)
 			}
 			continue
 		}
@@ -647,13 +675,16 @@ func sanitizeWorkerHostname(host string) string {
 }
 
 func main() {
+	// #1: never let AV/disk stalls on the log fd freeze Search/submit.
+	hotlog.Install()
+
 	var (
 		coordURL        = flag.String("coord", strings.TrimSpace(os.Getenv("COORD_URL")), "coordinator base URL")
 		token           = flag.String("token", strings.TrimSpace(os.Getenv("COORD_TOKEN")), "coordinator admin token")
 		workerID        = flag.String("worker", strings.TrimSpace(os.Getenv("WORKER_ID")), "worker id")
 		batch           = flag.Uint64("batch", 1<<22, "claim batch size")
-		gpuChunk        = flag.Uint64("gpu-chunk", 1<<22, "GPU chunk size per Search() call")
-		searchTimeoutMS = flag.Int("search-timeout-ms", 2500, "Search() timeout per GPU chunk (ms)")
+		gpuChunk        = flag.Uint64("gpu-chunk", envUint64("GPU_CHUNK", 1<<22), "GPU chunk size per Search() call (env GPU_CHUNK)")
+		searchTimeoutMS = flag.Int("search-timeout-ms", envIntPositive("SEARCH_TIMEOUT_MS", 2500), "Search() timeout per GPU chunk (ms) (env SEARCH_TIMEOUT_MS)")
 		gpuBackend      = flag.String("gpu-backend", strings.TrimSpace(os.Getenv("HACKME_GPU_BACKEND")), "preferred GPU backend: auto|opencl|cuda")
 		gpuDevice       = flag.Int("gpu-device", -1, "preferred accelerator device index (-1 = auto)")
 		gpuDisable      = flag.Bool("gpu-disable", isTruthy(os.Getenv("HACKME_GPU_DISABLE")), "disable GPU and force CPU mode")
@@ -690,7 +721,9 @@ func main() {
 		if err != nil {
 			if errors.Is(err, workerlock.ErrAlreadyRunning) {
 				fmt.Fprintf(os.Stderr, "workerpoh: %v\n", err)
-				os.Exit(0)
+				// Non-zero so the node Wait() path clears running state instead of
+				// treating a lock collision as a clean exit (orphan DoS after node crash).
+				os.Exit(2)
 			}
 			fmt.Fprintf(os.Stderr, "workerpoh: instance lock: %v\n", err)
 			os.Exit(1)
@@ -698,7 +731,7 @@ func main() {
 		defer g.Release()
 	}
 
-	priv, pubHex, signHybrid, err := loadHybridSigningMaterial()
+	priv, pubHex, claimMinerAddr, signHybrid, err := loadHybridSigningMaterial()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "bad signing material:", err.Error())
 		os.Exit(2)
@@ -735,8 +768,8 @@ func main() {
 	srch, cleanup, mode := pickSearcher(preferredBackend, *gpuDevice, *gpuDisable)
 	defer cleanup()
 	syncWorkerGPUBackendFromSearcher(srch, mode)
-	fmt.Fprintf(os.Stderr, "workerpoh: searcher=%s mode=%s backend=%s hybrid_sign=%v\n",
-		srch.Label(), mode, effectiveGPUBackend(), signHybrid)
+	fmt.Fprintf(os.Stderr, "workerpoh: searcher=%s mode=%s backend=%s hybrid_sign=%v chunk=%d search_timeout_ms=%d\n",
+		srch.Label(), mode, effectiveGPUBackend(), signHybrid, *gpuChunk, *searchTimeoutMS)
 	if mode == "gpu" && gpuBackendConfigured() {
 		calibMod := uint64(19_485_298)
 		if v := strings.TrimSpace(os.Getenv("HACKME_GPU_CALIBRATE_MOD")); v != "" {
@@ -764,15 +797,22 @@ func main() {
 	}
 	var okSubmits int64
 	for {
-		// claim
+		// claim — include hybrid identity so coordinator can reject claim-as-victim
+		// (shared pool token + empty identity abuse / temp-ban poisoning).
 		claimBody := map[string]any{"worker_id": *workerID, "batch_size": *batch}
+		if signHybrid && pubHex != "" {
+			claimBody["miner_pubkey_ed25519"] = pubHex
+			if claimMinerAddr != "" {
+				claimBody["miner_address"] = claimMinerAddr
+			}
+		}
 		cb, _ := json.Marshal(claimBody)
 		req, _ := http.NewRequest(http.MethodPost, strings.TrimRight(*coordURL, "/")+"/api/work/claim", bytes.NewReader(cb))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Hackme-Admin-Token", *token)
 		res, err := claimCL.Do(req)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "claim error:", err)
+			hotlog.Stderrf("claim error: %v", err)
 			sleepWorkerBackoff("claim", &netBackoff)
 			continue
 		}
@@ -784,10 +824,10 @@ func main() {
 			reason := strings.TrimSpace(cr.Reason)
 			if res.StatusCode >= 500 || res.StatusCode == 520 || res.StatusCode == 522 {
 				// 520/522 are often Cloudflare/proxy origin timeouts — not coordinator JSON reject reasons.
-				fmt.Fprintf(os.Stderr, "claim transport error: http %d (coordinator/proxy timeout or overload; not a pool ban)\n", res.StatusCode)
+				hotlog.Stderrf("claim transport error: http %d (coordinator/proxy timeout or overload; not a pool ban)", res.StatusCode)
 				sleepWorkerBackoff("claim", &netBackoff)
 			} else {
-				fmt.Fprintf(os.Stderr, "claim rejected: http %d reason=%q\n", res.StatusCode, reason)
+				hotlog.Stderrf("claim rejected: http %d reason=%q", res.StatusCode, reason)
 				rl := strings.ToLower(reason)
 				if strings.Contains(rl, "banned") || strings.Contains(rl, "rate") || res.StatusCode == 429 {
 					sleepWorkerBackoff("claim", &netBackoff)
@@ -823,7 +863,7 @@ func main() {
 					// On transient GPU errors, fallback to CPU for this claim (preserve session; log for coordinator tail).
 					class := gputune.ClassifyGPUFailure(err)
 					if gputune.ShouldCPUFallback(class) {
-						fmt.Fprintf(os.Stderr, "workerpoh: %s\n", gputune.FormatWorkerGPUEvent(*workerID, workerGPUBackend, class, err))
+						hotlog.Stderrf("workerpoh: %s", gputune.FormatWorkerGPUEvent(*workerID, workerGPUBackend, class, err))
 					}
 					f2, nonce2 := findHitCPU(cur, n, cr.TargetMod)
 					if f2 {
@@ -852,7 +892,7 @@ func main() {
 		ghs := submitHashrateGHS(hashBatch, elapsed, mode)
 		if os.Getenv("HACKME_CUDA_VERBOSE") == "1" && mode == "gpu" {
 			kern := lastGPUKernelSeconds()
-			fmt.Fprintf(os.Stderr, "workerpoh: search_sec=%.6f kernel_sec=%.6f inst_ghs=%.2f submit_ghs=%.2f calib=%.2f\n",
+			hotlog.VerboseStderrf("workerpoh: search_sec=%.6f kernel_sec=%.6f inst_ghs=%.2f submit_ghs=%.2f calib=%.2f",
 				elapsed, kern, instGHS, ghs, gpuCalibratedGHS)
 		}
 		wasmGatePass := false
@@ -863,9 +903,9 @@ func main() {
 				if err == nil && ok {
 					wasmGatePass = true
 				} else if err != nil {
-					fmt.Fprintf(os.Stderr, "workerpoh: wasm gate err: %v\n", err)
+					hotlog.Stderrf("workerpoh: wasm gate err: %v", err)
 				} else {
-					fmt.Fprintf(os.Stderr, "workerpoh: wasm gate rejected nonce=%d (order %s)\n", foundNonce, cr.OrderTaskID)
+					hotlog.Stderrf("workerpoh: wasm gate rejected nonce=%d (order %s)", foundNonce, cr.OrderTaskID)
 					found = false
 				}
 			}
@@ -891,7 +931,7 @@ func main() {
 		if signHybrid {
 			submitNonce, err := loadAndBumpSubmitNonce(nonceFile)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "nonce file error:", err)
+				hotlog.Stderrf("nonce file error: %v", err)
 				time.Sleep(1 * time.Second)
 				continue
 			}
@@ -908,14 +948,14 @@ func main() {
 		sreq.Header.Set("X-Hackme-Admin-Token", *token)
 		sres, err := submitCL.Do(sreq)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "submit error:", err)
+			hotlog.Stderrf("submit error: %v", err)
 			sleepWorkerBackoff("submit", &netBackoff)
 			continue
 		}
 		sbody, _ := io.ReadAll(io.LimitReader(sres.Body, 1<<20))
 		_ = sres.Body.Close()
 		if sres.StatusCode != 200 {
-			fmt.Fprintln(os.Stderr, "submit http:", sres.StatusCode, string(sbody))
+			hotlog.Stderrf("submit http: %d %s", sres.StatusCode, string(sbody))
 			if signHybrid && (strings.Contains(string(sbody), `"reason":"replay"`) || strings.Contains(string(sbody), "duplicate_signed_payload")) {
 				// Shared miner key across rigs: bump local seq so next submit_nonce exceeds coordinator max.
 				_ = os.WriteFile(nonceFile, []byte(strconv.FormatUint(uint64(time.Now().Unix())*1000, 10)), 0o644)
@@ -935,7 +975,7 @@ func main() {
 		if hybridFuzz != nil {
 			hybridFuzz.notePoHGHS(ghs, gpuCalibratedGHS)
 		}
-		fmt.Printf("submit ok found=%v batch=%d mod=%d ghs=%.6f inst_ghs=%.2f\n", found, cr.BatchSize, cr.TargetMod, ghs, instGHS)
+		hotlog.Stdoutf("submit ok found=%v batch=%d mod=%d ghs=%.6f inst_ghs=%.2f t_ms=%d", found, cr.BatchSize, cr.TargetMod, ghs, instGHS, time.Now().UnixMilli())
 		if ms := effectiveClaimCooldownMS(mode, ghs); ms > 0 {
 			time.Sleep(time.Duration(ms) * time.Millisecond)
 		}

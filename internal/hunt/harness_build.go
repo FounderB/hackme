@@ -80,24 +80,27 @@ func BuildInventoryHarness(ctx context.Context, repoRoot string, req HarnessBuil
 		return nil, err
 	}
 	if st, err := SafeStatUnder(repoRoot, cachePath); err == nil && st.Mode().IsRegular() {
-		harnessCache.Store(hash, cachePath)
-		plan, _ := planInventoryCompile(req.Pin.Path, sourceRel)
-		res := &HarnessBuildResult{
-			HarnessHash: hash,
-			BinaryPath:  cachePath,
-			SourceRel:   sourceRel,
-			PinSHA:      req.Pin.CommitSHA,
-			BuildOK:     true,
-			Note:        "cached harness",
+		if _, _, verr := readVerifiedHarnessCache(cachePath, ""); verr == nil {
+			harnessCache.Store(hash, cachePath)
+			plan, _ := planInventoryCompile(req.Pin.Path, sourceRel)
+			res := &HarnessBuildResult{
+				HarnessHash: hash,
+				BinaryPath:  cachePath,
+				SourceRel:   sourceRel,
+				PinSHA:      req.Pin.CommitSHA,
+				BuildOK:     true,
+				Note:        "cached harness",
+			}
+			if plan != nil {
+				res.Language = plan.Language
+				res.CompanionSources = companionRels(req.Pin.Path, plan.CompanionAbs)
+				res.IncludeDirs = includeRels(req.Pin.Path, plan.IncludeDirs)
+			} else {
+				res.Language = SourceLanguage(sourceRel)
+			}
+			return res, nil
 		}
-		if plan != nil {
-			res.Language = plan.Language
-			res.CompanionSources = companionRels(req.Pin.Path, plan.CompanionAbs)
-			res.IncludeDirs = includeRels(req.Pin.Path, plan.IncludeDirs)
-		} else {
-			res.Language = SourceLanguage(sourceRel)
-		}
-		return res, nil
+		quarantineHarnessCache(cachePath)
 	}
 	if _, err := exec.LookPath("clang"); err != nil {
 		return nil, fmt.Errorf("hunt build: clang required")
@@ -146,6 +149,10 @@ func BuildInventoryHarness(ctx context.Context, repoRoot string, req HarnessBuil
 	}
 	if err := SafeRenameUnder(repoRoot, tmp, cachePath); err != nil {
 		_ = os.Remove(tmp)
+		return nil, err
+	}
+	if err := writeHarnessCacheAttestation(cachePath, contentSHA256Hex(in)); err != nil {
+		quarantineHarnessCache(cachePath)
 		return nil, err
 	}
 	harnessCache.Store(hash, cachePath)

@@ -23,7 +23,7 @@ Three layers on one stack:
 1. **Chain (HMC)** — PoH blocks, transfers, emission
 2. **Coordinator pool** — fair attempt accounting, hybrid signatures
 3. **Orders / fuzz** — Dig (WASM) + Hunt (ASAN) escrow campaigns on the same network
-4. **Paper Exchange + SUP wallet** — rc17 cutover desk (not live CEX custody)
+4. **Own spot desk + SUP wallet** — exchange.hackme.tech paper soft (no futures at start; not external CEX custody)
 
 ## Slide 4 — Ecosystem map
 
@@ -68,9 +68,10 @@ Three layers on one stack:
 
 ## Slide 10 — Roadmap
 
-- Q3 2026: own exchange paper soft (~15 Sep) · order clients · B2B integrators
-- Research ledgers closed (Hunt Watch 12/12 · Bitcoin30 · nghttp2 14/14 · libheif 14/14) — architecture + pool narrative next
-- Later: foreign PoW CEX if gates · aggregators, MM, legal entity for Tier-1
+- **Now:** own spot desk (exchange.hackme.tech) · deepen miners + Dig/Hunt customers · GHS↔Dig coupling live
+- Research ledgers closed (Hunt Watch 12/12 · Bitcoin30 · nghttp2 14/14 · libheif 14/14)
+- **Later:** external PoW-friendly CEX when MM + traction · aggregators · legal entity for Tier-1
+- Mid-tier paid CEX cold outreach: deferred while desk/product are priority
 
 ## Slide 11 — Risks
 

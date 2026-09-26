@@ -61,7 +61,7 @@ func pruneWorkerCoordinatorMirror(workerIDs []string) {
 	}
 	path := workerCoordinatorMirrorPath()
 	if b, err := json.MarshalIndent(mirror, "", "  "); err == nil {
-		_ = os.WriteFile(path, b, 0o600)
+		_ = atomicWriteFile(path, b, 0o600)
 	}
 }
 
@@ -84,7 +84,7 @@ func persistWorkerCoordinatorMirrorFromStats(ws map[string]any) {
 	path := workerCoordinatorMirrorPath()
 	_ = os.MkdirAll(filepath.Dir(path), 0o700)
 	if b, err := json.MarshalIndent(mirror, "", "  "); err == nil {
-		_ = os.WriteFile(path, b, 0o600)
+		_ = atomicWriteFile(path, b, 0o600)
 	}
 }
 

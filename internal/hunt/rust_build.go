@@ -56,16 +56,19 @@ func BuildInventoryRustHarness(ctx context.Context, repoRoot string, req Harness
 		return nil, err
 	}
 	if st, err := SafeStatUnder(repoRoot, cachePath); err == nil && st.Mode().IsRegular() {
-		harnessCache.Store(hash, cachePath)
-		return &HarnessBuildResult{
-			HarnessHash: hash,
-			BinaryPath:  cachePath,
-			SourceRel:   sourceRel,
-			Language:    "rust",
-			PinSHA:      req.Pin.CommitSHA,
-			BuildOK:     true,
-			Note:        "cached rust harness",
-		}, nil
+		if _, _, verr := readVerifiedHarnessCache(cachePath, ""); verr == nil {
+			harnessCache.Store(hash, cachePath)
+			return &HarnessBuildResult{
+				HarnessHash: hash,
+				BinaryPath:  cachePath,
+				SourceRel:   sourceRel,
+				Language:    "rust",
+				PinSHA:      req.Pin.CommitSHA,
+				BuildOK:     true,
+				Note:        "cached rust harness",
+			}, nil
+		}
+		quarantineHarnessCache(cachePath)
 	}
 	if err := requireRustNightlyASAN(); err != nil {
 		return nil, err
@@ -120,6 +123,10 @@ func BuildInventoryRustHarness(ctx context.Context, repoRoot string, req Harness
 		_ = os.Remove(tmp)
 		return nil, err
 	}
+	if err := writeHarnessCacheAttestation(cachePath, contentSHA256Hex(in)); err != nil {
+		quarantineHarnessCache(cachePath)
+		return nil, err
+	}
 	harnessCache.Store(hash, cachePath)
 	return &HarnessBuildResult{
 		HarnessHash: hash,
@@ -149,6 +156,8 @@ func planRustHarness(pinPath, sourceRel string, content []byte) (*rustHarnessPla
 		if err == nil {
 			if st, err := SafeStatUnder(pinPath, cargoToml); err == nil && !st.IsDir() {
 				plan.Mode = "cargo_fuzz"
+				// cargo-fuzz must run at the package root (parent of fuzz/), not inside fuzz/.
+				plan.CargoRoot = pinPath
 				if target := cargoFuzzTargetName(sourceRel); target != "" {
 					plan.FuzzTarget = target
 				}
@@ -303,9 +312,11 @@ publish = false
 name = "%s"
 path = "main.rs"
 `, rustStdinBin)
-	if plan.PackageName != "" && plan.CargoRoot != "" && plan.CargoRoot != pinPath {
-		abs, _ := filepath.Abs(plan.CargoRoot)
-		manifest += fmt.Sprintf("\n[dependencies]\n%s = { path = %q }\n", plan.PackageName, abs)
+	if plan.PackageName != "" && plan.CargoRoot != "" {
+		if st, err := os.Stat(filepath.Join(plan.CargoRoot, "Cargo.toml")); err == nil && !st.IsDir() {
+			abs, _ := filepath.Abs(plan.CargoRoot)
+			manifest += fmt.Sprintf("\n[dependencies]\n%s = { path = %q }\n", plan.PackageName, abs)
+		}
 	}
 	if err := os.WriteFile(filepath.Join(crateDir, "Cargo.toml"), []byte(manifest), 0o644); err != nil {
 		return "", "", err
@@ -413,11 +424,18 @@ func requireRustNightlyASAN() error {
 	if _, err := exec.LookPath("cargo"); err != nil {
 		return fmt.Errorf("hunt rust: cargo required")
 	}
+	if _, err := exec.LookPath("rustc"); err != nil {
+		return fmt.Errorf("hunt rust: rustc required")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "rustc", "+nightly", "--version")
-	if err := cmd.Run(); err != nil {
+	// Match fuzzupstream: rustc alone is not enough when cargo's nightly component is broken.
+	if err := exec.CommandContext(ctx, "rustc", "+nightly", "--version").Run(); err != nil {
 		return fmt.Errorf("hunt rust: rustc +nightly required (rustup toolchain install nightly): %w", err)
+	}
+	if out, err := exec.CommandContext(ctx, "cargo", "+nightly", "--version").CombinedOutput(); err != nil {
+		return fmt.Errorf("hunt rust: cargo +nightly required (rustup component add cargo --toolchain nightly): %w (%s)",
+			err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }

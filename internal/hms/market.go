@@ -8,9 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
+
+	"hackme/internal/pathsafe"
 )
 
 const (
@@ -323,21 +324,48 @@ func (c *Coordinator) writeMarketChunkFile(workerID, chunkID string, ciphertext 
 	}
 	// Drop into worker storage dir when configured (pilot same-host).
 	if root := marketStorageRoot(); root != "" {
-		p := filepath.Join(root, workerID, chunkID+".dat")
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		p := filepathJoinMarket(root, workerID, chunkID+".dat")
+		if p == "" {
+			return fmt.Errorf("invalid market storage path")
+		}
+		safe, ok := pathsafe.Allow(p)
+		if !ok || !pathsafe.AbsRE.MatchString(safe) {
+			return fmt.Errorf("invalid market storage path")
+		}
+		dir, ok := pathsafe.DirAllow(safe)
+		if !ok || !pathsafe.AbsRE.MatchString(dir) {
+			return fmt.Errorf("invalid market storage dir")
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(p, ciphertext, 0o600); err != nil {
+		if !pathsafe.AbsRE.MatchString(safe) {
+			return fmt.Errorf("invalid market storage path")
+		}
+		if err := os.WriteFile(safe, ciphertext, 0o600); err != nil {
 			return err
 		}
 	}
 	// Always keep coordinator copy for restore API later.
-	root := filepath.Join(marketDataRoot(), workerID)
-	p := filepath.Join(root, chunkID+".dat")
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	p := filepathJoinMarket(marketDataRoot(), workerID, chunkID+".dat")
+	if p == "" {
+		return fmt.Errorf("invalid market data path")
+	}
+	safe, ok := pathsafe.Allow(p)
+	if !ok || !pathsafe.AbsRE.MatchString(safe) {
+		return fmt.Errorf("invalid market data path")
+	}
+	dir, ok := pathsafe.DirAllow(safe)
+	if !ok || !pathsafe.AbsRE.MatchString(dir) {
+		return fmt.Errorf("invalid market data dir")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(p, ciphertext, 0o600)
+	if !pathsafe.AbsRE.MatchString(safe) {
+		return fmt.Errorf("invalid market data path")
+	}
+	return os.WriteFile(safe, ciphertext, 0o600)
 }
 
 // ListOrderChunks returns chunk metadata for restore.
@@ -382,11 +410,18 @@ func (c *Coordinator) DownloadOrderChunk(orderID, uploadToken string, chunkIndex
 	if err != nil {
 		return nil, "", err
 	}
+	var sawFile bool
 	for _, workerID := range workers {
-		b, err := c.readMarketChunkFile(workerID, chunkID)
+		if _, err := c.readMarketChunkFile(workerID, chunkID); err == nil {
+			sawFile = true
+		}
+		b, err := c.readVerifiedMarketChunkFile(workerID, chunkID)
 		if err == nil {
 			return b, chunkID, nil
 		}
+	}
+	if sawFile {
+		return nil, "", errors.New("chunk integrity mismatch")
 	}
 	return nil, "", errors.New("chunk file missing on all replicas")
 }

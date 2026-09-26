@@ -94,3 +94,49 @@ func TestRunsDoneForCampaignPrefersWorkItems(t *testing.T) {
 		t.Fatalf("marketplace runs_done=%v want 3", items[0])
 	}
 }
+
+func TestCampaignProgressRunsOKExcludesFailed(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "prog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := &Service{DB: db}
+	ctx := context.Background()
+	cid := "campaign-progress-runs-ok"
+	if err := svc.RegisterCampaign(ctx, Campaign{
+		ID: cid, CampaignType: "hunt", Title: "hunt progress", Status: "running",
+		BudgetRuns: 8, Config: map[string]any{"pool_distributed": true, "work_kind": "hunt_shard"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.EnsureWorkItems(ctx, cid, time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Unix()
+	_, err = db.ExecContext(ctx,
+		`UPDATE fuzz_work_items SET status='done', result_ok=1, updated_at=? WHERE campaign_id=? AND input_n IN (1,2)`,
+		now, cid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.ExecContext(ctx,
+		`UPDATE fuzz_work_items SET status='done', result_ok=0, updated_at=? WHERE campaign_id=? AND input_n=3`,
+		now, cid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prog, err := svc.CampaignProgress(ctx, cid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if intFromJSON(prog["runs_done"]) != 3 {
+		t.Fatalf("runs_done=%v want 3", prog["runs_done"])
+	}
+	if intFromJSON(prog["failed_checks"]) != 1 {
+		t.Fatalf("failed_checks=%v want 1", prog["failed_checks"])
+	}
+	if intFromJSON(prog["runs_ok"]) != 2 {
+		t.Fatalf("runs_ok=%v want 2", prog["runs_ok"])
+	}
+}

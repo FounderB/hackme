@@ -23,7 +23,15 @@ Reports: `reports/tests/security_full_20260828T190633Z/` · `reports/gates/redte
 | HMS abuse `clientIP` ignores spoofed `X-Forwarded-For` unless trusted proxy peer | `internal/hms/clientip.go` |
 | `GET /api/mining/logs/stream` requires admin token (or desktop loopback) | `main.go` |
 | Public node bind requires `HACKME_P2P_TOKEN` | `main.go` startup |
-| Settlement state writes take `flock` on `*.flock` | `settlement_flock_*.go` |
+| Settlement state writes take exclusive lock on `*.flock` (**Unix flock + Windows LockFileEx**; fail-closed) + atomic temp+rename | `settlement_flock_*.go`, `atomicWriteFile` in `settlement_api.go` |
+| Hunt harness supply-chain (report #6): binary `harness_content_sha256` attestation + coordinator-only fetch | `internal/hunt/artifact.go`, claim payload, worker materialize |
+| Fleet merge payout capture (report #17): address conflict stays sticky; settle scripts skip `address_conflict` | `mergeWorkerStat`, `settle_worker_payouts.sh`, `settle_worker_sup.sh` |
+| Public settlement GET is read-only and keeps `pending_settle` (report #13) | `settlement_api.go` |
+| Worker payout lock persists across restart and idle prune (report #18) | `worker_payout_lock` in coordinator SQLite |
+| ASAN bounty requires a non-zero exit and a canonical AddressSanitizer banner (report #14) | `internal/fuzzupstream/fuzz.go` |
+| CI gate crash counts use the full finding history, not the display window (report #11) | `fullCrashClassSeverityCounts` |
+| Campaign progress requires a pool token and does not close escrow; finalize waits for settle pull (report #12) | `fuzz_pool.go`, `fuzz_pool_progress.go` |
+| WASM check timeout closes the interpreter on context deadline (report #15) | `WithCloseOnContextDone` |
 | `govulncheck` in CI; `go 1.25.13` toolchain pin | `.github/workflows/ci.yml`, `go.mod` |
 
 ---
@@ -80,6 +88,7 @@ Automated smoke: `scripts/tests/security_assertions.sh`, `scripts/tests/redteam_
 | H5 | `WORKER_PAYOUT_MAP` misconfiguration | Ops discipline; audit map before cron |
 | H6 | P2P open if `HACKME_P2P_TOKEN` unset | Always set P2P token when P2P is exposed |
 | H7 | `tasks/from_code` = compiler execution | Admin-only; disable on public followers |
+| H8 | Hunt harness fetch RCE (no binary attestation; arbitrary HTTPS URL) | **Fixed 2026-09-22:** claim carries `harness_content_sha256`; worker verifies before cache write/exec; fetch restricted to configured coordinator host; unattested cache quarantined |
 
 ---
 

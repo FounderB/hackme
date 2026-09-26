@@ -246,8 +246,18 @@ func classifyUBSanSubtype(low string) string {
 	}
 }
 
+// hasASANBanner is the canonical AddressSanitizer report prefix. A bare
+// substring such as "heap-buffer-overflow" in target stdout is not enough.
+func hasASANBanner(blob string) bool {
+	low := strings.ToLower(blob)
+	return strings.Contains(low, "error: addresssanitizer") || strings.Contains(low, "summary: addresssanitizer")
+}
+
 // IsSecuritySanitizer reports bounty-eligible ASAN-class signals.
 func IsSecuritySanitizer(san string) bool {
+	if !hasASANBanner(san) {
+		return false
+	}
 	info, ok := ClassifySanitizerOutput(san)
 	if ok {
 		return info.Security

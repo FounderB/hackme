@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,23 +20,29 @@ type SettleOutboxItem struct {
 	CreatedAt    int64  `json:"created_at"`
 }
 
+var settleOutboxSchemaOnce sync.Once
+
 // ensureSettleOutboxSchema adds work_item_id + UNIQUE so concurrent enqueues cannot
 // double-insert and distinct work items cannot collapse into one underpaid event_id.
+// Must run once: the legacy duplicate DELETE scans the whole outbox and starved the
+// coordinator when called on every settle poll / enqueue.
 func ensureSettleOutboxSchema(db *sql.DB) {
 	if db == nil {
 		return
 	}
-	_, _ = db.Exec(`ALTER TABLE fuzz_settle_outbox ADD COLUMN work_item_id INTEGER NOT NULL DEFAULT 0`)
-	// Collapse legacy duplicates (same logical key) before UNIQUE.
-	_, _ = db.Exec(`
-		DELETE FROM fuzz_settle_outbox
-		 WHERE id NOT IN (
-		   SELECT MIN(id) FROM fuzz_settle_outbox
-		    GROUP BY campaign_id, kind, miner_address, severity, COALESCE(work_item_id,0)
-		 )`)
-	_, _ = db.Exec(`
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_fuzz_settle_outbox_uq
-		 ON fuzz_settle_outbox(campaign_id, kind, miner_address, severity, work_item_id)`)
+	settleOutboxSchemaOnce.Do(func() {
+		_, _ = db.Exec(`ALTER TABLE fuzz_settle_outbox ADD COLUMN work_item_id INTEGER NOT NULL DEFAULT 0`)
+		// Collapse legacy duplicates (same logical key) before UNIQUE — one-shot only.
+		_, _ = db.Exec(`
+			DELETE FROM fuzz_settle_outbox
+			 WHERE id NOT IN (
+			   SELECT MIN(id) FROM fuzz_settle_outbox
+			    GROUP BY campaign_id, kind, miner_address, severity, COALESCE(work_item_id,0)
+			 )`)
+		_, _ = db.Exec(`
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_fuzz_settle_outbox_uq
+			 ON fuzz_settle_outbox(campaign_id, kind, miner_address, severity, work_item_id)`)
+	})
 }
 
 // EnqueueSettleOutbox records a settlement for durable event-id based apply/pull.

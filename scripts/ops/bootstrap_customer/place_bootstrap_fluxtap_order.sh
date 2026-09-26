@@ -19,6 +19,9 @@ MAX_WAIT="${MAX_WAIT:-900}"
 
 mkdir -p "$LOG_DIR"
 ADMIN="$(grep -m1 '^HACKME_ADMIN_TOKEN=' "$INSTALL/.env" | cut -d= -f2- | tr -d '\r\n')"
+# shellcheck source=load_coord_token.sh
+source "$(dirname "$0")/load_coord_token.sh"
+load_bootstrap_coord_token
 
 WASM=""
 for cand in \
@@ -104,10 +107,14 @@ runs_done=0
 findings=0
 while [[ $(date +%s) -lt $deadline ]]; do
   sleep "$POLL_SEC"
-  prog="$(curl -fsS --max-time 30 "$COORD/api/fuzz/pool/campaigns/progress?id=${CID_OUT}" 2>/dev/null || echo '{}')"
+  prog="$(curl -fsS --max-time 30 -H "X-Hackme-Admin-Token: ${COORD_POLL_TOKEN}" "$COORD/api/fuzz/pool/campaigns/progress?id=${CID_OUT}" 2>/dev/null || echo '{}')"
   runs_done="$(jq -r '.runs_done // 0' <<<"$prog")"
   findings="$(jq -r '.findings // 0' <<<"$prog")"
   status="$(jq -r '.status // ""' <<<"$prog")"
+  if [[ -n "$TOK" ]]; then
+    curl -fsS --max-time 20 "$BASE/api/fuzz/campaigns/${CID_OUT}/pulse" \
+      -H "X-Hackme-Report-Token: $TOK" >/dev/null 2>&1 || true
+  fi
   log "progress runs_done=$runs_done findings=$findings status=$status"
   if [[ "$status" == "completed" || "$status" == "cancelled" ]]; then break; fi
   if [[ "${runs_done:-0}" -ge 8 && "${findings:-0}" -ge 1 ]]; then

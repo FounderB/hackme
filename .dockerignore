@@ -9,9 +9,13 @@ tasks/artifacts/
 .wip/
 hackme-node
 hackme-node-desktop
+hackme-hms-coordinator
 coordinator
 *.db
+*.deb
 .env
 .env.*
 tmp/
 **/tmp/
+freerdp*.deb
+bin/

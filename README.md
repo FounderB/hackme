@@ -60,7 +60,7 @@ Payout follows **accepted work**, not lottery blocks. Model: [NETWORK_MODEL.md](
 
 ---
 
-## Status · 0.1.0-rc17 LIVE
+## Status · 0.1.0-rc17.2 LIVE
 
 | Area | State |
 |------|--------|
@@ -72,7 +72,7 @@ Payout follows **accepted work**, not lottery blocks. Model: [NETWORK_MODEL.md](
 | **OSS CVE Watch** | nghttp2 **14/14** · libheif **14/14** CLEAN ledgers |
 | **HMS storage** | Preview only — not a miner lane |
 
-Channel notes: [docs/HACKME_RC17.md](docs/HACKME_RC17.md) · release: [GitHub 0.1.0-rc17](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17)
+Channel notes: [docs/HACKME_RC17.md](docs/HACKME_RC17.md) · release: [GitHub 0.1.0-rc17.2](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.2)
 
 **Honesty:** Hunt/Dig **CLEAN ≠ CVE claim**. Customer value is **bugs in their target + report + escrow**, not “we mint CVEs.” libFuzzer often wins raw exec/s; Hunt wins fleet + deliverable — [HUNT_VS_LIBFUZZER.md](docs/HUNT_VS_LIBFUZZER.md).
 
@@ -196,7 +196,7 @@ bash scripts/tests/public_site_smoke.sh
 bash scripts/tests/version_consistency_gate.sh
 ```
 
-Release: `VERSION=0.1.0-rc17 bash scripts/release/make_release_bundle.sh` — [scripts/release/README.md](scripts/release/README.md)
+Release: `VERSION=0.1.0-rc17.2 bash scripts/release/make_release_bundle.sh` — [scripts/release/README.md](scripts/release/README.md)
 
 ---
 

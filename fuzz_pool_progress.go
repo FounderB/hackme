@@ -114,6 +114,9 @@ func (a *app) fetchCoordinatorPoolCampaignProgress(ctx context.Context, campaign
 	if err != nil {
 		return coordinatorPoolCampaign{}, false
 	}
+	if tok := coordinatorAdminToken(); tok != "" {
+		req.Header.Set("X-Hackme-Admin-Token", tok)
+	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return coordinatorPoolCampaign{}, false
@@ -128,6 +131,68 @@ func (a *app) fetchCoordinatorPoolCampaignProgress(ctx context.Context, campaign
 	}
 	payload.ID = campaignID
 	return payload, true
+}
+
+func (a *app) fetchCoordinatorFleetCapacity(ctx context.Context) (map[string]any, error) {
+	base := strings.TrimRight(strings.TrimSpace(a.coordinatorBaseURL()), "/")
+	if base == "" {
+		return nil, nil
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, base+"/api/fuzz/pool/stats", nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		return nil, fmt.Errorf("coordinator pool stats HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(b)))
+	}
+	var payload map[string]any
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	if raw, ok := payload["fleet_capacity"].(map[string]any); ok && raw != nil {
+		return raw, nil
+	}
+	// Fallback: top-level fields from /api/fuzz/pool/stats
+	out := map[string]any{}
+	for _, k := range []string{
+		"fleet_hashrate_gh_s", "est_shards_per_hour", "est_dig_runs_per_hour",
+		"hybrid_workers_online", "dig_only_workers_online", "workers_online",
+		"ghs_priority_enabled", "note",
+	} {
+		if v, ok := payload[k]; ok {
+			out[k] = v
+		}
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
+func cloneMarketplaceCampaigns(in []map[string]any) []map[string]any {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(in))
+	for _, src := range in {
+		if src == nil {
+			continue
+		}
+		dst := make(map[string]any, len(src)+2)
+		for k, v := range src {
+			dst[k] = v
+		}
+		out = append(out, dst)
+	}
+	return out
 }
 
 func (a *app) mergeCoordinatorPoolMarketplace(ctx context.Context, items []map[string]any) []map[string]any {
@@ -283,6 +348,11 @@ func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campa
 		changed = true
 	}
 	if !changed {
+		if nextStatus == "completed" || nextStatus == "cancelled" {
+			// Local row already matches the coordinator. Still close escrow:
+			// an earlier sync may have written status without a settle.
+			a.tryCloseFuzzEscrowForStatus(ctx, campaignID, nextStatus)
+		}
 		return nil
 	}
 	summary["pool_workers"] = true
@@ -300,6 +370,8 @@ func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campa
 		return err
 	}
 	if nextStatus == "completed" || nextStatus == "cancelled" {
+		// Coordinator terminal status is enough to settle. tryClose still
+		// refuses finalize when the settle pull fails (report #12).
 		a.tryCloseFuzzEscrowForStatus(ctx, campaignID, nextStatus)
 	}
 	return nil

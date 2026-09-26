@@ -35,10 +35,6 @@ func CampaignConfig(ctx context.Context, repoRoot string, req CreateRequest) (ma
 	if budgetHMC < minBudget {
 		return nil, "", fmt.Errorf("hunt: budget_hmc below minimum %.0f for %s", minBudget, pkgKey)
 	}
-	shards := req.BudgetShards
-	if shards <= 0 {
-		shards = preset.BudgetShards
-	}
 
 	var pin *RepoPinResult
 	var invRoot string
@@ -217,6 +213,10 @@ func BudgetForCreate(req CreateRequest) (budgetHMC float64, shards int, pkgKey s
 	shards = req.BudgetShards
 	if shards <= 0 {
 		shards = preset.BudgetShards
+	}
+	// Clamp to escrow floor so tiny smoke shards don't fail OpenHuntEscrow.
+	if shards < fuzzescrow.HuntMinShards {
+		shards = fuzzescrow.HuntMinShards
 	}
 	return budgetHMC, shards, pkgKey, nil
 }

@@ -57,7 +57,7 @@ var embeddedFaviconICO []byte
 
 // Build metadata (overridden by -ldflags in release builds).
 var (
-	Version   = "0.1.0-rc17"
+	Version   = "0.1.0-rc17.2"
 	Commit    = "nogit"
 	BuildDate = "unknown"
 )
@@ -670,6 +670,8 @@ func main() {
 		}
 	}
 	a.startFuzzAutoRunner(context.Background())
+	// Clear workers left behind if a previous node process died without stop.
+	reapOrphanPoolWorkersAtBoot(resolveWorkerRepoRoot(strings.TrimSpace(a.dataDir)))
 	a.startPoolWorkerWatchdog()
 	srv := &http.Server{
 		Addr:              addr,
@@ -2501,13 +2503,18 @@ func (a *app) handleWorkerStart(w http.ResponseWriter, r *http.Request) {
 
 	logDir := filepath.Join(".", "logs")
 	_ = os.MkdirAll(logDir, 0o755)
+	repoRoot := resolveWorkerRepoRoot(strings.TrimSpace(a.dataDir))
+	// Reap orphans BEFORE truncating the log. Otherwise a crash-surviving workerpoh
+	// keeps the per-worker lock + writes at the old offset (sparse/NUL holes), and
+	// every official restart spawns a child that dies on ErrAlreadyRunning.
+	reapOrphanPoolWorkers(logDir, workerID, repoRoot)
 	logPath := filepath.Join(logDir, "worker_participant.log")
+	rotateWorkerParticipantLog(logPath)
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		http.Error(w, "worker log open failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	repoRoot := resolveWorkerRepoRoot(strings.TrimSpace(a.dataDir))
 	workerEnv := []string{
 		"COORD_URL=" + coordURL,
 		"COORD_ADMIN_TOKEN=" + coordToken,
@@ -2626,23 +2633,52 @@ func (a *app) handleWorkerStart(w http.ResponseWriter, r *http.Request) {
 			)
 		}
 	}
+	// Always expose a submit-nonce file path so the in-process watchdog can detect
+	// frozen-but-alive workers (Windows DoS-class hang) via mtime, not just PID.
+	hasNonceEnv := false
+	for _, e := range workerEnv {
+		if strings.HasPrefix(e, "HACKME_MINER_NONCE_FILE=") {
+			hasNonceEnv = true
+			break
+		}
+	}
+	if !hasNonceEnv {
+		nonceDir := filepath.Join(repoRoot, "logs")
+		_ = os.MkdirAll(nonceDir, 0o755)
+		safeWid := sanitizeWorkerIDForNonce(workerID)
+		workerEnv = append(workerEnv, "HACKME_MINER_NONCE_FILE="+filepath.Join(nonceDir, "miner_submit_nonce."+safeWid+".seq"))
+	}
+	// Absolute lock dir so Linux apt (XDG working dir vs /opt cmd.Dir) cannot split
+	// flock location from the node's reap path — same DoS class as Windows orphan lock.
+	lockDirAbs := absoluteWorkerLockDir(logDir)
+	_ = os.MkdirAll(lockDirAbs, 0o755)
+	hasLockEnv := false
+	for _, e := range workerEnv {
+		if strings.HasPrefix(e, "HACKME_WORKER_LOCK_DIR=") {
+			hasLockEnv = true
+			break
+		}
+	}
+	if !hasLockEnv {
+		workerEnv = append(workerEnv, "HACKME_WORKER_LOCK_DIR="+lockDirAbs)
+	}
 	var cmd *exec.Cmd
+	alreadyStarted := false
 	if runtime.GOOS == "windows" {
 		winRoot := repoRoot
 		if exe, err := os.Executable(); err == nil {
 			winRoot = filepath.Dir(exe)
 		}
-		winFleetStarted := false
 		if fleetEnabledFromEnv() {
 			plan := buildWorkerFleetPlan(winRoot, workerID)
 			if plan.TotalSlots > 1 {
-				if cmds, err := startWorkerFleetProcesses(winRoot, coordURL, coordToken, workerID, batchSize, logPath); err == nil && len(cmds) > 0 {
+				if cmds, err := startWorkerFleetProcesses(winRoot, coordURL, coordToken, workerID, batchSize, logPath, workerEnv); err == nil && len(cmds) > 0 {
 					cmd = cmds[0]
-					winFleetStarted = true
+					alreadyStarted = true
 				}
 			}
 		}
-		if !winFleetStarted {
+		if !alreadyStarted {
 			winBackend := gpuBackend
 			if winBackend == "" || strings.EqualFold(winBackend, "auto") {
 				if v := resolveAutoGPUBackend(repoRoot); v != "" {
@@ -2782,11 +2818,17 @@ func (a *app) handleWorkerStart(w http.ResponseWriter, r *http.Request) {
 	}
 	cmd.Stdout = f
 	cmd.Stderr = f
-	cmd.Env = append(os.Environ(), workerEnv...)
-	if err := cmd.Start(); err != nil {
-		_ = f.Close()
-		http.Error(w, "worker start failed: "+err.Error(), http.StatusInternalServerError)
-		return
+	if alreadyStarted {
+		// Windows multi-GPU fleet already Start()'d each slot (with workerEnv + detach).
+		// Calling Start again returns "already started", leaks orphans, and DoS's restarts.
+	} else {
+		configurePoolWorkerCmd(cmd)
+		cmd.Env = append(os.Environ(), workerEnv...)
+		if err := cmd.Start(); err != nil {
+			_ = f.Close()
+			http.Error(w, "worker start failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	a.workerCmd = cmd
 	a.workerLogPath = logPath
@@ -2837,6 +2879,7 @@ func (a *app) handleWorkerStop(w http.ResponseWriter, r *http.Request) {
 	a.workerMu.Lock()
 	defer a.workerMu.Unlock()
 	killExternalWorkerFleet(resolveWorkerRepoRoot(strings.TrimSpace(a.dataDir)))
+	killExternalWorkerfuzzFleet()
 	if a.workerCmd == nil || a.workerCmd.Process == nil || a.workerCmd.ProcessState != nil {
 		a.workerCoordURL = ""
 		a.workerID = ""
@@ -2860,21 +2903,26 @@ func (a *app) handleWorkerStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// Snapshot under lock, then unlock before coordinatorBaseURL / cache refresh —
+	// those paths also take workerMu (deadlock on /api/worker/status).
 	a.workerMu.Lock()
-	defer a.workerMu.Unlock()
 	running := a.workerCmd != nil && a.workerCmd.Process != nil && a.workerCmd.ProcessState == nil
 	pid := 0
 	if running {
 		pid = a.workerCmd.Process.Pid
 	}
-	logRoot := filepath.Join(resolveWorkerRepoRoot(strings.TrimSpace(a.dataDir)), "logs")
-	measuredGH := parseWorkerpohMeasuredGHs(logRoot)
-	logFresh := workerLogFresh(logRoot, 120)
+	dataDir := strings.TrimSpace(a.dataDir)
 	workerID := a.workerID
 	coordURL := a.workerCoordURL
 	startedAt := a.workerStartedAt
 	logPath := a.workerLogPath
 	hashrateGHS := a.workerHashrate
+	batchSize := a.workerBatchSize
+	a.workerMu.Unlock()
+
+	logRoot := filepath.Join(resolveWorkerRepoRoot(dataDir), "logs")
+	measuredGH := parseWorkerpohMeasuredGHs(logRoot)
+	logFresh := workerLogFresh(logRoot, 120)
 	// Desktop autostart runs workerpoh outside workerCmd; detect via live log tail.
 	if !running && logFresh && measuredGH > 0 {
 		running = true
@@ -2951,6 +2999,17 @@ func (a *app) handleWorkerStatus(w http.ResponseWriter, r *http.Request) {
 			telemetrySource = "coordinator"
 		}
 	}
+	nowUnix := time.Now().Unix()
+	hbUnix := workerSubmitHeartbeatUnixSince(logRoot, workerID, startedAt)
+	hbAge := int64(0)
+	if hbUnix > 0 && nowUnix >= hbUnix {
+		hbAge = nowUnix - hbUnix
+	}
+	hbStaleSec := poolWorkerHeartbeatStaleSec()
+	hbFrozen := false
+	if running {
+		hbFrozen, _ = workerHeartbeatNeedsRestart(logRoot, workerID, startedAt, nowUnix, hbStaleSec, poolWorkerHeartbeatGraceSec())
+	}
 	writeJSON(w, map[string]any{
 		"ok":                         true,
 		"running":                    running,
@@ -2959,7 +3018,7 @@ func (a *app) handleWorkerStatus(w http.ResponseWriter, r *http.Request) {
 		"session_seconds":            sessionSec,
 		"coord_url":                  coordURL,
 		"worker_id":                  workerID,
-		"batch_size":                 a.workerBatchSize,
+		"batch_size":                 batchSize,
 		"hashrate_gh_s":              displayGH,
 		"measured_hashrate_gh_s":     measuredGH,
 		"coordinator_hashrate_gh_s":  coordGH,
@@ -2968,6 +3027,10 @@ func (a *app) handleWorkerStatus(w http.ResponseWriter, r *http.Request) {
 		"telemetry_source":           telemetrySource,
 		"log_path":                   logPath,
 		"external_worker":            running && pid == 0,
+		"submit_heartbeat_unix":      hbUnix,
+		"submit_heartbeat_age_sec":   hbAge,
+		"submit_heartbeat_stale_sec": hbStaleSec,
+		"submit_heartbeat_frozen":    hbFrozen,
 	})
 }
 
@@ -3079,7 +3142,7 @@ func parseWorkerpohGHField(line, key string) float64 {
 			continue
 		}
 		rest := strings.TrimSpace(tok[len(key):])
-		if f, err := strconv.ParseFloat(rest, 64); err == nil && f > 0 && f <= 500 {
+		if f, err := strconv.ParseFloat(rest, 64); err == nil && f > 0 && f <= 5000 {
 			return f
 		}
 	}

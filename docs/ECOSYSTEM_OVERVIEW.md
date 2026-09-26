@@ -47,8 +47,8 @@ HackMe combines **useful Proof-of-History mining** (WASM-gated work), a **coordi
 |-----------|-------|--------|
 | Technology / transparency | Strong public APIs, docs, explorer | Maintain + per-ticker PDF packs |
 | Operational discipline | Settlement timers, public APIs, release channel docs | Scale soak + HA narrative |
-| Market / traction | Pool live · Hunt Watch 12/12 · OSS CVE Watch (nghttp2/libheif) | Volume on first PoW CEX (post-summer) |
-| Liquidity | None listed yet | MM plan after first listing |
+| Market / traction | Pool live · Hunt Watch 12/12 · OSS CVE Watch · own spot desk | Desk volume + organic miners/customers |
+| Liquidity | Own paper desk only · no external MM | MM after desk traction / later CEX |
 | Legal | Risk disclosures on site | Entity + counsel before Tier-1 |
 
-**Strategy:** list **HMC** on PoW-friendly CEX first → **SUP** companion listing → **HMS** when lane is live. Binance-tier is a later stage, not the near-term promise.
+**Strategy:** deepen **own spot desk** (no futures at start) + miners/customers → then **HMC** on PoW-friendly external CEX when MM exists → **SUP** companion → **HMS** when lane is live. Binance-tier is a later stage, not the near-term promise. Mid-tier paid CEX cold outreach is deferred.

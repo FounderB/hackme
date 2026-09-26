@@ -12,7 +12,10 @@ mkdir -p "$OUT"
 
 ADMIN="$(tr -d '\r\n' <"${ADMIN_FILE:-$INSTALL/.env}" 2>/dev/null | sed -n 's/^HACKME_ADMIN_TOKEN=//p' | head -1)"
 [[ -z "$ADMIN" && -f "$INSTALL/.env" ]] && ADMIN="$(grep -m1 '^HACKME_ADMIN_TOKEN=' "$INSTALL/.env" | cut -d= -f2- | tr -d '\r\n')"
-COORD_ADMIN="$(tr -d '\r\n' <"${COORD_ADMIN_FILE:-$INSTALL/.secrets/coordinator_admin.token}" 2>/dev/null || true)"
+# shellcheck source=load_coord_token.sh
+source "$(dirname "$0")/load_coord_token.sh"
+load_bootstrap_coord_token
+COORD_ADMIN="$COORD_POLL_TOKEN"
 
 log() { echo "[snapshot] $*" | tee -a "$OUT/run.log"; }
 log "stamp=$STAMP label=$LABEL out=$OUT"
@@ -27,7 +30,8 @@ if [[ -n "$COORD_ADMIN" ]]; then
 fi
 
 if [[ -n "${CAMPAIGN_ID:-}" ]]; then
-  curl -fsS --max-time 30 "$COORD/api/fuzz/pool/campaigns/progress?id=${CAMPAIGN_ID}" 2>/dev/null \
+  curl -fsS --max-time 30 -H "X-Hackme-Admin-Token: ${COORD_ADMIN}" \
+    "$COORD/api/fuzz/pool/campaigns/progress?id=${CAMPAIGN_ID}" 2>/dev/null \
     | jq . >"$OUT/campaign_progress.json" || true
   curl -fsS --max-time 30 -H "X-Hackme-Admin-Token: $ADMIN" \
     "$BASE/api/fuzz/campaigns/${CAMPAIGN_ID}/escrow" 2>/dev/null | jq . >"$OUT/campaign_escrow.json" || true

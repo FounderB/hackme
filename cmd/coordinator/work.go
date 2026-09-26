@@ -23,6 +23,7 @@ import (
 
 	"hackme/internal/chain"
 	"hackme/internal/lanpool"
+	"hackme/internal/logsafe"
 	"hackme/internal/poolauth"
 	"hackme/internal/worksubmit"
 )
@@ -170,8 +171,14 @@ type workerPayoutStat struct {
 	LastHashrateGHS float64 `json:"hashrate_gh_s,omitempty"`
 	PeakHashrateGHS float64 `json:"peak_hashrate_gh_s,omitempty"`
 	LastSeenUnix    int64   `json:"last_seen_unix,omitempty"`
-	LastClientIP    string  `json:"last_client_ip,omitempty"`
-	Online          bool    `json:"online,omitempty"`
+	// LastPoHSeenUnix is refreshed only on accepted PoH submits with credible GH/s.
+	// Fuzz heartbeats must not keep hybrid GHS "live" after mining stops.
+	LastPoHSeenUnix int64 `json:"last_poh_seen_unix,omitempty"`
+	// LastFuzzSeenUnix is refreshed on fuzz claim/submit. Required (with PoH) to count
+	// as hybrid Dig/Hunt capacity — PoH-only miners must not throttle dig-only fleets.
+	LastFuzzSeenUnix int64  `json:"last_fuzz_seen_unix,omitempty"`
+	LastClientIP     string `json:"last_client_ip,omitempty"`
+	Online           bool   `json:"online,omitempty"`
 }
 
 type workerAbuseState struct {
@@ -360,8 +367,9 @@ func newWorkManagerFromEnv() *workManager {
 	if v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_POOL_HYBRID_REQUIRE_FOUND_SIG"))); v != "" {
 		hybridRequireFoundSig = v == "1" || v == "true" || v == "yes" || v == "on"
 	}
-	// Opt-in: require miner_pubkey on claim (CLAIM-01). Default off so existing workerpoh stays online.
-	claimRequirePubKey := false
+	// Claim pubkey: default ON when hybrid signing is enabled (closes identity-free
+	// claim-as-victim abuse). Explicit HACKME_POOL_CLAIM_REQUIRE_PUBKEY=0 keeps legacy off.
+	claimRequirePubKey := hybridSignerEnabled
 	if v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_POOL_CLAIM_REQUIRE_PUBKEY"))); v != "" {
 		claimRequirePubKey = v == "1" || v == "true" || v == "yes" || v == "on"
 	}
@@ -915,6 +923,7 @@ func (m *workManager) touchWorkerSeenLimited(workerID string) (ok bool, reason s
 	}
 	st := m.worker[workerID]
 	st.LastSeenUnix = now
+	st.LastFuzzSeenUnix = now
 	m.worker[workerID] = st
 	return true, ""
 }
@@ -1081,14 +1090,18 @@ func (m *workManager) markSubmitOutcome(workerID, ipKey, reason string, now int6
 	ipStrike := false
 	sigFail := false
 	switch reason {
-	case "work_id_mismatch", "range_leased_to_another_worker",
-		"found_nonce_out_of_range", "result_hash_required_for_found", "duplicate_found_nonce":
+	case "work_id_mismatch", "range_leased_to_another_worker":
+		// Spoofable with shared pool token: attacker leases as self, submits with
+		// victim worker_id. Never charge the nominal worker — IP only.
+		ipStrike = true
+	case "found_nonce_out_of_range", "result_hash_required_for_found", "duplicate_found_nonce":
+		// Requires a live lease under worker_id (identity gated when payout locked).
 		workerStrike = true
 		ipStrike = true
 	case "invalid_signature", "invalid_pubkey", "pubkey_address_mismatch", "missing_signature_fields",
 		"signature_required", "found_signature_required", "duplicate_signed_payload", "unsupported_sig_alg":
-		// M3: shared pool token — do not ban victim worker_id on forged sigs unless
-		// that worker already bound a payout address (prior good submit).
+		// Shared pool token — do not ban worker_id on forged/unsigned sigs.
+		// IP still accumulates (rotating proxies cost attacker).
 		sigFail = true
 		ipStrike = true
 	case "replay", "unknown_or_already_closed_range", "lease_expired":
@@ -1101,11 +1114,9 @@ func (m *workManager) markSubmitOutcome(workerID, ipKey, reason string, now int6
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if sigFail && workerID != "" {
-		if locked := strings.TrimSpace(m.worker[workerID].PayoutAddress); locked != "" {
-			workerStrike = true
-		}
-	}
+	// Never promote sigFail → workerStrike based on locked payout: that inverted M3
+	// and let claim-as-victim + unsigned submit temp-ban real miners.
+	_ = sigFail
 	applyStrike := func(s workerAbuseState) workerAbuseState {
 		if !workerStrike && !ipStrike {
 			return s
@@ -1281,8 +1292,10 @@ func payoutAddressLockedReason(locked, submitted string) string {
 	return fmt.Sprintf("payout_address_locked:locked=%s:submitted=%s", locked, submitted)
 }
 
-// checkClaimMinerIdentity binds optional claim pubkey/address to a locked worker payout.
-// When claimRequirePubKey is set, miner_pubkey is mandatory under hybrid signing.
+// checkClaimMinerIdentity binds claim pubkey/address to a locked worker payout.
+// When claimRequirePubKey is set (default under hybrid), miner_pubkey is mandatory.
+// When require is off, omitted identity is a legacy claim and does not touch the lock.
+// A presented pubkey that does not match the lock is still rejected.
 func (m *workManager) checkClaimMinerIdentity(workerID, pubHex, addrHint string) (ok bool, reason string) {
 	if m == nil {
 		return true, ""
@@ -1290,7 +1303,15 @@ func (m *workManager) checkClaimMinerIdentity(workerID, pubHex, addrHint string)
 	pubHex = strings.TrimSpace(pubHex)
 	addrHint = strings.TrimSpace(addrHint)
 	require := m.claimRequirePubKey && m.hybridSignerEnabled
+
+	locked := m.lockedPayoutAddress(workerID)
+
 	if pubHex == "" && addrHint == "" {
+		// Require-on: identity is mandatory.
+		// Require-off (HACKME_POOL_CLAIM_REQUIRE_PUBKEY=0): legacy workers omit
+		// pubkey. A stored lock must not turn that omission into a 403 — the
+		// fleet would stop renewing leases after the first keyed claim. A
+		// presented key that does not match the lock is still rejected below.
 		if require {
 			return false, "claim_pubkey_required"
 		}
@@ -1312,13 +1333,40 @@ func (m *workManager) checkClaimMinerIdentity(workerID, pubHex, addrHint string)
 			return false, "invalid_miner_address"
 		}
 	}
-	m.mu.Lock()
-	locked := strings.TrimSpace(m.worker[workerID].PayoutAddress)
-	m.mu.Unlock()
 	if locked != "" && !strings.EqualFold(locked, derived) {
 		return false, payoutAddressLockedReason(locked, derived)
 	}
+	if locked == "" && derived != "" {
+		m.notePayoutLock(workerID, derived)
+	}
 	return true, ""
+}
+
+// notePayoutLock binds worker_id to the first claim identity and persists it.
+func (m *workManager) notePayoutLock(workerID, addr string) {
+	if m == nil {
+		return
+	}
+	workerID = strings.TrimSpace(workerID)
+	addr = strings.TrimSpace(addr)
+	if workerID == "" || addr == "" {
+		return
+	}
+	m.mu.Lock()
+	if m.worker == nil {
+		m.worker = map[string]workerPayoutStat{}
+	}
+	st := m.worker[workerID]
+	cur := strings.TrimSpace(st.PayoutAddress)
+	if cur == "" {
+		st.PayoutAddress = addr
+		m.worker[workerID] = st
+		cur = addr
+	}
+	m.mu.Unlock()
+	if strings.EqualFold(cur, addr) {
+		m.persistPayoutLock(workerID, addr)
+	}
 }
 
 func canonicalSubmitBytes(req submitWorkRequest) []byte {
@@ -1671,9 +1719,6 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		}
 		if ok {
 			issuedAt = rec.IssuedAt
-			if rec.TargetMod > 0 {
-				leaseMod = rec.TargetMod
-			}
 		}
 	}
 
@@ -1775,6 +1820,7 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if signerAddr != "" {
 		if strings.TrimSpace(st.PayoutAddress) == "" {
 			st.PayoutAddress = signerAddr
+			m.persistPayoutLock(req.WorkerID, signerAddr)
 		}
 		st.SignedSubmits++
 	}
@@ -1783,6 +1829,7 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		if gh > st.PeakHashrateGHS {
 			st.PeakHashrateGHS = gh
 		}
+		st.LastPoHSeenUnix = now
 	}
 	st.LastSeenUnix = time.Now().Unix()
 	st.PayoutHMC += payout
@@ -1959,9 +2006,11 @@ func mergeWorkerStat(dst, src workerPayoutStat) (workerPayoutStat, bool) {
 	dstAddr := strings.TrimSpace(dst.PayoutAddress)
 	srcAddr := strings.TrimSpace(src.PayoutAddress)
 	addrConflict := dstAddr != "" && srcAddr != "" && !strings.EqualFold(dstAddr, srcAddr)
-	if addrConflict {
+	if addrConflict || dst.AddressConflict || src.AddressConflict {
 		// Keep accruals visible for ops/settle drift detection; clear address so
 		// autopilot cannot pay the wrong HMC target after a fleet merge.
+		// Conflict is sticky for the rest of this fold: a later -gpuN row must
+		// not reinstall its own address into the blanked slot (report #17).
 		dst.PayoutAddress = ""
 		dst.AddressConflict = true
 	}
@@ -1979,7 +2028,13 @@ func mergeWorkerStat(dst, src workerPayoutStat) (workerPayoutStat, bool) {
 	if src.LastSeenUnix > dst.LastSeenUnix {
 		dst.LastSeenUnix = src.LastSeenUnix
 	}
-	if !addrConflict && dst.PayoutAddress == "" && srcAddr != "" {
+	if src.LastPoHSeenUnix > dst.LastPoHSeenUnix {
+		dst.LastPoHSeenUnix = src.LastPoHSeenUnix
+	}
+	if src.LastFuzzSeenUnix > dst.LastFuzzSeenUnix {
+		dst.LastFuzzSeenUnix = src.LastFuzzSeenUnix
+	}
+	if !dst.AddressConflict && !addrConflict && dst.PayoutAddress == "" && srcAddr != "" {
 		dst.PayoutAddress = srcAddr
 	}
 	if dst.LastClientIP == "" && src.LastClientIP != "" {
@@ -2591,7 +2646,7 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 			if peerFlusher != nil {
 				peerFlusher.mark(workerID)
 			} else if err := persistPeer(r.Context(), db, workerID, reg); err != nil {
-				log.Printf("peer persist %s: %v", workerID, err)
+				log.Printf("peer persist %s: %v", logsafe.ID(workerID), err)
 			}
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -2851,7 +2906,8 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 						wc = v
 					}
 				case float64:
-					if v > 0 && v < float64(math.MaxInt) {
+					// JSON numbers decode as float64; only accept exact ints in [1, MaxInt].
+					if v >= 1 && v <= float64(math.MaxInt) && math.Trunc(v) == v {
 						wc = int(v)
 					}
 				}

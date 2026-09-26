@@ -91,6 +91,9 @@ if [[ "$WORKER_NAME" == "$WORKER_ID" ]]; then
 fi
 
 backoff_sec=1
+# Optional pace between successful claim→submit rounds (ms). Named hybrid fleets
+# share one per-worker claim bucket with dig/hunt — without this, PoH burns the cap.
+CLAIM_COOLDOWN_MS="${HACKME_WORKER_CLAIM_COOLDOWN_MS:-0}"
 ok_claims=0
 ok_submits=0
 accepted_hits=0
@@ -246,6 +249,10 @@ while true; do
     last_reason=""
     reset_backoff
     echo "[worker] submit ok claims=${ok_claims} submits=${ok_submits} accepted=${accepted_hits} payout=${payout} hashrate_gh_s=${ema_hashrate_ghs}"
+    if [[ "${CLAIM_COOLDOWN_MS}" =~ ^[0-9]+$ ]] && (( CLAIM_COOLDOWN_MS > 0 )); then
+      # bash sleep accepts fractional seconds
+      sleep "$(awk -v ms="${CLAIM_COOLDOWN_MS}" 'BEGIN{printf "%.3f", ms/1000.0}')"
+    fi
     continue
   fi
 

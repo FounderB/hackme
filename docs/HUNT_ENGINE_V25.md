@@ -23,10 +23,29 @@ Say:  "2 finding families (65 variant inputs)"
 Not:  "65 vulnerabilities"
 ```
 
+## Hunt Watch honesty 2.0 (public ledger)
+
+Public series ledgers (`scripts/ops/export_hunt_watch_rollup.py`) stamp:
+
+| Field | Role |
+|-------|------|
+| `finding_families` | Per-target + series root-cause families (cite `family_count`) |
+| `corpus_health` | Soak diversity / rare·hot family proxies |
+| `total_finding_families` | Series primary metric |
+| `total_crash_artifacts` | Secondary (variant inputs) |
+
+Hero / table / signals lead with **families**, not raw crash counts.
+
+```bash
+bash scripts/tests/hunt_watch_honesty_gate.sh
+SERIES=2026sep python3 scripts/ops/export_hunt_watch_rollup.py
+```
+
 ## Bench
 
 ```bash
 go test . -run 'FindingFamily|CollapseCrash|RenderFuzzFamily' -count=1
 go test ./internal/fuzzengine/ ./internal/poolfuzz/ -count=1 -timeout 3m
 bash scripts/tests/hunt_engine_depth_bench.sh
+bash scripts/tests/hunt_watch_honesty_gate.sh
 ```

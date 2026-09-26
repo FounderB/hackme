@@ -19,6 +19,21 @@ import (
 	"hackme/internal/poolfuzz"
 )
 
+// coordPoolReadOK allows the pool admin token or the worker token.
+// Empty tokens are accepted only in explicit insecure mode (report #12).
+func coordPoolReadOK(r *http.Request, adminToken, workerToken string, allowInsecure bool) bool {
+	if strings.TrimSpace(adminToken) == "" && strings.TrimSpace(workerToken) == "" && allowInsecure {
+		return true
+	}
+	if adminToken != "" && coordAdminOK(r, adminToken) {
+		return true
+	}
+	if workerToken != "" && coordAdminOK(r, workerToken) {
+		return true
+	}
+	return false
+}
+
 func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInsecure bool, wm *workManager, pf *poolfuzz.Service) {
 	if pf == nil {
 		return
@@ -43,23 +58,31 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		force := strings.TrimSpace(r.URL.Query().Get("refresh")) == "1"
 		listMu.Lock()
 		if !force && len(listCache) > 0 && time.Since(listAt) < listCacheTTL {
-			cached := listCache
+			cached := cloneCampaignMaps(listCache)
 			listMu.Unlock()
+			cap := wm.fuzzFleetCapacity(time.Now().Unix())
+			poolfuzz.AnnotateCampaignFleetETA(cached, cap.EstShardsPerHour)
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.Header().Set("Cache-Control", "public, max-age=15")
-			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "campaigns": cached, "cached": true})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": true, "campaigns": cached, "cached": true, "fleet_capacity": cap,
+			})
 			return
 		}
 		listMu.Unlock()
 		items, err := pf.ListPublicCampaigns(r.Context(), limit)
 		if err != nil {
 			listMu.Lock()
-			stale := listCache
+			stale := cloneCampaignMaps(listCache)
 			listMu.Unlock()
 			if len(stale) > 0 {
+				cap := wm.fuzzFleetCapacity(time.Now().Unix())
+				poolfuzz.AnnotateCampaignFleetETA(stale, cap.EstShardsPerHour)
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				w.Header().Set("Cache-Control", "public, max-age=5")
-				_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "campaigns": stale, "cached": true, "stale": true})
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"ok": true, "campaigns": stale, "cached": true, "stale": true, "fleet_capacity": cap,
+				})
 				return
 			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -71,14 +94,23 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			listAt = time.Now()
 			listMu.Unlock()
 		}
+		cap := wm.fuzzFleetCapacity(time.Now().Unix())
+		out := cloneCampaignMaps(items)
+		poolfuzz.AnnotateCampaignFleetETA(out, cap.EstShardsPerHour)
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=15")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "campaigns": items})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok": true, "campaigns": out, "fleet_capacity": cap,
+		})
 	})
 
 	mux.HandleFunc("/api/fuzz/pool/campaigns/progress", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !coordPoolReadOK(r, adminToken, workerToken, allowInsecure) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		id := strings.TrimSpace(r.URL.Query().Get("id"))
@@ -103,7 +135,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		if remaining < 0 {
 			remaining = 0
 		}
-		eta := estimateETASeconds(remaining, cap.EstShardsPerHour)
+		eta := poolfuzz.EstimateFleetETASeconds(remaining, cap.EstShardsPerHour)
 		prog["remaining_runs"] = remaining
 		prog["eta_sec_fleet"] = eta
 		if eta < 0 {
@@ -476,9 +508,12 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
 		var req struct {
-			WorkerID     string `json:"worker_id"`
-			MinerPubKey  string `json:"miner_pubkey"`
-			MinerAddress string `json:"miner_address"`
+			WorkerID        string `json:"worker_id"`
+			MinerPubKey     string `json:"miner_pubkey"`
+			MinerPubKeyEd   string `json:"miner_pubkey_ed25519"`
+			MinerAddress    string `json:"miner_address"`
+			WorkerVersion   string `json:"worker_version"`
+			HuntHarnessExec string `json:"hunt_harness_exec"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
@@ -489,7 +524,24 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "invalid worker_id", http.StatusBadRequest)
 			return
 		}
-		if okID, reasonID := wm.checkClaimMinerIdentity(workerID, req.MinerPubKey, req.MinerAddress); !okID {
+		minVer := poolfuzz.MinWorkerVersion()
+		if !poolfuzz.WorkerVersionAllowed(req.WorkerVersion, minVer) {
+			wm.recordDrop("worker_outdated")
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok":                 false,
+				"reason":             "worker_outdated",
+				"min_worker_version": minVer,
+				"worker_version":     strings.TrimSpace(req.WorkerVersion),
+			})
+			return
+		}
+		pub := strings.TrimSpace(req.MinerPubKey)
+		if pub == "" {
+			pub = strings.TrimSpace(req.MinerPubKeyEd)
+		}
+		if okID, reasonID := wm.checkClaimMinerIdentity(workerID, pub, req.MinerAddress); !okID {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reasonID})
@@ -526,6 +578,21 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			wm.recordDrop("no_fuzz_work")
 			w.WriteHeader(http.StatusTooManyRequests)
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": "no_fuzz_work"})
+			return
+		}
+		isHunt := work.TaskClass == "hunt" || work.WorkKind == "hunt_shard"
+		if isHunt && !poolfuzz.HuntHarnessCapable(req.HuntHarnessExec) {
+			_, _ = pf.ReleaseWorkLease(r.Context(), work.CampaignID, work.ItemID, workerID)
+			wm.recordDrop("worker_outdated_for_hunt")
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok":                false,
+				"reason":            "worker_outdated_for_hunt",
+				"need_hunt_harness": poolfuzz.HuntHarnessLibFuzzerOneshot,
+				"got_hunt_harness":  strings.TrimSpace(req.HuntHarnessExec),
+				"hint":              "rebuild/redeploy workerfuzz with libFuzzer one-shot RunInputDetailed",
+			})
 			return
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -573,7 +640,17 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			if u := strings.TrimSpace(work.HarnessFetchURL); u != "" {
 				payload["harness_fetch_url"] = u
 			}
+			if sha := strings.TrimSpace(work.HarnessContentSHA256); sha != "" {
+				payload["harness_content_sha256"] = sha
+			}
 			payload["hunt_detect_leaks"] = work.HuntDetectLeaks
+			// Mutation scheduling — workers must derive the same exec inputs as replay.
+			if work.PowerMutCap > 0 {
+				payload["power_mut_cap"] = work.PowerMutCap
+			}
+			if work.HavocDeepV28 {
+				payload["havoc_deep_v28"] = true
+			}
 			payload["shard_spec"] = map[string]any{
 				"iterations_per_shard": work.IterationsPerShard,
 				"check_semantics":      work.CheckSemantics,
@@ -665,7 +742,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			if locked != "" && !strings.EqualFold(locked, payoutAddr) {
 				wm.markSubmitOutcome(req.WorkerID, ipKey, "payout_address_locked", now)
 				// Free the shard so other workers can progress (was holding lease until expiry).
-				_ = pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, req.WorkerID)
+				_, _ = pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, req.WorkerID)
 				w.WriteHeader(http.StatusForbidden)
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"ok":                       false,
@@ -695,6 +772,8 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			SegmentExecDone: req.SegmentExecDone,
 		})
 		if err != nil {
+			// Free lease on reject (segment mismatch / replay fail) so shards do not burn TTL.
+			_, _ = pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, req.WorkerID)
 			wm.markSubmitOutcome(req.WorkerID, ipKey, "fuzz_submit_failed", now)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -710,7 +789,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 				st.PayoutAddress = payoutAddr
 			}
 			st.SignedSubmits++
-			st.LastSeenUnix = time.Now().Unix()
+			ts := time.Now().Unix()
+			st.LastSeenUnix = ts
+			st.LastFuzzSeenUnix = ts
 			wm.worker[req.WorkerID] = st
 			wm.mu.Unlock()
 			wm.commitFuzzHybridNonce(payoutAddr, req.SubmitNonce)
@@ -728,6 +809,76 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			}
 		}
 		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	mux.HandleFunc("/api/fuzz/work/release", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !coordinatorWorkPOSTAuthed(r, adminToken, workerToken, allowInsecure) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
+			http.Error(w, "coordinator authentication required", http.StatusUnauthorized)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
+		var req struct {
+			WorkerID      string `json:"worker_id"`
+			CampaignID    string `json:"campaign_id"`
+			ItemID        int64  `json:"item_id"`
+			MinerPubKey   string `json:"miner_pubkey"`
+			MinerPubKeyEd string `json:"miner_pubkey_ed25519"`
+			MinerAddress  string `json:"miner_address"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		workerID := strings.TrimSpace(req.WorkerID)
+		if !validCoordinatorWorkerID(workerID) {
+			http.Error(w, "invalid worker_id", http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(req.CampaignID) == "" || req.ItemID <= 0 {
+			http.Error(w, "campaign_id and item_id required", http.StatusBadRequest)
+			return
+		}
+		// Admin may release any lease; shared worker token must bind worker_id→payout lock
+		// (same as claim) so one fleet peer cannot snipe another's lease by forging worker_id.
+		isAdmin := adminToken != "" && coordAdminOK(r, adminToken)
+		if !isAdmin {
+			pub := strings.TrimSpace(req.MinerPubKey)
+			if pub == "" {
+				pub = strings.TrimSpace(req.MinerPubKeyEd)
+			}
+			if okID, reasonID := wm.checkClaimMinerIdentity(workerID, pub, req.MinerAddress); !okID {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusForbidden)
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reasonID})
+				return
+			}
+			ipKey := clientIPKey(r)
+			now := time.Now().Unix()
+			if ok, reason := wm.allowClaim(workerID, ipKey, now); !ok {
+				wm.recordDrop("release_" + reason)
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reason})
+				return
+			}
+		}
+		released, err := pf.ReleaseWorkLease(r.Context(), req.CampaignID, req.ItemID, workerID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		if !released {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": "lease_not_held", "released": false})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "released": true})
 	})
 
 	mux.HandleFunc("/api/fuzz/work/replay-status", func(w http.ResponseWriter, r *http.Request) {
@@ -844,6 +995,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		}
 		if path, ok := hunt.GetHarnessArtifactPath(hash); ok {
 			w.Header().Set("Content-Type", "application/octet-stream")
+			if fp, err := hunt.GetHarnessContentSHA256(r.Context(), pf.DB, hash); err == nil && fp != "" {
+				w.Header().Set("X-Hackme-Content-SHA256", fp)
+			}
 			http.ServeFile(w, r, path)
 			return
 		}
@@ -853,6 +1007,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			return
 		}
 		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("X-Hackme-Content-SHA256", hunt.ContentFingerprint(data))
 		if r.Method == http.MethodHead {
 			w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 			return

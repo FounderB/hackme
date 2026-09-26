@@ -39,10 +39,19 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 	if hash == "" {
 		return ClaimedWork{}, fmt.Errorf("poolfuzz: hunt harness_hash required")
 	}
+	contentSHA := huntHarnessContentSHA256(ctx, s, hash, cfg)
+	if !hunt.ValidContentSHA256(contentSHA) {
+		return ClaimedWork{}, fmt.Errorf("poolfuzz: hunt harness_content_sha256 unavailable for %s (publish harness binary first)", hash)
+	}
 	if err := hunt.HarnessArtifactReady(ctx, s.DB, hash); err != nil {
 		return ClaimedWork{}, fmt.Errorf("poolfuzz: hunt harness not ready: %w", err)
 	}
 	iter := huntIterationsPerShard(cfg)
+	// Snapshot mutation scheduling before guided seeding: a seed merge can touch
+	// the in-memory cfg, but the claim must mirror the persisted campaign config
+	// the verification replay will use, so both sides derive identical inputs.
+	mutCap := fuzzengine.PowerMutCap(cfg)
+	deepV28 := fuzzengine.DeepHavocV28(cfg)
 	now := time.Now().Unix()
 	var inputB []byte
 	var inputU uint64
@@ -88,8 +97,11 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 		HuntPinPath:          strings.TrimSpace(jsonString(cfg["hunt_pin_path"])),
 		HuntSourceRel:        strings.TrimSpace(jsonString(cfg["hunt_source_rel"])),
 		HarnessFetchURL:      huntHarnessFetchURL(cfg),
+		HarnessContentSHA256: contentSHA,
 		IterationsPerShard:   iter,
 		HuntDetectLeaks:      hunt.DetectLeaksFromConfig(cfg),
+		PowerMutCap:          mutCap,
+		HavocDeepV28:         deepV28,
 	}, nil
 }
 
@@ -104,17 +116,34 @@ func huntCoverageKind(cfg map[string]any, iter int) string {
 }
 
 func huntHarnessFetchURL(cfg map[string]any) string {
-	if v := strings.TrimSpace(jsonString(cfg["harness_fetch_url"])); v != "" {
-		if hunt.SafeHarnessFetchURL(v) {
-			return v
-		}
-	}
+	// Prefer relative coordinator paths. Absolute URLs must pass SafeHarnessFetchURL
+	// (coordinator host only — no arbitrary public HTTPS).
 	if v := strings.TrimSpace(jsonString(cfg["harness_fetch_path"])); v != "" {
 		if hunt.SafeHarnessFetchURL(v) {
 			return v
 		}
 	}
+	if v := strings.TrimSpace(jsonString(cfg["harness_fetch_url"])); v != "" {
+		if hunt.SafeHarnessFetchURL(v) {
+			return v
+		}
+	}
 	return hunt.HarnessFetchURL(strings.TrimSpace(jsonString(cfg["harness_hash"])))
+}
+
+func huntHarnessContentSHA256(ctx context.Context, s *Service, hash string, cfg map[string]any) string {
+	if v := strings.TrimSpace(strings.ToLower(jsonString(cfg["harness_content_sha256"]))); hunt.ValidContentSHA256(v) {
+		return v
+	}
+	hash = strings.TrimSpace(strings.ToLower(hash))
+	if hash == "" || s == nil || s.DB == nil {
+		return ""
+	}
+	fp, err := hunt.GetHarnessContentSHA256(ctx, s.DB, hash)
+	if err != nil {
+		return ""
+	}
+	return fp
 }
 
 func huntCrashSeverity(san string) string {
@@ -196,18 +225,20 @@ func (s *Service) evalHuntSubmitCheck(ctx context.Context, campaignID string, in
 		maxB = 4096
 	}
 	rep, err := hunt.ReplayShard(ctx, hunt.ReplayShardOpts{
-		RepoRoot:        hunt.RepoRoot(),
-		Spec:            hunt.HarnessSpecFromConfig(cfg),
-		TargetID:        targetID,
-		HarnessHash:     strings.TrimSpace(jsonString(cfg["harness_hash"])),
-		HarnessFetchURL: huntHarnessFetchURL(cfg),
-		CampaignID:      campaignID,
-		InputN:          inputN,
-		Config:          cfg,
-		CorpusSeeds:     seeds,
-		Input:           expectedB,
-		MaxInput:        maxB,
-		ExecPer:         iter,
+		RepoRoot:             hunt.RepoRoot(),
+		Spec:                 hunt.HarnessSpecFromConfig(cfg),
+		TargetID:             targetID,
+		HarnessHash:          strings.TrimSpace(jsonString(cfg["harness_hash"])),
+		HarnessFetchURL:      huntHarnessFetchURL(cfg),
+		HarnessContentSHA256: huntHarnessContentSHA256(ctx, s, strings.TrimSpace(jsonString(cfg["harness_hash"])), cfg),
+		ArtifactDB:           s.DB,
+		CampaignID:           campaignID,
+		InputN:               inputN,
+		Config:               cfg,
+		CorpusSeeds:          seeds,
+		Input:                expectedB,
+		MaxInput:             maxB,
+		ExecPer:              iter,
 	})
 	if err != nil {
 		return 0, "", false, false, nil, 0, fmt.Errorf("poolfuzz: hunt replay: %w", err)

@@ -172,10 +172,11 @@ done
 cp "${ROOT_DIR}/scripts/release/linux/fix_miner_layout.sh" "${LINUX_DIR}/fix_miner_layout.sh"
 chmod +x "${LINUX_DIR}/fix_miner_layout.sh"
 echo "[release] building workerfuzz (pool dig; hybrid process mode + dedicated diggers)"
+WF_LDFLAGS="-s -w -X hackme/internal/workerfuzzloop.Version=${VERSION}"
 GOOS=linux GOARCH="${LINUX_ARCH}" CGO_ENABLED="${CGO_ENABLED}" \
-  go build -trimpath -ldflags "-s -w" -o "${LINUX_DIR}/workerfuzz" ./cmd/workerfuzz
+  go build -trimpath -ldflags "${WF_LDFLAGS}" -o "${LINUX_DIR}/workerfuzz" ./cmd/workerfuzz
 GOOS=windows GOARCH="${WIN_ARCH}" CGO_ENABLED="${CGO_ENABLED}" \
-  go build -trimpath -ldflags "-s -w" -o "${WIN_DIR}/workerfuzz.exe" ./cmd/workerfuzz
+  go build -trimpath -ldflags "${WF_LDFLAGS}" -o "${WIN_DIR}/workerfuzz.exe" ./cmd/workerfuzz
 install -m 0755 "${LINUX_DIR}/workerfuzz" "${LINUX_DIR}/bin/workerfuzz"
 echo "[release] building fleetplan (GPU fleet JSON)"
 GOOS=linux GOARCH="${LINUX_ARCH}" CGO_ENABLED=0 \

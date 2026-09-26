@@ -64,19 +64,21 @@ func RunHuntShard(ctx context.Context, cr ClaimResp, timeoutMS int) (checkResult
 			PinPath:     strings.TrimSpace(cr.HuntPinPath),
 			SourceRel:   strings.TrimSpace(cr.HuntSourceRel),
 		},
-		TargetID:        targetID,
-		HarnessHash:     strings.TrimSpace(cr.HarnessHash),
-		HarnessFetchURL: huntFetchURL(cr),
-		CampaignID:      strings.TrimSpace(cr.CampaignID),
-		InputN:          cr.InputN,
-		Config:          cfg,
-		CorpusSeeds:     seeds,
-		Input:           inputB,
-		MaxInput:        maxB,
-		ExecPer:         execPer,
+		TargetID:             targetID,
+		HarnessHash:          strings.TrimSpace(cr.HarnessHash),
+		HarnessFetchURL:      huntFetchURL(cr),
+		HarnessContentSHA256: strings.TrimSpace(cr.HarnessContentSHA256),
+		CampaignID:           strings.TrimSpace(cr.CampaignID),
+		InputN:               cr.InputN,
+		Config:               cfg,
+		CorpusSeeds:          seeds,
+		Input:                inputB,
+		MaxInput:             maxB,
+		ExecPer:              execPer,
 	})
 	if err != nil {
-		return 0, int(time.Since(start).Milliseconds()), "build: " + err.Error(), 0
+		// Preserve partial segment progress when replay fails mid-shard (e.g. infra timeout).
+		return 0, int(time.Since(start).Milliseconds()), "build: " + err.Error(), rep.ExecDone
 	}
 	if rep.Crash {
 		return 1, int(time.Since(start).Milliseconds()), rep.Trap, execPer
@@ -99,6 +101,11 @@ func HuntClaimMissingFields(cr ClaimResp) error {
 	}
 	if strings.TrimSpace(cr.InputBytesHex) == "" {
 		return fmt.Errorf("hunt claim missing input_bytes_hex")
+	}
+	if strings.TrimSpace(cr.HarnessHash) != "" {
+		if !hunt.ValidContentSHA256(cr.HarnessContentSHA256) {
+			return fmt.Errorf("hunt claim missing harness_content_sha256")
+		}
 	}
 	return nil
 }
@@ -142,5 +149,16 @@ func huntShardConfigFromClaim(cr ClaimResp, corpusGuided bool) map[string]any {
 	if cr.HuntDetectLeaks {
 		cfg["hunt_detect_leaks"] = true
 	}
+	// Keep exec input derivation byte-identical to the coordinator's replay:
+	// PowerScheduleStage and the deep-havoc stack both depend on these keys.
+	if cr.PowerMutCap > 0 {
+		cfg["power_mut_cap"] = cr.PowerMutCap
+	}
+	if cr.HavocDeepV28 {
+		cfg["havoc_deep_v28"] = true
+	}
+	// The campaign's mutator dict is a pure function of the target id, so it can
+	// be rebuilt locally instead of shipped on every claim.
+	hunt.ApplyHuntMutatorDict(cfg, strings.TrimSpace(cr.UpstreamTargetID))
 	return cfg
 }

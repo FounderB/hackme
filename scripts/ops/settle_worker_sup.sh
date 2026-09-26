@@ -81,6 +81,10 @@ while IFS= read -r item; do
   [[ -z "$item" ]] && continue
   row="$(printf '%s' "$item" | base64 -d)"
   worker_id="$(jq -r '.key' <<<"$row")"
+  if [[ "$(jq -r '.value.address_conflict // false' <<<"$row")" == "true" ]]; then
+    echo "[settle-sup] skip ${worker_id}: address_conflict — refuse payout (fleet merge)" >&2
+    continue
+  fi
   payout_sup="$(jq -r '.value.payout_sup // 0' <<<"$row")"
   signed_addr="$(jq -r '.value.payout_address // ""' <<<"$row")"
   map_addr="$(jq -r --arg wid "$worker_id" '.[$wid] // ""' <<<"$map_json")"

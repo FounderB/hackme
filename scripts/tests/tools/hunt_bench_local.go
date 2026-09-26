@@ -79,6 +79,67 @@ func main() {
 		byStack[stackKey]++
 	}
 
+	rawInputs := len(rep.Crashes)
+	familyCount := len(bySig)
+	collapse := 0.0
+	if rawInputs > 0 && familyCount > 0 {
+		collapse = 1.0 - float64(familyCount)/float64(rawInputs)
+	}
+	topFamilies := make([]map[string]any, 0, 8)
+	type pair struct {
+		k string
+		n int
+	}
+	pairs := make([]pair, 0, len(bySig))
+	for k, n := range bySig {
+		pairs = append(pairs, pair{k: k, n: n})
+	}
+	for i := 1; i < len(pairs); i++ {
+		j := i
+		for j > 0 && (pairs[j].n > pairs[j-1].n || (pairs[j].n == pairs[j-1].n && pairs[j].k < pairs[j-1].k)) {
+			pairs[j], pairs[j-1] = pairs[j-1], pairs[j]
+			j--
+		}
+	}
+	for i := 0; i < len(pairs) && i < 8; i++ {
+		topFamilies = append(topFamilies, map[string]any{"family": pairs[i].k, "inputs": pairs[i].n})
+	}
+	findingFamilies := map[string]any{
+		"family_count":    familyCount,
+		"raw_input_count": rawInputs,
+		"crash_inputs":    rawInputs,
+		"hygiene_inputs":  0,
+		"collapse_ratio":  collapse,
+		"by_family":       bySig,
+		"top_families":    topFamilies,
+		"honesty_note":    "Cite family_count, not raw_input_count — many inputs often share one root cause.",
+	}
+	diversity := 0.0
+	if rawInputs > 0 && familyCount > 0 {
+		diversity = float64(familyCount) / float64(rawInputs)
+	}
+	rare, hot := 0, 0
+	for _, n := range bySig {
+		if n <= 2 {
+			rare++
+		}
+		if n >= 8 {
+			hot++
+		}
+	}
+	corpusHealth := map[string]any{
+		"ok":                  true,
+		"source":              "hunt_local_soak",
+		"seed_count":          rawInputs,
+		"rare_family_seeds":   rare,
+		"hot_family_seeds":    hot,
+		"unique_signatures":   familyCount,
+		"unique_stack_frames": len(byStack),
+		"diversity":           diversity,
+		"iterations":          rep.Iterations,
+		"note":                "Local soak proxy — cite finding_families; not fleet pool_corpus rarity.",
+	}
+
 	result := map[string]any{
 		"engine":               "hunt_local",
 		"target":               *target,
@@ -97,6 +158,8 @@ func main() {
 		"sanitizer_subtypes":   bySub,
 		"sanitizer_signatures": bySig,
 		"stack_frames":         byStack,
+		"finding_families":     findingFamilies,
+		"corpus_health":        corpusHealth,
 		"hunt_detect_leaks":    cfg["hunt_detect_leaks"],
 		"local_budget_iters":   cfg["hunt_local_budget_iterations"],
 	}

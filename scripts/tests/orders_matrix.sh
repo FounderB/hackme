@@ -60,7 +60,7 @@ run_case "order-fairness-reject" \
 wallet="$(json_get "$BASE/api/wallet" || true)"
 balance="$(
   printf '%s' "${wallet:-{}}" \
-    | jq -er '.balance_hmc // 0 | tonumber' 2>/dev/null \
+    | jq -er '(.balance_orders_spendable_hmc // .balance_hmc // 0) | tonumber' 2>/dev/null \
     || printf '0'
 )"
 balance="$(printf '%s' "$balance" | tr -d '\r\n')"
@@ -79,7 +79,7 @@ then
     "{\"id\":\"order-valid-small-${TASK_NS}\",\"kind\":\"synthetic_poh_v1\",\"difficulty_score\":1,\"reward_hmc\":0.05,\"target_solves\":1,\"payer_ref\":\"qa:valid\"}" \
     200
 else
-  warn "wallet balance too low for positive order case (balance_hmc=$balance); skipping order-valid-small"
+  warn "wallet balance too low for positive order case (spendable_hmc=$balance); skipping order-valid-small"
 fi
 
 # Always run insufficient funds expectation with intentionally large prepaid.

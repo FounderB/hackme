@@ -204,7 +204,7 @@ func TestFuzzGateHonesty_MixedCrashNoise_EvidenceWindowCaps(t *testing.T) {
 				map[string]any{"depth_tier": tc.depthTierValue}, 1000, "completed")
 
 			now := time.Now()
-			// Newest entries (top of evidence window) are noise-only, so limit=2 should PASS.
+			// Newest entries are noise. The older crash must still fail the gate at limit=2 (report #11).
 			insertFuzzFinding(t, db, camp, "noise-1", "property_violation", "critical", "noise-critical-1", "aa1", "", now.Add(30*time.Minute))
 			insertFuzzFinding(t, db, camp, "noise-2", "security_violation", "high", "noise-high-2", "aa2", "", now.Add(25*time.Minute))
 
@@ -238,8 +238,8 @@ func TestFuzzGateHonesty_MixedCrashNoise_EvidenceWindowCaps(t *testing.T) {
 
 				criticalCount := intFromAny(obs["critical_count"])
 				if limit == 2 {
-					if gate["pass"] != true || criticalCount != 0 {
-						t.Fatalf("limit=2 should PASS with noise-only fetched window; critical_count=%d gate=%+v", criticalCount, gate)
+					if gate["pass"] != false || criticalCount == 0 {
+						t.Fatalf("limit=2 must FAIL: crash-class exists outside the display window; critical_count=%d gate=%+v", criticalCount, gate)
 					}
 				} else if limit == 5 {
 					// Evidence window includes crash-1 when limit >= 5.
@@ -315,6 +315,52 @@ func TestFuzzGateHonesty_DuplicateFindingsAffectCrashCounters(t *testing.T) {
 	obs, _ := gate["observed"].(map[string]any)
 	if intFromAny(obs["critical_count"]) != 2 {
 		t.Fatalf("critical_count=%d want 2 (duplicates must count)", intFromAny(obs["critical_count"]))
+	}
+}
+
+func TestFuzzReportHonesty_IncompleteNotCleanWhenRunsDoneZero(t *testing.T) {
+	a, db := newWalletTestApp(t)
+	const token = "incomplete-token"
+	camp := "camp-incomplete-zero-runs"
+	seedCustomerFuzzCampaignWithConfig(t, a, db, camp, token,
+		map[string]any{"pool_distributed": true, "depth_tier": "bytes_corpus"}, 0, "running")
+
+	r, err := a.buildFuzzReport(context.Background(), camp, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r["verdict"] != "incomplete" {
+		t.Fatalf("verdict=%v want incomplete (not false clean)", r["verdict"])
+	}
+	gate, _ := r["gate"].(map[string]any)
+	if gate["pass"] != false {
+		t.Fatalf("gate must fail-closed on incomplete: %+v", gate)
+	}
+}
+
+func TestFuzzReportHonesty_PoolFindingsHintNotClean(t *testing.T) {
+	a, db := newWalletTestApp(t)
+	const token = "pool-findings-token"
+	camp := "camp-pool-findings-hint"
+	seedCustomerFuzzCampaignWithConfig(t, a, db, camp, token,
+		map[string]any{"pool_distributed": true, "depth_tier": "bytes_corpus"}, 64, "completed")
+	_, err := db.ExecContext(context.Background(),
+		`UPDATE fuzz_campaigns SET summary_json=? WHERE id=?`,
+		`{"runs_done":64,"unique_crashes":34}`, camp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := a.buildFuzzReport(context.Background(), camp, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r["verdict"] != "warn_pool_findings" {
+		t.Fatalf("verdict=%v want warn_pool_findings", r["verdict"])
+	}
+	gate, _ := r["gate"].(map[string]any)
+	if gate["pass"] != false {
+		t.Fatalf("gate must fail-closed when pool findings pending: %+v", gate)
 	}
 }
 

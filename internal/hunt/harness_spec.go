@@ -60,16 +60,13 @@ func ensureInventoryHarness(ctx context.Context, repoRoot string, spec HarnessSp
 	if repoRoot == "" {
 		repoRoot = RepoRoot()
 	}
-	if v, ok := harnessCache.Load(hash); ok {
-		if p, ok := v.(string); ok && p != "" {
-			return p, nil
-		}
-	}
 	cachePath := huntHarnessCachePath(repoRoot, hash)
-	if st, err := osStat(cachePath); err == nil && st {
+	if _, _, err := readVerifiedHarnessCache(cachePath, ""); err == nil {
 		harnessCache.Store(hash, cachePath)
 		return cachePath, nil
 	}
+	harnessCache.Delete(hash)
+	quarantineHarnessCache(cachePath)
 	if spec.PinPath == "" || spec.SourceRel == "" {
 		return "", fmt.Errorf("hunt: inventory harness %s not built on this node", hash)
 	}
@@ -82,7 +79,31 @@ func ensureInventoryHarness(ctx context.Context, repoRoot string, spec HarnessSp
 	if err != nil {
 		return "", err
 	}
-	return res.BinaryPath, nil
+	binPath := strings.TrimSpace(res.BinaryPath)
+	if binPath == "" {
+		return "", fmt.Errorf("hunt: inventory build returned empty path")
+	}
+	data, err := os.ReadFile(binPath)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(cachePath), 0o755); err != nil {
+		return "", err
+	}
+	tmp := cachePath + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmp, cachePath); err != nil {
+		_ = os.Remove(tmp)
+		return "", err
+	}
+	if err := writeHarnessCacheAttestation(cachePath, contentSHA256Hex(data)); err != nil {
+		quarantineHarnessCache(cachePath)
+		return "", err
+	}
+	harnessCache.Store(hash, cachePath)
+	return cachePath, nil
 }
 
 func huntHarnessCachePath(repoRoot, hash string) string {

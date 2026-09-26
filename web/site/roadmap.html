@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ecosystem Roadmap — HackMe Network</title>
-  <meta name="description" content="Current HackMe roadmap: 0.1.0-rc17 cutover (paper exchange, SUP wallet, Hunt), HMC pool live, HMS prelaunch. Updated mid September 2026." />
+  <meta name="description" content="Current HackMe roadmap: 0.1.0-rc17.2 channel (installers 0.1.0-rc17), own spot desk first, HMC pool live, Dig/Hunt customers, external CEX deferred. Updated 22 September 2026." />
   <link rel="canonical" href="https://hackme.tech/roadmap.html" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20260916more3" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20260921list1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
 </head>
 <body>
@@ -19,12 +19,13 @@
 
   <main class="container">
     <section class="hero glass hero-small">
-      <p class="kicker">Ecosystem roadmap · mid September 2026</p>
+      <p class="kicker">Ecosystem roadmap · late September 2026</p>
       <h1>What shipped · what&apos;s next</h1>
       <p class="hero-copy">
         One honest timeline: <strong>HMC</strong> (useful-PoW + pool), <strong>SUP</strong> (loyalty + wallet send),
-        <strong>HMS</strong> (storage prelaunch), paper <strong>Exchange</strong> desk.
-        Channel <code>0.1.0-rc17</code> cutover — growth is traction and listing, not protocol churn.
+        <strong>HMS</strong> (storage prelaunch), own <strong>spot desk</strong>
+        (<a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a>
+        (no futures at start). Channel <code>0.1.0-rc17.2</code> (installers still <code>0.1.0-rc17</code>) — growth is miners, customers, and the desk — not protocol churn or paid mid-CEX fees.
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="./listing.html">Listing readiness</a>
@@ -36,7 +37,7 @@
         <span class="pill live">rc17 cutover</span>
         <span class="pill">Pool + settlement</span>
         <span class="pill">SUP wallet</span>
-        <span class="pill">Paper exchange</span>
+        <span class="pill">Own spot desk</span>
         <span class="pill prelaunch">HMS prelaunch</span>
       </div>
     </section>
@@ -52,8 +53,8 @@
           <h3>Hold the live stack</h3>
           <ul class="list">
             <li>Public pool + hybrid settlement (HMC / SUP)</li>
-            <li>Customer orders on local node → pool dig</li>
-            <li>Quiet ops: uptime, payouts, DR mirror standby</li>
+            <li>Customer Dig/Hunt · GHS↔Dig priority live</li>
+            <li>Own spot desk for buy-path (no futures)</li>
           </ul>
         </article>
         <article class="roadmap-now-card">
@@ -61,8 +62,8 @@
           <h3>Traction before foreign CEX</h3>
           <ul class="list">
             <li>Organic miners + real order clients</li>
-            <li>Own exchange paper → soft live when ready</li>
-            <li>Listing pack / due diligence for PoW desks</li>
+            <li>Desk soft → stronger live when ready</li>
+            <li>Servers / product before mid-CEX listing fees</li>
           </ul>
         </article>
         <article class="roadmap-now-card">
@@ -86,7 +87,7 @@
         <span class="roadmap-badge shipped">Live</span>
         <div>
           <strong>Public pool · hybrid strict · on-chain transfers</strong>
-          <p>Coordinator, explorer, Windows/Linux/ISO channel <code>0.1.0-rc17</code> LIVE (installers published). Settlement + wallet sync.</p>
+          <p>Coordinator, explorer, runtime <code>0.1.0-rc17.2</code> · installers/ISO <code>0.1.0-rc17</code> LIVE. Settlement + wallet sync.</p>
         </div>
       </div>
       <div class="roadmap-milestone shipped">
@@ -113,8 +114,8 @@
       <div class="roadmap-milestone planned">
         <span class="roadmap-badge planned">Next</span>
         <div>
-          <strong>Q3–Q4 2026 — Traction + own exchange paper</strong>
-          <p>Grow stable external miner fleet and paid order clients. Soft paper exchange target (internal) before paying foreign CEX fees.</p>
+          <strong>Q3–Q4 2026 — Traction + own spot desk</strong>
+          <p>Grow miners and paid Dig/Hunt clients. Own desk (no futures at start) before paying foreign mid-CEX listing fees.</p>
         </div>
       </div>
       <div class="roadmap-milestone planned">
@@ -218,7 +219,7 @@
 
   <footer class="footer">
     <p>HackMe Network</p>
-    <p class="muted">Roadmap updated 15 Sep 2026 · ops detail stays on GitHub</p>
+    <p class="muted">Roadmap updated 21 Sep 2026 · ops detail stays on GitHub</p>
     <div class="footer-nav"></div>
   </footer>
   <script src="./assets/site-shell.js?v=20260916more3"></script>

@@ -11,6 +11,26 @@ func TestMutateBytesDeterministic(t *testing.T) {
 	}
 }
 
+func TestDeterministicStagesCoverBands(t *testing.T) {
+	base := []byte(`{"a":1,"b":[2,3,4]}`)
+	seen := map[string]struct{}{}
+	for stage := 0; stage < StageDeterministicMax; stage++ {
+		out := MutateBytes(base, MutationStage(stage), 0xC0FFEE, 4096)
+		if string(out) == string(base) {
+			t.Fatalf("stage %d produced identical output", stage)
+		}
+		seen[string(out)] = struct{}{}
+		// Replay stability across calls.
+		again := MutateBytes(base, MutationStage(stage), 0xC0FFEE, 4096)
+		if string(out) != string(again) {
+			t.Fatalf("stage %d not replay-stable", stage)
+		}
+	}
+	if len(seen) < 32 {
+		t.Fatalf("expected diverse deterministic outputs, got %d unique", len(seen))
+	}
+}
+
 func TestGuidedBytesUsesCorpus(t *testing.T) {
 	cfg := map[string]any{"input_mode": "bytes"}
 	violation := U64LayoutToBytes(PackWasmCheckInput(0x4c, 521, 0))

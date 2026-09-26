@@ -18,6 +18,18 @@ func putTestHuntHarness(t *testing.T, ctx context.Context, db *sql.DB, hash stri
 	t.Helper()
 	hunt.SetHarnessObjectDir("")
 	t.Cleanup(func() { hunt.SetHarnessObjectDir("") })
+	// Prefer a real ASAN catalog binary when available so replay exec can succeed.
+	root := hunt.RepoRoot()
+	if root != "" {
+		if bin, err := hunt.EnsureHarnessBinary(ctx, root, "jsmn", hash); err == nil && bin != "" {
+			if data, rerr := os.ReadFile(bin); rerr == nil && len(data) > 0 {
+				if err := hunt.PutHarnessArtifact(ctx, db, hash, data, "jsmn"); err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+		}
+	}
 	data := []byte{0x7f, 'E', 'L', 'F', 0, 1, 2, 3, 4, 5, 6, 7}
 	if err := hunt.PutHarnessArtifact(ctx, db, hash, data, "test.c"); err != nil {
 		t.Fatal(err)

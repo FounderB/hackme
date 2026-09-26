@@ -63,6 +63,8 @@ func ApplyPoolGuidedDefaults(cfg map[string]any, targetID string) {
 	if _, ok := cfg["corpus_explore_v2"]; !ok {
 		cfg["corpus_explore_v2"] = true
 	}
+	// v2.8 deep havoc — new campaigns only; leave flag unset for legacy replay identity.
+	fuzzengine.EnableDeepHavocV28(cfg)
 }
 
 // ShardSegmentMutating reports whether Hunt pool shards run L1 mutating exec chains.

@@ -57,7 +57,9 @@ if [[ "$GPU_BACKEND" == "cpu" ]]; then
   echo "[desktop-gpu] WARN: GPU backend is cpu — fix NVML (reboot) or install OpenCL for ~0.01 GH/s only" >&2
 fi
 set_kv "$DESKTOP_ENV" HACKME_GPU_BACKEND "$GPU_BACKEND"
-set_kv "$DESKTOP_ENV" HACKME_CUDA_VERBOSE 1
+set_kv "$DESKTOP_ENV" HACKME_CUDA_VERBOSE 0
+# Per-kernel verbose freezes Windows under Defender (#1). Use HACKME_CUDA_VERBOSE=1 only for short diagnostics;
+# hotlog keeps mining non-blocking even when verbose is on.
 
 if ssh -o BatchMode=yes -o ConnectTimeout=8 "$MSK_SSH" true 2>/dev/null; then
   echo "[desktop-gpu] throttle MSK worker (CPU-only, slower claim loop)"

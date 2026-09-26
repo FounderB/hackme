@@ -7,12 +7,14 @@ import (
 )
 
 func TestScheduleDigBackpressureAndBoost(t *testing.T) {
-	var poh, calib atomic.Int64
+	var poh, calib, upd atomic.Int64
 	calib.Store(100_000) // 100 GH/s
+	upd.Store(time.Now().Unix())
 	cfg := Config{
 		LogPrefix:            "test",
 		PohGHSMilli:          &poh,
 		CalibGHSMilli:        &calib,
+		PohGHSUpdatedUnix:    &upd,
 		BackpressureFloorPct: 35,
 		DigBoostFloorPct:     70,
 	}
@@ -52,17 +54,54 @@ func TestScheduleDigDisabledWithoutSignals(t *testing.T) {
 }
 
 func TestScheduleDigBoostDisabledHighPct(t *testing.T) {
-	var poh, calib atomic.Int64
+	var poh, calib, upd atomic.Int64
 	calib.Store(100_000)
 	poh.Store(95_000)
+	upd.Store(time.Now().Unix())
 	cfg := Config{
 		PohGHSMilli:          &poh,
 		CalibGHSMilli:        &calib,
+		PohGHSUpdatedUnix:    &upd,
 		BackpressureFloorPct: 10,
 		DigBoostFloorPct:     101, // >100 disables boost
 	}
 	s := ScheduleDig(cfg, &Stats{})
 	if s.Boosted {
 		t.Fatalf("boost should be off: %+v", s)
+	}
+}
+
+func TestScheduleDigBoostWithBackpressureDisabled(t *testing.T) {
+	var poh, calib, upd atomic.Int64
+	calib.Store(100_000)
+	poh.Store(90_000)
+	upd.Store(time.Now().Unix())
+	cfg := Config{
+		PohGHSMilli:          &poh,
+		CalibGHSMilli:        &calib,
+		PohGHSUpdatedUnix:    &upd,
+		BackpressureFloorPct: 0, // disable pauses only
+		DigBoostFloorPct:     70,
+	}
+	s := ScheduleDig(cfg, &Stats{})
+	if !s.Boosted || s.GapScale != DigGapBoostScale {
+		t.Fatalf("boost must work with backpressure off: %+v", s)
+	}
+}
+
+func TestScheduleDigIgnoresStalePoH(t *testing.T) {
+	var poh, calib, upd atomic.Int64
+	calib.Store(100_000)
+	poh.Store(95_000)
+	upd.Store(time.Now().Unix() - DigPoHSignalStaleSec - 5)
+	cfg := Config{
+		PohGHSMilli:       &poh,
+		CalibGHSMilli:     &calib,
+		PohGHSUpdatedUnix: &upd,
+		DigBoostFloorPct:  70,
+	}
+	s := ScheduleDig(cfg, &Stats{})
+	if s.Boosted || s.PausedBack {
+		t.Fatalf("stale PoH must be ignored: %+v", s)
 	}
 }

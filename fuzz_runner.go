@@ -22,6 +22,7 @@ type fuzzAutoCampaign struct {
 	ID            string
 	TaskID        string
 	Status        string
+	OwnerRef      string
 	BudgetRuns    int
 	BudgetSeconds int
 	StartedAt     int64

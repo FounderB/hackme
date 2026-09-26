@@ -1,6 +1,7 @@
 {
   "series": "2026sep",
-  "generated_at": "2026-09-14T18:37:06Z",
+  "generated_at": "2026-09-21T14:48:09Z",
+  "honesty_version": "2.0",
   "days_present": [
     1,
     2,
@@ -18,13 +19,57 @@
   "targets_completed": 50,
   "total_iterations": 192507336,
   "total_crashes": 1437,
+  "total_crash_artifacts": 1437,
+  "total_finding_families": 8,
+  "finding_families": {
+    "family_count": 8,
+    "raw_input_count": 1437,
+    "collapse_ratio": 0.994433,
+    "by_family": {
+      "asan/address-sanitizer": 26,
+      "ubsan/function-pointer-cast": 1372,
+      "ubsan/undefined-behavior": 38,
+      "ubsan/misaligned-pointer": 1
+    },
+    "top_families": [
+      {
+        "family": "ubsan/function-pointer-cast",
+        "inputs": 1372
+      },
+      {
+        "family": "ubsan/undefined-behavior",
+        "inputs": 38
+      },
+      {
+        "family": "asan/address-sanitizer",
+        "inputs": 26
+      },
+      {
+        "family": "ubsan/misaligned-pointer",
+        "inputs": 1
+      }
+    ],
+    "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause.",
+    "scope": "sum_of_per_target_family_counts"
+  },
+  "corpus_health": {
+    "ok": true,
+    "source": "hunt_watch_soak_series",
+    "seed_count": 1437,
+    "rare_family_seeds": 1,
+    "hot_family_seeds": 6,
+    "avg_diversity": 0.008838,
+    "targets": 50,
+    "note": "Aggregated soak proxies; cite finding_families for public claims."
+  },
+  "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause.",
   "by_verdict": {
     "CLEAN": 43,
     "CVE_CANDIDATE": 2,
     "INFORMATIONAL": 5
   },
   "engine": "hunt_standard",
-  "branch": "feature/hunt-mvp",
+  "branch": "main",
   "known_issues": [
     {
       "target": "centijson",
@@ -58,6 +103,34 @@
       "iterations": 1000000,
       "exec_per_sec": 156.1730114288183,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 1000000,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 6403.155006432
     },
     {
@@ -68,6 +141,34 @@
       "iterations": 1000000,
       "exec_per_sec": 146.50793677304083,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 1000000,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 6825.568785049
     },
     {
@@ -78,6 +179,34 @@
       "iterations": 1000000,
       "exec_per_sec": 154.05911446962494,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 1000000,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 6491.014851297
     },
     {
@@ -88,6 +217,34 @@
       "iterations": 4418284,
       "exec_per_sec": 153.41263259424073,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4418284,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001181688
     },
     {
@@ -98,6 +255,34 @@
       "iterations": 4262702,
       "exec_per_sec": 148.01047860435884,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4262702,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.00146067
     },
     {
@@ -108,6 +293,34 @@
       "iterations": 4231081,
       "exec_per_sec": 146.91252885113337,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4231081,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001150939
     },
     {
@@ -118,6 +331,34 @@
       "iterations": 4644504,
       "exec_per_sec": 161.26749839635153,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4644504,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.000286388
     },
     {
@@ -128,6 +369,34 @@
       "iterations": 4277667,
       "exec_per_sec": 148.53009917214612,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4277667,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.000968438
     },
     {
@@ -138,6 +407,34 @@
       "iterations": 4093739,
       "exec_per_sec": 142.1437052332422,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4093739,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.002035142
     },
     {
@@ -148,6 +445,34 @@
       "iterations": 4663636,
       "exec_per_sec": 161.9318036184351,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4663636,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.000344522
     },
     {
@@ -158,6 +483,43 @@
       "iterations": 1492190,
       "exec_per_sec": 51.81208525403208,
       "crashes": 13,
+      "raw_crash_artifacts": 13,
+      "unique_signatures": 1,
+      "unique_inputs": 13,
+      "unique_stack_frames": 1,
+      "family_count": 1,
+      "finding_families": {
+        "family_count": 1,
+        "raw_input_count": 13,
+        "crash_inputs": 13,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.923077,
+        "by_family": {
+          "asan/address-sanitizer": 13
+        },
+        "top_families": [
+          {
+            "family": "asan/address-sanitizer",
+            "inputs": 13
+          }
+        ],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 13,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 1,
+        "unique_signatures": 1,
+        "unique_stack_frames": 1,
+        "diversity": 0.076923,
+        "iterations": 1492190,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {
+        "asan/address-sanitizer": 13
+      },
       "elapsed_sec": 28800.037533403
     },
     {
@@ -168,6 +530,34 @@
       "iterations": 3911484,
       "exec_per_sec": 135.81541627957859,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 3911484,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.000082083
     },
     {
@@ -178,6 +568,34 @@
       "iterations": 4490973,
       "exec_per_sec": 155.9365515232796,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4490973,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.002027296
     },
     {
@@ -188,6 +606,43 @@
       "iterations": 2516752,
       "exec_per_sec": 87.38721805773275,
       "crashes": 13,
+      "raw_crash_artifacts": 13,
+      "unique_signatures": 1,
+      "unique_inputs": 13,
+      "unique_stack_frames": 1,
+      "family_count": 1,
+      "finding_families": {
+        "family_count": 1,
+        "raw_input_count": 13,
+        "crash_inputs": 13,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.923077,
+        "by_family": {
+          "asan/address-sanitizer": 13
+        },
+        "top_families": [
+          {
+            "family": "asan/address-sanitizer",
+            "inputs": 13
+          }
+        ],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 13,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 1,
+        "unique_signatures": 1,
+        "unique_stack_frames": 1,
+        "diversity": 0.076923,
+        "iterations": 2516752,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {
+        "asan/address-sanitizer": 13
+      },
       "elapsed_sec": 28800.001372481
     },
     {
@@ -198,6 +653,34 @@
       "iterations": 3840344,
       "exec_per_sec": 133.34527070974687,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 3840344,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001526558
     },
     {
@@ -208,6 +691,34 @@
       "iterations": 3601642,
       "exec_per_sec": 125.05700794871575,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 3601642,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001367992
     },
     {
@@ -218,6 +729,34 @@
       "iterations": 4139137,
       "exec_per_sec": 143.72002976421552,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4139137,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.000993533
     },
     {
@@ -228,6 +767,34 @@
       "iterations": 4489921,
       "exec_per_sec": 155.90002933626056,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4489921,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.000994969
     },
     {
@@ -238,6 +805,34 @@
       "iterations": 3440674,
       "exec_per_sec": 119.46784106279635,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 3440674,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001484847
     },
     {
@@ -248,6 +843,34 @@
       "iterations": 4166425,
       "exec_per_sec": 144.66752889763123,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4166425,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001159543
     },
     {
@@ -258,6 +881,34 @@
       "iterations": 4480776,
       "exec_per_sec": 155.58249527083237,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4480776,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.00087542
     },
     {
@@ -268,6 +919,34 @@
       "iterations": 4140557,
       "exec_per_sec": 143.76933581831258,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4140557,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.000893324
     },
     {
@@ -278,6 +957,43 @@
       "iterations": 2840056,
       "exec_per_sec": 98.6130492957293,
       "crashes": 450,
+      "raw_crash_artifacts": 450,
+      "unique_signatures": 1,
+      "unique_inputs": 450,
+      "unique_stack_frames": 1,
+      "family_count": 1,
+      "finding_families": {
+        "family_count": 1,
+        "raw_input_count": 450,
+        "crash_inputs": 450,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.997778,
+        "by_family": {
+          "ubsan/function-pointer-cast": 450
+        },
+        "top_families": [
+          {
+            "family": "ubsan/function-pointer-cast",
+            "inputs": 450
+          }
+        ],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 450,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 1,
+        "unique_signatures": 1,
+        "unique_stack_frames": 1,
+        "diversity": 0.002222,
+        "iterations": 2840056,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {
+        "ubsan/function-pointer-cast": 450
+      },
       "elapsed_sec": 28800.001828186
     },
     {
@@ -288,6 +1004,34 @@
       "iterations": 4111356,
       "exec_per_sec": 142.75540711992855,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4111356,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001925994
     },
     {
@@ -298,6 +1042,34 @@
       "iterations": 3917650,
       "exec_per_sec": 136.0295103198949,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 3917650,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.000755623
     },
     {
@@ -308,6 +1080,43 @@
       "iterations": 2785394,
       "exec_per_sec": 96.7150632937526,
       "crashes": 438,
+      "raw_crash_artifacts": 438,
+      "unique_signatures": 1,
+      "unique_inputs": 438,
+      "unique_stack_frames": 1,
+      "family_count": 1,
+      "finding_families": {
+        "family_count": 1,
+        "raw_input_count": 438,
+        "crash_inputs": 438,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.997717,
+        "by_family": {
+          "ubsan/function-pointer-cast": 438
+        },
+        "top_families": [
+          {
+            "family": "ubsan/function-pointer-cast",
+            "inputs": 438
+          }
+        ],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 438,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 1,
+        "unique_signatures": 1,
+        "unique_stack_frames": 1,
+        "diversity": 0.002283,
+        "iterations": 2785394,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {
+        "ubsan/function-pointer-cast": 438
+      },
       "elapsed_sec": 28800.001831565
     },
     {
@@ -318,6 +1127,34 @@
       "iterations": 3958879,
       "exec_per_sec": 137.46106848496814,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 3958879,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001655981
     },
     {
@@ -328,6 +1165,43 @@
       "iterations": 4350157,
       "exec_per_sec": 151.04711193127696,
       "crashes": 4,
+      "raw_crash_artifacts": 4,
+      "unique_signatures": 1,
+      "unique_inputs": 4,
+      "unique_stack_frames": 1,
+      "family_count": 1,
+      "finding_families": {
+        "family_count": 1,
+        "raw_input_count": 4,
+        "crash_inputs": 4,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.75,
+        "by_family": {
+          "ubsan/undefined-behavior": 4
+        },
+        "top_families": [
+          {
+            "family": "ubsan/undefined-behavior",
+            "inputs": 4
+          }
+        ],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 4,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 1,
+        "unique_stack_frames": 1,
+        "diversity": 0.25,
+        "iterations": 4350157,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {
+        "ubsan/undefined-behavior": 4
+      },
       "elapsed_sec": 28800.00116771
     },
     {
@@ -338,6 +1212,34 @@
       "iterations": 4222055,
       "exec_per_sec": 146.59912053591253,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4222055,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.002241253
     },
     {
@@ -348,6 +1250,34 @@
       "iterations": 4409912,
       "exec_per_sec": 153.12193250805282,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4409912,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.002245061
     },
     {
@@ -358,6 +1288,34 @@
       "iterations": 4272124,
       "exec_per_sec": 148.33762721372355,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4272124,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.002266753
     },
     {
@@ -368,6 +1326,34 @@
       "iterations": 4086088,
       "exec_per_sec": 141.87803571595668,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4086088,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.004027265
     },
     {
@@ -378,6 +1364,34 @@
       "iterations": 4432895,
       "exec_per_sec": 153.9199493591361,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4432895,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.002978541
     },
     {
@@ -388,6 +1402,34 @@
       "iterations": 4269630,
       "exec_per_sec": 148.25103486290675,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4269630,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001321733
     },
     {
@@ -398,6 +1440,34 @@
       "iterations": 3920199,
       "exec_per_sec": 136.1180121408749,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 3920199,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.00183916
     },
     {
@@ -408,6 +1478,34 @@
       "iterations": 3982525,
       "exec_per_sec": 138.2821132228742,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 3982525,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001006502
     },
     {
@@ -418,6 +1516,34 @@
       "iterations": 4251313,
       "exec_per_sec": 147.61502599946581,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4251313,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001701828
     },
     {
@@ -428,6 +1554,34 @@
       "iterations": 4480886,
       "exec_per_sec": 155.58630369922938,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4480886,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.002914538
     },
     {
@@ -438,6 +1592,34 @@
       "iterations": 4652971,
       "exec_per_sec": 161.56148988253278,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4652971,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.000565624
     },
     {
@@ -448,6 +1630,34 @@
       "iterations": 4688390,
       "exec_per_sec": 162.79131351211984,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4688390,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001049509
     },
     {
@@ -458,6 +1668,34 @@
       "iterations": 3813891,
       "exec_per_sec": 132.42675935202067,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 3813891,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.002496941
     },
     {
@@ -468,6 +1706,34 @@
       "iterations": 4575509,
       "exec_per_sec": 158.8718255942534,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4575509,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.002661803
     },
     {
@@ -478,6 +1744,34 @@
       "iterations": 4303441,
       "exec_per_sec": 149.4250169162858,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4303441,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.003431895
     },
     {
@@ -488,6 +1782,34 @@
       "iterations": 3687959,
       "exec_per_sec": 128.05411766380922,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 3687959,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.003211785
     },
     {
@@ -498,6 +1820,34 @@
       "iterations": 3800700,
       "exec_per_sec": 131.96874316382664,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 3800700,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.001491882
     },
     {
@@ -508,6 +1858,49 @@
       "iterations": 3060888,
       "exec_per_sec": 106.28081843495463,
       "crashes": 485,
+      "raw_crash_artifacts": 485,
+      "unique_signatures": 2,
+      "unique_inputs": 485,
+      "unique_stack_frames": 1,
+      "family_count": 2,
+      "finding_families": {
+        "family_count": 2,
+        "raw_input_count": 485,
+        "crash_inputs": 485,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.995876,
+        "by_family": {
+          "ubsan/function-pointer-cast": 484,
+          "ubsan/misaligned-pointer": 1
+        },
+        "top_families": [
+          {
+            "family": "ubsan/function-pointer-cast",
+            "inputs": 484
+          },
+          {
+            "family": "ubsan/misaligned-pointer",
+            "inputs": 1
+          }
+        ],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 485,
+        "rare_family_seeds": 1,
+        "hot_family_seeds": 1,
+        "unique_signatures": 2,
+        "unique_stack_frames": 1,
+        "diversity": 0.004124,
+        "iterations": 3060888,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {
+        "ubsan/function-pointer-cast": 484,
+        "ubsan/misaligned-pointer": 1
+      },
       "elapsed_sec": 28800.004037166
     },
     {
@@ -518,6 +1911,34 @@
       "iterations": 4082534,
       "exec_per_sec": 141.75463821802597,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4082534,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.002958075
     },
     {
@@ -528,6 +1949,43 @@
       "iterations": 4359696,
       "exec_per_sec": 151.37830216804682,
       "crashes": 34,
+      "raw_crash_artifacts": 34,
+      "unique_signatures": 1,
+      "unique_inputs": 34,
+      "unique_stack_frames": 1,
+      "family_count": 1,
+      "finding_families": {
+        "family_count": 1,
+        "raw_input_count": 34,
+        "crash_inputs": 34,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.970588,
+        "by_family": {
+          "ubsan/undefined-behavior": 34
+        },
+        "top_families": [
+          {
+            "family": "ubsan/undefined-behavior",
+            "inputs": 34
+          }
+        ],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 34,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 1,
+        "unique_signatures": 1,
+        "unique_stack_frames": 1,
+        "diversity": 0.029412,
+        "iterations": 4359696,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {
+        "ubsan/undefined-behavior": 34
+      },
       "elapsed_sec": 28800.005929253
     },
     {
@@ -538,6 +1996,34 @@
       "iterations": 4209586,
       "exec_per_sec": 146.16617844712874,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4209586,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.000415436
     },
     {
@@ -548,6 +2034,34 @@
       "iterations": 4678164,
       "exec_per_sec": 162.43623712282783,
       "crashes": 0,
+      "raw_crash_artifacts": 0,
+      "unique_signatures": 0,
+      "unique_inputs": 0,
+      "unique_stack_frames": 0,
+      "family_count": 0,
+      "finding_families": {
+        "family_count": 0,
+        "raw_input_count": 0,
+        "crash_inputs": 0,
+        "hygiene_inputs": 0,
+        "collapse_ratio": 0.0,
+        "by_family": {},
+        "top_families": [],
+        "honesty_note": "Cite family_count / unique sanitizer signatures, not raw crash artifact counts \u2014 many inputs often share one root cause."
+      },
+      "corpus_health": {
+        "ok": true,
+        "source": "hunt_watch_soak",
+        "seed_count": 0,
+        "rare_family_seeds": 0,
+        "hot_family_seeds": 0,
+        "unique_signatures": 0,
+        "unique_stack_frames": 0,
+        "diversity": 0.0,
+        "iterations": 4678164,
+        "note": "Local soak proxy \u2014 cite families; not fleet pool_corpus rarity."
+      },
+      "sanitizer_signatures": {},
       "elapsed_sec": 28800.002283127
     }
   ]

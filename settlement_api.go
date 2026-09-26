@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,6 +24,9 @@ type workerSettlementStateEntry struct {
 	PayoutAddress  string  `json:"payout_address,omitempty"`
 	LastTxHash     string  `json:"last_tx_hash,omitempty"`
 	LastSettleUnix int64   `json:"last_settle_unix,omitempty"`
+	// PendingSettle is the payout script's anti-double-pay marker. It must
+	// survive any Go round-trip of this file (report #13).
+	PendingSettle json.RawMessage `json:"pending_settle,omitempty"`
 }
 
 type workerSettlementMeta struct {
@@ -147,19 +151,6 @@ func fetchCanonicalSettlementStateHTTP(ctx context.Context) (workerSettlementSta
 	return out, nil
 }
 
-func persistCanonicalSettlementSnapshot(st workerSettlementState) {
-	p := canonicalSettlementStateFile()
-	if p == "" {
-		return
-	}
-	b, err := json.MarshalIndent(st, "", "  ")
-	if err != nil {
-		return
-	}
-	_ = os.MkdirAll(filepath.Dir(p), 0o700)
-	_ = os.WriteFile(p, b, 0o600)
-}
-
 // fetchCanonicalSettlementState returns live canonical HTTP only.
 // A stale on-disk settlement_canonical_public.json must NOT be treated as live
 // canonical for merge: when /api/settlement/canonical.json is 404/unreachable,
@@ -248,14 +239,72 @@ func persistWorkerSettlementState(path string, state workerSettlementState) {
 	if strings.TrimSpace(path) == "" {
 		return
 	}
-	_ = withSettlementStateLock(path, func() error {
+	if err := withSettlementStateLock(path, func() error {
 		b, err := json.MarshalIndent(state, "", "  ")
 		if err != nil {
-			return nil
+			return err
 		}
-		_ = os.MkdirAll(filepath.Dir(path), 0o700)
-		return os.WriteFile(path, b, 0o600)
-	})
+		return atomicWriteFile(path, b, 0o600)
+	}); err != nil {
+		log.Printf("settlement: persist worker state failed path=%s: %v", path, err)
+	}
+}
+
+func persistCanonicalSettlementSnapshot(st workerSettlementState) {
+	p := canonicalSettlementStateFile()
+	if p == "" {
+		return
+	}
+	if err := withSettlementStateLock(p, func() error {
+		b, err := json.MarshalIndent(st, "", "  ")
+		if err != nil {
+			return err
+		}
+		return atomicWriteFile(p, b, 0o600)
+	}); err != nil {
+		log.Printf("settlement: persist canonical snapshot failed path=%s: %v", p, err)
+	}
+}
+
+// atomicWriteFile writes via temp+rename so concurrent readers never see a
+// truncate-then-write hole (Windows settlement display corruption class).
+func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fmt.Errorf("empty path")
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp.*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpName)
+		}
+	}()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	_ = os.Chmod(tmpName, perm)
+	if err := replaceFileAtomic(tmpName, path); err != nil {
+		return err
+	}
+	cleanup = false
+	return nil
 }
 
 func parseAnyFloat(v any) float64 {
@@ -377,17 +426,14 @@ func (a *app) handleWorkerSettlement(w http.ResponseWriter, r *http.Request) {
 		canonTimeout = 2 * time.Second
 	}
 	canonCtx, canonCancel := context.WithTimeout(context.Background(), canonTimeout)
-	canonMerged := false
 	if canon, err := fetchCanonicalSettlementState(canonCtx); err == nil {
-		canonMerged = mergeCanonicalSettlementState(&state, canon)
+		// In-memory only. Do not persist from this public GET (report #13):
+		// rewriting the shared ledger dropped the payout script's pending_settle.
+		_ = mergeCanonicalSettlementState(&state, canon)
 	}
 	canonCancel()
 	ensureCoordinatorWorkersMap(ws)
-	repaired := repairWorkerSettlementState(&state, coordinatorWorkersMap(ws))
-	if canonMerged || repaired {
-		stateCopy := state
-		go persistWorkerSettlementState(statePath, stateCopy)
-	}
+	_ = repairWorkerSettlementState(&state, coordinatorWorkersMap(ws))
 	workers := coordinatorWorkersMap(ws)
 	minSettleHMC, dailyForceIntervalSec, dailyMinSettleHMC := settlementWindowConfigNow()
 	minSettleSUP := 0.01
@@ -412,8 +458,9 @@ func (a *app) handleWorkerSettlement(w http.ResponseWriter, r *http.Request) {
 	coordOmittedBreakdown := len(workers) == 0 && asUint64(ws["workers_count"]) > 0
 	payoutMap := workerPayoutMapFromEnv()
 	displayWallet := settlementDisplayWalletAddress(a.nodeID, payoutMap)
-	walletAccrued, walletSettled, walletUnpaid, accrualSource := walletAccrualFromCoordinator(ws, state.Workers, a.nodeID, a.workerID, payoutMap, a.workerProcessRunning())
-	walletAccruedSUP, walletSettledSUP, walletUnpaidSUP := walletAccrualSUPFromCoordinator(ws, state.Workers, a.nodeID, a.workerID, payoutMap)
+	walletAccrued, _, walletUnpaid, accrualSource := walletAccrualFromCoordinator(ws, state.Workers, a.nodeID, a.workerID, payoutMap, a.workerProcessRunning())
+	walletAccruedSUP, _, walletUnpaidSUP := walletAccrualSUPFromCoordinator(ws, state.Workers, a.nodeID, a.workerID, payoutMap)
+	var walletSettled, walletSettledSUP float64
 	desktopWorkerID := strings.TrimSpace(a.workerID)
 	if desktopWorkerID == "" {
 		desktopWorkerID = workerid.DefaultDesktop()
