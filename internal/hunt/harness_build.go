@@ -32,12 +32,18 @@ type HarnessBuildResult struct {
 	Note             string   `json:"note,omitempty"`
 }
 
+// stdinWrapperFingerprint busts harness cache when the stdin driver changes.
+// Keep in sync with behavioral changes to stdinFuzzerWrapper (template.go).
+const stdinWrapperFingerprint = "stdin-heap-copy-v1"
+
 // InventoryHarnessHash fingerprints a pinned inventory harness (full source bytes).
 func InventoryHarnessHash(pinSHA, sourceRel string, content []byte) string {
 	h := sha256.New()
 	_, _ = h.Write([]byte(strings.TrimSpace(pinSHA)))
 	_, _ = h.Write([]byte{0})
 	_, _ = h.Write([]byte(strings.TrimSpace(sourceRel)))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(stdinWrapperFingerprint))
 	_, _ = h.Write([]byte{0})
 	_, _ = h.Write(content)
 	sum := h.Sum(nil)

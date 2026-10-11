@@ -9,8 +9,10 @@ const stdinFuzzerWrapper = `/* Hunt template wrapper — stdin driver for LLVMFu
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 extern int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
+extern int LLVMFuzzerInitialize(int *argc, char ***argv) __attribute__((weak));
 
 int main(void) {
 	static uint8_t buf[65536];
@@ -18,7 +20,22 @@ int main(void) {
 	if (n == 0) {
 		return 0;
 	}
-	return LLVMFuzzerTestOneInput(buf, n);
+	/* Exact-sized heap copy: a static buf[65536] hides ASAN OOB reads past the
+	 * logical seed length (classic length-confusion / claim>body bugs). */
+	uint8_t *heap = (uint8_t *)malloc(n ? n : 1);
+	if (!heap) {
+		return 2;
+	}
+	memcpy(heap, buf, n);
+	if (LLVMFuzzerInitialize) {
+		int argc = 1;
+		char *argv0 = "harness";
+		char **argv = &argv0;
+		(void)LLVMFuzzerInitialize(&argc, &argv);
+	}
+	int rc = LLVMFuzzerTestOneInput(heap, n);
+	free(heap);
+	return rc;
 }
 `
 

@@ -1,10 +1,12 @@
 package hunt
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -65,5 +67,53 @@ func TestInventoryHarnessHashStable(t *testing.T) {
 	h2 := InventoryHarnessHash("abc", "foo.c", content)
 	if h1 != h2 || h1 == "" {
 		t.Fatalf("hash=%q", h1)
+	}
+}
+
+// Length-confusion OOB reads past the logical seed must trip ASAN. A static
+// stdin buffer of 64KiB previously hid these (heavywire BUG-HEAP class).
+func TestBuildInventoryHarnessDetectsInputOOBRead(t *testing.T) {
+	if _, err := exec.LookPath("clang"); err != nil {
+		t.Skip("clang required")
+	}
+	dir := t.TempDir()
+	src := filepath.Join(dir, "fuzz_oob.c")
+	// Use an explicit byte loop (not memcpy into a stack tmp): some clang/ASAN
+	// builds elide the stack-tmp pattern; the loop matches length-confusion reads.
+	body := `
+#include <stdint.h>
+#include <stddef.h>
+int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n) {
+	if (n < 2) return 0;
+	size_t claim = d[0];
+	volatile uint8_t sink = 0;
+	for (size_t i = 0; i < claim; i++) {
+		sink ^= d[1 + i]; /* OOB read when claim > n-1 */
+	}
+	return (int)sink;
+}
+`
+	if err := os.WriteFile(src, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pin := &RepoPinResult{Path: dir, CommitSHA: "oobsha"}
+	res, err := BuildInventoryHarness(context.Background(), dir, HarnessBuildRequest{
+		Pin: pin, SourceRel: "fuzz_oob.c",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Seed: claim=64, only 3 payload bytes → ASAN heap-buffer-overflow on read.
+	seed := []byte{64, 'A', 'B', 'C'}
+	cmd := exec.Command(res.BinaryPath)
+	cmd.Stdin = bytes.NewReader(seed)
+	cmd.Env = append(os.Environ(), "ASAN_OPTIONS=abort_on_error=1:detect_leaks=0")
+	out, runErr := cmd.CombinedOutput()
+	if runErr == nil {
+		t.Fatalf("expected ASAN crash, got ok output=%q", string(out))
+	}
+	s := string(out)
+	if !strings.Contains(s, "AddressSanitizer") && !strings.Contains(s, "heap-buffer-overflow") {
+		t.Fatalf("expected ASAN signature, err=%v out=%q", runErr, s)
 	}
 }
