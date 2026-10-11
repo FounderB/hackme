@@ -14,6 +14,12 @@ func TestIsLibFuzzerPreflightErr(t *testing.T) {
 	if !isLibFuzzerPreflightErr(errors.New("clang subprocess libfuzzer: exit 1")) {
 		t.Fatal("build preflight")
 	}
+	if !isLibFuzzerPreflightErr(errors.New(`fuzzupstream: unknown target "inv_fuzz_parse_c"`)) {
+		t.Fatal("unknown inventory target must soft-skip (was 1ms CLEAN bug)")
+	}
+	if !isLibFuzzerPreflightErr(errors.New("hunt artifact: abc not found")) {
+		t.Fatal("missing published harness is preflight")
+	}
 	if isLibFuzzerPreflightErr(errors.New("hunt: libfuzzer import: no corpus files in /tmp/x")) {
 		t.Fatal("empty import after session must NOT soft-skip")
 	}

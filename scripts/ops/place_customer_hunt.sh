@@ -10,7 +10,8 @@
 #   NODE / BASE          local HackMe node (default http://127.0.0.1:8080)
 #   COORD                coordinator progress peek (optional)
 #   ADMIN_TOKEN          X-Hackme-Admin-Token (or HACKME_ADMIN_TOKEN)
-#   PACKAGE              hunt_standard|hunt_lite (default hunt_standard)
+#   PACKAGE              hunt_lite|hunt_standard (default hunt_lite — fleet LF)
+#   HUNT_ENGINE          forced via CampaignConfig for lite/inventory (default libfuzzer)
 #   GIT_URL / GIT_REF    optional repo metadata for the campaign
 #   MIN_DONE             shards to wait before fetching report (default 4)
 #   WAIT_SEC             max wait for pool progress (default 900)
@@ -36,7 +37,8 @@ NODE="${NODE:-${BASE:-http://127.0.0.1:8080}}"
 NODE="${NODE%/}"
 COORD="${COORD:-}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-${HACKME_ADMIN_TOKEN:-}}"
-PACKAGE="${PACKAGE:-hunt_standard}"
+PACKAGE="${PACKAGE:-hunt_lite}"
+HUNT_ENGINE="${HUNT_ENGINE:-libfuzzer}"
 GIT_URL="${GIT_URL:-}"
 GIT_REF="${GIT_REF:-}"
 MIN_DONE="${MIN_DONE:-4}"
@@ -96,6 +98,8 @@ log "harness_hash=$HARNESS_HASH"
 CID="hunt-customer-$(basename "$REPO" | tr -c 'a-zA-Z0-9' '-' | tr '[:upper:]' '[:lower:]')-${STAMP}"
 TITLE="Customer Hunt · $(basename "$REPO") · ${PACKAGE}"
 log "3/4 create $PACKAGE pool campaign $CID (shards=$SHARDS)"
+# CampaignConfig stamps hunt_engine=libfuzzer + fleet profile for lite/inventory.
+log "hunt_engine=${HUNT_ENGINE} (CampaignConfig ApplyCoverageEngineDefaults)"
 CREATE="$(curl -fsS --max-time 900 -X POST "${NODE}/api/hunt/campaigns" \
   "${hdr[@]}" \
   -d "$(jq -nc \

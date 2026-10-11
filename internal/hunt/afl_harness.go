@@ -2,6 +2,7 @@ package hunt
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,14 @@ import (
 
 	"hackme/internal/fuzzupstream"
 )
+
+// CoverageHarnessOpts resolves showmap/AFL stdin harnesses for catalog or published inventory.
+type CoverageHarnessOpts struct {
+	HarnessHash          string
+	HarnessFetchURL      string
+	HarnessContentSHA256 string
+	ArtifactDB           *sql.DB
+}
 
 // LookAFLClangFast resolves afl-clang-fast / afl-cc for instrumented Hunt builds.
 func LookAFLClangFast() (string, error) {
@@ -65,16 +74,31 @@ func BuildAFLInstrumentedHarness(ctx context.Context, repoRoot, targetID string)
 }
 
 // ResolveCoverageHarness prefers an afl-cc instrumented catalog binary for showmap/AFL++.
-// Falls back to cached ASAN stdin harness when afl-cc is unavailable (showmap will yield
-// empty edges → no structural edge pay).
-func ResolveCoverageHarness(ctx context.Context, repoRoot, targetID string) (path string, instrumented bool, err error) {
+// For custom inventory Hunt, materializes the published ASAN harness by harness_hash /
+// content_sha256 (showmap on non-instrumented ASAN yields empty edges — honest floor).
+// Falls back to cached ASAN stdin harness when afl-cc is unavailable.
+func ResolveCoverageHarness(ctx context.Context, repoRoot, targetID string, opts ...CoverageHarnessOpts) (path string, instrumented bool, err error) {
 	if repoRoot == "" {
 		repoRoot = RepoRoot()
 	}
+	var o CoverageHarnessOpts
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	// Catalog AFL instrumentation when target is in the OSS manifest.
 	if bin, berr := BuildAFLInstrumentedHarness(ctx, repoRoot, targetID); berr == nil && bin != "" {
 		return bin, true, nil
 	} else if berr != nil {
 		err = berr
+	}
+	// Published inventory / pool harness (content_sha256-bound) — not AFL-instrumented.
+	hash := strings.TrimSpace(o.HarnessHash)
+	if hash != "" {
+		if p, merr := MaterializeHarness(ctx, repoRoot, hash, o.HarnessFetchURL, o.HarnessContentSHA256, o.ArtifactDB); merr == nil && p != "" {
+			return p, false, nil
+		} else if merr != nil && err == nil {
+			err = merr
+		}
 	}
 	// ASAN stdin cache (weak / no compile-time edges).
 	pattern := filepath.Join(repoRoot, ".cache", "oss-cve-bin", catalogTargetSegment(targetID)+"-*.bin")

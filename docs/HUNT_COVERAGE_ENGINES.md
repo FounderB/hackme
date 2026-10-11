@@ -31,7 +31,7 @@ Distributed **coverage-guided Hunt** — not an OSS-Fuzz replacement. Dig stays 
 
 1. Worker runs LF/AFL for `engine_lease_sec`, uploads **session-new** corpus_delta + crash artifacts.
 2. Coordinator **ASAN-oneshots** each new seed under the campaign harness (`content_sha256`-bound). Crashes are ASAN-replayed separately.
-3. After a CLEAN harness exec, coordinator runs **`afl-showmap -b`** on an **afl-cc + ASAN** instrumented harness (catalog) and records **only** those edge bitmaps. Structural/fingerprint buckets alone **never** unlock PayRun.
+3. After a CLEAN harness exec, coordinator runs **`afl-showmap -b`** on an **afl-cc + ASAN** instrumented catalog harness when available; for **custom inventory** Hunt it materializes the published harness by `harness_hash` / `content_sha256` (non-instrumented ASAN → empty showmap is an honest floor). Structural/fingerprint buckets alone **never** unlock PayRun.
 4. Settle:
    - **Full PayRun** — showmap-proven new edges and/or ASAN crash
    - **Floor** — CLEAN without proven map delta
@@ -40,7 +40,8 @@ Cap: `HACKME_HUNT_ENGINE_PROVE_MAX` default **16** seeds per delta window (extra
 
 ## Soft-skip / byte fallback
 
-- Missing runner / missing **bwrap** (when `HACKME_HUNT_ISOLATE_REQUIRE=1`) → `hunt_engine_soft_skip`.
+- Missing runner / missing **bwrap** (when `HACKME_HUNT_ISOLATE_REQUIRE=1`) / unknown catalog target without published harness → `hunt_engine_soft_skip` (release lease — **not** 1ms CLEAN success).
+- Inventory fleet uses **libFuzzer subprocess + published ASAN stdin harness** (~60s wall); never silent byte dilution.
 - Empty corpus after a finished LF wall → CLEAN floor (not soft-skip).
 - `HACKME_HUNT_ENGINE_BYTE_FALLBACK` default **OFF**. Deep/Heavy never fall back unless `HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP=1`.
 

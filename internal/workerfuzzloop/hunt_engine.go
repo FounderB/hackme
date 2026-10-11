@@ -88,11 +88,14 @@ func RunHuntEngineShard(ctx context.Context, run ResearchSlotRun, cr ClaimResp) 
 	corpusDir := hunt.PersistentLibFuzzerCorpusDir(repoRoot, targetID)
 	beforeHashes, _ := snapshotCorpusHashes(corpusDir)
 	res := hunt.RunEngineShard(ctx, hunt.EngineShardOpts{
-		RepoRoot:  repoRoot,
-		TargetID:  targetID,
-		Engine:    engine,
-		WallSec:   wall,
-		SeedFiles: seedFiles,
+		RepoRoot:             repoRoot,
+		TargetID:             targetID,
+		Engine:               engine,
+		WallSec:              wall,
+		SeedFiles:            seedFiles,
+		HarnessHash:          strings.TrimSpace(cr.HarnessHash),
+		HarnessFetchURL:      huntFetchURL(cr),
+		HarnessContentSHA256: strings.TrimSpace(cr.HarnessContentSHA256),
 	})
 	out.EngineVersion = res.EngineVersion
 	out.DurationMS = int(time.Since(start).Milliseconds())

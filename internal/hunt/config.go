@@ -137,6 +137,7 @@ func CampaignConfig(ctx context.Context, repoRoot string, req CreateRequest) (ma
 	}
 	ApplySanitizerDefaults(cfg, pkgKey)
 	ApplyPackageDepthDefaults(cfg, pkgKey, pool)
+	ApplyCoverageEngineDefaults(cfg, pkgKey)
 	ApplyHuntMutatorDict(cfg, targetID)
 	if _, err := MergeLibFuzzerSeedCorpus(cfg, repoRoot, targetID); err != nil {
 		return nil, "", fmt.Errorf("hunt: libfuzzer seed import: %w", err)

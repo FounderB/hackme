@@ -39,6 +39,7 @@ func TestEngineLeaseSecClamp(t *testing.T) {
 }
 
 func TestHuntEngineFromConfigExplicit(t *testing.T) {
+	t.Setenv("HACKME_HUNT_ENGINE", "")
 	cfg := map[string]any{"hunt_engine": "aflpp"}
 	if got := HuntEngineFromConfig(cfg); got != EngineAFLPP {
 		t.Fatalf("got %q", got)
@@ -46,6 +47,24 @@ func TestHuntEngineFromConfigExplicit(t *testing.T) {
 	cfg["hunt_engine"] = "byte"
 	if got := HuntEngineFromConfig(cfg); got != EngineByte {
 		t.Fatalf("byte got %q", got)
+	}
+}
+
+func TestHuntEngineInventoryForcesLibFuzzer(t *testing.T) {
+	t.Setenv("HACKME_HUNT_ENGINE", "")
+	cfg := map[string]any{
+		"hunt_source": "inventory", "hunt_package": "hunt_standard",
+		"hunt_engine": "aflpp", "upstream_target_id": "inv_fuzz_parse_c",
+	}
+	if got := HuntEngineFromConfig(cfg); got != EngineLibFuzzer {
+		t.Fatalf("inventory aflpp coerce got %q", got)
+	}
+	if got := EngineProfileFromConfig(cfg); got != EngineProfileFleet {
+		t.Fatalf("inventory profile got %q", got)
+	}
+	ApplyCoverageEngineDefaults(cfg, "hunt_lite")
+	if cfg["hunt_engine"] != EngineLibFuzzer || cfg["hunt_engine_profile"] != EngineProfileFleet {
+		t.Fatalf("defaults %#v", cfg)
 	}
 }
 

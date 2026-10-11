@@ -2,6 +2,7 @@ package hunt
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
@@ -33,6 +34,11 @@ type EngineShardOpts struct {
 	WallSec   int
 	// SeedFiles optional seeds copied into the engine corpus before the run.
 	SeedFiles [][]byte
+	// Published harness (inventory / custom) — used as LF stdin driver / AFL target.
+	HarnessHash          string
+	HarnessFetchURL      string
+	HarnessContentSHA256 string
+	ArtifactDB           *sql.DB // coordinator prove path; workers fetch via URL
 }
 
 // LookPathFn is overridable in tests (defaults to exec.LookPath).
@@ -89,16 +95,16 @@ func RunEngineShard(ctx context.Context, opts EngineShardOpts) EngineShardResult
 
 	switch engine {
 	case EngineLibFuzzer:
-		return runLibFuzzerEngineShard(ctx, repoRoot, targetID, wall, opts.SeedFiles)
+		return runLibFuzzerEngineShard(ctx, repoRoot, targetID, wall, opts)
 	case EngineAFLPP:
-		return runAFLPPEngineShard(ctx, repoRoot, targetID, wall, opts.SeedFiles)
+		return runAFLPPEngineShard(ctx, repoRoot, targetID, wall, opts)
 	default:
 		out.SkippedReason = "unknown_engine"
 		return out
 	}
 }
 
-func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wall int, seeds [][]byte) EngineShardResult {
+func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wall int, opts EngineShardOpts) EngineShardResult {
 	out := EngineShardResult{Engine: EngineLibFuzzer, EngineVersion: LibFuzzerVersionHint(), WallSec: wall}
 	corpusDir := PersistentLibFuzzerCorpusDir(repoRoot, targetID)
 	if err := os.MkdirAll(corpusDir, 0o755); err != nil {
@@ -109,13 +115,29 @@ func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wal
 	out.CorpusDir = corpusDir
 	before, _ := countCorpusFiles(corpusDir)
 	out.CorpusBefore = before
-	for i, b := range seeds {
+	for i, b := range opts.SeedFiles {
 		if len(b) == 0 || len(b) > 65536 {
 			continue
 		}
 		_ = os.WriteFile(filepath.Join(corpusDir, fmt.Sprintf("claim-seed-%d.bin", i)), b, 0o600)
 	}
-	n, err := RunPersistentLibFuzzerSession(ctx, repoRoot, targetID, wall)
+	sess := LibFuzzerSessionOpts{
+		RepoRoot: repoRoot,
+		TargetID: targetID,
+		WallSec:  wall,
+		Persist:  true,
+	}
+	// Custom inventory: published ASAN stdin harness + generic LF subprocess driver.
+	if hash := strings.TrimSpace(opts.HarnessHash); hash != "" {
+		stdinPath, merr := MaterializeHarness(ctx, repoRoot, hash, opts.HarnessFetchURL, opts.HarnessContentSHA256, opts.ArtifactDB)
+		if merr != nil {
+			out.Err = merr.Error()
+			out.SkippedReason = "harness"
+			return out
+		}
+		sess.StdinBin = stdinPath
+	}
+	n, err := RunLibFuzzerSession(ctx, sess)
 	_ = n
 	after, _ := countCorpusFiles(corpusDir)
 	out.CorpusAfter = after
@@ -126,7 +148,7 @@ func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wal
 	if err != nil {
 		out.Err = err.Error()
 	}
-	// Soft-skip only on preflight (no clang/build/target) — never after a wall was spent.
+	// Soft-skip only on preflight (no clang/build/target/harness) — never after a wall was spent.
 	// Empty corpus after LF ran → CLEAN floor submit + re-seed boot starters (avoid lease churn).
 	if after == 0 {
 		_ = seedPersistentCorpus(repoRoot, targetID, corpusDir)
@@ -149,27 +171,33 @@ func isLibFuzzerPreflightErr(err error) bool {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
+	// Import/empty-corpus after a session is NOT preflight (wall was spent).
+	if strings.Contains(msg, "no corpus files") || strings.Contains(msg, "corpus still empty") {
+		return false
+	}
 	for _, needle := range []string{
 		"clang required",
 		"invalid target",
+		"unknown target",
+		"libfuzzer import",
 		"missing subprocess harness",
 		"clang subprocess libfuzzer",
 		"build target",
 		"manifest",
 		"bwrap required",
+		"harness artifact",
+		"hunt artifact",
+		"no coverage harness",
+		"inventory harness",
 	} {
 		if strings.Contains(msg, needle) {
 			return true
 		}
 	}
-	// Import/empty-corpus after a session is NOT preflight.
-	if strings.Contains(msg, "no corpus files") || strings.Contains(msg, "corpus still empty") {
-		return false
-	}
 	return false
 }
 
-func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall int, seeds [][]byte) EngineShardResult {
+func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall int, opts EngineShardOpts) EngineShardResult {
 	out := EngineShardResult{Engine: EngineAFLPP, WallSec: wall}
 	afl, err := LookAFLFuzz()
 	if err != nil {
@@ -179,13 +207,14 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 	}
 	out.EngineVersion = AFLFuzzVersion(afl)
 
-	// Prefer stdin ASAN harness from catalog build cache.
-	harness, err := resolveAFLStdinHarness(ctx, repoRoot, targetID)
+	// Prefer stdin ASAN harness from catalog AFL build, else published inventory harness.
+	harness, err := resolveAFLStdinHarness(ctx, repoRoot, targetID, opts)
 	if err != nil {
 		out.SkippedReason = "harness"
 		out.Err = err.Error()
 		return out
 	}
+	seeds := opts.SeedFiles
 
 	work := filepath.Join(repoRoot, ".cache", "hunt-afl", catalogTargetSegment(targetID))
 	inDir := filepath.Join(work, "in")
@@ -256,13 +285,19 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 	return out
 }
 
-func resolveAFLStdinHarness(ctx context.Context, repoRoot, targetID string) (string, error) {
-	// Prefer afl-cc + ASAN instrumented harness (real AFL edges). Fall back to ASAN-only.
-	if path, instrumented, err := ResolveCoverageHarness(ctx, repoRoot, targetID); err == nil && path != "" {
+func resolveAFLStdinHarness(ctx context.Context, repoRoot, targetID string, opts EngineShardOpts) (string, error) {
+	covOpts := CoverageHarnessOpts{
+		HarnessHash:          opts.HarnessHash,
+		HarnessFetchURL:      opts.HarnessFetchURL,
+		HarnessContentSHA256: opts.HarnessContentSHA256,
+		ArtifactDB:           opts.ArtifactDB,
+	}
+	// Prefer afl-cc + ASAN instrumented harness (real AFL edges). Fall back to ASAN-only / published.
+	if path, instrumented, err := ResolveCoverageHarness(ctx, repoRoot, targetID, covOpts); err == nil && path != "" {
 		if instrumented {
 			return path, nil
 		}
-		// Keep ASAN path as last resort so Deep shards still run (weak feedback).
+		// Keep ASAN / published path as last resort so Deep shards still run (weak feedback).
 		bestASAN := path
 		if aflPath, aerr := BuildAFLInstrumentedHarness(ctx, repoRoot, targetID); aerr == nil && aflPath != "" {
 			return aflPath, nil

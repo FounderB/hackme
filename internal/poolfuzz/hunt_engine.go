@@ -250,7 +250,13 @@ func (s *Service) ProveHuntCorpusSeedEdges(ctx context.Context, campaignID strin
 	}
 	maxProve := envIntClamped("HACKME_HUNT_ENGINE_PROVE_MAX", 16, 1, 64)
 	targetID := strings.TrimSpace(jsonString(cfg["upstream_target_id"]))
-	covHarness, instrumented, _ := hunt.ResolveCoverageHarness(ctx, hunt.RepoRoot(), targetID)
+	hash := strings.TrimSpace(jsonString(cfg["harness_hash"]))
+	covHarness, instrumented, _ := hunt.ResolveCoverageHarness(ctx, hunt.RepoRoot(), targetID, hunt.CoverageHarnessOpts{
+		HarnessHash:          hash,
+		HarnessFetchURL:      huntHarnessFetchURL(cfg),
+		HarnessContentSHA256: huntHarnessContentSHA256(ctx, s, hash, cfg),
+		ArtifactDB:           s.DB,
+	})
 	n := 0
 	for _, seed := range seeds {
 		if n >= maxProve {

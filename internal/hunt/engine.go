@@ -57,15 +57,24 @@ func IsCoverageEngine(engine string) bool {
 
 // HuntEngineFromConfig picks engine for a Hunt campaign.
 // Prefer explicit hunt_engine; else deep/heavy → aflpp when HACKME_HUNT_ENGINE_DEEP_AFL=1 (default on);
-// otherwise libfuzzer. HACKME_HUNT_ENGINE forces override.
+// otherwise libfuzzer. Inventory / custom published harnesses always prefer libfuzzer
+// (no catalog afl-cc rebuild). HACKME_HUNT_ENGINE forces override.
 func HuntEngineFromConfig(cfg map[string]any) string {
 	if v := strings.TrimSpace(os.Getenv("HACKME_HUNT_ENGINE")); v != "" {
 		return ParseHuntEngine(v)
 	}
 	if cfg != nil {
 		if v := strings.TrimSpace(engineCfgString(cfg["hunt_engine"])); v != "" && !strings.EqualFold(v, "auto") {
-			return ParseHuntEngine(v)
+			eng := ParseHuntEngine(v)
+			// Inventory cannot AFL-instrument catalog-style — coerce aflpp → libfuzzer.
+			if eng == EngineAFLPP && isInventoryHuntCfg(cfg) {
+				return EngineLibFuzzer
+			}
+			return eng
 		}
+	}
+	if isInventoryHuntCfg(cfg) {
+		return EngineLibFuzzer
 	}
 	profile := EngineProfileFromConfig(cfg)
 	if profile == EngineProfileDeep && envTruthyDefaultOn("HACKME_HUNT_ENGINE_DEEP_AFL") {
@@ -82,6 +91,10 @@ func EngineProfileFromConfig(cfg map[string]any) string {
 	if v := strings.TrimSpace(strings.ToLower(engineCfgString(cfg["hunt_engine_profile"]))); v == EngineProfileDeep || v == EngineProfileFleet {
 		return v
 	}
+	// Custom inventory fleet smoke — never deep/AFL by package name alone.
+	if isInventoryHuntCfg(cfg) {
+		return EngineProfileFleet
+	}
 	pkg := strings.TrimSpace(strings.ToLower(engineCfgString(cfg["hunt_package"])))
 	if pkg == "" {
 		pkg = strings.TrimSpace(strings.ToLower(engineCfgString(cfg["package"])))
@@ -95,6 +108,41 @@ func EngineProfileFromConfig(cfg map[string]any) string {
 		return EngineProfileDeep
 	}
 	return EngineProfileFleet
+}
+
+func isInventoryHuntCfg(cfg map[string]any) bool {
+	if cfg == nil {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(engineCfgString(cfg["hunt_source"])), "inventory") {
+		return true
+	}
+	if strings.EqualFold(strings.TrimSpace(engineCfgString(cfg["upstream_target"])), "inventory") {
+		return true
+	}
+	id := strings.TrimSpace(engineCfgString(cfg["upstream_target_id"]))
+	return strings.HasPrefix(id, "inv_")
+}
+
+// ApplyCoverageEngineDefaults stamps hunt_engine / profile on campaign config.
+// Fleet / lite / inventory → libfuzzer (avoid deep→aflpp when AFL is missing on workers).
+// Catalog standard/heavy leave hunt_engine unset so HuntEngineFromConfig may pick aflpp.
+func ApplyCoverageEngineDefaults(cfg map[string]any, pkgKey string) {
+	if cfg == nil {
+		return
+	}
+	pkgKey = strings.TrimSpace(strings.ToLower(pkgKey))
+	inv := isInventoryHuntCfg(cfg)
+	lite := pkgKey == "hunt_lite" || pkgKey == "lite" || pkgKey == ""
+	if inv || lite {
+		cfg["hunt_engine_profile"] = EngineProfileFleet
+		cfg["hunt_engine"] = EngineLibFuzzer
+		return
+	}
+	if _, ok := cfg["hunt_engine_profile"]; !ok {
+		cfg["hunt_engine_profile"] = EngineProfileDeep
+	}
+	// Do not force aflpp into config — env HACKME_HUNT_ENGINE_DEEP_AFL gates runtime pick.
 }
 
 // EngineLeaseSecFromConfig returns wall seconds for a coverage-guided Hunt shard.

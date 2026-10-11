@@ -122,25 +122,62 @@ func PersistentLibFuzzerCorpusDir(repoRoot, targetID string) string {
 	return filepath.Join(repoRoot, "reports", "oss-cve-libfuzzer", catalogTargetSegment(targetID), "corpus")
 }
 
+// LibFuzzerSessionOpts configures a bounded libFuzzer wall.
+// When StdinBin is set (published inventory ASAN harness), only the generic
+// subprocess LF driver is built — catalog TargetByID is not required.
+type LibFuzzerSessionOpts struct {
+	RepoRoot string
+	TargetID string
+	WallSec  int
+	Persist  bool
+	StdinBin string // optional override (inventory / custom)
+}
+
 // RunLibFuzzerImportSession runs libFuzzer for wallSec and imports corpus files into L2 seed cache.
 func RunLibFuzzerImportSession(ctx context.Context, repoRoot, targetID string, wallSec int) (int, error) {
-	return runLibFuzzerSession(ctx, repoRoot, targetID, wallSec, false)
+	return RunLibFuzzerSession(ctx, LibFuzzerSessionOpts{
+		RepoRoot: repoRoot, TargetID: targetID, WallSec: wallSec, Persist: false,
+	})
 }
 
 // RunPersistentLibFuzzerSession runs libFuzzer against reports/oss-cve-libfuzzer/<id>/corpus
 // (does not wipe), merges into L2 seed cache, and fails if the corpus stays empty after a
 // meaningful wall (broken harness detect).
 func RunPersistentLibFuzzerSession(ctx context.Context, repoRoot, targetID string, wallSec int) (int, error) {
-	return runLibFuzzerSession(ctx, repoRoot, targetID, wallSec, true)
+	return RunLibFuzzerSession(ctx, LibFuzzerSessionOpts{
+		RepoRoot: repoRoot, TargetID: targetID, WallSec: wallSec, Persist: true,
+	})
 }
 
-func runLibFuzzerSession(ctx context.Context, repoRoot, targetID string, wallSec int, persist bool) (int, error) {
+// RunLibFuzzerSession runs one LF wall with optional published stdin harness override.
+func RunLibFuzzerSession(ctx context.Context, opts LibFuzzerSessionOpts) (int, error) {
+	repoRoot := strings.TrimSpace(opts.RepoRoot)
+	if repoRoot == "" {
+		repoRoot = RepoRoot()
+	}
+	targetID := strings.TrimSpace(opts.TargetID)
+	wallSec := opts.WallSec
 	if wallSec <= 0 {
 		wallSec = 120
 	}
-	binPath, stdinBin, err := BuildLibFuzzerImport(ctx, repoRoot, targetID)
-	if err != nil {
-		return 0, err
+	persist := opts.Persist
+
+	var binPath, stdinBin string
+	var err error
+	if strings.TrimSpace(opts.StdinBin) != "" {
+		stdinBin = strings.TrimSpace(opts.StdinBin)
+		if st, serr := os.Stat(stdinBin); serr != nil || st.IsDir() {
+			return 0, fmt.Errorf("hunt: libfuzzer import: stdin harness missing: %s", stdinBin)
+		}
+		binPath, err = BuildLibFuzzerSubprocessDriver(ctx, repoRoot)
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		binPath, stdinBin, err = BuildLibFuzzerImport(ctx, repoRoot, targetID)
+		if err != nil {
+			return 0, err
+		}
 	}
 	var corpusDir string
 	if persist {
@@ -356,6 +393,25 @@ func ImportLibFuzzerCorpusFromSession(repoRoot, targetID string) (int, error) {
 		return 0, fmt.Errorf("hunt: libfuzzer import: no corpus files in %s", corpusDir)
 	}
 	return ExportLibFuzzerSeeds(repoRoot, targetID, seeds)
+}
+
+// BuildLibFuzzerSubprocessDriver compiles (or reuses) the generic stdin→LLVMFuzzer subprocess
+// libFuzzer binary used with published inventory ASAN harnesses.
+func BuildLibFuzzerSubprocessDriver(ctx context.Context, repoRoot string) (string, error) {
+	if repoRoot == "" {
+		repoRoot = RepoRoot()
+	}
+	if _, err := exec.LookPath("clang"); err != nil {
+		return "", fmt.Errorf("hunt: libfuzzer import: clang required")
+	}
+	outPath := filepath.Join(repoRoot, ".cache", "hunt-lf-import", "_subprocess-libfuzzer-asan")
+	if st, err := os.Stat(outPath); err == nil && st.Mode().IsRegular() && st.Size() > 0 {
+		return outPath, nil
+	}
+	if err := buildSubprocessLibFuzzer(ctx, repoRoot, outPath); err != nil {
+		return "", err
+	}
+	return outPath, nil
 }
 
 func buildSubprocessLibFuzzer(ctx context.Context, repoRoot, outPath string) error {
