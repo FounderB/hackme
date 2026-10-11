@@ -1,6 +1,7 @@
 package hunt
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -82,6 +83,63 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	cmd := exec.CommandContext(runCtx, argv[0], argv[1:]...)
 	cmd.Env = env
 	if opts.Dir != "" && !useBwrap {
+		cmd.Dir = opts.Dir
+	}
+	if opts.Stdin != nil {
+		cmd.Stdin = opts.Stdin
+	}
+	if opts.Stdout != nil {
+		cmd.Stdout = opts.Stdout
+	}
+	var bwrapDiag bytes.Buffer
+	if opts.Stderr != nil {
+		if useBwrap {
+			cmd.Stderr = io.MultiWriter(opts.Stderr, &bwrapDiag)
+		} else {
+			cmd.Stderr = opts.Stderr
+		}
+	} else if useBwrap {
+		cmd.Stderr = &bwrapDiag
+	}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	if opts.RSSLimitMB > 0 && cmd.Process != nil {
+		_ = setRSSLimitMB(cmd.Process.Pid, opts.RSSLimitMB)
+	}
+	err := cmd.Wait()
+	if runCtx.Err() == context.DeadlineExceeded {
+		_ = killProcessGroup(cmd)
+		return fmt.Errorf("hunt isolate: wall exceeded (%s)", wall)
+	}
+	if err != nil && useBwrap && bwrapCageFailed(err, bwrapDiag.String()) {
+		if IsolateRequired() && !opts.AllowBare {
+			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_REQUIRE): %v (%s)", err, strings.TrimSpace(bwrapDiag.String()))
+		}
+		// Dev escape: retry bare when isolate is not required.
+		return runBareIsolated(runCtx, opts, env, wall)
+	}
+	return err
+}
+
+func bwrapCageFailed(err error, stderr string) bool {
+	msg := strings.ToLower(err.Error() + " " + stderr)
+	for _, needle := range []string{
+		"namespace failed", "creating new namespace", "permission denied",
+		"bwrap:", "operation not permitted",
+	} {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func runBareIsolated(runCtx context.Context, opts IsolateOpts, env []string, wall time.Duration) error {
+	cmd := exec.CommandContext(runCtx, opts.Bin, opts.Args...)
+	cmd.Env = env
+	if opts.Dir != "" {
 		cmd.Dir = opts.Dir
 	}
 	if opts.Stdin != nil {

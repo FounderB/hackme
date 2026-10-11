@@ -252,8 +252,12 @@ func RunLibFuzzerSession(ctx context.Context, opts LibFuzzerSessionOpts) (int, e
 	if b, err := os.ReadFile(stderrPath); err == nil {
 		sessionLog = string(b)
 	}
-	if isoErr != nil && strings.Contains(strings.ToLower(isoErr.Error()), "bwrap required") {
-		return 0, isoErr
+	if isoErr != nil {
+		low := strings.ToLower(isoErr.Error())
+		if strings.Contains(low, "bwrap required") || strings.Contains(low, "namespace failed") ||
+			strings.Contains(low, "creating new namespace") {
+			return 0, isoErr
+		}
 	}
 
 	after, _ := countCorpusFiles(corpusDir)

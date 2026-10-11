@@ -59,6 +59,9 @@ func TestIsLibFuzzerPreflightErrBwrap(t *testing.T) {
 	if !isLibFuzzerPreflightErr(errors.New("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_REQUIRE)")) {
 		t.Fatal("bwrap required is preflight soft-skip")
 	}
+	if !isLibFuzzerPreflightErr(errors.New("bwrap: Creating new namespace failed: Permission denied")) {
+		t.Fatal("bwrap namespace denial is preflight soft-skip")
+	}
 }
 
 func TestIsolateRequiredDefaultOn(t *testing.T) {

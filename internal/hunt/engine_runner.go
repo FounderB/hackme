@@ -137,8 +137,10 @@ func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wal
 		}
 		sess.StdinBin = stdinPath
 	}
+	started := time.Now()
 	n, err := RunLibFuzzerSession(ctx, sess)
 	_ = n
+	elapsed := time.Since(started)
 	after, _ := countCorpusFiles(corpusDir)
 	out.CorpusAfter = after
 	if after > before {
@@ -157,8 +159,24 @@ func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wal
 			after = after2
 		}
 	}
-	if err != nil && after == 0 && isLibFuzzerPreflightErr(err) {
+	if err != nil && isLibFuzzerPreflightErr(err) {
+		// Preflight regardless of claim-seed corpus files (avoid 1ms CLEAN).
 		out.SkippedReason = "lf_session"
+		out.Ran = false
+		return out
+	}
+	// Must spend most of the lease wall — claim seeds alone must not unlock CLEAN.
+	minWall := time.Duration(wall) * time.Second * 3 / 4
+	if minWall < time.Duration(MinEngineLeaseSec)*time.Second*3/4 {
+		minWall = time.Duration(MinEngineLeaseSec) * time.Second * 3 / 4
+	}
+	if elapsed < minWall {
+		out.SkippedReason = "lf_wall_short"
+		if out.Err == "" {
+			out.Err = fmt.Sprintf("elapsed_ms=%d want>=%d", elapsed.Milliseconds(), minWall.Milliseconds())
+		} else {
+			out.Err = fmt.Sprintf("%s; elapsed_ms=%d want>=%d", out.Err, elapsed.Milliseconds(), minWall.Milliseconds())
+		}
 		out.Ran = false
 		return out
 	}
@@ -185,10 +203,13 @@ func isLibFuzzerPreflightErr(err error) bool {
 		"build target",
 		"manifest",
 		"bwrap required",
+		"namespace failed",
+		"creating new namespace",
 		"harness artifact",
 		"hunt artifact",
 		"no coverage harness",
 		"inventory harness",
+		"lf_wall_short",
 	} {
 		if strings.Contains(msg, needle) {
 			return true
