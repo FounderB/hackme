@@ -22,13 +22,15 @@ const (
 
 // ResearchCorpusDeltaRequest is a worker-submitted LF persist window result.
 type ResearchCorpusDeltaRequest struct {
-	WorkerID   string
-	CampaignID string
-	ItemID     int64
-	Namespace  string
-	Seeds      []fuzzengine.PoolCorpusSeed
-	Crashes    [][]byte // raw crash artifacts; never trusted without ASAN replay
-	MinerAddr  string
+	WorkerID      string
+	CampaignID    string
+	ItemID        int64
+	Namespace     string
+	Seeds         []fuzzengine.PoolCorpusSeed
+	Crashes       [][]byte // raw crash artifacts; never trusted without ASAN replay
+	MinerAddr     string
+	HuntEngine    string // advisory report (libfuzzer|aflpp); stamped into hunt_proven_engine
+	EngineVersion string
 }
 
 // ResearchCorpusDeltaResult summarizes accept outcomes.
@@ -167,7 +169,11 @@ func (s *Service) AcceptResearchCorpusDelta(ctx context.Context, req ResearchCor
 			if perr != nil {
 				return out, perr
 			}
-			s.noteLeaseProvenPersist(ctx, campaignID, req.ItemID, len(seeds), proven, 0, hunt.HuntEngineFromConfig(cfg), "")
+			eng := strings.TrimSpace(req.HuntEngine)
+			if eng == "" {
+				eng = hunt.HuntEngineFromConfig(cfg)
+			}
+			s.noteLeaseProvenPersist(ctx, campaignID, req.ItemID, len(seeds), proven, 0, eng, strings.TrimSpace(req.EngineVersion))
 		}
 	}
 
@@ -188,7 +194,11 @@ func (s *Service) AcceptResearchCorpusDelta(ctx context.Context, req ResearchCor
 		}
 		out.CrashesReplayOK++
 		if HuntEngineEnabled() {
-			s.noteLeaseProvenPersist(ctx, campaignID, req.ItemID, 0, 0, 1, hunt.HuntEngineFromConfig(cfg), "")
+			eng := strings.TrimSpace(req.HuntEngine)
+			if eng == "" {
+				eng = hunt.HuntEngineFromConfig(cfg)
+			}
+			s.noteLeaseProvenPersist(ctx, campaignID, req.ItemID, 0, 0, 1, eng, strings.TrimSpace(req.EngineVersion))
 		}
 		u := fuzzengine.PackInputBytesToU64(crashB)
 		if err := s.upsertPoolCorpusSeed(ctx, campaignID, u, crashB, 12, 0, 0, true, now); err != nil {

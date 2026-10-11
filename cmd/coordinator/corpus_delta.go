@@ -27,12 +27,14 @@ func addCorpusDeltaRoute(mux *http.ServeMux, adminToken, workerToken string, all
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
 		var req struct {
-			WorkerID   string `json:"worker_id"`
-			CampaignID string `json:"campaign_id"`
-			ItemID     int64  `json:"item_id"`
-			Namespace  string `json:"namespace"`
-			MinerAddr  string `json:"miner_address"`
-			Seeds      []struct {
+			WorkerID      string `json:"worker_id"`
+			CampaignID    string `json:"campaign_id"`
+			ItemID        int64  `json:"item_id"`
+			Namespace     string `json:"namespace"`
+			MinerAddr      string `json:"miner_address"`
+			HuntEngine    string `json:"hunt_engine"`
+			EngineVersion string `json:"engine_version"`
+			Seeds         []struct {
 				InputU64   uint64 `json:"input_u64"`
 				InputBytes string `json:"input_bytes"`
 				Energy     int    `json:"energy"`
@@ -75,13 +77,15 @@ func addCorpusDeltaRoute(mux *http.ServeMux, adminToken, workerToken string, all
 			crashes = append(crashes, b)
 		}
 		out, err := pf.AcceptResearchCorpusDelta(r.Context(), poolfuzz.ResearchCorpusDeltaRequest{
-			WorkerID:   workerID,
-			CampaignID: strings.TrimSpace(req.CampaignID),
-			ItemID:     req.ItemID,
-			Namespace:  strings.TrimSpace(req.Namespace),
-			MinerAddr:  strings.TrimSpace(req.MinerAddr),
-			Seeds:      seeds,
-			Crashes:    crashes,
+			WorkerID:      workerID,
+			CampaignID:    strings.TrimSpace(req.CampaignID),
+			ItemID:        req.ItemID,
+			Namespace:     strings.TrimSpace(req.Namespace),
+			MinerAddr:      strings.TrimSpace(req.MinerAddr),
+			HuntEngine:    strings.TrimSpace(req.HuntEngine),
+			EngineVersion: strings.TrimSpace(req.EngineVersion),
+			Seeds:         seeds,
+			Crashes:       crashes,
 		})
 		if err != nil {
 			msg := err.Error()

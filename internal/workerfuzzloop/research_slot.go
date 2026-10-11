@@ -149,7 +149,7 @@ func MaybeRunResearchSlot(ctx context.Context, run ResearchSlotRun) ResearchSlot
 		cl = http.DefaultClient
 	}
 	accepted, findings, upErr := uploadResearchCorpusDelta(ctx, cl, run.CoordURL, run.Token, run.WorkerID, run.MinerAddr,
-		run.Claim.CampaignID, run.Claim.ItemID, ns, deltas, crashes)
+		run.Claim.CampaignID, run.Claim.ItemID, ns, deltas, crashes, "libfuzzer", hunt.LibFuzzerVersionHint())
 	if upErr != nil {
 		return ResearchSlotResult{
 			Ran: true, CorpusDeltas: len(deltas), Crashes: len(crashes),
@@ -231,7 +231,7 @@ func collectResearchDelta(dir string, before map[string]string, maxFiles int) (s
 	return seeds, crashes, nil
 }
 
-func uploadResearchCorpusDelta(ctx context.Context, cl *http.Client, base, token, workerID, minerAddr, campaignID string, itemID int64, namespace string, seeds []fuzzengine.PoolCorpusSeed, crashes [][]byte) (accepted, findings int, err error) {
+func uploadResearchCorpusDelta(ctx context.Context, cl *http.Client, base, token, workerID, minerAddr, campaignID string, itemID int64, namespace string, seeds []fuzzengine.PoolCorpusSeed, crashes [][]byte, huntEngine, engineVersion string) (accepted, findings int, err error) {
 	base = strings.TrimRight(strings.TrimSpace(base), "/")
 	payloadSeeds := make([]map[string]any, 0, len(seeds))
 	for _, s := range seeds {
@@ -248,13 +248,15 @@ func uploadResearchCorpusDelta(ctx context.Context, cl *http.Client, base, token
 		crashB64 = append(crashB64, base64.StdEncoding.EncodeToString(c))
 	}
 	body, err := json.Marshal(map[string]any{
-		"worker_id":     workerID,
-		"campaign_id":   campaignID,
-		"item_id":       itemID,
-		"namespace":     namespace,
-		"miner_address": minerAddr,
-		"seeds":         payloadSeeds,
-		"crashes":       crashB64,
+		"worker_id":      workerID,
+		"campaign_id":    campaignID,
+		"item_id":        itemID,
+		"namespace":      namespace,
+		"miner_address":  minerAddr,
+		"hunt_engine":    strings.TrimSpace(huntEngine),
+		"engine_version": strings.TrimSpace(engineVersion),
+		"seeds":          payloadSeeds,
+		"crashes":        crashB64,
 	})
 	if err != nil {
 		return 0, 0, err

@@ -89,7 +89,9 @@ func takeLeaseProven(campaignID string, itemID int64) leaseProvenTrack {
 	return *v.(*leaseProvenTrack)
 }
 
-// takeLeaseProvenPersist merges durable DB counters with in-memory track, then clears both.
+// takeLeaseProvenPersist merges durable DB counters with in-memory track and clears
+// the in-memory map only. DB columns stay as the audit stamp for the finished shard
+// (do not zero — empty hunt_proven_* after CLEAN was a reporting hole).
 func (s *Service) takeLeaseProvenPersist(ctx context.Context, campaignID string, itemID int64) leaseProvenTrack {
 	mem := takeLeaseProven(campaignID, itemID)
 	if s == nil || s.DB == nil || itemID <= 0 {
@@ -102,11 +104,6 @@ func (s *Service) takeLeaseProvenPersist(ctx context.Context, campaignID string,
 		       COALESCE(hunt_proven_engine,''), COALESCE(hunt_proven_engine_ver,'')
 		  FROM fuzz_work_items WHERE campaign_id=? AND id=?`,
 		campaignID, itemID).Scan(&edges, &seeds, &crashes, &engine, &ver)
-	_, _ = s.DB.ExecContext(ctx, `
-		UPDATE fuzz_work_items
-		   SET hunt_proven_edges=0, hunt_proven_seeds=0, hunt_proven_crashes=0,
-		       hunt_proven_engine='', hunt_proven_engine_ver=''
-		 WHERE campaign_id=? AND id=?`, campaignID, itemID)
 	if edges > mem.ProvenEdges {
 		mem.ProvenEdges = edges
 	}
@@ -123,6 +120,31 @@ func (s *Service) takeLeaseProvenPersist(ctx context.Context, campaignID string,
 		mem.EngineVersion = ver
 	}
 	return mem
+}
+
+// stampHuntProvenOnSubmit writes final lease prove fields after engine submit
+// (worker hunt_engine / engine_version + coordinator-proven counters).
+func (s *Service) stampHuntProvenOnSubmit(ctx context.Context, campaignID string, itemID int64, proven leaseProvenTrack, engine, version string) {
+	if s == nil || s.DB == nil || itemID <= 0 {
+		return
+	}
+	eng := strings.TrimSpace(engine)
+	if eng == "" {
+		eng = proven.Engine
+	}
+	ver := strings.TrimSpace(version)
+	if ver == "" {
+		ver = proven.EngineVersion
+	}
+	_, _ = s.DB.ExecContext(ctx, `
+		UPDATE fuzz_work_items
+		   SET hunt_proven_edges=?,
+		       hunt_proven_seeds=?,
+		       hunt_proven_crashes=?,
+		       hunt_proven_engine=?,
+		       hunt_proven_engine_ver=?
+		 WHERE campaign_id=? AND id=?`,
+		proven.ProvenEdges, proven.SeedsAccepted, proven.CrashesOK, eng, ver, campaignID, itemID)
 }
 
 func peekLeaseProven(campaignID string, itemID int64) leaseProvenTrack {

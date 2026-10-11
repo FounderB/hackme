@@ -28,6 +28,7 @@ Distributed **coverage-guided Hunt** — not an OSS-Fuzz replacement, and **not*
 - `segment_exec_done=1` for coverage engines
 - `edges_touched` may be sent but is **untrusted for Hunt pay**
 - Corpus novelty + crashes via `POST /api/fuzz/work/corpus_delta` while lease held
+- On engine submit, coordinator **stamps** `hunt_proven_edges/seeds/crashes/engine/engine_ver` on the work item (audit kept after lease clear — not zeroed)
 
 ## Pay model (coordinator-proven)
 

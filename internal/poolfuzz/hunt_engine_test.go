@@ -87,6 +87,40 @@ func TestLeaseProvenTrack(t *testing.T) {
 	}
 }
 
+func TestStampHuntProvenOnSubmitKeepsAudit(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "stamp.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	svc := &Service{DB: db}
+	cid := "camp-stamp"
+	_, err = db.Exec(`INSERT INTO fuzz_campaigns(id, campaign_type, title, status, config_json, created_at)
+		VALUES(?,?,?,?,?,1)`, cid, "hunt", "t", "running", `{"work_kind":"hunt_shard"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := db.Exec(`INSERT INTO fuzz_work_items(campaign_id, input_n, status, created_at, updated_at)
+		VALUES(?,?,?,?,?)`, cid, 1, "leased", 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	itemID, _ := res.LastInsertId()
+	svc.noteLeaseProvenPersist(context.Background(), cid, itemID, 3, 2, 0, hunt.EngineLibFuzzer, "libfuzzer")
+	proven := svc.takeLeaseProvenPersist(context.Background(), cid, itemID)
+	svc.stampHuntProvenOnSubmit(context.Background(), cid, itemID, proven, hunt.EngineLibFuzzer, "libfuzzer-vtest")
+	var edges, seeds int
+	var eng, ver string
+	if err := db.QueryRow(`SELECT hunt_proven_edges, hunt_proven_seeds, hunt_proven_engine, hunt_proven_engine_ver
+		FROM fuzz_work_items WHERE campaign_id=? AND id=?`, cid, itemID).Scan(&edges, &seeds, &eng, &ver); err != nil {
+		t.Fatal(err)
+	}
+	if edges != 2 || seeds != 3 || eng != hunt.EngineLibFuzzer || ver != "libfuzzer-vtest" {
+		t.Fatalf("stamp edges=%d seeds=%d eng=%q ver=%q", edges, seeds, eng, ver)
+	}
+}
+
 func TestApplyHuntEngineByteFallback(t *testing.T) {
 	w := &ClaimedWork{
 		HuntEngine:         hunt.EngineLibFuzzer,

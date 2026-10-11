@@ -130,7 +130,7 @@ func RunHuntEngineShard(ctx context.Context, run ResearchSlotRun, cr ClaimResp) 
 			cl = http.DefaultClient
 		}
 		_, findings, upErr := uploadResearchCorpusDelta(ctx, cl, run.CoordURL, run.Token, run.WorkerID, run.MinerAddr,
-			cr.CampaignID, cr.ItemID, ns, deltas, crashes)
+			cr.CampaignID, cr.ItemID, ns, deltas, crashes, out.Engine, out.EngineVersion)
 		if upErr != nil {
 			fmt.Fprintf(os.Stderr, "hunt_engine: corpus_delta: %v\n", upErr)
 		} else if findings > 0 {

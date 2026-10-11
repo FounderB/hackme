@@ -1214,6 +1214,8 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 		req.Trap = trap
 		if engineMode {
 			proven := s.takeLeaseProvenPersist(ctx, req.CampaignID, req.ItemID)
+			// Stamp worker engine/version + proven counters for customer reports (audit).
+			s.stampHuntProvenOnSubmit(ctx, req.CampaignID, req.ItemID, proven, req.HuntEngine, req.EngineVersion)
 			// Coordinator-proven edges/crashes only — ignore miner edges_touched.
 			kind, fullPay := DecideHuntEnginePay(proven.ProvenEdges, proven.SeedsAccepted, proven.CrashesOK, req.EdgesTouched, req.EdgesTouchedOK)
 			if recordFinding {
