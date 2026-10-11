@@ -1,8 +1,8 @@
 # Hunt economics — 50/50 split (spec)
 
-**Status:** shipped on **0.1.0-rc17** channel (Dig/Scan still 20/80)  
-**Updated:** 2026-09-14  
-**Related:** [FUZZ_ESCROW_20_80.md](FUZZ_ESCROW_20_80.md) · [ORDER_ECONOMICS.md](ORDER_ECONOMICS.md) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) · [HACKME_RC17.md](HACKME_RC17.md)
+**Status:** shipped on **0.1.0-rc17** channel (Dig/Scan still 20/80) · coverage-guided Hunt engines live  
+**Updated:** 2026-10-11  
+**Related:** [FUZZ_ESCROW_20_80.md](FUZZ_ESCROW_20_80.md) · [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md) · [ORDER_ECONOMICS.md](ORDER_ECONOMICS.md) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) · [HACKME_RC17.md](HACKME_RC17.md)
 
 ---
 
@@ -11,12 +11,12 @@
 | | Dig / Scan (20/80) | **Hunt (50/50)** |
 |--|---------------------|------------------|
 | Typical outcome | guard signals common | **CLEAN often** — new ASAN crash not guaranteed |
-| Work unit | WASM segment / run | **CPU shard** (heavier) |
-| Customer buys | audit + finding lane | **distributed ASAN compute** + crash-if-lucky |
-| Miner income if CLEAN | 20% runs pool | **50% runs pool** — still worth taking |
-| Refund on CLEAN | up to 80% bounty | up to **50%** bounty (other 50% paid for work) |
+| Work unit | WASM segment / run | **Coverage-engine lease** (libFuzzer fleet · AFL++ Deep) |
+| Customer buys | WASM smoke/depth + finding lane | **Distributed coverage-guided Hunt** + crash-if-lucky — **not** better than OSS-Fuzz |
+| Miner income if CLEAN | 20% runs pool (hygiene prove) | **Floor** when CLEAN without showmap delta; **full PayRun** on proven edges and/or ASAN crash |
+| Refund on CLEAN | up to 80% bounty | up to **50%** bounty (runs/floor pool still settles for verified work) |
 
-**Dig prices unchanged.** Hunt uses its own split when `campaign_type=hunt` (or `depth_tier` hunt-native).
+**Dig prices unchanged.** Hunt uses its own split when `campaign_type=hunt` (or `depth_tier` hunt-native). Engine + prove contract: [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md).
 
 ---
 
@@ -24,12 +24,12 @@
 
 | Pool | Share | Pays when |
 |------|-------|-----------|
-| **Runs / shards** | **50%** | Each verified Hunt shard submit (`PayFuzzRun` / shard settle) |
+| **Runs / shards** | **50%** | Verified Hunt submit settle (`PayFuzzRun`): **full** on showmap-proven new edges and/or ASAN crash; **floor** on CLEAN without proven map delta. Structural/fingerprint ≠ pay. Worker `edges_touched` untrusted. |
 | **Bounty** | **50%** | First **crash-class** finding with **native repro + challenge pass** |
 | **Crash bonus** | **≤1% of bounty pool**, cap **0.05 HMC** | First **unique crash-class** input (`PayFuzzCrashBonus`) — does **not** close main bounty |
 
 Unused bounty (no qualifying finding) **refunds** to payer on finalize — same as Dig.  
-Crash bonus already paid is not refunded.
+Crash bonus already paid is not refunded. Empty CLEAN is **not** “full PayRun for free.”
 
 Platform fee: **5%** taken from **bounty payout only** (not from runs pool).
 
@@ -115,10 +115,11 @@ Coordinator attach uses the dedicated **order gate** WASM (not Hunt ASAN / Dig d
 
 ```
 Hunt Lite · 20 HMC · 50/50 split
-· ~10 HMC → miners for verified shard work (as campaign runs)
+· Coverage-guided (libFuzzer fleet; AFL++ on Deep when present)
+· ~10 HMC → miners for verified engine work (full PayRun on proven edges/crash; floor on CLEAN w/o delta)
 · ~10 HMC → bounty if ASAN crash + repro confirmed; else refunded on finalize
 · Up to 0.05 HMC crash bonus for first unique crash-class submit
-· CLEAN = budget exhausted, not "fully secure"
+· CLEAN = budget exhausted, not "fully secure" · not better than OSS-Fuzz
 · No CVE guarantee
 ```
 
@@ -126,9 +127,9 @@ Hunt Lite · 20 HMC · 50/50 split
 
 ## Miner copy (marketplace)
 
-- Badge **HUNT** · **per_shard_hmc** · live ETA  
-- Hunt should target **≥2× Dig Audit** effective HMC/hour on same CPU when pool is healthy  
-- Prefer Hunt jobs when per_shard ≥ Dig per_run
+- Badge **HUNT** · **per_shard_hmc** · live ETA · engines via `install_hunt_engines.sh` (no AFL git clone)  
+- Full PayRun needs coordinator-proven **showmap edges** and/or **ASAN crash**; CLEAN without delta = floor  
+- Prefer Hunt jobs when per_shard ≥ Dig per_run and clang/LF (or AFL for Deep) are installed
 
 ---
 
@@ -138,10 +139,11 @@ Hunt Lite · 20 HMC · 50/50 split
 - [x] `campaign_type: hunt` in create API (`POST /api/hunt/campaigns`)  
 - [x] `UniqueCrashBonusMaxUnits` override for Hunt: **5_000_000** (0.05 HMC) via `escrow_split`  
 - [x] Node: `GET /api/hunt/targets`, `POST /api/hunt/inventory`, `POST /api/hunt/campaigns`  
-- [x] Coordinator: CPU shard work kind `hunt_shard` — claim/submit + **coordinator ASAN replay** (`evalHuntSubmitCheck`)  
-- [x] Worker: `RunHuntShard` ASAN on catalog harness (`hunt.ReplayShard` + `.cache/hunt-harness/`)  
-- **L1 mutating shards:** anchor at claim + `iterations_per_shard` (Lite 32 · Standard 128 · Heavy 256) (`hunt.ShardSegmentExecInput`); coordinator replays full chain; fake-crash reject unchanged  
-- **L2 corpus-guided:** `hunt_corpus_guided` + frozen `corpus_seeds` at claim; pool corpus bootstrap/observe; namespace persist `hunt:{target_id}`  
+- [x] Coordinator: CPU shard work kind `hunt_shard` — claim/submit + **coordinator ASAN replay** (`evalHuntSubmitCheck`) + coverage-engine **showmap prove**  
+- [x] Worker: coverage engines (libFuzzer fleet · AFL++ Deep) + catalog/inventory harness (`.cache/hunt-harness/`); byte path only if fallback ON  
+- [x] Coverage engines: [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md) — `hunt_engine`, corpus_delta, byte fallback **OFF**  
+- **L2 corpus:** pool corpus bootstrap/observe; namespace persist `hunt:{target_id}`  
+
 - **Overnight local:** `hunt_local_runner` + autorunner ticks (`hunt.LocalAutorunTick`) — hours-scale without pool rewrite  
 - **Domain mutator dict:** `ApplyHuntMutatorDict` per catalog target (JSON/XML/INI/TOML/msgpack)  
 	- [x] **Sanitizer profile:** default `asan+ubsan+lsan` (`hunt_detect_leaks: true`); UBSan/LSan → `sanitizer_informational` hygiene appendix (not bounty)  
@@ -162,6 +164,6 @@ Hunt Lite · 20 HMC · 50/50 split
 ## Honest limits
 
 - 50/50 does **not** guarantee miners profit if pool is tiny or ETA is weeks — cap budgets + live ETA.  
-- 50/50 does **not** promise CVE — only fair pay for compute + crash jackpot lane.  
-- Hunt is **not** positioned as a libFuzzer replacement — see [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md) (libFuzzer wins exec/s; Hunt wins fleet + deliverable).  
+- 50/50 does **not** promise CVE — only fair pay for proven compute + crash jackpot lane.  
+- Hunt is **distributed coverage-guided** compute — **not** “better than OSS-Fuzz” — see [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md) · [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md).  
 - Foreign CEX price of HMC does not change these **in-ecosystem** unit rules.

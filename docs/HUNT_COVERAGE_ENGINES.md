@@ -1,14 +1,16 @@
 # Coverage-guided Hunt engines (libFuzzer + AFL++)
 
-Distributed **coverage-guided Hunt** — not an OSS-Fuzz replacement. Dig stays WASM + own mutator; AFL++/libFuzzer never enter Dig.
+Distributed **coverage-guided Hunt** — not an OSS-Fuzz replacement, and **not** “better than OSS-Fuzz.” Dig stays WASM + own mutator; AFL++/libFuzzer never enter Dig.
+
+**Inventory / Heavywire:** catalog + customer inventory fleet leases use **libFuzzer** + published ASAN stdin harness by default; Deep/long profile prefers **AFL++** when `afl-fuzz` is present.
 
 ## Engines
 
 | Engine | Role | Claim `hunt_engine` |
 |--------|------|---------------------|
-| **libFuzzer** | Fleet default | `libfuzzer` |
-| **AFL++** | Deep / long profile (afl-cc instrumented harness) | `aflpp` |
-| **byte** | Explicit fallback only | `byte` |
+| **libFuzzer** | Fleet default (Lite/Standard/inventory) | `libfuzzer` |
+| **AFL++** | Deep / long profile when AFL present (afl-cc instrumented harness) | `aflpp` |
+| **byte** | Explicit opt-in fallback only (`HACKME_HUNT_ENGINE_BYTE_FALLBACK`) | `byte` |
 
 ## Claim / submit contract
 
@@ -71,10 +73,13 @@ Ships clang + AFL++ (`afl-fuzz`, `afl-clang-fast`, `afl-showmap`) from release t
 
 ## Isolation
 
-Native LF/AFL/showmap under `bwrap --unshare-net` + `RLIMIT_AS` when required. Bare exec only if `HACKME_HUNT_ISOLATE_REQUIRE=0` or `AllowBare` (tests).
+Native LF/AFL/showmap under **`bwrap --unshare-net`** + `RLIMIT_AS` when required (preferred). Bare exec only if `HACKME_HUNT_ISOLATE_REQUIRE=0` or `AllowBare` (tests). **Hub ops may set `HACKME_HUNT_ISOLATE_REQUIRE=0`** when user namespaces / bwrap are broken on the host — soft-skip otherwise would starve Hunt leases.
+
+Miners do **not** `git clone` AFL++. Install engines via `install_hunt_engines.sh` (release tarball / bundle).
 
 ## Related
 
 - [POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md)
 - [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md)
 - [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md)
+- [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md)

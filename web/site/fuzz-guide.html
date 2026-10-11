@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HackMe — Fuzz Campaigns Guide</title>
-  <meta name="description" content="HackMe Dig (WASM wizard) and Hunt (ASAN escrow): packages, CLI paths, CI gate, pool anticheat. Local node only." />
+  <meta name="description" content="HackMe Dig (WASM wizard) and coverage-guided Hunt (libFuzzer/AFL++ ASAN escrow): packages, CLI, CI gate, showmap pay prove. Local node only." />
   <link rel="canonical" href="https://hackme.tech/fuzz-guide.html" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,9 +33,9 @@
       <p class="kicker">How-to · operator guide · rc17</p>
       <h1>Fuzz campaigns — Dig &amp; Hunt</h1>
       <p class="hero-copy">
-        <strong>Dig</strong> = WASM packs via <code>wizard</code> (Scan · Audit · Deep).
-        <strong>Hunt</strong> = ASAN repo shards via <code>hackme-fuzzing hunt …</code> (Lite · Standard · Heavy · 50/50 escrow).
-        Everything on your local node; hackme.tech is tracker/docs only.
+        <strong>Dig</strong> = WASM packs via <code>wizard</code> (Scan · Audit · Deep) — no AFL/libFuzzer in Dig.
+        <strong>Hunt</strong> = coverage-guided ASAN via <code>hackme-fuzzing hunt …</code> (libFuzzer fleet · AFL++ Deep · 50/50 escrow).
+        Distributed Hunt — <em>not</em> better than OSS-Fuzz. Everything on your local node; hackme.tech is tracker/docs only.
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="./developers.html">B2B packages</a>
@@ -45,21 +45,23 @@
     </section>
 
     <section class="panel glass" style="border:1px solid rgba(110,255,173,0.28)">
-      <div class="panel-head"><h2>0a. Hunt (ASAN · separate CLI)</h2></div>
-      <p class="section-lede">Hunt is <strong>not</strong> Dig <code>wizard</code>. Use the Hunt subcommands on a funded local node:</p>
+      <div class="panel-head"><h2>0a. Hunt (coverage-guided ASAN · separate CLI)</h2></div>
+      <p class="section-lede">Hunt is <strong>not</strong> Dig <code>wizard</code>. Fleet default is <strong>libFuzzer</strong>; Deep prefers <strong>AFL++</strong> when present. Byte fallback is <strong>OFF</strong> (soft-skip). Use Hunt subcommands on a funded local node:</p>
       <div class="formula-box">
+        bash scripts/ops/install_hunt_engines.sh --desktop   # clang + AFL++ tools — no git clone
         hackme-fuzzing hunt packages
         hackme-fuzzing hunt inventory --path ./my-repo
         hackme-fuzzing hunt create --package hunt_lite|hunt_standard|hunt_heavy …
       </div>
       <ul class="list">
-        <li><strong>hunt_lite</strong> — ~20 HMC · 1200 shards · 32 exec/shard · 50/50 escrow</li>
-        <li><strong>hunt_standard</strong> — ~60 HMC · 4000 shards · 128 exec/shard</li>
-        <li><strong>hunt_heavy</strong> — ~150 HMC · 12000 shards · 256 exec/shard · severity-tier bounty</li>
-        <li>Pool miners claim <code>hunt_shard</code> work; coordinator replays on submit.</li>
-        <li>Spec: <a href="https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/HUNT_ECONOMICS.md" target="_blank" rel="noreferrer">HUNT_ECONOMICS.md</a> · API <code>GET /api/hunt/packages</code></li>
+        <li><strong>hunt_lite</strong> — ~20 HMC · libFuzzer fleet wall · 50/50 escrow</li>
+        <li><strong>hunt_standard</strong> — ~60 HMC · libFuzzer fleet wall</li>
+        <li><strong>hunt_heavy</strong> — ~150 HMC · AFL++ when present · severity-tier bounty</li>
+        <li><strong>Pay</strong> — full PayRun for coordinator-proven <code>afl-showmap</code> edges and/or ASAN crash; structural ≠ pay; CLEAN without delta = <strong>floor</strong> (worker <code>edges_touched</code> untrusted)</li>
+        <li>Pool miners claim <code>hunt_shard</code> engine leases; isolation prefers <code>bwrap</code> (hub may set isolate=0 if userns broken).</li>
+        <li>Spec: <a href="https://github.com/jokeez/hackme/blob/main/docs/HUNT_COVERAGE_ENGINES.md" target="_blank" rel="noreferrer">HUNT_COVERAGE_ENGINES.md</a> · <a href="https://github.com/jokeez/hackme/blob/main/docs/HUNT_ECONOMICS.md" target="_blank" rel="noreferrer">HUNT_ECONOMICS.md</a> · API <code>GET /api/hunt/packages</code></li>
       </ul>
-      <p class="muted">Dig stays 20/80 escrow. Hunt stays 50/50 because CLEAN is common — miners still get paid for shards.</p>
+      <p class="muted">Dig stays 20/80 escrow (WASM hygiene prove; seed-from-research OFF by default). Hunt stays 50/50 — floor pay for verified CLEAN work, full PayRun when edges/crash prove.</p>
     </section>
 
     <section class="panel glass" style="border:1px solid rgba(0,209,255,0.25)">
@@ -78,7 +80,7 @@
         <li><strong>ABI</strong> — <code>check(i64)→i32</code> <em>or</em> <code>check_bytes(ptr,len)→i32</code> when <code>input_mode=bytes</code></li>
       </ul>
       <p class="muted">Returns one-time <span class="code-inline">customer_report_token</span>, <span class="code-inline">report_url</span>, <span class="code-inline">gate_url</span>. With <span class="code-inline">--public-proof</span>: <span class="code-inline">proof_url</span> + <span class="code-inline">badge_url</span> (<span class="code-inline">/proof/{id}</span>). Wizard blocks non-loopback bases (no orders on hackme.tech).</p>
-      <p class="muted"><strong>Pool fleet:</strong> ~25–35 workers (hybrid + dig) claim customer work first. Anticheat: <strong>sampled + crash-first replay</strong> plus CLEAN <strong>exec/coverage floor</strong> and occasional <strong>canary</strong> challenge shards (fake empty CLEAN rejected; honest miners that hit the canary report the finding). Reports expose <code>product_mode</code> smoke|deep, <code>replay_policy</code>, <code>seeds_merged</code>, hub exec cap. Hybrid Hunt research slot (<span class="code-inline">HACKME_WORKER_RESEARCH_SLOT</span>, <strong>default ON</strong>; escape <span class="code-inline">=0</span>): short local libFuzzer → corpus-delta; <span class="code-inline">HACKME_POOL_SEED_FROM_RESEARCH</span> stays OFF for smoke — Deep SKU may merge seeds. See <span class="code-inline">docs/POOL_FUZZ_DISTRIBUTED.md</span>.</p>
+      <p class="muted"><strong>Pool fleet:</strong> ~25–35 workers (hybrid + dig) claim customer work first. Dig anticheat: <strong>sampled + crash-first replay</strong> plus CLEAN <strong>exec/coverage floor</strong>, WASM <strong>hygiene prove</strong>, and occasional <strong>canary</strong> shards. Reports expose <code>product_mode</code> smoke|deep, <code>replay_policy</code>, <code>seeds_merged</code>, hub exec cap. <span class="code-inline">HACKME_POOL_SEED_FROM_RESEARCH</span> stays <strong>OFF</strong> by default. Hunt engines: see §0a · <span class="code-inline">docs/HUNT_COVERAGE_ENGINES.md</span> · <span class="code-inline">docs/POOL_FUZZ_DISTRIBUTED.md</span>.</p>
       <p class="muted">Ops release check: <span class="code-inline">bash scripts/ops/fuzz_b2b_final_gate.sh</span> → <span class="code-inline">reports/fuzz-b2b-final-*/VERDICT.md</span></p>
     </section>
 

@@ -265,11 +265,12 @@ bash /opt/hackme/hackme_desktop_launch.sh
         <li>Install Windows / Linux / apt / ISO above and start the node on <code>127.0.0.1:8080</code>.</li>
         <li>Open dashboard → <strong>Wallet</strong>: orders need <strong>local spendable HMC</strong> (not only on-chain display). Fresh install: genesis is enough; follower desktops must fund the local wallet row.</li>
         <li>Open dashboard → <strong>Developer token</strong> → <strong>Issue</strong> (or CLI <code>register --save</code> when self-register is on).</li>
-        <li>Create order in <strong>#orders</strong>, or CLI: <code>hackme-fuzzing wizard --pack secrets --package audit</code> · CI scan: <code>wizard --pack secrets --package scan</code>.</li>
+        <li>Create Dig in <strong>#orders</strong>, or CLI: <code>hackme-fuzzing wizard --pack secrets --package audit</code> · Hunt: <code>bash scripts/ops/install_hunt_engines.sh --desktop</code> then <code>hackme-fuzzing hunt create …</code>.</li>
         <li>Use gate/report URLs on <code>http://127.0.0.1:8080</code> (campaign data stays on your PC).</li>
       </ol>
       <p class="dl-muted-links subtle">
         <a href="./orders.html">Orders path</a> ·
+        <a href="./fuzz-guide.html">Dig + Hunt guide</a> ·
         <a href="./developers.html#integrator-token">Token docs</a> ·
         <a href="./fuzzing-console.html">Public tracker</a>
       </p>

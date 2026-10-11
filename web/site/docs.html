@@ -49,7 +49,7 @@
         <summary>Security audits &amp; fuzz reports</summary>
         <div class="details-body">
           <p><strong>B2B fuzz:</strong> <code>hackme-fuzzing wizard --pack secrets --package audit</code> (or <code>--wasm guard.wasm</code>) on your local node → report token + CI <code>gate</code> URL. Packs: <code>secrets</code> · <code>script_bounds</code> · <code>filter_utf8</code> · <code>parser_expat</code>.</p>
-          <p>Packages: scan ~1 HMC · audit ~5/256 · deep ~25/2048 (512 exec/unit local; <strong>64 cap</strong> on hub pool). <code>wasm_edge_bitmap</code> @ offset 8192 is scheduling — not AFL.</p>
+          <p>Packages: scan ~1 HMC · audit ~5/256 · deep ~25/2048 (512 exec/unit local; <strong>256 cap</strong> on hub pool). Dig <code>wasm_edge_bitmap</code> @ offset 8192 is scheduling — not AFL; Dig never runs AFL/libFuzzer. Hunt is coverage-guided (libFuzzer fleet · AFL++ Deep) — see <a href="./fuzz-guide.html">fuzz guide</a>.</p>
           <p><a href="./developers.html">Developers</a> · <a href="./fuzz-guide.html">Fuzz guide</a> · <a href="./reports/l1-crypto-stack-v4.html">L1 v4 live</a></p>
         </div>
       </details>
@@ -104,12 +104,12 @@
       <div class="panel-head"><h2>Proof of Analysis (utility layer)</h2></div>
       <p class="hero-copy">
         <strong>Dig</strong> = WASM packs (<code>wizard</code>, 20/80 escrow).
-        <strong>Hunt</strong> = ASAN repo shards (<code>hackme-fuzzing hunt</code>, 50/50 escrow · Lite/Standard/Heavy).
-        Rewards tie to verified work — not blind noise.
+        <strong>Hunt</strong> = coverage-guided ASAN (<code>hackme-fuzzing hunt</code>, libFuzzer fleet · AFL++ Deep · 50/50 escrow).
+        Rewards tie to verified work — not blind noise. Hunt is <em>not</em> better than OSS-Fuzz.
       </p>
       <ul class="list">
         <li>Coordinator leases bounded work batches per worker session.</li>
-        <li>Dig: segment claim/submit + CI gate. Hunt: shard claim/submit + crash bounty.</li>
+        <li>Dig: WASM segment claim/submit + hygiene prove + CI gate. Hunt: engine lease + showmap/ASAN pay prove + crash bounty.</li>
         <li>Orders stay on your local node; hackme.tech is tracker/docs.</li>
       </ul>
       <p style="margin-top:0.85rem" class="cta-row">

@@ -26,10 +26,10 @@ Installer / desktop hybrid is **ON by default** (`HACKME_WORKER_HYBRID_FUZZ=1`):
 
 | Order type | What the miner runs |
 |------------|---------------------|
-| **Dig** | WASM `check_bytes` segments (scan/audit/deep) |
-| **Hunt** | ASAN harness from coordinator + optional short libFuzzer research slot (**default ON**, soft-skip without clang/LF; escape `HACKME_WORKER_RESEARCH_SLOT=0`) |
+| **Dig** | WASM `check_bytes` segments (scan/audit/deep) — Dig never runs AFL/libFuzzer |
+| **Hunt** | Coverage-guided engine lease: **libFuzzer** fleet default · **AFL++** Deep when present · ASAN harness from coordinator. Byte fallback **OFF** (soft-skip without clang/LF). Optional research slot: escape `HACKME_WORKER_RESEARCH_SLOT=0` |
 
-No manual harness install for catalog Hunt — binaries are fetched from the pool. PoH mining continues alongside fuzz work.
+Catalog Hunt harness binaries are fetched from the pool. Install clang + AFL++ tools with **`bash scripts/ops/install_hunt_engines.sh --desktop`** (release bundle — **do not** `git clone` AFL++ as a miner). Isolation prefers **bwrap**; missing engine → soft-skip, not fake CLEAN pay. PoH mining continues alongside fuzz work.
 
 ## New miner (Windows)
 

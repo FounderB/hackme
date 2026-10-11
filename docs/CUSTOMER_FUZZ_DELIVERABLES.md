@@ -29,7 +29,7 @@ What an audit customer should receive after a campaign completes.
 
 Auth: **`X-Hackme-Report-Token`** (issued once at create / `POST …/token`) or admin token.
 
-**Hunt** (separate product): catalog/inventory ASAN campaigns use **50/50** escrow and Hunt reports — not this Dig gate URL shape. See [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md).
+**Hunt** (separate product): coverage-guided ASAN (libFuzzer fleet · AFL++ Deep) with **50/50** escrow and Hunt reports — not this Dig gate URL shape. Pay = coordinator-proven showmap edges and/or ASAN crash (CLEAN without delta = floor). Not better than OSS-Fuzz. See [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md) · [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md).
 
 ## SLA-style norms (operator-facing)
 

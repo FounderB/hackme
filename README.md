@@ -136,30 +136,33 @@ GPU backends: [GPU_MINING_BACKENDS.md](docs/GPU_MINING_BACKENDS.md).
 
 | Product | Escrow | What you buy |
 |---------|--------|----------------|
-| **Dig · Scan / Audit / Deep** | 20/80 | WASM campaign on *your* binary/guards · pool-distributed Dig |
-| **Hunt · Lite / Standard / Heavy** | 50/50 | ASAN depth tiers · shards on the fleet · coordinator replay |
+| **Dig · Scan / Audit / Deep** | 20/80 | WASM campaign on *your* guards · pool-distributed Dig (no AFL/LF in Dig) |
+| **Hunt · Lite / Standard / Heavy** | 50/50 | **Coverage-guided** ASAN (libFuzzer fleet · AFL++ Deep) · coordinator showmap/ASAN prove — **not** better than OSS-Fuzz |
 
 ```bash
 hackme-fuzzing wizard --pack filter_utf8 --package audit
 hackme-fuzzing hunt … --package hunt_lite   # see docs
+bash scripts/ops/install_hunt_engines.sh --desktop   # clang + AFL++ tools (no git clone)
 ```
 
 | Dig package | ~HMC | Runs (guide) |
 |-------------|------|----------------|
 | Scan | 1 | 64 |
 | Audit | 5 | 256 |
-| Deep | 25 | 2048 (hub Deep often capped) |
+| Deep | 25 | 2048 (hub Deep capped at 256) |
 
-| Hunt package | ~HMC | Target shards × exec/shard |
-|--------------|------|----------------------------|
-| Lite | 20 | ~1200 × 32 |
-| Standard | 60 | ~4000 × 128 |
-| Heavy | 150+ | ~12000 × 256 |
+| Hunt package | ~HMC | Engine (default) |
+|--------------|------|------------------|
+| Lite | 20 | libFuzzer fleet wall |
+| Standard | 60 | libFuzzer fleet wall |
+| Heavy | 150+ | AFL++ when present |
+
+Pay: proven showmap edges and/or ASAN crash = full PayRun; CLEAN without delta = floor. Byte fallback OFF.
 
 - Landing: [developers.html](https://hackme.tech/developers.html) · [fuzz-guide.html](https://hackme.tech/fuzz-guide.html)
-- [FUZZ_PRODUCT_GUIDE.md](docs/FUZZ_PRODUCT_GUIDE.md) · [HUNT_ECONOMICS.md](docs/HUNT_ECONOMICS.md) · [CUSTOMER_FUZZ_DELIVERABLES.md](docs/CUSTOMER_FUZZ_DELIVERABLES.md)
+- [HUNT_COVERAGE_ENGINES.md](docs/HUNT_COVERAGE_ENGINES.md) · [FUZZ_PRODUCT_GUIDE.md](docs/FUZZ_PRODUCT_GUIDE.md) · [HUNT_ECONOMICS.md](docs/HUNT_ECONOMICS.md)
 
-Bootstrap smoke orders (tens of shards) prove the rail — they are **not** a paid Lite/Standard depth buy.
+Bootstrap smoke orders prove the rail — they are **not** a paid Lite/Standard depth buy.
 
 ---
 

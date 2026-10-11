@@ -115,13 +115,19 @@ Submit JSON may include `replay_status`: `hygiene_skip` · `sample` · `crash_cl
 
 ### SKU honesty (reports)
 
-Customer reports expose `product_mode` (`smoke`|`deep`), `replay_policy`, `replay_sample_pct`, `lf_budget_sec`, `seeds_merged`, hub exec cap truth, and a promise note (**not** OSS-Fuzz/CVE replacement). **Smoke** Dig keeps seed-from-research OFF; **Deep** enables external seed merge + stricter sample %.
+Customer reports expose `product_mode` (`smoke`|`deep`), `replay_policy`, `replay_sample_pct`, `lf_budget_sec`, `seeds_merged`, hub exec cap truth, and a promise note (**not** OSS-Fuzz/CVE replacement). **`HACKME_POOL_SEED_FROM_RESEARCH` default OFF** (Dig seed feed — do not enable casually). Dig Deep may merge **external** pack seeds; that is separate from the research-seed feed.
 
 ---
 
-## Coverage on pool
+## Hunt coverage engines (pool)
 
-Instrumented guards write **`wasm_edge_bitmap`** at linear memory offset **8192** (256 bytes). Used for scheduling buckets — **not** AFL coverage. Pro-tier `max_input_bytes=4096` inputs stay below the bitmap region (input @ offset 8).
+Fleet Hunt leases are **coverage-guided** (`hunt_engine=libfuzzer` default · `aflpp` Deep when AFL present). Claim carries `engine_lease_sec` / `engine_profile`; submit pay uses coordinator **ASAN oneshot + afl-showmap** — structural ≠ pay; CLEAN without delta = floor; byte fallback default **OFF**. Isolation: **bwrap** preferred; hub may set `HACKME_HUNT_ISOLATE_REQUIRE=0` if userns broken. Install: `scripts/ops/install_hunt_engines.sh` (no miner AFL git clone). Full contract: [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md).
+
+---
+
+## Coverage on pool (Dig WASM)
+
+Instrumented Dig guards write **`wasm_edge_bitmap`** at linear memory offset **8192** (256 bytes). Used for scheduling buckets — **not** AFL coverage, and AFL/libFuzzer never enter Dig. Pro-tier `max_input_bytes=4096` inputs stay below the bitmap region (input @ offset 8).
 
 ---
 
@@ -180,6 +186,6 @@ bash scripts/ops/pool_fuzz_distributed_gate.sh
 bash scripts/ops/run_customer_pool_smoke.sh   # Scan/Audit smoke
 ```
 
-Worker-local research slot (Stage D, **default ON** for hybrid Hunt; escape `HACKME_WORKER_RESEARCH_SLOT=0`): short LF persist after Hunt shards → `POST /api/fuzz/work/corpus_delta` (lease-bound `research:<target>` only; crashes ASAN-replayed; soft-skip without clang/LF). See [POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md).
+Worker-local research slot (Stage D; escape `HACKME_WORKER_RESEARCH_SLOT=0`): optional short LF persist → `POST /api/fuzz/work/corpus_delta` (lease-bound; crashes ASAN-replayed). Distinct from the primary **coverage-engine lease** (LF/AFL++ wall). Does not enable Dig `HACKME_POOL_SEED_FROM_RESEARCH`. See [POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md) · [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md).
 
 See also [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md).

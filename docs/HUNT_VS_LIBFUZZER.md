@@ -1,30 +1,32 @@
 # Hunt vs libFuzzer — honest depth comparison
 
-**Status:** live benchmark on `feature/hunt-mvp` (2026-08-31)  
+**Status:** product Hunt is **coverage-guided** (libFuzzer fleet default · AFL++ Deep when present) — see [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md). Historical byte-shard benchmark below (2026-08-31) remains for honesty, not as the current fleet default.  
 **Related:** [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) · [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · [OSS_CVE_DISCLOSURE_libucl.md](OSS_CVE_DISCLOSURE_libucl.md)
 
-Hunt and libFuzzer solve **different jobs**. This doc records what a **repeatable local benchmark** showed — not marketing claims.
+Hunt and standalone OSS-Fuzz/libFuzzer solve **different jobs**. This doc records what a **repeatable local benchmark** showed — not marketing claims.
 
 ---
 
 ## Positioning (read this first)
 
-| | **libFuzzer** (OSS research lane) | **Hunt** (B2B product) |
-|--|-----------------------------------|------------------------|
+| | **libFuzzer / OSS-Fuzz** (research lane) | **Hunt** (B2B product) |
+|--|------------------------------------------|------------------------|
 | **Buyer** | Maintainer / security researcher | Customer who wants a **deliverable** |
-| **Unit of work** | In-process exec + corpus | Pool shard (verified replay) or overnight local |
-| **Depth model** | Coverage-guided mutation | Byte mutation + domain dict + L2 corpus (pool) |
-| **Output** | Crash dir, stats, `-print_final_stats` | HTML report, CI gate, escrow, 50/50 economics |
-| **Win on** | **exec/s**, corpus feedback | **Fleet verification**, sanitizer hygiene appendix, turnkey |
+| **Unit of work** | In-process exec + corpus | Pool **engine lease** (LF/AFL++ wall) + coordinator prove, or overnight local |
+| **Depth model** | Coverage-guided mutation | **Coverage-guided** fleet (libFuzzer default · AFL++ Deep) + showmap/ASAN prove; byte only if fallback explicitly ON |
+| **Output** | Crash dir, stats, `-print_final_stats` | HTML report, escrow, 50/50 economics, attested fleet run |
+| **Win on** | **exec/s**, long local corpus feedback | **Distributed** coverage-guided compute + verified report + escrow |
 
-**Do not sell Hunt as “libFuzzer but better”.**  
-Sell: *distributed ASAN compute + verified report + escrow. libFuzzer is your R&D lane; Hunt is your production security run.*
+**Do not sell Hunt as “libFuzzer but better” or “better than OSS-Fuzz.”**  
+Sell: *distributed coverage-guided Hunt + ASAN prove + verified report + escrow — not an OSS-Fuzz replacement.*
 
-OSS libFuzzer campaigns (`scripts/ops/run_oss_libfuzzer_session.sh`) remain a **separate research lane** — do not conflate with customer Hunt deliverables.
+OSS libFuzzer campaigns (`scripts/ops/run_oss_libfuzzer_session.sh`) remain a **separate research lane** — do not conflate with customer Hunt deliverables. Dig stays WASM; LF/AFL never enter Dig.
 
 ---
 
-## Live benchmark (90s wall-time, same machine)
+## Live benchmark (90s wall-time, same machine) — historical byte path
+
+Pre-coverage-engine **byte / L1 shard** numbers. Current fleet defaults to libFuzzer/AFL++ engine leases ([HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md)); use this table for honesty about exec/s, not as the product promise.
 
 **Artifacts:** `reports/hunt-benchmark/20260831T162653Z/`  
 **Re-run:** `bash scripts/tests/hunt_standard128_live_benchmark.sh`
@@ -79,15 +81,17 @@ Report metric to cite: `sanitizer_summary.by_subtype`, not raw `crashes` count.
 
 **Say:**
 
-- “Hunt Standard runs **128 verified execs per pool shard** with coordinator ASAN replay.”  
-- “Default profile **asan+ubsan+lsan** — hygiene findings appear in the report appendix, separate from bounty lane.”  
-- “libucl demo: known UBSan teardown class surfaced in minutes (informational, not CVE promise).”
+- “Hunt is **distributed coverage-guided** fuzz (libFuzzer fleet · AFL++ Deep) with coordinator **ASAN + afl-showmap** prove.”  
+- “Pay for **proven new edges** and/or **ASAN crash**; CLEAN without map delta is a **floor**, not empty-CLEAN full pay.”  
+- “Default sanitizer profile **asan+ubsan+lsan** — hygiene findings in the report appendix, separate from bounty lane.”  
+- “Not an OSS-Fuzz replacement — fleet + deliverable + escrow.”
 
 **Do not say:**
 
-- “Deeper than libFuzzer” or “more executions than libFuzzer.”  
+- “Better than OSS-Fuzz / deeper than libFuzzer” or “more executions than libFuzzer.”  
+- “Pay for `edges_touched` from the worker” (untrusted for Hunt).  
 - “65 vulnerabilities found” (libucl hygiene run).  
-- “CVE guaranteed.”
+- “CVE guaranteed.” · “Empty CLEAN = full PayRun.”
 
 ---
 
@@ -162,12 +166,12 @@ Pipeline: `cmd/hunt-lf-import` → `MergeLibFuzzerSeedCorpus` (campaign create, 
 
 | Lane | Verify model | Hub depth honesty | Throughput lever |
 |------|--------------|-------------------|------------------|
-| **Dig (pool)** | Sampled + crash-first segment replay; clean hygiene may skip | Deep **cap 256** on hub (local 512) | Batch claim, warm WASM, prefetch, claim-light corpus |
-| **Hunt (pool)** | Full/async ASAN replay (sample default 100%) | Lite 32 · Standard 128 · Heavy 256 / shard | Fleet shards + harness cache |
-| **libFuzzer** | Local in-process (research lane) | N/A (not pool-verified) | Raw exec/s + corpus |
+| **Dig (pool)** | Sampled + crash-first segment replay; WASM hygiene prove; seed-from-research OFF by default | Deep **cap 256** on hub (local 512) | Batch claim, warm WASM, prefetch, claim-light corpus |
+| **Hunt (pool)** | LF/AFL++ engine wall + corpus_delta; ASAN oneshot + **afl-showmap** prove | Fleet LF · Deep AFL++ when present; byte fallback OFF | Engine leases + harness cache + `install_hunt_engines.sh` |
+| **libFuzzer / OSS-Fuzz** | Local in-process (research lane) | N/A (not pool-verified product) | Raw exec/s + corpus |
 
-**Do not** equate Dig hygiene-skip with Hunt verify — Hunt stays crash-prove on every finding claim.
+**Do not** equate Dig hygiene-skip with Hunt verify — Hunt pays only on coordinator-proven edges/crashes (floor otherwise).
 
 ## Verdict
 
-Document and show this comparison **yes** — it builds trust. Frame Hunt as **B2B depth tiers + verified fleet + hygiene reporting**, not as a libFuzzer replacement. The benchmark supports honest Standard 128 sales and a strong **libucl sanitizer demo**, while admitting libFuzzer wins raw throughput.
+Frame Hunt as **distributed coverage-guided ASAN + showmap prove + escrow deliverable**, not as “better than OSS-Fuzz.” Dig stays WASM. The historical byte benchmark still supports honest hygiene demos and admits standalone libFuzzer wins raw local throughput.

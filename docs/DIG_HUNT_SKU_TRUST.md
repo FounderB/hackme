@@ -4,10 +4,22 @@
 
 | Mode | Dig packages | Hunt packages | Seeds | Verify |
 |------|--------------|---------------|-------|--------|
-| **smoke** | scan, audit | hunt_lite, hunt_standard | merge OFF by default | floor + canary + sampled replay |
-| **deep** | deep | hunt_heavy | external/research merge allowed | 40% sample + full-segment Dig hygiene prove (auto), longer budgets |
+| **smoke** | scan, audit | hunt_lite, hunt_standard | Dig seed-from-research **OFF** by default | Dig: floor + canary + sampled replay + hygiene prove · Hunt: LF engine + showmap/ASAN prove |
+| **deep** | deep | hunt_heavy | Dig external seed merge may ON; research feed still gated | Dig: 40% sample + full-segment hygiene prove · Hunt: AFL++ when present + showmap/ASAN prove |
 
-Promise language on reports: attested distributed smoke/depth — **not** OSS-Fuzz/CVE replacement.
+Promise language on reports: attested distributed smoke/depth / coverage-guided Hunt — **not** OSS-Fuzz/CVE replacement, **not** better than OSS-Fuzz.
+
+## Hunt pay honesty
+
+| Signal | Pays full PayRun? |
+|--------|-------------------|
+| Coordinator **ASAN crash** on session-new seed | **Yes** |
+| Coordinator **`afl-showmap`** new bitmap edges | **Yes** |
+| Structural / fingerprint buckets only | **No** |
+| Worker `edges_touched` alone | **No** (untrusted) |
+| CLEAN without proven map delta | **Floor** only |
+
+Byte engine fallback default **OFF** (`HACKME_HUNT_ENGINE_BYTE_FALLBACK`). Spec: [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md).
 
 ## Dig money (Deep vs Smoke)
 

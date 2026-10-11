@@ -98,7 +98,7 @@
             <tr>
               <td><span class="method-pill method-get">GET</span></td>
               <td><span class="code-inline">/api/hunt/packages</span></td>
-              <td>Hunt Lite / Standard / Heavy presets (ASAN · 50/50 escrow).</td>
+              <td>Hunt Lite / Standard / Heavy presets (coverage-guided libFuzzer/AFL++ · 50/50 escrow).</td>
             </tr>
             <tr>
               <td><span class="method-pill method-post">POST</span></td>
@@ -119,9 +119,9 @@
         </table>
       </div>
       <p class="muted" style="margin-top:0.75rem">
-        Dig primer: <a href="./fuzz-guide.html">fuzz-guide.html</a>.
-        Full routes: <a href="https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/API.md" target="_blank" rel="noreferrer">docs/API.md</a>
-        (Dig + <a href="https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/API.md#hunt-campaigns-phase-2" target="_blank" rel="noreferrer">Hunt</a>).
+        Dig/Hunt primer: <a href="./fuzz-guide.html">fuzz-guide.html</a> · engines: <a href="https://github.com/jokeez/hackme/blob/main/docs/HUNT_COVERAGE_ENGINES.md" target="_blank" rel="noreferrer">HUNT_COVERAGE_ENGINES.md</a>.
+        Full routes: <a href="https://github.com/jokeez/hackme/blob/main/docs/API.md" target="_blank" rel="noreferrer">docs/API.md</a>
+        (Dig + <a href="https://github.com/jokeez/hackme/blob/main/docs/API.md#hunt-campaigns-phase-2" target="_blank" rel="noreferrer">Hunt</a>).
       </p>
     </section>
 
@@ -143,12 +143,12 @@
       </article>
       <article class="doc-card glass">
         <h3>Fuzzing / B2B</h3>
-        <p>Dig: <code>wizard --pack … --package audit</code>. Hunt: <code>hunt create --package hunt_lite|hunt_standard|hunt_heavy</code> on <a href="./downloads.html#local-node">localhost</a> · <a href="./developers.html">packages</a> · <a href="./fuzzing-console.html">tracker</a>.</p>
+        <p>Dig: <code>wizard --pack … --package audit</code>. Hunt: <code>install_hunt_engines.sh</code> then <code>hunt create --package hunt_lite|hunt_standard|hunt_heavy</code> on <a href="./downloads.html#local-node">localhost</a> · <a href="./developers.html">packages</a> · <a href="./fuzzing-console.html">tracker</a>.</p>
       </article>
       <article class="doc-card glass">
         <h3>Full specification</h3>
         <p>Need complete contract details, all routes, and payload structures?</p>
-        <p><a class="btn btn-secondary" href="https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/API.md" target="_blank" rel="noreferrer">Open full API.md</a></p>
+        <p><a class="btn btn-secondary" href="https://github.com/jokeez/hackme/blob/main/docs/API.md" target="_blank" rel="noreferrer">Open full API.md</a></p>
       </article>
     </section>
   </main>

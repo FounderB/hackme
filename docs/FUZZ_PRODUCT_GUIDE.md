@@ -20,7 +20,17 @@ CLI/API keys stay `scan` | `audit` | `deep`. Customer-facing names:
 
 **Dig depth v2:** richer pack `mutator_dict` profiles, tier power scheduling (Audit **mut_cap≥8** · Deep **≥14**), **Deep-only** external seeds in `.cache/dig-seeds/{pack}/`, cross-campaign corpus persist `pack:{id}`, CLEAN floor + canary anticheat, and customer report `dig_depth` / SKU honesty card.
 
-**Hunt** (repo + ASAN on pool, 50/50 escrow) — on **0.1.0-rc17** channel:
+**Hunt** (repo + ASAN on pool, 50/50 escrow) — **coverage-guided** on **0.1.0-rc17** channel:
+
+| Engine | When |
+|--------|------|
+| **libFuzzer** | Fleet default (Lite / Standard / inventory) |
+| **AFL++** | Deep / long profile when AFL present |
+| **byte** | Explicit fallback only — **`HACKME_HUNT_ENGINE_BYTE_FALLBACK` default OFF** (soft-skip instead) |
+
+**Pay (coordinator-proven):** full PayRun for **ASAN crash** and/or **`afl-showmap` bitmap edge delta**; structural/fingerprint buckets alone never unlock pay; CLEAN without proven map delta = **floor**. Worker-reported `edges_touched` is **untrusted for Hunt pay**. Spec: [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md). Promise: distributed coverage-guided Hunt — **not** better than OSS-Fuzz.
+
+Install engines (no miner AFL git clone): `bash scripts/ops/install_hunt_engines.sh --desktop`. Isolation: **bwrap** preferred; hub may run `HACKME_HUNT_ISOLATE_REQUIRE=0` if userns broken.
 
 **Inventory languages (Phase 2.5):** **C, C++, and Rust (Phase A)** — scan `LLVMFuzzerTestOneInput` in `.c/.cpp` and `fuzz_target!` / `libfuzzer_sys` in `.rs`. C/C++ auto-compile sibling helpers with `clang`/`clang++` + ASAN. Rust **catalog** targets build with `cargo +nightly` AddressSanitizer stdin drivers (`serde_json` pipeline pilot; **`memchr`** / **`quick_xml`** unsafe-shaped). Customer Rust inventory **detect** works; auto-harness compile for arbitrary crates is catalog-only — see [HUNT_RUST_PHASE_A.md](HUNT_RUST_PHASE_A.md). **C#:** not in Hunt MVP.
 
@@ -48,9 +58,9 @@ ADMIN_TOKEN=… NODE=http://127.0.0.1:8080 \
 # E2E gate (local coordinator+node): bash scripts/tests/hunt_customer_repo_e2e.sh
 ```
 
-Spec: [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · **vs libFuzzer:** [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md) (live benchmark, honest depth). Pool CPU shards + coordinator ASAN replay — Phase 1c. **L1 mutating shards:** each shard runs `iterations_per_shard` (Lite **32** · Standard **128** · Heavy **256**) deterministic byte mutations from the claim anchor; coordinator replays the full chain on submit (fake-crash reject unchanged). **L2 corpus-guided:** claim freezes `corpus_seeds` + guided anchor; campaign corpus grows across shards (`hunt:{target_id}` namespace persist). **Optional L2 bootstrap:** import libFuzzer research corpus into `.cache/hunt-lf-seeds/{target}` (`scripts/ops/hunt_import_libfuzzer_corpus.sh`) — better starting pool corpus, not guaranteed faster first hit. **Overnight local:** `hunt_local_runner` autorunner (no pool) — ticks until `hunt_local_budget_iterations` / wall limit. **Domain dict:** `mutator_dict` per target class (JSON/XML/INI/TOML/msgpack). **Inventory pool** uses harness publish (`harness_fetch_path`) — workers download ASAN binary from coordinator. Coordinator refuses to lease Hunt shards when the harness blob is missing and auto-cancels such campaigns after ~15m.
+Spec: [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · engines: [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md) · honest limits: [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md). Pool leases an **engine wall** (`engine_lease_sec`; fleet ~60s · deep ~180s) with `exec_per_unit=1` for coverage engines; workers upload session-new corpus via `POST /api/fuzz/work/corpus_delta`; coordinator ASAN-oneshots + **afl-showmap** prove. **Byte path (opt-in only):** L1 mutating shards (`iterations_per_shard` Lite **32** · Standard **128** · Heavy **256**) remain for explicit `hunt_engine=byte` / fallback-on labs — not the fleet default. **L2 corpus:** campaign corpus grows across shards (`hunt:{target_id}` namespace persist). **Optional research seed import:** `.cache/hunt-lf-seeds/{target}` — better starting corpus, not guaranteed faster first hit. **Dig** seed-from-research stays **OFF** by default (`HACKME_POOL_SEED_FROM_RESEARCH`). **Overnight local:** `hunt_local_runner` autorunner (no pool). **Inventory pool** uses harness publish — workers download ASAN binary from coordinator. Missing harness → soft-skip / auto-cancel (~15m), not fake CLEAN pay.
 
-**Hunt pool depth (per shard):** Lite **32** · Standard **128** · Heavy **256** exec/shard (`iterations_per_shard`). **C pilot catalog:** `spl` (iacobucci/spl) — `bash scripts/ops/hunt_pilot_external_1h.sh`. **Rust catalog (Phase A):** `serde_json`, `memchr`, `quick_xml` — [HUNT_RUST_PHASE_A.md](HUNT_RUST_PHASE_A.md). **Overnight local** (non-pool): autorunner ticks `hunt_local_tick_iterations` (default 2000) until package budget — Lite **20k/1h** · Standard **200k/8h** · Heavy **500k/12h**. Catalog size: **56** targets in `upstream/oss_cve_targets.json` (2026-09-06; mostly C/C++ stdin ASAN + 3 Rust). **Domain mutator dict** auto-applied per catalog target (JSON/XML/INI/TOML/msgpack splice tokens).
+**Hunt packages (budgets):** Lite **20 HMC** · Standard **60** · Heavy **150+**. Coverage fleet depth = engine wall + proven edges/crashes, not brochure exec/shard counts. **C pilot catalog:** `spl` — `bash scripts/ops/hunt_pilot_external_1h.sh`. **Rust catalog (Phase A):** `serde_json`, `memchr`, `quick_xml` — [HUNT_RUST_PHASE_A.md](HUNT_RUST_PHASE_A.md). Catalog size: **56** targets in `upstream/oss_cve_targets.json` (mostly C/C++ stdin ASAN + 3 Rust).
 
 \* **Distributed pool cap:** code default `HACKME_POOL_EXEC_PER_UNIT_CAP=64`; **production hub uses 256**. Local Deep still **512**. Hunt pool shards use package `iterations_per_shard` up to **256**. Dig submit uses **sampled + crash-first replay** — clean multi-exec hygiene may skip full segment replay; crash/found/sanitizer claims always full-replay (cannot forge bounty).
 
@@ -130,8 +140,8 @@ When `pool_distributed: true`, hub `workerfuzz` / hybrid `workerpoh` claims work
 - Worker lease scales with segment wall time (not fixed 30s)
 - Submit nonce reserved at signature validate (anti-replay)
 - Optional: `claim_batch` / `submit_batch` (≤16), claim-light corpus sha, worker prefetch
-- Coverage-guided Hunt engines (**libFuzzer** fleet default, **AFL++** Deep profile): lease = engine wall; pay for coordinator-proven edges + ASAN crash ([HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md)); byte Hunt fallback without clang
-- Hybrid Hunt research slot (**default ON** for byte Hunt, escape `=0`): worker LF persist → corpus-delta + ASAN-replayed crashes only ([POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md)); soft-skips without LF; does not enable Dig seed-from-research
+- Coverage-guided Hunt engines (**libFuzzer** fleet default, **AFL++** Deep when AFL present): lease = engine wall; pay for coordinator-proven **showmap edges** + **ASAN crash** only ([HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md)); **`HACKME_HUNT_ENGINE_BYTE_FALLBACK` default OFF** → soft-skip (not silent byte dilution)
+- Hybrid Hunt research slot (escape `HACKME_WORKER_RESEARCH_SLOT=0`): optional short LF persist → corpus-delta + ASAN-replayed crashes ([POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md)); does **not** enable Dig `HACKME_POOL_SEED_FROM_RESEARCH` (stays OFF)
 
 **Safe fleet tiers:** Scan (1) · Audit (64) · Deep hub **cap 256** (local 512). Fleet ~25–35 dig/hybrid workers typical.
 
@@ -171,5 +181,6 @@ MODE=lang_static bash scripts/tests/run_daily.sh
 - [DEVELOPERS_FUZZING.md](DEVELOPERS_FUZZING.md) — localhost model, auth, CLI
 - [FUZZ_ESCROW_20_80.md](FUZZ_ESCROW_20_80.md) — Dig/Scan 20/80 split
 - [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) — Hunt 50/50 (Phase 1–2)
-- [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md) — live depth benchmark vs libFuzzer (honest limits)
+- [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md) — libFuzzer/AFL++ fleet, pay prove, byte fallback OFF
+- [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md) — honest limits (not better than OSS-Fuzz)
 - [FUZZING_B2B_SECURITY_VERDICT.md](FUZZING_B2B_SECURITY_VERDICT.md) — threat model

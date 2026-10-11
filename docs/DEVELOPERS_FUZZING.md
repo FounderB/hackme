@@ -9,7 +9,7 @@
 | Automation | **hackme-fuzzing CLI** → `--base http://127.0.0.1:8080` only (wizard **blocks** hackme.tech) |
 | Watch network | [fuzzing-console.html](https://hackme.tech/fuzzing-console.html) (read-only) |
 | Product guide | [fuzz-guide.html](https://hackme.tech/fuzz-guide.html) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) |
-| Hunt (ASAN repo) | [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · CLI `hackme-fuzzing hunt` · [API.md](API.md)#hunt-campaigns-phase-2 |
+| Hunt (coverage-guided ASAN) | [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md) · [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · CLI `hackme-fuzzing hunt` · [API.md](API.md)#hunt-campaigns-phase-2 |
 | Downloads | [downloads.html#local-node](https://hackme.tech/downloads.html#local-node) |
 
 There is **no** order-creation UI on hackme.tech (removed `/pool/developer`).
@@ -48,7 +48,12 @@ hackme-fuzzing hunt inventory --path ./my-repo
 hackme-fuzzing hunt create --package hunt_lite   # or hunt_standard | hunt_heavy
 ```
 
-Hunt uses **50/50** escrow (not Dig 20/80). Packages: Lite ~20 HMC · Standard ~60 · Heavy ~150.
+Hunt uses **50/50** escrow (not Dig 20/80). Packages: Lite ~20 HMC · Standard ~60 · Heavy ~150. Fleet engine: **libFuzzer** (default) · **AFL++** Deep when AFL present · byte fallback **OFF**.
+
+```bash
+# Hunt engines on the worker/node (no AFL git clone)
+bash scripts/ops/install_hunt_engines.sh --desktop
+```
 
 ---
 
@@ -62,24 +67,26 @@ Hunt uses **50/50** escrow (not Dig 20/80). Packages: Lite ~20 HMC · Standard ~
 | **audit** | ~5 | 256 | 64 | yes |
 | **deep** | ~25 | 2048 | 512 local · **hub cap 256** (`HACKME_POOL_EXEC_PER_UNIT_CAP`) | yes |
 
-**Packs:** `secrets` · `script_bounds` · `filter_utf8` · `parser_expat` — `hackme-fuzzing packs`
+**Packs:** `secrets` · `script_bounds` · `filter_utf8` · `parser_expat` — `hackme-fuzzing packs`  
+Dig stays WASM + hygiene prove; `HACKME_POOL_SEED_FROM_RESEARCH` default **OFF**.
 
-### Hunt (ASAN · `hunt` CLI)
+### Hunt (coverage-guided ASAN · `hunt` CLI)
 
-| Package | HMC | Shards | exec/shard | Escrow |
-|---------|-----|--------|------------|--------|
-| **hunt_lite** | ~20 | 1200 | 32 | 50/50 |
-| **hunt_standard** | ~60 | 4000 | 128 | 50/50 |
-| **hunt_heavy** | ~150 | 12000 | 256 | 50/50 |
+| Package | HMC | Engine (default) | Escrow |
+|---------|-----|------------------|--------|
+| **hunt_lite** | ~20 | libFuzzer fleet wall | 50/50 |
+| **hunt_standard** | ~60 | libFuzzer fleet wall | 50/50 |
+| **hunt_heavy** | ~150 | AFL++ when present · else LF | 50/50 |
 
-Full economics: [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md).
+Pay: coordinator-proven **showmap edges** and/or **ASAN crash** = full PayRun; CLEAN without delta = floor. Not better than OSS-Fuzz. Full economics: [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · engines: [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md).
 
 ---
 
 ## Coverage (do not oversell)
 
-- **`wasm_edge_bitmap`** on instrumented detector packs — 256-byte bitmap at WASM memory offset **8192** for guided scheduling. **Not** AFL/libFuzzer edge coverage.
-- **`input_fingerprint`** on parser packs; `parser_expat` adds native ASAN repro on pinned upstream.
+- **Dig `wasm_edge_bitmap`** on instrumented detector packs — 256-byte bitmap at WASM memory offset **8192** for guided scheduling. **Not** AFL/libFuzzer edge coverage; Dig does not run AFL/LF.
+- **Hunt pay edges** come from coordinator **`afl-showmap`** on proven seeds — worker `edges_touched` is untrusted for Hunt pay.
+- **`input_fingerprint`** on Dig parser packs; `parser_expat` adds native ASAN repro on pinned upstream.
 
 ---
 
@@ -131,5 +138,6 @@ Repo test: `go test ./tools/fluxtap_wasm_compare/ -v`
 
 - [FUZZING_B2B_SECURITY_VERDICT.md](FUZZING_B2B_SECURITY_VERDICT.md)
 - [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md)
+- [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md)
 - [POOL_FUZZ_DISTRIBUTED.md](POOL_FUZZ_DISTRIBUTED.md)
 - [CUSTOMER_FUZZ_DELIVERABLES.md](CUSTOMER_FUZZ_DELIVERABLES.md)

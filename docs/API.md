@@ -100,11 +100,13 @@ Common keys: `input_mode` (`bytes`), `depth_tier`, `exec_per_unit`, `coverage_ki
 
 ## Hunt Campaigns (Phase 2)
 
-Repo + ASAN Hunt on the **local node** (admin). Escrow is **50/50** (not Dig 20/80). Spec: [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · languages: [HUNT_RUST_PHASE_A.md](HUNT_RUST_PHASE_A.md) · product: [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md).
+Repo + **coverage-guided** ASAN Hunt on the **local node** (admin). Escrow is **50/50** (not Dig 20/80). Engines: **libFuzzer** fleet default · **AFL++** Deep when present · byte fallback **OFF**. Spec: [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md) · [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · languages: [HUNT_RUST_PHASE_A.md](HUNT_RUST_PHASE_A.md) · product: [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md).
+
+**Pool claim/submit (Hunt coverage):** claim may include `hunt_engine` / `engine` (`libfuzzer`\|`aflpp`\|`byte`), `engine_lease_sec`, `engine_profile` (`fleet`\|`deep`). Corpus novelty via `POST /api/fuzz/work/corpus_delta` while lease held. Pay prove = coordinator ASAN oneshot + `afl-showmap` (worker `edges_touched` untrusted for Hunt pay). Soft-skip when engine/bwrap missing (`HACKME_HUNT_ENGINE_BYTE_FALLBACK` default OFF).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/hunt/packages` | Hunt Lite / Standard / Heavy presets (`budget_hmc`, `iterations_per_shard`, local budgets). |
+| GET | `/api/hunt/packages` | Hunt Lite / Standard / Heavy presets (`budget_hmc`, engine profiles, local budgets). |
 | GET | `/api/hunt/targets` | Curated OSS catalog from `upstream/oss_cve_targets.json` (C/C++ + `language=rust`). |
 | POST | `/api/hunt/inventory` | Admin: scan local path for `LLVMFuzzerTestOneInput` / Rust `fuzz_target!`; returns targets + `build_hints`. |
 | POST | `/api/hunt/pack-suggest` | Admin: Dig/Hunt pack hints for one path. |

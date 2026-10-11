@@ -47,8 +47,8 @@
         <span class="pill">No checkout on this site</span>
         <span class="pill">Escrow on localhost</span>
         <span class="pill">Scan · Dig · Audit · Deep</span>
-        <span class="pill">Hunt · 50/50 escrow</span>
-        <span class="pill">Hunt Heavy · severity tiers</span>
+        <span class="pill">Hunt · coverage-guided</span>
+        <span class="pill">Hunt · 50/50 · showmap pay</span>
         <span class="pill">rc17 customer-first pool</span>
       </div>
     </section>
@@ -79,8 +79,8 @@ hackme-fuzzing wizard \
           <tbody>
             <tr><td><code>scan</code></td><td>~1</td><td>64</td><td>1</td><td>CI smoke · numeric/state guards</td></tr>
             <tr><td><code>audit</code></td><td>~5</td><td>256</td><td>64</td><td>Protocol / filter guards · corpus persist</td></tr>
-            <tr><td><code>deep</code></td><td>~25</td><td>2048</td><td>512 local · 64 pool cap</td><td>Full byte corpus campaign</td></tr>
-            <tr><td><code>hunt_*</code></td><td>20–60</td><td>8–24 shards</td><td>ASAN pool</td><td>Customer repo · inventory + pack-map</td></tr>
+            <tr><td><code>deep</code></td><td>~25</td><td>2048</td><td>512 local · 256 pool cap</td><td>WASM depth campaign (not AFL)</td></tr>
+            <tr><td><code>hunt_*</code></td><td>20–150</td><td>fleet leases</td><td>libFuzzer / AFL++</td><td>Coverage-guided ASAN · showmap/crash pay prove</td></tr>
           </tbody>
         </table>
       </div>

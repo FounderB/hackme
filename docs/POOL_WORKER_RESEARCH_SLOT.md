@@ -1,6 +1,8 @@
 # Worker-local research slot (Stage D)
 
-Hybrid path: a **short local libFuzzer persist window** while a Hunt lease is still held, then submit **corpus deltas + crashes only** (not full research-exec replay of the shard). Crashes are ASAN-replayed on the coordinator before any finding is recorded.
+Optional hybrid path: a **short local libFuzzer persist window** while a Hunt lease is still held, then submit **corpus deltas + crashes only** (not full research-exec replay of the shard). Crashes are ASAN-replayed on the coordinator before any finding is recorded.
+
+**Not the primary Hunt engine.** Fleet Hunt leases already run coverage-guided **libFuzzer / AFL++** per [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md). This slot is an extra persist window on top; it must **not** auto-enable Dig `HACKME_POOL_SEED_FROM_RESEARCH` (stays OFF).
 
 ## Status
 
