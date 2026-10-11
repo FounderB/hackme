@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// LookAFLShowmap resolves afl-showmap next to afl-fuzz / PATH.
+// LookAFLShowmap resolves afl-showmap next to afl-fuzz / PATH / common prefixes.
 func LookAFLShowmap() (string, error) {
 	if p, err := exec.LookPath("afl-showmap"); err == nil {
 		return p, nil
@@ -19,6 +19,27 @@ func LookAFLShowmap() (string, error) {
 		cand := filepath.Join(filepath.Dir(afl), "afl-showmap")
 		if st, err := os.Stat(cand); err == nil && !st.IsDir() {
 			return cand, nil
+		}
+	}
+	prefixes := []string{
+		strings.TrimSpace(os.Getenv("HACKME_PREFIX")),
+		"/opt/hackme",
+		filepath.Join(os.Getenv("HOME"), ".local/share/hackme/toolchains"),
+		"/usr/local",
+	}
+	for _, pref := range prefixes {
+		if pref == "" {
+			continue
+		}
+		for _, rel := range []string{
+			"aflpp/bin/afl-showmap",
+			"bin/afl-showmap",
+			"toolchains/aflpp/bin/afl-showmap",
+		} {
+			p := filepath.Join(pref, rel)
+			if st, err := os.Stat(p); err == nil && !st.IsDir() {
+				return p, nil
+			}
 		}
 	}
 	return "", fmt.Errorf("hunt: afl-showmap not found")
