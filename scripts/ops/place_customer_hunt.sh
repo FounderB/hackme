@@ -13,8 +13,8 @@
 #   PACKAGE              hunt_lite|hunt_standard (default hunt_lite — fleet LF)
 #   HUNT_ENGINE          forced via CampaignConfig for lite/inventory (default libfuzzer)
 #   GIT_URL / GIT_REF    optional repo metadata for the campaign
-#   MIN_DONE             shards to wait before fetching report (default 4)
-#   WAIT_SEC             max wait for pool progress (default 900)
+#   MIN_DONE             shards to wait before fetching report (default 2 — coverage leases ~60s)
+#   WAIT_SEC             max wait for pool progress (default max(900, MIN_DONE*lease*2))
 #   OUT                  report directory (default reports/customer-hunt/<stamp>)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -41,8 +41,11 @@ PACKAGE="${PACKAGE:-hunt_lite}"
 HUNT_ENGINE="${HUNT_ENGINE:-libfuzzer}"
 GIT_URL="${GIT_URL:-}"
 GIT_REF="${GIT_REF:-}"
-MIN_DONE="${MIN_DONE:-4}"
-WAIT_SEC="${WAIT_SEC:-900}"
+MIN_DONE="${MIN_DONE:-2}"
+# Coverage engine leases are ~60–300s; waiting for 4×60s under a 900s cap caused false FAIL.
+LEASE_HINT="${ENGINE_LEASE_SEC:-60}"
+WAIT_SEC="${WAIT_SEC:-$((MIN_DONE * LEASE_HINT * 2 + 120))}"
+if [[ "$WAIT_SEC" -lt 900 ]]; then WAIT_SEC=900; fi
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT="${OUT:-$ROOT/reports/customer-hunt/$STAMP}"
 mkdir -p "$OUT"

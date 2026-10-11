@@ -126,8 +126,19 @@ func CampaignConfig(ctx context.Context, repoRoot string, req CreateRequest) (ma
 			covHash := CoverageHarnessHash(build.HarnessHash)
 			cfg["coverage_harness_hash"] = covHash
 			cfg["coverage_harness_path"] = aflBin
+			cfg["showmap_instrumented"] = true
+			cfg["hunt_edge_pay"] = "showmap"
 			if pool {
 				cfg["coverage_harness_fetch_path"] = HarnessFetchURL(covHash)
+			}
+		} else {
+			// Honest customer signal: ASAN pay still works; edge PayRun needs afl-cc.
+			cfg["showmap_instrumented"] = false
+			cfg["hunt_edge_pay"] = "floor_only"
+			if aflErr != nil {
+				cfg["showmap_instrument_note"] = "afl-cc inventory harness unavailable — CLEAN edge pay is floor until coverage harness is published (ASAN crashes still pay)"
+			} else {
+				cfg["showmap_instrument_note"] = "no afl-cc coverage harness — edge PayRun floor_only (ASAN crashes still pay)"
 			}
 		}
 	}

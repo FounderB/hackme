@@ -234,6 +234,7 @@ func isLibFuzzerPreflightErr(err error) bool {
 		"no coverage harness",
 		"inventory harness",
 		"lf_wall_short",
+		"afl_wall_short",
 	} {
 		if strings.Contains(msg, needle) {
 			return true
@@ -299,6 +300,7 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 		}
 	}
 	args = append(args, "--", harness)
+	started := time.Now()
 	runErr := RunIsolated(ctx, IsolateOpts{
 		Bin:  afl,
 		Args: args,
@@ -308,6 +310,7 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 		// ASAN targets need huge virtual address space; RLIMIT_AS≈2GiB kills them.
 		RSSLimitMB: 0,
 	})
+	elapsed := time.Since(started)
 	if runErr != nil {
 		out.Err = runErr.Error()
 	}
@@ -334,6 +337,24 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 		out.NewCorpus = afterPersist - beforePersist
 	} else {
 		out.NewCorpus = imported
+	}
+	// AFL++ often exits non-zero even on a successful -V timer; only trust Ran when
+	// the lease wall was mostly spent, or we have crashes / real queue imports.
+	// Early "exit status 1" with empty queue must soft_skip — Deep was lying Ran=true.
+	minWall := time.Duration(wall) * time.Second * 3 / 4
+	if minWall < time.Duration(MinEngineLeaseSec)*time.Second*3/4 {
+		minWall = time.Duration(MinEngineLeaseSec) * time.Second * 3 / 4
+	}
+	produced := len(out.CrashFiles) > 0 || imported > 0 || out.NewCorpus > 0
+	if elapsed < minWall && !produced {
+		out.SkippedReason = "afl_wall_short"
+		if out.Err == "" {
+			out.Err = fmt.Sprintf("elapsed_ms=%d want>=%d", elapsed.Milliseconds(), minWall.Milliseconds())
+		} else {
+			out.Err = fmt.Sprintf("%s; elapsed_ms=%d want>=%d", out.Err, elapsed.Milliseconds(), minWall.Milliseconds())
+		}
+		out.Ran = false
+		return out
 	}
 	out.Ran = true
 	return out

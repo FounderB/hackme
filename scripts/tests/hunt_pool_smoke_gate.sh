@@ -69,6 +69,10 @@ fi
 
 TARGET_ID="${HUNT_GATE_TARGET:-jsmn}"
 export TARGET_ID
+# Coverage leases are ~60–300s; gate uses a short lease so 2 clean shards fit the wall.
+GATE_LEASE_SEC="${GATE_LEASE_SEC:-20}"
+GATE_MIN_DONE="${GATE_MIN_DONE:-2}"
+export GATE_LEASE_SEC GATE_MIN_DONE
 HARNESS_HASH="$(python3 - "$ROOT" "$TARGET_ID" <<'PY'
 import hashlib, json, os, sys
 root, tid = sys.argv[1], sys.argv[2]
@@ -102,6 +106,9 @@ print(json.dumps({
     "pool_distributed": True,
     "work_kind": "hunt_shard",
     "campaign_type": "hunt",
+    "hunt_package": "hunt_lite",
+    "hunt_engine": "libfuzzer",
+    "engine_lease_sec": int(os.environ.get("GATE_LEASE_SEC", "20")),
     "upstream_target_id": os.environ["TARGET_ID"],
     "harness_hash": os.environ["HARNESS_HASH"],
     "check_semantics": "native_crash",
@@ -139,8 +146,9 @@ go build -trimpath -o "$WORKERFUZZ_BIN" ./cmd/workerfuzz
 export COORD_URL="$BASE"
 export COORD_TOKEN="$HACKME_COORDINATOR_WORKER_TOKEN"
 export WORKERFUZZ_TIMEOUT_MS="${WORKERFUZZ_TIMEOUT_MS:-120000}"
-echo "[hunt-pool-gate] run workerfuzz (timeout_ms=$WORKERFUZZ_TIMEOUT_MS)"
-GATE_WALL_SEC="${GATE_WALL_SEC:-120}"
+echo "[hunt-pool-gate] run workerfuzz (timeout_ms=$WORKERFUZZ_TIMEOUT_MS lease=${GATE_LEASE_SEC}s min_done=${GATE_MIN_DONE})"
+# Wall ≥ 2 coverage leases + drain slack (was fixed 120s wanting 4×60s → false FAIL).
+GATE_WALL_SEC="${GATE_WALL_SEC:-$((GATE_LEASE_SEC * GATE_MIN_DONE + 45))}"
 set +e
 WORKER_ID=hunt-w1 timeout "$GATE_WALL_SEC"s "$WORKERFUZZ_BIN" -coord "$BASE" -token "$HACKME_COORDINATOR_WORKER_TOKEN" -worker hunt-w1 -timeout-ms "$WORKERFUZZ_TIMEOUT_MS"
 WF_EC=$?
@@ -167,17 +175,17 @@ PY
   sleep 0.5
 done
 
-DONE="$(python3 - "$FUZZ_DB" "$MAIN_CID" <<'PY'
+DONE="$(python3 - "$FUZZ_DB" "$MAIN_CID" "$GATE_MIN_DONE" <<'PY'
 import sqlite3, sys
-db, cid = sys.argv[1], sys.argv[2]
+db, cid, want = sys.argv[1], sys.argv[2], int(sys.argv[3])
 con = sqlite3.connect(db)
 n = con.execute("SELECT COUNT(*) FROM fuzz_work_items WHERE campaign_id=? AND status='done' AND result_ok=1", (cid,)).fetchone()[0]
 print(n)
-if n < 4:
-    raise SystemExit(f"want >=4 clean shards got {n}")
+if n < want:
+    raise SystemExit(f"want >={want} clean shards got {n} (coverage lease gate — not legacy 4×byte)")
 PY
 )"
-echo "[hunt-pool-gate] clean shards done=$DONE"
+echo "[hunt-pool-gate] clean shards done=$DONE (min=${GATE_MIN_DONE})"
 
 echo "[hunt-pool-gate] PASS"
 trap - EXIT

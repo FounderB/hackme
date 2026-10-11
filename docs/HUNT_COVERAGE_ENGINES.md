@@ -35,7 +35,8 @@ Distributed **coverage-guided Hunt** — not an OSS-Fuzz replacement, and **not*
 1. Worker runs LF/AFL for `engine_lease_sec`, uploads **session-new** corpus_delta + crash artifacts.
 2. Coordinator **ASAN-oneshots** each new seed under the campaign harness (`content_sha256`-bound). Crashes are ASAN-replayed separately.
 3. After a CLEAN harness exec, coordinator runs **`afl-showmap -b`** on an **afl-cc + ASAN** instrumented catalog harness when available; for **custom inventory** Hunt it materializes the published harness by `harness_hash` / `content_sha256` (non-instrumented ASAN → empty showmap is an honest floor). Structural/fingerprint buckets alone **never** unlock PayRun.
-4. Settle:
+4. Inventory create stamps `showmap_instrumented` / `hunt_edge_pay` (`showmap` \| `floor_only`) so customers see when edge PayRun needs afl-cc (ASAN crashes still pay).
+5. Settle:
    - **Full PayRun** — showmap-proven new edges and/or ASAN crash
    - **Floor** — CLEAN without proven map delta
 
@@ -72,8 +73,8 @@ Ships clang + AFL++ (`afl-fuzz`, `afl-clang-fast`, `afl-showmap`) + bubblewrap f
 | `HACKME_HUNT_ENGINE_LEASE_SEC` | — | Override wall |
 | `HACKME_HUNT_ENGINE_BYTE_FALLBACK` | **OFF** | Soft-skip → byte |
 | `HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP` | OFF | Allow byte on Deep |
-| `HACKME_HUNT_ISOLATE_REQUIRE` | **ON** | Prefer bwrap; missing bwrap → bare unless STRICT |
-| `HACKME_HUNT_ISOLATE_STRICT` | **OFF** | Fail closed on userns/RTM_NEWADDR (no bare fallback) |
+| `HACKME_HUNT_ISOLATE_REQUIRE` | **ON** | Prefer bwrap; missing/failed cage → bare unless STRICT |
+| `HACKME_HUNT_ISOLATE_STRICT` | **OFF** (fleet) / **ON** (coordinator prove) | Fail closed on userns/RTM_NEWADDR (no bare fallback) |
 | `HACKME_HUNT_ENGINE_PROVE_MAX` | 16 | Max seeds proven per delta |
 | `HACKME_POOL_SEED_FROM_RESEARCH` | OFF | Dig seed feed — **do not enable** |
 

@@ -12,6 +12,9 @@ Environment=HACKME_REPO_ROOT=/opt/hackme
 EnvironmentFile=/opt/hackme/.env.coord
 Environment=HACKME_COORDINATOR_READ_TIMEOUT_SEC=60
 Environment=HACKME_COORDINATOR_WRITE_TIMEOUT_SEC=120
+# Prove/replay hosts: refuse bare Hunt exec when bwrap/userns fails (fleet workers keep STRICT=0).
+Environment=HACKME_HUNT_ISOLATE_REQUIRE=1
+Environment=HACKME_HUNT_ISOLATE_STRICT=1
 ExecStart=/opt/hackme/coordinator
 Restart=always
 RestartSec=2

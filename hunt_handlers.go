@@ -211,6 +211,16 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		"escrow":                 escrow,
 		"prepay_disclaimer":      "No CVE guarantee · CLEAN = budget statement · pool shards verify ASAN on miners",
 	}
+	// Surface honest edge-pay posture (inventory without afl-cc → floor_only).
+	if v, ok := cfgMap["showmap_instrumented"]; ok {
+		resp["showmap_instrumented"] = v
+	}
+	if v := strings.TrimSpace(toString(cfgMap["hunt_edge_pay"])); v != "" {
+		resp["hunt_edge_pay"] = v
+	}
+	if note := strings.TrimSpace(toString(cfgMap["showmap_instrument_note"])); note != "" {
+		resp["showmap_instrument_note"] = note
+	}
 	mergeDeliverableURLs(resp, id)
 	if poolDistributedCampaign(cfgMap) {
 		if pubErr := a.publishHuntHarnessForConfig(r.Context(), cfgMap); pubErr != nil {

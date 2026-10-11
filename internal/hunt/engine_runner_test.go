@@ -92,3 +92,9 @@ func TestBwrapCageFailedRTM(t *testing.T) {
 		t.Fatal("RTM_NEWADDR must count as cage failure → bare retry")
 	}
 }
+
+func TestIsLibFuzzerPreflightErrAFLWallShort(t *testing.T) {
+	if !isLibFuzzerPreflightErr(errors.New("afl_wall_short:elapsed_ms=6000 want>=45000")) {
+		t.Fatal("afl_wall_short must soft-skip (Deep was lying Ran=true)")
+	}
+}
