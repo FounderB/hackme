@@ -2,6 +2,7 @@ package hunt
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -56,11 +57,15 @@ func TestRunLibFuzzerEngineShardEmptyImportStillRan(t *testing.T) {
 }
 
 func TestIsLibFuzzerPreflightErrBwrap(t *testing.T) {
-	if !isLibFuzzerPreflightErr(errors.New("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_REQUIRE)")) {
-		t.Fatal("bwrap required is preflight soft-skip")
+	if !isLibFuzzerPreflightErr(errors.New("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT)")) {
+		t.Fatal("STRICT bwrap required is preflight soft-skip")
 	}
-	if !isLibFuzzerPreflightErr(errors.New("bwrap: Creating new namespace failed: Permission denied")) {
-		t.Fatal("bwrap namespace denial is preflight soft-skip")
+	// Userns/RTM_NEWADDR is handled by bare retry — must NOT soft_skip the lease.
+	if isLibFuzzerPreflightErr(errors.New("bwrap: Creating new namespace failed: Permission denied")) {
+		t.Fatal("userns denial must not soft_skip")
+	}
+	if isLibFuzzerPreflightErr(errors.New("bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted")) {
+		t.Fatal("RTM_NEWADDR must not soft_skip")
 	}
 }
 
@@ -72,5 +77,18 @@ func TestIsolateRequiredDefaultOn(t *testing.T) {
 	t.Setenv("HACKME_HUNT_ISOLATE_REQUIRE", "0")
 	if IsolateRequired() {
 		t.Fatal("0 → off")
+	}
+}
+
+func TestIsolateStrictDefaultOff(t *testing.T) {
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "")
+	if IsolateStrict() {
+		t.Fatal("default OFF")
+	}
+}
+
+func TestBwrapCageFailedRTM(t *testing.T) {
+	if !bwrapCageFailed(fmt.Errorf("exit status 1"), "bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted") {
+		t.Fatal("RTM_NEWADDR must count as cage failure → bare retry")
 	}
 }

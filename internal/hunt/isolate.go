@@ -33,8 +33,9 @@ type IsolateOpts struct {
 	AllowBare bool
 }
 
-// IsolateRequired reports whether coverage-engine shards must run under bwrap.
-// Default ON (HACKME_HUNT_ISOLATE_REQUIRE empty/1). Set 0 to allow bare exec (dev only).
+// IsolateRequired reports whether coverage-engine shards should prefer bwrap.
+// Default ON (HACKME_HUNT_ISOLATE_REQUIRE empty/1). Set 0 to skip bwrap entirely.
+// Userns/RTM_NEWADDR failures still fall back to bare unless IsolateStrict().
 func IsolateRequired() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_HUNT_ISOLATE_REQUIRE")))
 	if v == "" {
@@ -45,6 +46,19 @@ func IsolateRequired() bool {
 		return false
 	default:
 		return true
+	}
+}
+
+// IsolateStrict refuses bare exec when bwrap is missing or the cage fails (userns).
+// Default OFF — fleet hosts often deny RTM_NEWADDR; starving Hunt soft_skips is worse.
+// Set HACKME_HUNT_ISOLATE_STRICT=1 only on locked-down coordinator replay hosts.
+func IsolateStrict() bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_HUNT_ISOLATE_STRICT")))
+	switch v {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -76,20 +90,19 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 
 	argv, useBwrap := wrapBubblewrap(opts.Bin, opts.Args, opts.Dir, opts.ExtraBind, opts.ExtraRoBind)
 	if useBwrap && !IsolateRequired() {
-		// Explicit escape (hub): skip bwrap when userns cages are denied.
+		// Explicit escape (hub/desktop): skip bwrap when userns cages are denied.
 		useBwrap = false
 		argv = append([]string{opts.Bin}, opts.Args...)
 	}
 	if !useBwrap {
-		if IsolateRequired() && !opts.AllowBare {
-			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_REQUIRE)")
+		if IsolateStrict() && !opts.AllowBare {
+			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT)")
 		}
+		// Missing bwrap with REQUIRE=1 but not STRICT → bare (fleet usability).
+		return runBareIsolated(runCtx, opts, env, wall)
 	}
 	cmd := exec.CommandContext(runCtx, argv[0], argv[1:]...)
 	cmd.Env = env
-	if opts.Dir != "" && !useBwrap {
-		cmd.Dir = opts.Dir
-	}
 	if opts.Stdin != nil {
 		cmd.Stdin = opts.Stdin
 	}
@@ -98,16 +111,15 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	}
 	var bwrapDiag bytes.Buffer
 	if opts.Stderr != nil {
-		if useBwrap {
-			cmd.Stderr = io.MultiWriter(opts.Stderr, &bwrapDiag)
-		} else {
-			cmd.Stderr = opts.Stderr
-		}
-	} else if useBwrap {
+		cmd.Stderr = io.MultiWriter(opts.Stderr, &bwrapDiag)
+	} else {
 		cmd.Stderr = &bwrapDiag
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
+		if bwrapCageFailed(err, "") && !IsolateStrict() {
+			return runBareIsolated(runCtx, opts, env, wall)
+		}
 		return err
 	}
 	if opts.RSSLimitMB > 0 && cmd.Process != nil {
@@ -118,21 +130,27 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 		_ = killProcessGroup(cmd)
 		return fmt.Errorf("hunt isolate: wall exceeded (%s)", wall)
 	}
-	if err != nil && useBwrap && bwrapCageFailed(err, bwrapDiag.String()) {
-		if IsolateRequired() && !opts.AllowBare {
-			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_REQUIRE): %v (%s)", err, strings.TrimSpace(bwrapDiag.String()))
+	if err != nil && bwrapCageFailed(err, bwrapDiag.String()) {
+		if IsolateStrict() && !opts.AllowBare {
+			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT): %v (%s)", err, strings.TrimSpace(bwrapDiag.String()))
 		}
-		// Dev escape: retry bare when isolate is not required.
+		// Userns / RTM_NEWADDR / Operation not permitted → bare retry (not soft_skip storm).
 		return runBareIsolated(runCtx, opts, env, wall)
 	}
 	return err
 }
 
 func bwrapCageFailed(err error, stderr string) bool {
-	msg := strings.ToLower(err.Error() + " " + stderr)
+	msg := strings.ToLower("")
+	if err != nil {
+		msg += err.Error() + " "
+	}
+	msg += stderr
+	msg = strings.ToLower(msg)
 	for _, needle := range []string{
 		"namespace failed", "creating new namespace", "permission denied",
-		"bwrap:", "operation not permitted",
+		"operation not permitted", "rtm_newaddr", "loopback",
+		"bwrap:",
 	} {
 		if strings.Contains(msg, needle) {
 			return true

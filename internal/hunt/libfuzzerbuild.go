@@ -256,8 +256,8 @@ func RunLibFuzzerSession(ctx context.Context, opts LibFuzzerSessionOpts) (int, e
 	}
 	if isoErr != nil {
 		low := strings.ToLower(isoErr.Error())
-		if strings.Contains(low, "bwrap required") || strings.Contains(low, "namespace failed") ||
-			strings.Contains(low, "creating new namespace") {
+		// Only STRICT isolate failures soft-skip; userns/RTM_NEWADDR already bare-retried.
+		if strings.Contains(low, "bwrap required") || strings.Contains(low, "isolate_strict") {
 			return 0, isoErr
 		}
 	}

@@ -42,7 +42,7 @@ Cap: `HACKME_HUNT_ENGINE_PROVE_MAX` default **16** seeds per delta window (extra
 
 ## Soft-skip / byte fallback
 
-- Missing runner / missing **bwrap** (when `HACKME_HUNT_ISOLATE_REQUIRE=1`) / unknown catalog target without published harness → `hunt_engine_soft_skip` (release lease — **not** 1ms CLEAN success).
+- Missing runner / unknown catalog target without published harness / `HACKME_HUNT_ISOLATE_STRICT=1` cage failure → `hunt_engine_soft_skip` (release lease — **not** 1ms CLEAN success). Userns/`RTM_NEWADDR` → bare retry, not soft_skip.
 - Inventory fleet uses **libFuzzer subprocess + published ASAN stdin harness** (~60s wall); never silent byte dilution.
 - Coordinator rejects coverage-engine submits with `duration_ms` ≪ lease wall (`hunt_engine_wall_too_short`; escape `HACKME_HUNT_ENGINE_MIN_WALL_MS=0`).
 - Empty corpus after a finished LF wall → CLEAN floor (not soft-skip).
@@ -67,13 +67,14 @@ Ships clang + AFL++ (`afl-fuzz`, `afl-clang-fast`, `afl-showmap`) from release t
 | `HACKME_HUNT_ENGINE_LEASE_SEC` | — | Override wall |
 | `HACKME_HUNT_ENGINE_BYTE_FALLBACK` | **OFF** | Soft-skip → byte |
 | `HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP` | OFF | Allow byte on Deep |
-| `HACKME_HUNT_ISOLATE_REQUIRE` | **ON** | Fail closed without bwrap |
+| `HACKME_HUNT_ISOLATE_REQUIRE` | **ON** | Prefer bwrap; missing bwrap → bare unless STRICT |
+| `HACKME_HUNT_ISOLATE_STRICT` | **OFF** | Fail closed on userns/RTM_NEWADDR (no bare fallback) |
 | `HACKME_HUNT_ENGINE_PROVE_MAX` | 16 | Max seeds proven per delta |
 | `HACKME_POOL_SEED_FROM_RESEARCH` | OFF | Dig seed feed — **do not enable** |
 
 ## Isolation
 
-Native LF/AFL/showmap under **`bwrap --unshare-net`** + `RLIMIT_AS` when required (preferred). Bare exec only if `HACKME_HUNT_ISOLATE_REQUIRE=0` or `AllowBare` (tests). **Hub ops may set `HACKME_HUNT_ISOLATE_REQUIRE=0`** when user namespaces / bwrap are broken on the host — soft-skip otherwise would starve Hunt leases.
+Native LF/AFL/showmap prefer **`bwrap --unshare-net`**. If bwrap is missing or the cage fails (`RTM_NEWADDR` / userns / Operation not permitted), **bare exec retry** unless `HACKME_HUNT_ISOLATE_STRICT=1`. Fleet desktop/hub should keep STRICT off so Hunt leases are not soft_skip-starved.
 
 Miners do **not** `git clone` AFL++. Install engines via `install_hunt_engines.sh` (release tarball / bundle).
 

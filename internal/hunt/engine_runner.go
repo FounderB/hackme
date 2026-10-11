@@ -202,9 +202,7 @@ func isLibFuzzerPreflightErr(err error) bool {
 		"clang subprocess libfuzzer",
 		"build target",
 		"manifest",
-		"bwrap required",
-		"namespace failed",
-		"creating new namespace",
+		"bwrap required", // STRICT only — userns denials fall back to bare in RunIsolated
 		"harness artifact",
 		"hunt artifact",
 		"no coverage harness",
