@@ -62,6 +62,8 @@ func noteLeaseProven(campaignID string, itemID int64, seeds, edges, crashes int,
 
 func takeLeaseProven(campaignID string, itemID int64) leaseProvenTrack {
 	key := leaseProvenKey(campaignID, itemID)
+	leaseProvenMu.Lock()
+	defer leaseProvenMu.Unlock()
 	v, ok := leaseProven.LoadAndDelete(key)
 	if !ok {
 		return leaseProvenTrack{}
@@ -71,15 +73,18 @@ func takeLeaseProven(campaignID string, itemID int64) leaseProvenTrack {
 
 func peekLeaseProven(campaignID string, itemID int64) leaseProvenTrack {
 	key := leaseProvenKey(campaignID, itemID)
+	leaseProvenMu.Lock()
+	defer leaseProvenMu.Unlock()
 	v, ok := leaseProven.Load(key)
 	if !ok {
 		return leaseProvenTrack{}
 	}
-	tr := v.(*leaseProvenTrack)
-	return *tr
+	return *v.(*leaseProvenTrack)
 }
 
 func clearLeaseProven(campaignID string, itemID int64) {
+	leaseProvenMu.Lock()
+	defer leaseProvenMu.Unlock()
 	leaseProven.Delete(leaseProvenKey(campaignID, itemID))
 }
 
@@ -167,8 +172,9 @@ func WorkerSupportsHuntEngine(advertised []string, want string) bool {
 	return false
 }
 
-// ProveHuntCorpusSeedEdges replays seed bytes once under the Hunt harness and
-// records coverage. Returns how many seeds produced a new edge (coordinator truth).
+// ProveHuntCorpusSeedEdges ASAN-oneshots each seed under the campaign Hunt harness
+// (content_sha256-bound), then records campaign coverage buckets only for inputs that
+// actually executed. Structural/fingerprint buckets alone never unlock pay.
 // Miner edges_touched is never consulted.
 func (s *Service) ProveHuntCorpusSeedEdges(ctx context.Context, campaignID string, cfg map[string]any, seeds []fuzzengine.PoolCorpusSeed, now int64) (provenEdges int, err error) {
 	if s == nil || !IsHuntCampaign(cfg) {
@@ -185,7 +191,24 @@ func (s *Service) ProveHuntCorpusSeedEdges(ctx context.Context, campaignID strin
 			continue
 		}
 		n++
-		newEdge, _, cerr := s.recordCoverage(ctx, campaignID, cfg, seed.Input, b, nil, now)
+		executed, crashed, _, xerr := huntEngineSeedExec(ctx, s, campaignID, cfg, b)
+		if xerr != nil {
+			// Infra / slot pressure: fail closed for this seed (no novelty pay).
+			continue
+		}
+		if !executed {
+			continue
+		}
+		// Crash novelty is paid via CrashesOK / ASAN finding path — still record
+		// coverage for CLEAN executions only so crash uploads cannot double-dip edges.
+		if crashed {
+			continue
+		}
+		u := seed.Input
+		if u == 0 {
+			u = fuzzengine.PackInputBytesToU64(b)
+		}
+		newEdge, _, cerr := s.recordCoverage(ctx, campaignID, cfg, u, b, nil, now)
 		if cerr != nil {
 			return provenEdges, cerr
 		}
@@ -194,6 +217,50 @@ func (s *Service) ProveHuntCorpusSeedEdges(ctx context.Context, campaignID strin
 		}
 	}
 	return provenEdges, nil
+}
+
+// huntEngineSeedExec runs one seed through the Hunt ASAN harness (ExecPer=1).
+// Overridable in tests. Fail closed when HACKME_POOL_HUNT_REPLAY=0.
+var huntEngineSeedExec = defaultHuntEngineSeedExec
+
+func defaultHuntEngineSeedExec(ctx context.Context, s *Service, campaignID string, cfg map[string]any, input []byte) (executed, crashed bool, trap string, err error) {
+	_ = campaignID
+	if !huntReplayEnabled() {
+		return false, false, "", fmt.Errorf("poolfuzz: hunt replay required for engine seed prove")
+	}
+	targetID := strings.TrimSpace(jsonString(cfg["upstream_target_id"]))
+	if targetID == "" {
+		return false, false, "", fmt.Errorf("poolfuzz: hunt missing upstream_target_id")
+	}
+	release, err := acquireHuntReplaySlot(ctx)
+	if err != nil {
+		return false, false, "", err
+	}
+	defer release()
+	maxB := fuzzengine.ParseMaxInputBytes(cfg)
+	if maxB <= 0 {
+		maxB = 4096
+	}
+	if len(input) > maxB {
+		input = input[:maxB]
+	}
+	rep, err := hunt.ReplayShard(ctx, hunt.ReplayShardOpts{
+		RepoRoot:             hunt.RepoRoot(),
+		Spec:                 hunt.HarnessSpecFromConfig(cfg),
+		TargetID:             targetID,
+		HarnessHash:          strings.TrimSpace(jsonString(cfg["harness_hash"])),
+		HarnessFetchURL:      huntHarnessFetchURL(cfg),
+		HarnessContentSHA256: huntHarnessContentSHA256(ctx, s, strings.TrimSpace(jsonString(cfg["harness_hash"])), cfg),
+		ArtifactDB:           s.DB,
+		Input:                input,
+		MaxInput:             maxB,
+		ExecPer:              1,
+		Config:               cfg,
+	})
+	if err != nil {
+		return false, false, "", err
+	}
+	return true, rep.Crash, rep.Trap, nil
 }
 
 // huntEnginePayStats exposed for pool stats / soak.

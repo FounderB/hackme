@@ -1,6 +1,10 @@
 package workerfuzzloop
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -41,5 +45,23 @@ func TestCorpusSeedBytes(t *testing.T) {
 	}
 	if _, ok := corpusSeedBytes(nil); ok {
 		t.Fatal("nil")
+	}
+}
+
+func TestCollectEngineDeltaSkipsPreLeaseFiles(t *testing.T) {
+	dir := t.TempDir()
+	old := []byte("old-seed")
+	neu := []byte("new-seed")
+	if err := os.WriteFile(filepath.Join(dir, "a.bin"), old, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.bin"), neu, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(old)
+	before := map[string]string{"a.bin": hex.EncodeToString(sum[:])}
+	seeds, _ := collectEngineDelta(hunt.EngineShardResult{CorpusDir: dir}, before, 32)
+	if len(seeds) != 1 || string(seeds[0].InputBytes) != "new-seed" {
+		t.Fatalf("want only new-seed, got %#v", seeds)
 	}
 }

@@ -1,8 +1,10 @@
 package poolfuzz
 
 import (
+	"context"
 	"testing"
 
+	"hackme/internal/fuzzengine"
 	"hackme/internal/hunt"
 )
 
@@ -112,5 +114,43 @@ func TestBuildHuntClaimCoverageEngine(t *testing.T) {
 	}
 	if !HuntEngineEnabled() {
 		t.Fatal("enabled")
+	}
+}
+
+func TestProveHuntCorpusSeedEdgesRequiresHarnessExec(t *testing.T) {
+	t.Setenv("HACKME_HUNT_COVERAGE_ENGINE", "1")
+	t.Setenv("HACKME_POOL_HUNT_REPLAY", "1")
+	orig := huntEngineSeedExec
+	t.Cleanup(func() { huntEngineSeedExec = orig })
+
+	// Without harness exec, structural novelty must not count.
+	huntEngineSeedExec = func(context.Context, *Service, string, map[string]any, []byte) (bool, bool, string, error) {
+		return false, false, "", nil
+	}
+	svc := &Service{}
+	cfg := map[string]any{
+		"work_kind": "hunt_shard", "campaign_type": "hunt",
+		"upstream_target_id": "jsmn", "harness_hash": "x",
+	}
+	seeds := []fuzzengine.PoolCorpusSeed{{InputBytes: []byte(`{"novel":true}`), Energy: 2}}
+	n, err := svc.ProveHuntCorpusSeedEdges(context.Background(), "c-prove", cfg, seeds, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("want 0 proven without harness exec, got %d", n)
+	}
+
+	// Harness CLEAN + new bucket → counts (recordCoverage needs DB; use stub Service with nil DB
+	// would fail — only assert crash path skips edge count).
+	huntEngineSeedExec = func(context.Context, *Service, string, map[string]any, []byte) (bool, bool, string, error) {
+		return true, true, "hunt_crash:test", nil
+	}
+	n, err = svc.ProveHuntCorpusSeedEdges(context.Background(), "c-prove", cfg, seeds, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("crash seeds must not count as edge prove, got %d", n)
 	}
 }

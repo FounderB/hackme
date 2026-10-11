@@ -29,10 +29,11 @@ Distributed **coverage-guided Hunt** — not an OSS-Fuzz replacement. Dig stays 
 
 ## Pay model (coordinator-proven)
 
-1. Worker runs LF/AFL for `engine_lease_sec`, uploads corpus_delta + crash artifacts.
-2. Coordinator ASAN-replays crash bytes; **proves edges** by replaying new seeds (never trusts miner `edges_touched`).
-3. Settle:
-   - **Full PayRun** — proven new edges and/or ASAN crash
+1. Worker runs LF/AFL for `engine_lease_sec`, uploads **session-new** corpus_delta + crash artifacts (pre-lease corpus snapshot).
+2. Coordinator **ASAN-oneshots** each new seed under the campaign harness (`content_sha256`-bound) before any coverage accounting. Seeds that do not execute in the harness never unlock edge pay. Crashes are ASAN-replayed separately.
+3. After a CLEAN harness exec, coordinator records campaign coverage buckets and counts **new** edges. Miner `edges_touched` is ignored.
+4. Settle:
+   - **Full PayRun** — harness-proven new edges and/or ASAN crash
    - **Floor** — CLEAN without proven delta (no full shard settle / pennies posture)
 
 ## Soft-skip

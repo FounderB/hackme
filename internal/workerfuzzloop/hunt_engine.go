@@ -2,11 +2,13 @@ package workerfuzzloop
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -82,9 +84,12 @@ func RunHuntEngineShard(ctx context.Context, run ResearchSlotRun, cr ClaimResp) 
 	if repoRoot == "" {
 		repoRoot = hunt.RepoRoot()
 	}
+	targetID := strings.TrimSpace(cr.UpstreamTargetID)
+	corpusDir := hunt.PersistentLibFuzzerCorpusDir(repoRoot, targetID)
+	beforeHashes, _ := snapshotCorpusHashes(corpusDir)
 	res := hunt.RunEngineShard(ctx, hunt.EngineShardOpts{
 		RepoRoot:  repoRoot,
-		TargetID:  strings.TrimSpace(cr.UpstreamTargetID),
+		TargetID:  targetID,
 		Engine:    engine,
 		WallSec:   wall,
 		SeedFiles: seedFiles,
@@ -100,8 +105,8 @@ func RunHuntEngineShard(ctx context.Context, run ResearchSlotRun, cr ClaimResp) 
 		return out
 	}
 
-	// Upload corpus delta while lease is held (same API as research slot).
-	deltas, crashes := collectEngineDelta(res, 32)
+	// Upload only files new since this lease window (not the whole persistent corpus).
+	deltas, crashes := collectEngineDelta(res, beforeHashes, 32)
 	out.CorpusDeltas = len(deltas)
 	out.Crashes = len(crashes)
 	if len(deltas) > 0 || len(crashes) > 0 {
@@ -122,35 +127,69 @@ func RunHuntEngineShard(ctx context.Context, run ResearchSlotRun, cr ClaimResp) 
 	return out
 }
 
-func collectEngineDelta(res hunt.EngineShardResult, maxFiles int) (seeds []fuzzengine.PoolCorpusSeed, crashes [][]byte) {
+func collectEngineDelta(res hunt.EngineShardResult, before map[string]string, maxFiles int) (seeds []fuzzengine.PoolCorpusSeed, crashes [][]byte) {
 	if maxFiles < 1 {
 		maxFiles = 32
+	}
+	if before == nil {
+		before = map[string]string{}
 	}
 	dir := res.CorpusDir
 	if dir == "" {
 		return nil, nil
 	}
+	type fileHit struct {
+		name string
+		mod  time.Time
+		b    []byte
+	}
+	var hits []fileHit
 	ents, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, nil
 	}
-	// Prefer newest files up to maxFiles as delta candidates (session-local growth).
-	n := 0
-	for i := len(ents) - 1; i >= 0 && n < maxFiles; i-- {
-		e := ents[i]
+	for _, e := range ents {
 		if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		p := filepath.Join(dir, e.Name())
+		b, err := os.ReadFile(p)
 		if err != nil || len(b) == 0 || len(b) > 65536 {
 			continue
 		}
+		sum := sha256.Sum256(b)
+		hexSum := hex.EncodeToString(sum[:])
+		if old, ok := before[e.Name()]; ok && old == hexSum {
+			continue // unchanged from pre-lease snapshot
+		}
+		// Also skip if same content existed under another name before the lease.
+		dup := false
+		for _, h := range before {
+			if h == hexSum {
+				dup = true
+				break
+			}
+		}
+		if dup {
+			continue
+		}
+		info, _ := e.Info()
+		mod := time.Time{}
+		if info != nil {
+			mod = info.ModTime()
+		}
+		hits = append(hits, fileHit{name: e.Name(), mod: mod, b: append([]byte(nil), b...)})
+	}
+	sort.Slice(hits, func(i, j int) bool { return hits[i].mod.After(hits[j].mod) })
+	if len(hits) > maxFiles {
+		hits = hits[:maxFiles]
+	}
+	for _, h := range hits {
 		seeds = append(seeds, fuzzengine.PoolCorpusSeed{
-			Input:      fuzzengine.PackInputBytesToU64(b),
-			InputBytes: append([]byte(nil), b...),
+			Input:      fuzzengine.PackInputBytesToU64(h.b),
+			InputBytes: h.b,
 			Energy:     4,
 		})
-		n++
 	}
 	for _, p := range res.CrashFiles {
 		if len(crashes) >= 8 {

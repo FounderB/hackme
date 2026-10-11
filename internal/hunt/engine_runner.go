@@ -164,7 +164,7 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 	persist := PersistentLibFuzzerCorpusDir(repoRoot, targetID)
 	copyCorpusFiles(persist, inDir, 32)
 	for i, b := range seeds {
-		if len(b) == 0 {
+		if len(b) == 0 || len(b) > 65536 {
 			continue
 		}
 		_ = os.WriteFile(filepath.Join(inDir, fmt.Sprintf("claim-%d.bin", i)), b, 0o600)
@@ -196,15 +196,19 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 		out.Err = runErr.Error()
 	}
 
-	// Import queue + crashes into persistent corpus (shared campaign feed).
+	// Import queue into persistent corpus only — crash artifacts stay separate
+	// (uploaded as crash bytes, never mixed into seed corpus).
 	imported := 0
 	for _, d := range []string{
 		filepath.Join(outDir, "default", "queue"),
 		filepath.Join(outDir, "queue"),
+	} {
+		imported += copyCorpusFiles(d, persist, 64)
+	}
+	for _, d := range []string{
 		filepath.Join(outDir, "default", "crashes"),
 		filepath.Join(outDir, "crashes"),
 	} {
-		imported += copyCorpusFiles(d, persist, 64)
 		out.CrashFiles = append(out.CrashFiles, listFiles(d, 16)...)
 	}
 	afterPersist, _ := countCorpusFiles(persist)
