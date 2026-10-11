@@ -156,6 +156,14 @@ func (s *Service) RegisterCampaign(ctx context.Context, c Campaign) error {
 			}
 			cfg = fuzzingcli.FinalizeDigCampaignConfig(cfg, pkg, pack, hunt.RepoRoot())
 		}
+	} else {
+		// Old customer nodes omit hunt_engine; stamp fleet libfuzzer for lite/inventory
+		// so claim/pay paths do not rely on worker inference alone.
+		pkg := strings.TrimSpace(jsonString(cfg["hunt_package"]))
+		if pkg == "" {
+			pkg = strings.TrimSpace(jsonString(cfg["package"]))
+		}
+		hunt.ApplyCoverageEngineDefaults(cfg, pkg)
 	}
 	if _, ok := cfg["auto_runner"]; !ok {
 		cfg["auto_runner"] = "0"

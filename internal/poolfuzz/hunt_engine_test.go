@@ -2,10 +2,13 @@ package poolfuzz
 
 import (
 	"context"
+	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	"hackme/internal/fuzzengine"
 	"hackme/internal/hunt"
+	"hackme/internal/store"
 )
 
 func TestHuntEngineByteFallbackDefaultOff(t *testing.T) {
@@ -95,6 +98,46 @@ func TestApplyHuntEngineByteFallback(t *testing.T) {
 	ApplyHuntEngineByteFallback(w, map[string]any{"iterations_per_shard": 48})
 	if w.HuntEngine != hunt.EngineByte || w.EngineLeaseSec != 0 || w.ExecPerUnit != 48 {
 		t.Fatalf("fallback %#v", w)
+	}
+}
+
+func TestRegisterCampaignStampsHuntLiteEngine(t *testing.T) {
+	t.Setenv("HACKME_HUNT_COVERAGE_ENGINE", "1")
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "stamp.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := &Service{DB: db}
+	id := "hunt-stamp-lite"
+	cfg := map[string]any{
+		"pool_distributed": true,
+		"work_kind":        "hunt_shard",
+		"campaign_type":    "hunt",
+		"hunt_package":     "hunt_lite",
+		"budget_hmc":       20,
+		"budget_shards":    8,
+		// intentionally omit hunt_engine (legacy bootstrap nodes)
+	}
+	if err := svc.RegisterCampaign(context.Background(), Campaign{
+		ID: id, CampaignType: "hunt", Status: "running", BudgetRuns: 8, Config: cfg,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var raw string
+	if err := db.QueryRow(`SELECT config_json FROM fuzz_campaigns WHERE id=?`, id).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]any{}
+	if err := json.Unmarshal([]byte(raw), &got); err != nil {
+		t.Fatal(err)
+	}
+	if eng, _ := got["hunt_engine"].(string); eng != hunt.EngineLibFuzzer {
+		t.Fatalf("hunt_engine=%v want libfuzzer (raw keys=%v)", got["hunt_engine"], got)
+	}
+	if prof, _ := got["hunt_engine_profile"].(string); prof != hunt.EngineProfileFleet {
+		t.Fatalf("profile=%v", got["hunt_engine_profile"])
 	}
 }
 

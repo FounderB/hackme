@@ -107,6 +107,17 @@ func RunHuntEngineShard(ctx context.Context, run ResearchSlotRun, cr ClaimResp) 
 		}
 		return out
 	}
+	// Defense-in-depth: never submit CLEAN when wall clock ≪ lease (stale binaries /
+	// race where Ran=true after a sub-second LF exit). Matches engine_runner floor.
+	minMS := wall * 1000 * 3 / 4
+	if floor := hunt.MinEngineLeaseSec * 1000 * 3 / 4; minMS < floor {
+		minMS = floor
+	}
+	if out.DurationMS < minMS {
+		out.SoftSkip = true
+		out.SkipReason = fmt.Sprintf("lf_wall_short:elapsed_ms=%d want>=%d", out.DurationMS, minMS)
+		return out
+	}
 
 	// Upload only files new since this lease window (not the whole persistent corpus).
 	deltas, crashes := collectEngineDelta(res, beforeHashes, 32)
