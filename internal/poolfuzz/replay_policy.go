@@ -14,14 +14,15 @@ import (
 
 // Replay decision reasons (observability / SubmitOutcome.ReplayStatus).
 const (
-	replayReasonFull         = "full"
-	replayReasonCrashClaim   = "crash_claim"
-	replayReasonFindingClaim = "finding_claim"
-	replayReasonSample       = "sample"
-	replayReasonHygieneSkip  = "hygiene_skip"
-	replayReasonAlwaysEnv    = "always_env"
-	replayReasonSingleExec   = "single_exec"
-	replayReasonHuntDefault  = "hunt_full"
+	replayReasonFull           = "full"
+	replayReasonCrashClaim     = "crash_claim"
+	replayReasonFindingClaim   = "finding_claim"
+	replayReasonSample         = "sample"
+	replayReasonHygieneSkip    = "hygiene_skip"
+	replayReasonHygieneSegment = "hygiene_segment"
+	replayReasonAlwaysEnv      = "always_env"
+	replayReasonSingleExec     = "single_exec"
+	replayReasonHuntDefault    = "hunt_full"
 )
 
 // poolReplayDecision says whether Dig/Hunt submit must run coordinator segment replay.
@@ -79,7 +80,7 @@ func digPackageKey(cfg map[string]any) string {
 }
 
 // poolReplaySamplePct is the % of clean Dig submits that still get full segment replay.
-// Defaults: scan 1 · audit 5 (HACKME_POOL_REPLAY_SAMPLE_PCT) · deep 10 · hunt 100.
+// Defaults: scan 1 · audit 5 (HACKME_POOL_REPLAY_SAMPLE_PCT) · deep 40 · hunt 100.
 func poolReplaySamplePct(cfg map[string]any) int {
 	if IsHuntCampaign(cfg) {
 		return envIntClamped("HACKME_POOL_REPLAY_SAMPLE_PCT_HUNT", 100, 0, 100)
@@ -88,7 +89,7 @@ func poolReplaySamplePct(cfg map[string]any) int {
 	case "scan":
 		return envIntClamped("HACKME_POOL_REPLAY_SAMPLE_PCT_SCAN", 1, 0, 100)
 	case "deep":
-		return envIntClamped("HACKME_POOL_REPLAY_SAMPLE_PCT_DEEP", 10, 0, 100)
+		return envIntClamped("HACKME_POOL_REPLAY_SAMPLE_PCT_DEEP", 40, 0, 100)
 	default: // audit
 		return envIntClamped("HACKME_POOL_REPLAY_SAMPLE_PCT", 5, 0, 100)
 	}

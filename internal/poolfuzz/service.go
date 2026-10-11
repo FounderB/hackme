@@ -1212,24 +1212,45 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 			return SubmitOutcome{}, fmt.Errorf("poolfuzz: hygiene_skip requires CLEAN check_result")
 		}
 		if hygieneProveEnabled() {
-			var proveErr error
-			checkResult, trap, pass, recordFinding, proveErr = s.proveHygieneAnchorCheck(ctx, cfg, sem, expectedU, expectedB)
-			if proveErr != nil {
-				return SubmitOutcome{}, proveErr
+			if hygieneSegmentProveApplies(cfg, execPer) {
+				var proveErr error
+				checkResult, trap, pass, recordFinding, findingU, findingB, seg, proveErr = s.evalSubmitCheck(ctx, cfg, sem, inputN, expectedU, expectedB, seeds)
+				if proveErr != nil {
+					return SubmitOutcome{}, proveErr
+				}
+				if hasWasm && execPer > 1 && seg.ExecDone != seg.ExecExpected {
+					return SubmitOutcome{}, fmt.Errorf("poolfuzz: incomplete hygiene segment prove %d/%d", seg.ExecDone, seg.ExecExpected)
+				}
+				if recordFinding || !pass {
+					return SubmitOutcome{}, fmt.Errorf("poolfuzz: hygiene_segment_not_clean: coordinator segment prove rejected CLEAN claim")
+				}
+				trap = ""
+				recordFinding = false
+				findingU = expectedU
+				findingB = expectedB
+				digReplayStatus = replayReasonHygieneSegment
+			} else {
+				var proveErr error
+				checkResult, trap, pass, recordFinding, proveErr = s.proveHygieneAnchorCheck(ctx, cfg, sem, expectedU, expectedB)
+				if proveErr != nil {
+					return SubmitOutcome{}, proveErr
+				}
+				if recordFinding || !pass {
+					return SubmitOutcome{}, fmt.Errorf("poolfuzz: hygiene_anchor_not_clean: coordinator prove rejected CLEAN claim")
+				}
+				trap = ""
+				recordFinding = false
+				findingU = expectedU
+				findingB = expectedB
 			}
-			if recordFinding || !pass {
-				return SubmitOutcome{}, fmt.Errorf("poolfuzz: hygiene_anchor_not_clean: coordinator prove rejected CLEAN claim")
-			}
-			trap = ""
-			recordFinding = false
 		} else {
 			pass = minerPass
 			checkResult = req.CheckResult
 			trap = ""
 			recordFinding = false
+			findingU = expectedU
+			findingB = expectedB
 		}
-		findingU = expectedU
-		findingB = expectedB
 	} else {
 		var err error
 		checkResult, trap, pass, recordFinding, findingU, findingB, seg, err = s.evalSubmitCheck(ctx, cfg, sem, inputN, expectedU, expectedB, seeds)

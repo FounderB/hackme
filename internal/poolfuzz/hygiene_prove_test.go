@@ -11,13 +11,46 @@ import (
 	"hackme/internal/store"
 )
 
-// Empty CLEAN must not PayRun without coordinator WASM prove on the locked input.
+func TestHygieneSegmentProveApplies(t *testing.T) {
+	t.Setenv("HACKME_POOL_HYGIENE_SEGMENT_PROVE", "")
+	// escrowEnabled() is budget_hmc > 0 (not the escrow_enabled JSON flag).
+	escrowAudit := map[string]any{"dig_package": "audit", "budget_hmc": 5.0}
+	if !hygieneSegmentProveApplies(escrowAudit, 8) {
+		t.Fatal("auto: escrow Dig multi-exec must segment-prove")
+	}
+	deep := map[string]any{"dig_package": "deep"}
+	if !hygieneSegmentProveApplies(deep, 8) {
+		t.Fatal("auto: deep Dig multi-exec must segment-prove")
+	}
+	scanNoEscrow := map[string]any{"dig_package": "scan"}
+	if hygieneSegmentProveApplies(scanNoEscrow, 8) {
+		t.Fatal("auto: non-escrow scan must stay single-anchor")
+	}
+	if hygieneSegmentProveApplies(escrowAudit, 1) {
+		t.Fatal("single-exec never segment-proves")
+	}
+	hunt := map[string]any{"work_kind": "hunt_shard"}
+	if hygieneSegmentProveApplies(hunt, 64) {
+		t.Fatal("Hunt must never apply Dig segment hygiene")
+	}
+	t.Setenv("HACKME_POOL_HYGIENE_SEGMENT_PROVE", "0")
+	if hygieneSegmentProveApplies(deep, 8) {
+		t.Fatal("off must disable")
+	}
+	t.Setenv("HACKME_POOL_HYGIENE_SEGMENT_PROVE", "1")
+	if !hygieneSegmentProveApplies(scanNoEscrow, 8) {
+		t.Fatal("force-on covers non-escrow Dig multi-exec")
+	}
+}
+
+// Escrow Dig multi-exec CLEAN must WASM-prove the full segment before PayRun.
 func TestHygieneProveRequiredForEscrowPayRun(t *testing.T) {
 	t.Setenv("HACKME_POOL_FULL_REPLAY", "")
 	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_PCT", "0")
 	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_PCT_DEEP", "0")
 	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_SEED", "hygiene-prove")
 	t.Setenv("HACKME_POOL_HYGIENE_PROVE", "1")
+	t.Setenv("HACKME_POOL_HYGIENE_SEGMENT_PROVE", "auto")
 	t.Setenv("HACKME_POOL_CLEAN_EDGES_REQUIRE", "0")
 	t.Setenv("HACKME_POOL_CANARY", "0")
 
@@ -62,24 +95,21 @@ func TestHygieneProveRequiredForEscrowPayRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.ReplayStatus != replayReasonHygieneSkip {
-		t.Fatalf("status=%q want hygiene_skip", out.ReplayStatus)
+	if out.ReplayStatus != replayReasonHygieneSegment {
+		t.Fatalf("status=%q want hygiene_segment", out.ReplayStatus)
 	}
 	spy.mu.Lock()
 	runs := spy.runs
 	spy.mu.Unlock()
 	if runs != 1 {
-		t.Fatalf("honest CLEAN with WASM prove must PayRun once, got %d", runs)
+		t.Fatalf("honest CLEAN with WASM segment prove must PayRun once, got %d", runs)
 	}
 
-	// Second item: miner lies CLEAN but we disable prove → still default ON; forge without matching prove.
+	// Second item: disable prove → legacy trust-miner path (ops rollback).
 	w2, ok, err := svc.Claim(ctx, "w-prove", time.Now().Unix())
 	if err != nil || !ok {
 		t.Fatalf("claim2: ok=%v err=%v", ok, err)
 	}
-	// Claim a canary-like hit input by forging check_result=0 while locking a known
-	// detector hit is covered elsewhere; here disable prove and ensure legacy path
-	// is opt-in only.
 	t.Setenv("HACKME_POOL_HYGIENE_PROVE", "0")
 	_, err = svc.SubmitWithOutcome(ctx, SubmitRequest{
 		WorkerID: "w-prove", MinerAddress: "HMC-aaaaaaaaaaaaaaaa",
@@ -99,10 +129,72 @@ func TestHygieneProveRequiredForEscrowPayRun(t *testing.T) {
 	_ = strings.TrimSpace
 }
 
+// Non-escrow scan with SEGMENT_PROVE=0 keeps single-anchor C1 prove.
+func TestHygieneAnchorProveWhenSegmentOff(t *testing.T) {
+	t.Setenv("HACKME_POOL_FULL_REPLAY", "")
+	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_PCT", "0")
+	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_PCT_SCAN", "0")
+	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_SEED", "hygiene-anchor")
+	t.Setenv("HACKME_POOL_HYGIENE_PROVE", "1")
+	t.Setenv("HACKME_POOL_HYGIENE_SEGMENT_PROVE", "0")
+	t.Setenv("HACKME_POOL_CLEAN_EDGES_REQUIRE", "0")
+	t.Setenv("HACKME_POOL_CANARY", "0")
+
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "hygiene-anchor.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	spy := &spySettler{}
+	svc := &Service{DB: db, Settler: spy}
+	ctx := context.Background()
+
+	cfg := fuzzengine.NormalizeCampaignConfig(map[string]any{
+		"pool_distributed": true,
+		"dig_package":      "scan",
+		"budget_hmc":       1.0,
+		"escrow_enabled":   true,
+		"exec_per_unit":    8,
+		"check_semantics":  "detector",
+		"wasm_check_hex":   mustReadWasmHex(t, "../../tasks/artifacts/security/rust_script_push_bounds_guard.wasm"),
+		"seed_corpus":      []any{uint64(42)},
+		"mutation_rounds":  0,
+	}, "property")
+	id := "hygiene-anchor-only"
+	if err := svc.RegisterCampaign(ctx, Campaign{ID: id, CampaignType: "property", Status: "running", BudgetRuns: 1, Config: cfg}); err != nil {
+		t.Fatal(err)
+	}
+	_ = svc.EnsureWorkItems(ctx, id, time.Now().Unix())
+	w, ok, err := svc.Claim(ctx, "w-anchor", time.Now().Unix())
+	if err != nil || !ok {
+		t.Fatalf("claim: ok=%v err=%v", ok, err)
+	}
+	out, err := svc.SubmitWithOutcome(ctx, SubmitRequest{
+		WorkerID: "w-anchor", MinerAddress: "HMC-aaaaaaaaaaaaaaaa",
+		WorkID: w.WorkID, CampaignID: id, ItemID: w.ItemID,
+		InputN: w.InputN, ActualInput: w.ActualInput, InputBytes: w.InputBytes,
+		CheckResult: 0, DurationMS: 8, SegmentExecDone: w.ExecPerUnit,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ReplayStatus != replayReasonHygieneSkip {
+		t.Fatalf("status=%q want hygiene_skip (anchor-only)", out.ReplayStatus)
+	}
+	spy.mu.Lock()
+	runs := spy.runs
+	spy.mu.Unlock()
+	if runs != 1 {
+		t.Fatalf("anchor prove must PayRun once, got %d", runs)
+	}
+}
+
 func TestHygieneProveRejectsWithoutWasmEscrow(t *testing.T) {
 	t.Setenv("HACKME_POOL_FULL_REPLAY", "")
 	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_PCT", "0")
 	t.Setenv("HACKME_POOL_HYGIENE_PROVE", "1")
+	t.Setenv("HACKME_POOL_HYGIENE_SEGMENT_PROVE", "0") // force anchor path (same wasm requirement)
 	t.Setenv("HACKME_POOL_CLEAN_EDGES_REQUIRE", "0")
 	t.Setenv("HACKME_POOL_CANARY", "0")
 

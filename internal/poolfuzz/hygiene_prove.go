@@ -19,6 +19,10 @@ import (
 // Env:
 //
 //	HACKME_POOL_HYGIENE_PROVE  default ON (0/false/off = legacy trust-miner CLEAN; ops rollback only)
+//	HACKME_POOL_HYGIENE_SEGMENT_PROVE
+//	  "" / auto — full segment prove on Dig hygiene for dig_package=deep or escrow Dig with exec_per>1
+//	  1/true/on — full segment prove for all Dig hygiene multi-exec (Hunt untouched)
+//	  0/false/off — single-anchor prove only (C1)
 
 func hygieneProveEnabled() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_POOL_HYGIENE_PROVE")))
@@ -30,6 +34,26 @@ func hygieneProveEnabled() bool {
 		return false
 	default:
 		return true
+	}
+}
+
+// hygieneSegmentProveApplies reports whether Dig hygiene_skip must prove the full
+// segment (exec_per_unit) instead of the locked anchor alone. Hunt never applies.
+func hygieneSegmentProveApplies(cfg map[string]any, execPer int) bool {
+	if IsHuntCampaign(cfg) || execPer <= 1 {
+		return false
+	}
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_POOL_HYGIENE_SEGMENT_PROVE")))
+	switch v {
+	case "0", "false", "no", "off":
+		return false
+	case "1", "true", "yes", "on":
+		return true
+	default: // auto
+		if digPackageKey(cfg) == "deep" {
+			return true
+		}
+		return escrowEnabled(cfg)
 	}
 }
 

@@ -91,7 +91,7 @@ func BuildDigSKUHonesty(cfg map[string]any, execConfigured, execEffective, hubCa
 	case "scan":
 		samplePct = envIntDefault("HACKME_POOL_REPLAY_SAMPLE_PCT_SCAN", 1)
 	case "deep":
-		samplePct = envIntDefault("HACKME_POOL_REPLAY_SAMPLE_PCT_DEEP", 10)
+		samplePct = envIntDefault("HACKME_POOL_REPLAY_SAMPLE_PCT_DEEP", 40)
 	default:
 		samplePct = envIntDefault("HACKME_POOL_REPLAY_SAMPLE_PCT", 5)
 	}

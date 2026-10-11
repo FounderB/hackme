@@ -103,7 +103,9 @@ With small probability the claim locks a pack-known detector-hit input. Honest w
 |-----|---------|---------|
 | `HACKME_POOL_REPLAY_SAMPLE_PCT` | 5 | Audit clean-submit sample % |
 | `HACKME_POOL_REPLAY_SAMPLE_PCT_SCAN` | 1 | Scan package sample % |
-| `HACKME_POOL_REPLAY_SAMPLE_PCT_DEEP` | 10 | Deep package sample % |
+| `HACKME_POOL_REPLAY_SAMPLE_PCT_DEEP` | 40 | Deep package sample % |
+| `HACKME_POOL_HYGIENE_PROVE` | ON | Dig CLEAN: coordinator WASM prove before PayRun |
+| `HACKME_POOL_HYGIENE_SEGMENT_PROVE` | auto | `auto` = full segment prove on Dig hygiene for deep or escrow multi-exec; `1` force Dig multi-exec; `0` single-anchor only |
 | `HACKME_POOL_REPLAY_SAMPLE_PCT_HUNT` | 100 | Hunt clean path (full verify by default) |
 | `HACKME_POOL_REPLAY_CRASH_ALWAYS` | 1 | Document crash-first (claims always replay) |
 | `HACKME_POOL_FULL_REPLAY` | off | Ops rollback: always full Dig replay |

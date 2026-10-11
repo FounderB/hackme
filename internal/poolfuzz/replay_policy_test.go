@@ -32,8 +32,8 @@ func TestPoolReplaySamplePctPackages(t *testing.T) {
 	if got := poolReplaySamplePct(map[string]any{"dig_package": "audit"}); got != 5 {
 		t.Fatalf("audit pct=%d want 5", got)
 	}
-	if got := poolReplaySamplePct(map[string]any{"dig_package": "deep"}); got != 10 {
-		t.Fatalf("deep pct=%d want 10", got)
+	if got := poolReplaySamplePct(map[string]any{"dig_package": "deep"}); got != 40 {
+		t.Fatalf("deep pct=%d want 40", got)
 	}
 	if got := poolReplaySamplePct(map[string]any{"work_kind": "hunt_shard"}); got != 100 {
 		t.Fatalf("hunt pct=%d want 100", got)
