@@ -156,6 +156,7 @@ func isLibFuzzerPreflightErr(err error) bool {
 		"clang subprocess libfuzzer",
 		"build target",
 		"manifest",
+		"bwrap required",
 	} {
 		if strings.Contains(msg, needle) {
 			return true
@@ -256,28 +257,18 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 }
 
 func resolveAFLStdinHarness(ctx context.Context, repoRoot, targetID string) (string, error) {
-	id := catalogTargetSegment(targetID)
-	pattern := filepath.Join(repoRoot, ".cache", "oss-cve-bin", id+"-*.bin")
-	matches, _ := filepath.Glob(pattern)
-	var best string
-	var bestMod time.Time
-	for _, m := range matches {
-		if strings.Contains(m, "msan") {
-			continue
+	// Prefer afl-cc + ASAN instrumented harness (real AFL edges). Fall back to ASAN-only.
+	if path, instrumented, err := ResolveCoverageHarness(ctx, repoRoot, targetID); err == nil && path != "" {
+		if instrumented {
+			return path, nil
 		}
-		st, err := os.Stat(m)
-		if err != nil || st.IsDir() {
-			continue
+		// Keep ASAN path as last resort so Deep shards still run (weak feedback).
+		bestASAN := path
+		if aflPath, aerr := BuildAFLInstrumentedHarness(ctx, repoRoot, targetID); aerr == nil && aflPath != "" {
+			return aflPath, nil
 		}
-		if best == "" || st.ModTime().After(bestMod) {
-			best = m
-			bestMod = st.ModTime()
-		}
+		return bestASAN, nil
 	}
-	if best != "" {
-		return best, nil
-	}
-	// Build via libFuzzer import path which also produces stdin driver.
 	_, stdinBin, err := BuildLibFuzzerImport(ctx, repoRoot, targetID)
 	if err != nil {
 		return "", err

@@ -167,6 +167,7 @@ func TestReport28ClaimLaneStillIdentityBeforeRate(t *testing.T) {
 		code, out := report28Post(t, mux, "/api/fuzz/work/claim", map[string]any{
 			"worker_id":    "victim-rig-03",
 			"miner_pubkey": hex.EncodeToString(atkPub), "miner_address": signerAddr(atkPub),
+			"hunt_engines": "libfuzzer,aflpp,byte",
 		})
 		reason, _ := out["reason"].(string)
 		if code != http.StatusForbidden || !strings.HasPrefix(reason, "payout_address_locked") {
@@ -176,6 +177,7 @@ func TestReport28ClaimLaneStillIdentityBeforeRate(t *testing.T) {
 	code, out := report28Post(t, mux, "/api/fuzz/work/claim", map[string]any{
 		"worker_id":    "victim-rig-03",
 		"miner_pubkey": hex.EncodeToString(vicPub), "miner_address": signerAddr(vicPub),
+		"hunt_engines": "libfuzzer,aflpp,byte",
 	})
 	if out["reason"] == "claim_rate_limited" {
 		t.Fatalf("claim lane must not charge before identity: %d %v", code, out)

@@ -48,3 +48,20 @@ func TestRunLibFuzzerEngineShardEmptyImportStillRan(t *testing.T) {
 		t.Fatal("session empty corpus must remain Ran=true (CLEAN floor), not soft_skip")
 	}
 }
+
+func TestIsLibFuzzerPreflightErrBwrap(t *testing.T) {
+	if !isLibFuzzerPreflightErr(errors.New("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_REQUIRE)")) {
+		t.Fatal("bwrap required is preflight soft-skip")
+	}
+}
+
+func TestIsolateRequiredDefaultOn(t *testing.T) {
+	t.Setenv("HACKME_HUNT_ISOLATE_REQUIRE", "")
+	if !IsolateRequired() {
+		t.Fatal("default ON")
+	}
+	t.Setenv("HACKME_HUNT_ISOLATE_REQUIRE", "0")
+	if IsolateRequired() {
+		t.Fatal("0 → off")
+	}
+}

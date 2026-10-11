@@ -174,26 +174,50 @@ func runLibFuzzerSession(ctx context.Context, repoRoot, targetID string, wallSec
 	before, _ := countCorpusFiles(corpusDir)
 	runCtx, cancel := context.WithTimeout(ctx, time.Duration(wallSec+30)*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, binPath, corpusDir,
-		"-max_total_time="+fmt.Sprint(wallSec),
+	args := []string{
+		corpusDir,
+		"-max_total_time=" + fmt.Sprint(wallSec),
 		"-timeout=3",
 		"-rss_limit_mb=2048",
 		"-max_len=65536",
 		"-print_final_stats=1",
-	)
-	cmd.Env = append(os.Environ(),
+	}
+	env := append(os.Environ(),
 		"ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:allocator_may_return_null=1",
 		"UBSAN_OPTIONS=halt_on_error=1",
 	)
 	if stdinBin != "" {
-		cmd.Env = append(cmd.Env, "HACKME_LF_STDIN_BIN="+stdinBin)
+		env = append(env, "HACKME_LF_STDIN_BIN="+stdinBin)
 	}
-	var outBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &outBuf
-	_ = cmd.Run() // sanitizer stop or timeout is ok if corpus grew
-	sessionLog := outBuf.String()
-	_ = os.WriteFile(filepath.Join(filepath.Dir(corpusDir), "session.stderr"), []byte(sessionLog), 0o644)
+	stderrPath := filepath.Join(filepath.Dir(corpusDir), "session.stderr")
+	stderrFile, _ := os.Create(stderrPath)
+	if stderrFile != nil {
+		defer stderrFile.Close()
+	}
+	extraRo := []string{filepath.Dir(binPath)}
+	if stdinBin != "" {
+		extraRo = append(extraRo, filepath.Dir(stdinBin))
+	}
+	// Native LF under the same cage as AFL++ (bwrap when required).
+	isoErr := RunIsolated(runCtx, IsolateOpts{
+		Bin:         binPath,
+		Args:        args,
+		Env:         env,
+		Dir:         filepath.Dir(corpusDir),
+		ExtraBind:   []string{corpusDir},
+		ExtraRoBind: extraRo,
+		Wall:        time.Duration(wallSec+15) * time.Second,
+		RSSLimitMB:  2048,
+		Stdout:      stderrFile,
+		Stderr:      stderrFile,
+	})
+	sessionLog := ""
+	if b, err := os.ReadFile(stderrPath); err == nil {
+		sessionLog = string(b)
+	}
+	if isoErr != nil && strings.Contains(strings.ToLower(isoErr.Error()), "bwrap required") {
+		return 0, isoErr
+	}
 
 	after, _ := countCorpusFiles(corpusDir)
 	// Aggressive dedupe/minimize before L2 import — prevents overnight corpus bloat.

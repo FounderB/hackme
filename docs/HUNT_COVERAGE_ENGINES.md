@@ -7,8 +7,8 @@ Distributed **coverage-guided Hunt** — not an OSS-Fuzz replacement. Dig stays 
 | Engine | Role | Claim `hunt_engine` |
 |--------|------|---------------------|
 | **libFuzzer** | Fleet default | `libfuzzer` |
-| **AFL++** | Deep / long profile (CmpLog/dict/corpus) | `aflpp` |
-| **byte** | Fallback without clang / coverage runner | `byte` |
+| **AFL++** | Deep / long profile (afl-cc instrumented harness) | `aflpp` |
+| **byte** | Explicit fallback only | `byte` |
 
 ## Claim / submit contract
 
@@ -18,7 +18,7 @@ Distributed **coverage-guided Hunt** — not an OSS-Fuzz replacement. Dig stays 
 - `engine_lease_sec`: wall seconds for coverage engines (fleet ~60, deep ~180, cap 300)
 - `engine_profile`: `fleet` \| `deep`
 - `exec_per_unit`: `1` for coverage engines (one engine window)
-- Worker advertises `hunt_engines` (CSV) + existing `hunt_harness_exec=libfuzzer_oneshot`
+- Worker advertises `hunt_engines` (CSV)
 
 **Submit**:
 
@@ -29,26 +29,29 @@ Distributed **coverage-guided Hunt** — not an OSS-Fuzz replacement. Dig stays 
 
 ## Pay model (coordinator-proven)
 
-1. Worker runs LF/AFL for `engine_lease_sec`, uploads **session-new** corpus_delta + crash artifacts (pre-lease corpus snapshot).
-2. Coordinator **ASAN-oneshots** each new seed under the campaign harness (`content_sha256`-bound) before any coverage accounting. Seeds that do not execute in the harness never unlock edge pay. Crashes are ASAN-replayed separately.
-3. After a CLEAN harness exec, coordinator records campaign coverage buckets and counts **new** edges. Miner `edges_touched` is ignored.
+1. Worker runs LF/AFL for `engine_lease_sec`, uploads **session-new** corpus_delta + crash artifacts.
+2. Coordinator **ASAN-oneshots** each new seed under the campaign harness (`content_sha256`-bound). Crashes are ASAN-replayed separately.
+3. After a CLEAN harness exec, coordinator runs **`afl-showmap -b`** on an **afl-cc + ASAN** instrumented harness (catalog) and records **only** those edge bitmaps. Structural/fingerprint buckets alone **never** unlock PayRun.
 4. Settle:
-   - **Full PayRun** — harness-proven new edges and/or ASAN crash
-   - **Floor** — CLEAN without proven delta (no full shard settle / pennies posture)
+   - **Full PayRun** — showmap-proven new edges and/or ASAN crash
+   - **Floor** — CLEAN without proven map delta
 
-## Soft-skip
+Cap: `HACKME_HUNT_ENGINE_PROVE_MAX` default **16** seeds per delta window (extra seeds store, may not all count toward edges).
 
-Workers without the claimed runner release the lease (`hunt_engine_soft_skip`). Empty corpus after a finished libFuzzer wall does **not** soft-skip — the shard submits CLEAN floor and re-seeds boot starters (avoids lease churn). Soft-skip remains for missing clang/afl/target/build preflight only. With `HACKME_HUNT_ENGINE_BYTE_FALLBACK` (default ON), legacy workers omitting `hunt_engines` fall back to byte Hunt.
+## Soft-skip / byte fallback
+
+- Missing runner / missing **bwrap** (when `HACKME_HUNT_ISOLATE_REQUIRE=1`) → `hunt_engine_soft_skip`.
+- Empty corpus after a finished LF wall → CLEAN floor (not soft-skip).
+- `HACKME_HUNT_ENGINE_BYTE_FALLBACK` default **OFF**. Deep/Heavy never fall back unless `HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP=1`.
 
 ## Install (no git clone required)
 
 ```bash
 bash scripts/ops/install_hunt_engines.sh --desktop
-# or
 sudo bash scripts/ops/install_hunt_engines.sh --system --prefix /opt/hackme
 ```
 
-Ships clang (apt) + AFL++ from a **release tarball** or pre-vendored bundle under `third_party/aflpp/` / `dist/toolchains/`. Sets `HACKME_AFL_FUZZ`.
+Ships clang + AFL++ (`afl-fuzz`, `afl-clang-fast`, `afl-showmap`) from release tarball / bundle. Sets `HACKME_AFL_FUZZ`.
 
 ## Env knobs
 
@@ -58,16 +61,18 @@ Ships clang (apt) + AFL++ from a **release tarball** or pre-vendored bundle unde
 | `HACKME_HUNT_ENGINE` | (auto) | Force `libfuzzer`/`aflpp`/`byte` |
 | `HACKME_HUNT_ENGINE_DEEP_AFL` | ON | Heavy/standard → aflpp |
 | `HACKME_HUNT_ENGINE_LEASE_SEC` | — | Override wall |
-| `HACKME_HUNT_ENGINE_BYTE_FALLBACK` | ON | Soft-skip → byte |
-| `HACKME_WORKER_HUNT_ENGINES` | detect | Claim CSV override |
+| `HACKME_HUNT_ENGINE_BYTE_FALLBACK` | **OFF** | Soft-skip → byte |
+| `HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP` | OFF | Allow byte on Deep |
+| `HACKME_HUNT_ISOLATE_REQUIRE` | **ON** | Fail closed without bwrap |
+| `HACKME_HUNT_ENGINE_PROVE_MAX` | 16 | Max seeds proven per delta |
 | `HACKME_POOL_SEED_FROM_RESEARCH` | OFF | Dig seed feed — **do not enable** |
 
 ## Isolation
 
-Native harness / fuzzer runs under wall-clock + optional `bwrap --unshare-net` (no net). Coordinator crash replay uses the same Hunt ASAN path (content_sha256-bound harness).
+Native LF/AFL/showmap under `bwrap --unshare-net` + `RLIMIT_AS` when required. Bare exec only if `HACKME_HUNT_ISOLATE_REQUIRE=0` or `AllowBare` (tests).
 
 ## Related
 
-- [POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md) — byte Hunt supplemental LF (skipped when engine shard already ran LF)
-- [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) — escrow / 50/50
-- [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md) — honesty vs OSS-Fuzz
+- [POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md)
+- [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md)
+- [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md)

@@ -93,6 +93,7 @@ func TestHardenFailedClaimDoesNotBindPayoutLock(t *testing.T) {
 		"worker_id": "never-claimed-rig", "miner_pubkey": hex.EncodeToString(atkPub),
 		"miner_address": signerAddr(atkPub), "worker_version": "9.9.9",
 		"hunt_harness_exec": "libfuzzer_oneshot",
+		"hunt_engines":      "libfuzzer,aflpp,byte",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/fuzz/work/claim", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

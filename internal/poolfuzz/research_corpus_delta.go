@@ -143,6 +143,10 @@ func (s *Service) AcceptResearchCorpusDelta(ctx context.Context, req ResearchCor
 		if energy > maxResearchEnergy {
 			energy = maxResearchEnergy
 		}
+		// L2: Hunt coverage engines neutralize miner-supplied energy (scheduling bias).
+		if isHunt && HuntEngineEnabled() && hunt.IsCoverageEngine(hunt.HuntEngineFromConfig(cfg)) {
+			energy = 2
+		}
 		seeds = append(seeds, fuzzengine.PoolCorpusSeed{
 			Input: u, InputBytes: append([]byte(nil), b...), Energy: energy, Edge: seed.Edge, Path: seed.Path,
 		})
@@ -163,7 +167,7 @@ func (s *Service) AcceptResearchCorpusDelta(ctx context.Context, req ResearchCor
 			if perr != nil {
 				return out, perr
 			}
-			noteLeaseProven(campaignID, req.ItemID, len(seeds), proven, 0, hunt.HuntEngineFromConfig(cfg), "")
+			s.noteLeaseProvenPersist(ctx, campaignID, req.ItemID, len(seeds), proven, 0, hunt.HuntEngineFromConfig(cfg), "")
 		}
 	}
 
@@ -184,7 +188,7 @@ func (s *Service) AcceptResearchCorpusDelta(ctx context.Context, req ResearchCor
 		}
 		out.CrashesReplayOK++
 		if HuntEngineEnabled() {
-			noteLeaseProven(campaignID, req.ItemID, 0, 0, 1, hunt.HuntEngineFromConfig(cfg), "")
+			s.noteLeaseProvenPersist(ctx, campaignID, req.ItemID, 0, 0, 1, hunt.HuntEngineFromConfig(cfg), "")
 		}
 		u := fuzzengine.PackInputBytesToU64(crashB)
 		if err := s.upsertPoolCorpusSeed(ctx, campaignID, u, crashB, 12, 0, 0, true, now); err != nil {

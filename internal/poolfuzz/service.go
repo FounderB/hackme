@@ -1200,7 +1200,7 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 		req.CheckResult = checkResult
 		req.Trap = trap
 		if engineMode {
-			proven := takeLeaseProven(req.CampaignID, req.ItemID)
+			proven := s.takeLeaseProvenPersist(ctx, req.CampaignID, req.ItemID)
 			// Coordinator-proven edges/crashes only — ignore miner edges_touched.
 			kind, fullPay := DecideHuntEnginePay(proven.ProvenEdges, proven.SeedsAccepted, proven.CrashesOK, req.EdgesTouched, req.EdgesTouchedOK)
 			if recordFinding {

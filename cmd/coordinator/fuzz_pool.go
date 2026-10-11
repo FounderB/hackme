@@ -1383,20 +1383,19 @@ func applyHuntEngineClaimGate(work *poolfuzz.ClaimedWork, huntEnginesRaw string)
 	if poolfuzz.WorkerSupportsHuntEngine(advertised, work.HuntEngine) {
 		return false, ""
 	}
-	// Legacy workers omit hunt_engines — treat libfuzzer_oneshot fleets as byte-capable
-	// unless they explicitly advertise coverage engines.
-	if len(advertised) == 0 && poolfuzz.HuntEngineAllowByteFallback() {
-		poolfuzz.ApplyHuntEngineByteFallback(work, map[string]any{
-			"iterations_per_shard": work.IterationsPerShard,
-			"hunt_corpus_guided":   work.CoverageKind == "hunt_corpus_guided",
-		})
+	cfgHint := map[string]any{
+		"iterations_per_shard":  work.IterationsPerShard,
+		"hunt_corpus_guided":    work.CoverageKind == "hunt_corpus_guided",
+		"hunt_engine_profile":   work.EngineProfile,
+		"hunt_engine":           work.HuntEngine,
+	}
+	// Legacy workers omit hunt_engines — byte fallback only when explicitly enabled (default OFF).
+	if len(advertised) == 0 && poolfuzz.HuntEngineAllowByteFallbackForConfig(cfgHint) {
+		poolfuzz.ApplyHuntEngineByteFallback(work, cfgHint)
 		return false, ""
 	}
-	if poolfuzz.HuntEngineAllowByteFallback() && poolfuzz.WorkerSupportsHuntEngine(advertised, hunt.EngineByte) {
-		poolfuzz.ApplyHuntEngineByteFallback(work, map[string]any{
-			"iterations_per_shard": work.IterationsPerShard,
-			"hunt_corpus_guided":   work.CoverageKind == "hunt_corpus_guided",
-		})
+	if poolfuzz.HuntEngineAllowByteFallbackForConfig(cfgHint) && poolfuzz.WorkerSupportsHuntEngine(advertised, hunt.EngineByte) {
+		poolfuzz.ApplyHuntEngineByteFallback(work, cfgHint)
 		return false, ""
 	}
 	return true, "hunt_engine_soft_skip"

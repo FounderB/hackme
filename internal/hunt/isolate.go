@@ -3,29 +3,59 @@ package hunt
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // IsolateOpts bounds a native Hunt harness / fuzzer process.
 type IsolateOpts struct {
-	Bin       string
-	Args      []string
-	Env       []string
-	Dir       string
-	Wall      time.Duration
+	Bin        string
+	Args       []string
+	Env        []string
+	Dir        string
+	Wall       time.Duration
 	RSSLimitMB int
-	// AllowNet is always false for Hunt engines (defense in depth).
-	Stdout *os.File
-	Stderr *os.File
+	Stdin      io.Reader
+	Stdout     *os.File
+	Stderr     *os.File
+	// ExtraBind / ExtraRoBind are additional paths for the bwrap cage (corpus, stdin driver).
+	ExtraBind   []string
+	ExtraRoBind []string
+	// AllowBare when true permits plain exec if bwrap is missing (tests / showmap helpers).
+	AllowBare bool
 }
 
-// RunIsolated executes bin under wall-clock + optional bubblewrap (--unshare-net).
-// Falls back to plain CommandContext when bwrap is unavailable.
+// IsolateRequired reports whether coverage-engine shards must run under bwrap.
+// Default ON (HACKME_HUNT_ISOLATE_REQUIRE empty/1). Set 0 to allow bare exec (dev only).
+func IsolateRequired() bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_HUNT_ISOLATE_REQUIRE")))
+	if v == "" {
+		return true
+	}
+	switch v {
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
+
+// BubblewrapAvailable reports whether bwrap is on PATH.
+func BubblewrapAvailable() bool {
+	_, err := exec.LookPath("bwrap")
+	return err == nil
+}
+
+// RunIsolated executes bin under wall-clock + bubblewrap (--unshare-net) when available.
+// When IsolateRequired and bwrap is missing (and AllowBare is false), returns an error
+// instead of falling through to bare exec (M1 fail-closed for paid Hunt).
 func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	if strings.TrimSpace(opts.Bin) == "" {
 		return fmt.Errorf("hunt isolate: empty bin")
@@ -39,17 +69,23 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 
 	env := append([]string{}, opts.Env...)
 	if opts.RSSLimitMB > 0 {
-		// Soft hint for sanitizers / AFL; OS rlimit applied below when possible.
 		env = append(env, fmt.Sprintf("HACKME_ISOLATE_RSS_MB=%d", opts.RSSLimitMB))
 	}
-	// Never inherit proxy / git credentials into harness cages.
 	env = scrubIsolateEnv(env)
 
-	argv, useBwrap := wrapBubblewrap(opts.Bin, opts.Args, opts.Dir)
+	argv, useBwrap := wrapBubblewrap(opts.Bin, opts.Args, opts.Dir, opts.ExtraBind, opts.ExtraRoBind)
+	if !useBwrap {
+		if IsolateRequired() && !opts.AllowBare {
+			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_REQUIRE)")
+		}
+	}
 	cmd := exec.CommandContext(runCtx, argv[0], argv[1:]...)
 	cmd.Env = env
 	if opts.Dir != "" && !useBwrap {
 		cmd.Dir = opts.Dir
+	}
+	if opts.Stdin != nil {
+		cmd.Stdin = opts.Stdin
 	}
 	if opts.Stdout != nil {
 		cmd.Stdout = opts.Stdout
@@ -72,14 +108,12 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	return err
 }
 
-func wrapBubblewrap(bin string, args []string, dir string) ([]string, bool) {
+func wrapBubblewrap(bin string, args []string, dir string, extraBind, extraRo []string) ([]string, bool) {
 	bwrap, err := exec.LookPath("bwrap")
 	if err != nil {
 		out := append([]string{bin}, args...)
 		return out, false
 	}
-	// Minimal cage: new net ns (no net), die-with-parent, bind repo read-only where possible.
-	// Writable workdir is the fuzzer corpus/out path (dir).
 	argv := []string{
 		bwrap,
 		"--die-with-parent",
@@ -102,7 +136,16 @@ func wrapBubblewrap(bin string, args []string, dir string) ([]string, bool) {
 			argv = append(argv, "--bind", abs, abs, "--chdir", abs)
 		}
 	}
-	// Bind the binary's directory read-only.
+	for _, p := range extraBind {
+		if abs, err := filepath.Abs(strings.TrimSpace(p)); err == nil && abs != "" {
+			argv = append(argv, "--bind", abs, abs)
+		}
+	}
+	for _, p := range extraRo {
+		if abs, err := filepath.Abs(strings.TrimSpace(p)); err == nil && abs != "" {
+			argv = append(argv, "--ro-bind-try", abs, abs)
+		}
+	}
 	if absBin, err := filepath.Abs(bin); err == nil {
 		binDir := filepath.Dir(absBin)
 		argv = append(argv, "--ro-bind", binDir, binDir)
@@ -145,9 +188,12 @@ func setRSSLimitMB(pid, mb int) error {
 	if pid <= 0 || mb <= 0 {
 		return nil
 	}
-	// Best-effort: prlimit via /proc when available is OS-specific; skip hard fail.
-	_ = pid
-	_ = mb
+	bytes := uint64(mb) * 1024 * 1024
+	lim := unix.Rlimit{Cur: bytes, Max: bytes}
+	// Address-space cap (closest portable RSS stand-in for native harnesses).
+	if err := unix.Prlimit(pid, unix.RLIMIT_AS, &lim, nil); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -8,6 +8,21 @@ import (
 	"hackme/internal/hunt"
 )
 
+func TestHuntEngineByteFallbackDefaultOff(t *testing.T) {
+	t.Setenv("HACKME_HUNT_ENGINE_BYTE_FALLBACK", "")
+	if HuntEngineAllowByteFallback() {
+		t.Fatal("default OFF for SKU honesty")
+	}
+	t.Setenv("HACKME_HUNT_ENGINE_BYTE_FALLBACK", "1")
+	if !HuntEngineAllowByteFallback() {
+		t.Fatal("explicit ON")
+	}
+	t.Setenv("HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP", "")
+	if HuntEngineAllowByteFallbackForConfig(map[string]any{"hunt_package": "hunt_heavy"}) {
+		t.Fatal("deep must not fallback without DEEP=1")
+	}
+}
+
 func TestDecideHuntEnginePayIgnoresMinerEdges(t *testing.T) {
 	t.Setenv("HACKME_HUNT_COVERAGE_ENGINE", "1")
 	// Fake miner edges must not unlock full pay without coordinator proof.

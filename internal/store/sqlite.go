@@ -135,6 +135,9 @@ func migrateFuzzOnly(db *sql.DB) error {
 	if err := migrateFuzzWorkCanary(db); err != nil {
 		return err
 	}
+	if err := migrateFuzzWorkHuntProven(db); err != nil {
+		return err
+	}
 	return bumpUserVersion(db)
 }
 
@@ -231,6 +234,9 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 	if err := migrateOrderFoundNonces(db); err != nil {
+		return err
+	}
+	if err := migrateFuzzWorkHuntProven(db); err != nil {
 		return err
 	}
 	return bumpUserVersion(db)
@@ -859,6 +865,23 @@ func migrateFuzzWorkCanary(db *sql.DB) error {
 	_, err := db.Exec(`ALTER TABLE fuzz_work_items ADD COLUMN is_canary INTEGER NOT NULL DEFAULT 0`)
 	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
 		return err
+	}
+	return nil
+}
+
+// migrateFuzzWorkHuntProven persists coordinator-proven Hunt novelty across restarts (audit M3).
+func migrateFuzzWorkHuntProven(db *sql.DB) error {
+	cols := []string{
+		`ALTER TABLE fuzz_work_items ADD COLUMN hunt_proven_edges INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE fuzz_work_items ADD COLUMN hunt_proven_seeds INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE fuzz_work_items ADD COLUMN hunt_proven_crashes INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE fuzz_work_items ADD COLUMN hunt_proven_engine TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE fuzz_work_items ADD COLUMN hunt_proven_engine_ver TEXT NOT NULL DEFAULT ''`,
+	}
+	for _, q := range cols {
+		if _, err := db.Exec(q); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+			return err
+		}
 	}
 	return nil
 }

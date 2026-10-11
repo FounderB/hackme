@@ -60,6 +60,23 @@ func noteLeaseProven(campaignID string, itemID int64, seeds, edges, crashes int,
 	}
 }
 
+// noteLeaseProvenPersist updates in-memory track and durable fuzz_work_items columns (M3).
+func (s *Service) noteLeaseProvenPersist(ctx context.Context, campaignID string, itemID int64, seeds, edges, crashes int, engine, version string) {
+	noteLeaseProven(campaignID, itemID, seeds, edges, crashes, engine, version)
+	if s == nil || s.DB == nil || itemID <= 0 {
+		return
+	}
+	_, _ = s.DB.ExecContext(ctx, `
+		UPDATE fuzz_work_items
+		   SET hunt_proven_seeds = hunt_proven_seeds + ?,
+		       hunt_proven_edges = hunt_proven_edges + ?,
+		       hunt_proven_crashes = hunt_proven_crashes + ?,
+		       hunt_proven_engine = CASE WHEN ? != '' THEN ? ELSE hunt_proven_engine END,
+		       hunt_proven_engine_ver = CASE WHEN ? != '' THEN ? ELSE hunt_proven_engine_ver END
+		 WHERE campaign_id = ? AND id = ?`,
+		seeds, edges, crashes, engine, engine, version, version, campaignID, itemID)
+}
+
 func takeLeaseProven(campaignID string, itemID int64) leaseProvenTrack {
 	key := leaseProvenKey(campaignID, itemID)
 	leaseProvenMu.Lock()
@@ -69,6 +86,42 @@ func takeLeaseProven(campaignID string, itemID int64) leaseProvenTrack {
 		return leaseProvenTrack{}
 	}
 	return *v.(*leaseProvenTrack)
+}
+
+// takeLeaseProvenPersist merges durable DB counters with in-memory track, then clears both.
+func (s *Service) takeLeaseProvenPersist(ctx context.Context, campaignID string, itemID int64) leaseProvenTrack {
+	mem := takeLeaseProven(campaignID, itemID)
+	if s == nil || s.DB == nil || itemID <= 0 {
+		return mem
+	}
+	var edges, seeds, crashes int
+	var engine, ver string
+	_ = s.DB.QueryRowContext(ctx, `
+		SELECT hunt_proven_edges, hunt_proven_seeds, hunt_proven_crashes,
+		       COALESCE(hunt_proven_engine,''), COALESCE(hunt_proven_engine_ver,'')
+		  FROM fuzz_work_items WHERE campaign_id=? AND id=?`,
+		campaignID, itemID).Scan(&edges, &seeds, &crashes, &engine, &ver)
+	_, _ = s.DB.ExecContext(ctx, `
+		UPDATE fuzz_work_items
+		   SET hunt_proven_edges=0, hunt_proven_seeds=0, hunt_proven_crashes=0,
+		       hunt_proven_engine='', hunt_proven_engine_ver=''
+		 WHERE campaign_id=? AND id=?`, campaignID, itemID)
+	if edges > mem.ProvenEdges {
+		mem.ProvenEdges = edges
+	}
+	if seeds > mem.SeedsAccepted {
+		mem.SeedsAccepted = seeds
+	}
+	if crashes > mem.CrashesOK {
+		mem.CrashesOK = crashes
+	}
+	if mem.Engine == "" {
+		mem.Engine = engine
+	}
+	if mem.EngineVersion == "" {
+		mem.EngineVersion = ver
+	}
+	return mem
 }
 
 func peekLeaseProven(campaignID string, itemID int64) leaseProvenTrack {
@@ -122,18 +175,32 @@ func HuntEngineEnabled() bool {
 }
 
 // HuntEngineAllowByteFallback is true when coverage engine soft-skip may fall back to byte Hunt.
-// Default ON so fleets without clang still mine Hunt; set 0 to require coverage runners.
+// Default OFF — coverage-guided SKU must not silently dilute into mutational Hunt (audit M2).
+// Set HACKME_HUNT_ENGINE_BYTE_FALLBACK=1 to re-enable legacy fleets without clang.
 func HuntEngineAllowByteFallback() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_HUNT_ENGINE_BYTE_FALLBACK")))
 	if v == "" {
-		return true
+		return false
 	}
 	switch v {
-	case "0", "false", "no", "off":
-		return false
-	default:
+	case "1", "true", "yes", "on":
 		return true
+	default:
+		return false
 	}
+}
+
+// HuntEngineAllowByteFallbackForConfig denies byte fallback on Deep/Heavy even if env enables it,
+// unless HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP=1 (escape hatch).
+func HuntEngineAllowByteFallbackForConfig(cfg map[string]any) bool {
+	if !HuntEngineAllowByteFallback() {
+		return false
+	}
+	if hunt.EngineProfileFromConfig(cfg) == hunt.EngineProfileDeep {
+		v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP")))
+		return v == "1" || v == "true" || v == "yes" || v == "on"
+	}
+	return true
 }
 
 // WorkerHuntEngines parses claim capability list (comma-separated).
@@ -173,14 +240,17 @@ func WorkerSupportsHuntEngine(advertised []string, want string) bool {
 }
 
 // ProveHuntCorpusSeedEdges ASAN-oneshots each seed under the campaign Hunt harness
-// (content_sha256-bound), then records campaign coverage buckets only for inputs that
-// actually executed. Structural/fingerprint buckets alone never unlock pay.
+// (content_sha256-bound), then records coverage only from coordinator-derived afl-showmap
+// bitmaps. Structural/fingerprint buckets alone never unlock pay (audit H1).
 // Miner edges_touched is never consulted.
+// Cap: HACKME_HUNT_ENGINE_PROVE_MAX (default 16) — extra seeds still store, may not all pay edges (L1).
 func (s *Service) ProveHuntCorpusSeedEdges(ctx context.Context, campaignID string, cfg map[string]any, seeds []fuzzengine.PoolCorpusSeed, now int64) (provenEdges int, err error) {
 	if s == nil || !IsHuntCampaign(cfg) {
 		return 0, nil
 	}
 	maxProve := envIntClamped("HACKME_HUNT_ENGINE_PROVE_MAX", 16, 1, 64)
+	targetID := strings.TrimSpace(jsonString(cfg["upstream_target_id"]))
+	covHarness, instrumented, _ := hunt.ResolveCoverageHarness(ctx, hunt.RepoRoot(), targetID)
 	n := 0
 	for _, seed := range seeds {
 		if n >= maxProve {
@@ -208,7 +278,17 @@ func (s *Service) ProveHuntCorpusSeedEdges(ctx context.Context, campaignID strin
 		if u == 0 {
 			u = fuzzengine.PackInputBytesToU64(b)
 		}
-		newEdge, _, cerr := s.recordCoverage(ctx, campaignID, cfg, u, b, nil, now)
+		// H1: require real showmap bitmap from instrumented (or best-effort) harness.
+		var edgeBitmap []byte
+		if covHarness != "" {
+			edgeBitmap, _ = hunt.ShowmapCoverageBitmap(ctx, covHarness, b)
+		}
+		if !fuzzengine.BitmapHasCoverageSignal(edgeBitmap) {
+			// No structural fallback for pay — CLEAN without map → floor.
+			_ = instrumented
+			continue
+		}
+		newEdge, _, cerr := s.recordCoverage(ctx, campaignID, cfg, u, b, edgeBitmap, now)
 		if cerr != nil {
 			return provenEdges, cerr
 		}

@@ -26,10 +26,11 @@ func BitmapHasCoverageSignal(bitmap []byte) bool {
 }
 
 // CoverageBucketsForExec returns edge/path scheduling buckets for one exec.
-// When coverage_kind=wasm_edge_bitmap and bitmap has signal, buckets derive from WASM edges.
-// Otherwise falls back to input fingerprint (honest hybrid until guard is instrumented).
+// Any non-empty edgeBitmap (WASM Dig or Hunt afl-showmap) wins over structural fingerprints.
+// Structural/input-hash buckets are scheduling hints only — Hunt pay-for-edges must pass a
+// real bitmap from ProveHuntCorpusSeedEdges (see poolfuzz).
 func CoverageBucketsForExec(cfg map[string]any, inputU uint64, inputB []byte, edgeBitmap []byte) (edgeBucket, pathBucket int) {
-	if CoverageUsesWasmEdge(cfg) && BitmapHasCoverageSignal(edgeBitmap) {
+	if BitmapHasCoverageSignal(edgeBitmap) {
 		return primaryEdgeFromBitmap(edgeBitmap), pathBucketFromBitmap(edgeBitmap)
 	}
 	if len(inputB) > 0 {

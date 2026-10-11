@@ -188,7 +188,7 @@ func collectEngineDelta(res hunt.EngineShardResult, before map[string]string, ma
 		seeds = append(seeds, fuzzengine.PoolCorpusSeed{
 			Input:      fuzzengine.PackInputBytesToU64(h.b),
 			InputBytes: h.b,
-			Energy:     4,
+			Energy:     2, // neutral — coordinator ignores miner energy for Hunt pay (L2)
 		})
 	}
 	for _, p := range res.CrashFiles {

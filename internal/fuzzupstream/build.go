@@ -45,6 +45,124 @@ func BuildTargetMSAN(ctx context.Context, repoRoot string, t Target) (binPath, c
 	return buildTargetCSanitize(ctx, repoRoot, t, "memory", "msan")
 }
 
+// BuildTargetAFL compiles the stdin Hunt driver with afl-clang-fast / afl-cc and
+// AFL_USE_ASAN=1 so AFL++ and afl-showmap observe real compile-time edges.
+func BuildTargetAFL(ctx context.Context, repoRoot string, t Target) (binPath, clonePath string, err error) {
+	if TargetLanguage(t) == "rust" {
+		return "", "", fmt.Errorf("fuzzupstream: AFL lane is C/C++ only")
+	}
+	aflCC, err := lookAFLClangFast()
+	if err != nil {
+		return "", "", err
+	}
+	if repoRoot == "" {
+		repoRoot = "."
+	}
+	cacheDir := filepath.Join(repoRoot, ".cache", "oss-cve-clones")
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return "", "", err
+	}
+	clonePath = filepath.Join(cacheDir, t.ID)
+	if err := cloneRepo(ctx, t.Repo, t.Ref, clonePath); err != nil {
+		return "", "", err
+	}
+	if err := injectOSSCveBuildStubs(repoRoot, t.ID, clonePath); err != nil {
+		return "", "", err
+	}
+	driverSrc := DriverSourcePath(repoRoot, t)
+	if _, err := os.Stat(driverSrc); err != nil {
+		return "", "", fmt.Errorf("fuzzupstream: driver %s: %w", driverSrc, err)
+	}
+	outDir := filepath.Join(repoRoot, ".cache", "hunt-afl-bin")
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return "", "", err
+	}
+	sumInput := "aflasan|" + t.ID + t.Repo + t.Ref + t.Driver + strings.Join(t.UpstreamSrc, ",") + strings.Join(t.BuildFlags, ",")
+	sum := sha256.Sum256([]byte(sumInput))
+	binPath = filepath.Join(outDir, t.ID+"-aflasan-"+hex.EncodeToString(sum[:6])+".bin")
+
+	buildMu.Lock()
+	defer buildMu.Unlock()
+	if st, err := os.Stat(binPath); err == nil && st.Mode().IsRegular() {
+		return binPath, clonePath, nil
+	}
+
+	tmpDir, err := os.MkdirTemp("", "oss-cve-afl-build-*")
+	if err != nil {
+		return "", "", err
+	}
+	defer os.RemoveAll(tmpDir)
+	tmpBin := filepath.Join(tmpDir, "fuzz")
+
+	driverDir := filepath.Dir(driverSrc)
+	args := []string{
+		"-fno-omit-frame-pointer",
+		"-g", "-O1",
+		"-I", driverDir,
+		"-o", tmpBin,
+		driverSrc,
+	}
+	for _, inc := range t.IncludeDirs {
+		args = append(args, "-I", includeDir(repoRoot, clonePath, inc))
+	}
+	for _, src := range expandUpstreamSrc(clonePath, t.UpstreamSrc) {
+		args = append(args, src)
+	}
+	for _, flag := range t.BuildFlags {
+		args = append(args, flag)
+	}
+
+	buildCtx, cancel := context.WithTimeout(ctx, buildTimeout(t))
+	defer cancel()
+	cmd := exec.CommandContext(buildCtx, aflCC, args...)
+	cmd.Env = append(os.Environ(),
+		"AFL_USE_ASAN=1",
+		"AFL_QUIET=1",
+		"AFL_PATH="+filepath.Dir(aflCC),
+	)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return "", "", fmt.Errorf("afl-cc build %s: %w (%s)", t.ID, err, strings.TrimSpace(stderr.String()))
+	}
+	in, err := os.ReadFile(tmpBin)
+	if err != nil {
+		return "", "", err
+	}
+	if err := os.WriteFile(binPath, in, 0o755); err != nil {
+		return "", "", err
+	}
+	return binPath, clonePath, nil
+}
+
+func lookAFLClangFast() (string, error) {
+	for _, name := range []string{"afl-clang-fast", "afl-cc", "afl-clang"} {
+		if p, err := exec.LookPath(name); err == nil {
+			return p, nil
+		}
+	}
+	prefixes := []string{
+		strings.TrimSpace(os.Getenv("HACKME_PREFIX")),
+		"/opt/hackme",
+		filepath.Join(os.Getenv("HOME"), ".local/share/hackme/toolchains"),
+	}
+	for _, pref := range prefixes {
+		if pref == "" {
+			continue
+		}
+		for _, rel := range []string{
+			"aflpp/bin/afl-clang-fast", "aflpp/bin/afl-cc",
+			"bin/afl-clang-fast", "bin/afl-cc",
+		} {
+			p := filepath.Join(pref, rel)
+			if st, err := os.Stat(p); err == nil && !st.IsDir() {
+				return p, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("fuzzupstream: afl-clang-fast/afl-cc not found")
+}
+
 func buildTargetCSanitize(ctx context.Context, repoRoot string, t Target, sanitize, suffix string) (binPath, clonePath string, err error) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		return "", "", fmt.Errorf("fuzzupstream: clang required")
@@ -300,7 +418,18 @@ func extractDuktapeRelease(clonePath, version string) error {
 	return nil
 }
 
+var cloneMu sync.Map // dest path -> *sync.Mutex
+
+func lockCloneDest(dest string) func() {
+	v, _ := cloneMu.LoadOrStore(dest, &sync.Mutex{})
+	mu := v.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
 func cloneRepo(ctx context.Context, repo, ref, dest string) error {
+	unlock := lockCloneDest(dest)
+	defer unlock()
 	var err error
 	repo, err = gitutil.SanitizeURL(repo)
 	if err != nil {
@@ -358,13 +487,18 @@ func checkoutCloneRef(ctx context.Context, dest, ref string) error {
 		fetch := exec.CommandContext(checkCtx, "git", "-C", dest, "fetch", "--depth", "1", "origin", r)
 		gitutil.IsolateCmd(fetch)
 		_ = fetch.Run()
-		co := exec.CommandContext(checkCtx, "git", "-C", dest, "checkout", "--force", "--", r)
+		// Checkout a branch/tag/commit — do not use "--" (pathspec) before the ref.
+		co := exec.CommandContext(checkCtx, "git", "-C", dest, "checkout", "--force", r)
 		gitutil.IsolateCmd(co)
 		if co.Run() == nil {
 			return nil
 		}
 	}
-	rev := exec.CommandContext(checkCtx, "git", "-C", dest, "rev-parse", "HEAD")
+	// Prefer an independent short timeout: checkCtx may already be expired under
+	// parallel fetch load, which would falsely report "no valid ref".
+	revCtx, revCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer revCancel()
+	rev := exec.CommandContext(revCtx, "git", "-C", dest, "rev-parse", "HEAD")
 	gitutil.IsolateCmd(rev)
 	if rev.Run() == nil {
 		return nil
