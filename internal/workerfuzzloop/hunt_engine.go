@@ -69,17 +69,7 @@ func RunHuntEngineShard(ctx context.Context, run ResearchSlotRun, cr ClaimResp) 
 		wall = hunt.EngineLeaseSecFromConfig(nil, engine)
 	}
 	start := time.Now()
-	var seedFiles [][]byte
-	if h := strings.TrimSpace(cr.InputBytesHex); h != "" {
-		if b, err := decodeHex(h); err == nil && len(b) > 0 {
-			seedFiles = append(seedFiles, b)
-		}
-	}
-	for _, m := range cr.CorpusSeeds {
-		if b, ok := corpusSeedBytes(m); ok {
-			seedFiles = append(seedFiles, b)
-		}
-	}
+	seedFiles := collectCoverageEngineSeeds(cr)
 	repoRoot := strings.TrimSpace(run.RepoRoot)
 	if repoRoot == "" {
 		repoRoot = hunt.RepoRoot()
@@ -108,7 +98,7 @@ func RunHuntEngineShard(ctx context.Context, run ResearchSlotRun, cr ClaimResp) 
 	})
 	out.EngineVersion = res.EngineVersion
 	out.DurationMS = int(time.Since(start).Milliseconds())
-	if !res.Ran {
+	if !res.Ran && len(res.CrashFiles) == 0 {
 		out.SoftSkip = true
 		out.SkipReason = res.SkippedReason
 		if res.Err != "" {
@@ -122,7 +112,7 @@ func RunHuntEngineShard(ctx context.Context, run ResearchSlotRun, cr ClaimResp) 
 	if floor := hunt.MinEngineLeaseSec * 1000 * 3 / 4; minMS < floor {
 		minMS = floor
 	}
-	if out.DurationMS < minMS {
+	if out.DurationMS < minMS && len(res.CrashFiles) == 0 {
 		out.SoftSkip = true
 		out.SkipReason = fmt.Sprintf("lf_wall_short:elapsed_ms=%d want>=%d", out.DurationMS, minMS)
 		return out
@@ -225,6 +215,45 @@ func collectEngineDelta(res hunt.EngineShardResult, before map[string]string, ma
 		crashes = append(crashes, b)
 	}
 	return seeds, crashes
+}
+
+// collectCoverageEngineSeeds merges claim inputs for LF/AFL leases:
+// anchor InputBytesHex + guided CorpusSeeds + campaign seed_byte_corpus (pack TLV seeds).
+// Without seed_byte_corpus, inventory packs like heavywire only teach structure on the
+// hub while workers start near-empty and miss easy length-confusion bugs.
+func collectCoverageEngineSeeds(cr ClaimResp) [][]byte {
+	const maxSeed = 65536
+	const maxFiles = 64
+	seen := map[string]struct{}{}
+	out := make([][]byte, 0, 16)
+	add := func(b []byte) {
+		if len(b) == 0 || len(b) > maxSeed || len(out) >= maxFiles {
+			return
+		}
+		sum := sha256.Sum256(b)
+		key := hex.EncodeToString(sum[:])
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, append([]byte(nil), b...))
+	}
+	if h := strings.TrimSpace(cr.InputBytesHex); h != "" {
+		if b, err := decodeHex(h); err == nil {
+			add(b)
+		}
+	}
+	for _, m := range cr.CorpusSeeds {
+		if b, ok := corpusSeedBytes(m); ok {
+			add(b)
+		}
+	}
+	if len(cr.SeedByteCorpus) > 0 {
+		for _, b := range fuzzengine.ParseByteCorpus(map[string]any{"seed_byte_corpus": cr.SeedByteCorpus}) {
+			add(b)
+		}
+	}
+	return out
 }
 
 func corpusSeedBytes(m map[string]any) ([]byte, bool) {

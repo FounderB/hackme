@@ -130,6 +130,7 @@ type LibFuzzerSessionOpts struct {
 	TargetID  string
 	WallSec   int
 	Persist   bool
+	FuzzerBin string // optional in-process LF binary (inventory LLVMFuzzerTestOneInput)
 	StdinBin  string // optional override (inventory / custom)
 	DictBytes []byte // optional AFL/libFuzzer dictionary (-dict=)
 }
@@ -165,7 +166,12 @@ func RunLibFuzzerSession(ctx context.Context, opts LibFuzzerSessionOpts) (int, e
 
 	var binPath, stdinBin string
 	var err error
-	if strings.TrimSpace(opts.StdinBin) != "" {
+	if fb := strings.TrimSpace(opts.FuzzerBin); fb != "" {
+		if st, serr := os.Stat(fb); serr != nil || st.IsDir() {
+			return 0, fmt.Errorf("hunt: libfuzzer import: fuzzer bin missing: %s", fb)
+		}
+		binPath = fb
+	} else if strings.TrimSpace(opts.StdinBin) != "" {
 		stdinBin = strings.TrimSpace(opts.StdinBin)
 		if st, serr := os.Stat(stdinBin); serr != nil || st.IsDir() {
 			return 0, fmt.Errorf("hunt: libfuzzer import: stdin harness missing: %s", stdinBin)
@@ -212,19 +218,23 @@ func RunLibFuzzerSession(ctx context.Context, opts LibFuzzerSessionOpts) (int, e
 	before, _ := countCorpusFiles(corpusDir)
 	runCtx, cancel := context.WithTimeout(ctx, time.Duration(wallSec+30)*time.Second)
 	defer cancel()
+	crashDir := filepath.Join(filepath.Dir(corpusDir), "crashes")
+	_ = os.MkdirAll(crashDir, 0o755)
 	args := []string{
 		corpusDir,
 		"-max_total_time=" + fmt.Sprint(wallSec),
 		"-timeout=3",
 		"-rss_limit_mb=2048",
 		"-max_len=65536",
+		"-artifact_prefix=" + filepath.Join(crashDir, "crash-"),
 		"-print_final_stats=1",
 	}
 	if len(opts.DictBytes) > 0 {
 		dictPath := filepath.Join(filepath.Dir(corpusDir), "libfuzzer.dict")
-		if err := os.WriteFile(dictPath, opts.DictBytes, 0o600); err == nil {
-			args = append(args, "-dict="+dictPath)
+		if err := os.WriteFile(dictPath, opts.DictBytes, 0o600); err != nil {
+			return 0, fmt.Errorf("hunt: libfuzzer dict write: %w", err)
 		}
+		args = append(args, "-dict="+dictPath)
 	}
 	env := append(os.Environ(),
 		"ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:allocator_may_return_null=1",

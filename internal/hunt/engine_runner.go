@@ -119,11 +119,21 @@ func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wal
 	out.CorpusDir = corpusDir
 	before, _ := countCorpusFiles(corpusDir)
 	out.CorpusBefore = before
+	seeded := 0
 	for i, b := range opts.SeedFiles {
 		if len(b) == 0 || len(b) > 65536 {
 			continue
 		}
-		_ = os.WriteFile(filepath.Join(corpusDir, fmt.Sprintf("claim-seed-%d.bin", i)), b, 0o600)
+		if err := os.WriteFile(filepath.Join(corpusDir, fmt.Sprintf("claim-seed-%d.bin", i)), b, 0o600); err == nil {
+			seeded++
+		}
+	}
+	// Defense: empty claim seeds → pull L2 pack cache / tiny boots so TLV targets are not
+	// stuck with only "{}" starters on miners that never saw seed_byte_corpus.
+	if seeded == 0 {
+		if n, _ := countCorpusFiles(corpusDir); n == 0 {
+			_ = seedPersistentCorpus(repoRoot, targetID, corpusDir)
+		}
 	}
 	sess := LibFuzzerSessionOpts{
 		RepoRoot:  repoRoot,
@@ -132,15 +142,26 @@ func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wal
 		Persist:   true,
 		DictBytes: opts.DictBytes,
 	}
-	// Custom inventory: published ASAN stdin harness + generic LF subprocess driver.
-	if hash := strings.TrimSpace(opts.HarnessHash); hash != "" {
-		stdinPath, merr := MaterializeHarness(ctx, repoRoot, hash, opts.HarnessFetchURL, opts.HarnessContentSHA256, opts.ArtifactDB)
-		if merr != nil {
-			out.Err = merr.Error()
-			out.SkippedReason = "harness"
-			return out
+	// Inventory with in-process LLVMFuzzerTestOneInput (e.g. heavywire fuzz_parse.c).
+	if pin := strings.TrimSpace(opts.PinPath); pin != "" {
+		if src := strings.TrimSpace(opts.SourceRel); src != "" && InventorySourceHasLibFuzzerEntry(pin, src) {
+			lfBin, lerr := BuildInventoryInProcessLibFuzzer(ctx, repoRoot, &RepoPinResult{Path: pin, CommitSHA: "engine-shard"}, src)
+			if lerr == nil {
+				sess.FuzzerBin = lfBin
+			}
 		}
-		sess.StdinBin = stdinPath
+	}
+	// Published stdin ASAN harness + subprocess LF driver when no in-process LF.
+	if sess.FuzzerBin == "" {
+		if hash := strings.TrimSpace(opts.HarnessHash); hash != "" {
+			stdinPath, merr := MaterializeHarness(ctx, repoRoot, hash, opts.HarnessFetchURL, opts.HarnessContentSHA256, opts.ArtifactDB)
+			if merr != nil {
+				out.Err = merr.Error()
+				out.SkippedReason = "harness"
+				return out
+			}
+			sess.StdinBin = stdinPath
+		}
 	}
 	started := time.Now()
 	n, err := RunLibFuzzerSession(ctx, sess)
@@ -175,7 +196,7 @@ func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wal
 	if minWall < time.Duration(MinEngineLeaseSec)*time.Second*3/4 {
 		minWall = time.Duration(MinEngineLeaseSec) * time.Second * 3 / 4
 	}
-	if elapsed < minWall {
+	if elapsed < minWall && len(out.CrashFiles) == 0 {
 		out.SkippedReason = "lf_wall_short"
 		if out.Err == "" {
 			out.Err = fmt.Sprintf("elapsed_ms=%d want>=%d", elapsed.Milliseconds(), minWall.Milliseconds())
