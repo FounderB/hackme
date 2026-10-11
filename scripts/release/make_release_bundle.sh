@@ -247,6 +247,7 @@ cp "${ROOT_DIR}/scripts/ops/desktop_mode_stop.sh" "${LINUX_DIR}/desktop_mode_sto
 cp "${ROOT_DIR}/scripts/release/linux/hackme-desktop.service.template" "${LINUX_DIR}/hackme-desktop.service.template" 2>/dev/null || true
 cp "${ROOT_DIR}/scripts/ops/install_linux_desktop_launcher.sh" "${LINUX_DIR}/install_linux_desktop_launcher.sh"
 cp "${ROOT_DIR}/scripts/ops/install_from_code_toolchains.sh" "${LINUX_DIR}/install_from_code_toolchains.sh"
+cp "${ROOT_DIR}/scripts/ops/install_hunt_engines.sh" "${LINUX_DIR}/install_hunt_engines.sh"
 cp "${ROOT_DIR}/scripts/ops/update_hackme_miner.sh" "${LINUX_DIR}/update_hackme_miner.sh"
 cp "${ROOT_DIR}/scripts/ops/update_hackme_os_binaries.sh" "${LINUX_DIR}/update_hackme_os_binaries.sh"
 
@@ -260,6 +261,7 @@ chmod +x "${LINUX_DIR}/desktop_mode_status.sh"
 chmod +x "${LINUX_DIR}/desktop_mode_stop.sh"
 chmod +x "${LINUX_DIR}/install_linux_desktop_launcher.sh"
 chmod +x "${LINUX_DIR}/install_from_code_toolchains.sh"
+chmod +x "${LINUX_DIR}/install_hunt_engines.sh"
 chmod +x "${LINUX_DIR}/update_hackme_miner.sh"
 chmod +x "${LINUX_DIR}/update_hackme_os_binaries.sh"
 chmod +x "${LINUX_DIR}/workerpoh"

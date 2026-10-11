@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/hunt"
 	"hackme/internal/sandbox"
 )
 
@@ -50,6 +51,20 @@ func leaseSecondsForConfig(cfg map[string]any) int64 {
 	var execPer int
 	var timeoutMS int64
 	if IsHuntCampaign(cfg) {
+		// Coverage-guided Hunt: lease ≈ engine wall + slack (not L1 iter × 3s).
+		if HuntEngineEnabled() {
+			engine := hunt.HuntEngineFromConfig(cfg)
+			if hunt.IsCoverageEngine(engine) {
+				sec := int64(hunt.EngineLeaseSecFromConfig(cfg, engine)) + 90
+				if sec < 60 {
+					sec = 60
+				}
+				if sec > 360 {
+					sec = 360
+				}
+				return sec
+			}
+		}
 		execPer = huntIterationsPerShard(cfg)
 		if execPer < 1 {
 			execPer = 1

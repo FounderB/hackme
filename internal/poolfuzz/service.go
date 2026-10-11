@@ -104,6 +104,12 @@ type ClaimedWork struct {
 	MutatorDict []byte
 	// IsCanary is coordinator-internal (challenge shard); not advertised on claim JSON.
 	IsCanary bool
+	// HuntEngine is libfuzzer|aflpp|byte for coverage-guided Hunt shards.
+	HuntEngine string
+	// EngineLeaseSec is the wall-clock lease window for coverage engines (0 = byte/L1).
+	EngineLeaseSec int
+	// EngineProfile is fleet|deep.
+	EngineProfile string
 }
 
 type SubmitRequest struct {
@@ -121,8 +127,12 @@ type SubmitRequest struct {
 	Trap             string
 	SegmentExecDone  int
 	// EdgesTouched is unique edge count from the worker segment when EdgesTouchedOK.
+	// Dig may use it for CLEAN floor; Hunt coverage engines MUST NOT trust it for pay.
 	EdgesTouched   int
 	EdgesTouchedOK bool
+	// HuntEngine / EngineVersion are advisory report fields from the worker.
+	HuntEngine    string
+	EngineVersion string
 }
 
 // RegisterCampaign upserts a pool-distributed fuzz campaign and marks it running.
@@ -1140,7 +1150,7 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 	}
 	execPer := PoolExecPerUnit(cfg)
 	if isHunt {
-		execPer = huntIterationsPerShard(cfg)
+		execPer = huntSubmitExecExpected(cfg, req)
 	}
 	if execPer > 1 {
 		if req.SegmentExecDone != execPer {
@@ -1166,7 +1176,9 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 	var huntOrigLen int
 	var seg fuzzengine.SegmentResult
 	if isHunt {
-		if huntReplayAsyncEnabled() && poolDistributed(cfg) {
+		engineMode := huntEngineSubmitMode(req)
+		// Coverage engine CLEAN/crash: sync verify (no L1 async mutator replay).
+		if !engineMode && huntReplayAsyncEnabled() && poolDistributed(cfg) {
 			out, err := s.enqueueHuntReplay(ctx, req, inputN, now)
 			return out, err
 		}
@@ -1187,6 +1199,24 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 		req.InputBytes = expectedB
 		req.CheckResult = checkResult
 		req.Trap = trap
+		if engineMode {
+			proven := takeLeaseProven(req.CampaignID, req.ItemID)
+			// Coordinator-proven edges/crashes only — ignore miner edges_touched.
+			kind, fullPay := DecideHuntEnginePay(proven.ProvenEdges, proven.SeedsAccepted, proven.CrashesOK, req.EdgesTouched, req.EdgesTouchedOK)
+			if recordFinding {
+				kind, fullPay = HuntEnginePayCrash, true
+			}
+			noteHuntEnginePay(kind, fullPay)
+			if err := s.finalizeHuntSubmit(ctx, finalizeHuntSubmitParams{
+				req: req, cfg: cfg, inputN: inputN, expectedU: expectedU, expectedB: expectedB,
+				pass: pass, recordFinding: recordFinding, findingU: findingU, findingB: findingB,
+				huntOrigLen: huntOrigLen, fromReplayPending: false, now: now,
+				enginePayKind: kind, engineFullPay: fullPay, engineMode: true,
+			}); err != nil {
+				return SubmitOutcome{}, err
+			}
+			return SubmitOutcome{ReplayStatus: huntReplayStatusDone}, nil
+		}
 		if err := s.finalizeHuntSubmit(ctx, finalizeHuntSubmitParams{
 			req: req, cfg: cfg, inputN: inputN, expectedU: expectedU, expectedB: expectedB,
 			pass: pass, recordFinding: recordFinding, findingU: findingU, findingB: findingB,

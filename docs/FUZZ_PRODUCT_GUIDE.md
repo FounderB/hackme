@@ -130,7 +130,8 @@ When `pool_distributed: true`, hub `workerfuzz` / hybrid `workerpoh` claims work
 - Worker lease scales with segment wall time (not fixed 30s)
 - Submit nonce reserved at signature validate (anti-replay)
 - Optional: `claim_batch` / `submit_batch` (≤16), claim-light corpus sha, worker prefetch
-- Hybrid Hunt research slot (**default ON**, escape `=0`): worker LF persist → corpus-delta + ASAN-replayed crashes only ([POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md)); soft-skips without LF; does not enable Dig seed-from-research
+- Coverage-guided Hunt engines (**libFuzzer** fleet default, **AFL++** Deep profile): lease = engine wall; pay for coordinator-proven edges + ASAN crash ([HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md)); byte Hunt fallback without clang
+- Hybrid Hunt research slot (**default ON** for byte Hunt, escape `=0`): worker LF persist → corpus-delta + ASAN-replayed crashes only ([POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md)); soft-skips without LF; does not enable Dig seed-from-research
 
 **Safe fleet tiers:** Scan (1) · Audit (64) · Deep hub **cap 256** (local 512). Fleet ~25–35 dig/hybrid workers typical.
 

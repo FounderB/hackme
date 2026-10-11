@@ -7,7 +7,7 @@ High-GH GPU miners can hit the origin directly to avoid CF timeouts on claim/sub
 - URL: `http://132.243.112.100:18083`
 - Auth: worker/coordinator token (`X-Hackme-Admin-Token` / pool worker token)
 - Nginx: `deploy/nginx/hackme-pool-direct.conf` → `127.0.0.1:18081`
-- **Allowlist only:** `/health`, `/api/work/claim|submit|stats|by-wallet`, `/api/pool/stats`, fuzz marketplace/settle pull (`/api/fuzz/pool/campaigns/list|progress`, `/api/fuzz/pool/stats`, `/api/fuzz/pool/settle/outbox(|/ack)`, `/api/fuzz/work/claim|submit`)
+- **Allowlist only:** `/health`, `/api/work/claim|submit|stats|by-wallet`, `/api/pool/stats`, fuzz marketplace/settle pull (`/api/fuzz/pool/campaigns/list|progress`, `/api/fuzz/pool/stats`, `/api/fuzz/pool/settle/outbox(|/ack)`), Dig/Hunt worker paths (`/api/fuzz/work/claim|claim_batch|submit|submit_batch|corpus_snapshot|corpus_delta|release`, Hunt harness GET)
 - **Blocked at edge:** `/api/work/admin/*`, fuzz cleanup/admin, everything else → `403`
 
 ## Worker config (no binary rebuild)

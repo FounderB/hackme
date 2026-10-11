@@ -60,7 +60,9 @@ HACKME_WORKER_HYBRID_FUZZ_NICE=10
 WORKERFUZZ_HTTP_TIMEOUT_SEC=30
 HACKME_WORKER_HUNT_TIMEOUT_MS=300000
 HACKME_WORKER_HUNT_SHARDS=1
-# Research slot (LF persist → corpus_delta); soft-skip without clang/LF
+# Coverage-guided Hunt (libFuzzer fleet default); soft-skip / byte fallback without clang
+HACKME_HUNT_COVERAGE_ENGINE=1
+# Research slot (LF persist → corpus_delta) for byte Hunt only; soft-skip without clang/LF
 HACKME_WORKER_RESEARCH_SLOT=1
 HACKME_WORKER_RESEARCH_WINDOW_SEC=30
 HACKME_WORKER_RESEARCH_MAX_DELTA=32

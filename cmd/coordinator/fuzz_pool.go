@@ -527,6 +527,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			MinerAddress    string `json:"miner_address"`
 			WorkerVersion   string `json:"worker_version"`
 			HuntHarnessExec string `json:"hunt_harness_exec"`
+			HuntEngines     string `json:"hunt_engines"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
@@ -608,6 +609,19 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			})
 			return
 		}
+		if isHunt {
+			if soft, reason := applyHuntEngineClaimGate(&work, req.HuntEngines); soft {
+				_, _ = pf.ReleaseWorkLease(r.Context(), work.CampaignID, work.ItemID, workerID)
+				wm.recordDrop(reason)
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"ok": false, "reason": reason, "hunt_engine": work.HuntEngine,
+					"hint": "install Hunt engines (clang/libFuzzer or bundled afl-fuzz) or advertise hunt_engines=byte",
+				})
+				return
+			}
+		}
 		// Bind payout lock only after a fully successful claim (not on no_fuzz_work /
 		// rate-limit / harness reject — those must not squat an unlocked id).
 		wm.bindClaimPayoutFromPub(workerID, pub)
@@ -642,6 +656,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			MinerAddress    string `json:"miner_address"`
 			WorkerVersion   string `json:"worker_version"`
 			HuntHarnessExec string `json:"hunt_harness_exec"`
+			HuntEngines     string `json:"hunt_engines"`
 			Limit           int    `json:"limit"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -720,6 +735,13 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 				_, _ = pf.ReleaseWorkLease(r.Context(), work.CampaignID, work.ItemID, workerID)
 				wm.recordDrop("worker_outdated_for_hunt")
 				continue
+			}
+			if isHunt {
+				if soft, reason := applyHuntEngineClaimGate(&work, req.HuntEngines); soft {
+					_, _ = pf.ReleaseWorkLease(r.Context(), work.CampaignID, work.ItemID, workerID)
+					wm.recordDrop(reason)
+					continue
+				}
 			}
 			wm.bindClaimPayoutFromPub(workerID, pub)
 			if okCharge, reasonCharge := wm.chargeClaimWorker(workerID, now); !okCharge {
@@ -811,6 +833,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			Trap            string `json:"trap"`
 			SegmentExecDone int    `json:"segment_exec_done"`
 			EdgesTouched    *int   `json:"edges_touched"`
+			HuntEngine      string `json:"hunt_engine"`
+			Engine          string `json:"engine"`
+			EngineVersion   string `json:"engine_version"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
@@ -931,6 +956,12 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			sub.EdgesTouched = *req.EdgesTouched
 			sub.EdgesTouchedOK = true
 		}
+		eng := strings.TrimSpace(req.HuntEngine)
+		if eng == "" {
+			eng = strings.TrimSpace(req.Engine)
+		}
+		sub.HuntEngine = eng
+		sub.EngineVersion = strings.TrimSpace(req.EngineVersion)
 		out, err := pf.SubmitWithOutcome(r.Context(), sub)
 		if err != nil {
 			// Free lease only when identity is proven via payout lock match.
@@ -1339,6 +1370,38 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 	})
 }
 
+// applyHuntEngineClaimGate soft-skips or falls back to byte Hunt when the worker
+// cannot run the campaign's coverage engine. soft=true means release the lease.
+func applyHuntEngineClaimGate(work *poolfuzz.ClaimedWork, huntEnginesRaw string) (soft bool, reason string) {
+	if work == nil || !poolfuzz.HuntEngineEnabled() {
+		return false, ""
+	}
+	if !hunt.IsCoverageEngine(work.HuntEngine) {
+		return false, ""
+	}
+	advertised := poolfuzz.WorkerHuntEngines(huntEnginesRaw)
+	if poolfuzz.WorkerSupportsHuntEngine(advertised, work.HuntEngine) {
+		return false, ""
+	}
+	// Legacy workers omit hunt_engines — treat libfuzzer_oneshot fleets as byte-capable
+	// unless they explicitly advertise coverage engines.
+	if len(advertised) == 0 && poolfuzz.HuntEngineAllowByteFallback() {
+		poolfuzz.ApplyHuntEngineByteFallback(work, map[string]any{
+			"iterations_per_shard": work.IterationsPerShard,
+			"hunt_corpus_guided":   work.CoverageKind == "hunt_corpus_guided",
+		})
+		return false, ""
+	}
+	if poolfuzz.HuntEngineAllowByteFallback() && poolfuzz.WorkerSupportsHuntEngine(advertised, hunt.EngineByte) {
+		poolfuzz.ApplyHuntEngineByteFallback(work, map[string]any{
+			"iterations_per_shard": work.IterationsPerShard,
+			"hunt_corpus_guided":   work.CoverageKind == "hunt_corpus_guided",
+		})
+		return false, ""
+	}
+	return true, "hunt_engine_soft_skip"
+}
+
 func fuzzClaimPayload(workerID string, work poolfuzz.ClaimedWork) map[string]any {
 	payload := map[string]any{
 		"ok":              true,
@@ -1417,6 +1480,16 @@ func fuzzClaimPayload(workerID string, work poolfuzz.ClaimedWork) map[string]any
 		payload["shard_spec"] = map[string]any{
 			"iterations_per_shard": work.IterationsPerShard,
 			"check_semantics":      work.CheckSemantics,
+		}
+		if eng := strings.TrimSpace(work.HuntEngine); eng != "" {
+			payload["hunt_engine"] = eng
+			payload["engine"] = eng
+		}
+		if work.EngineLeaseSec > 0 {
+			payload["engine_lease_sec"] = work.EngineLeaseSec
+		}
+		if p := strings.TrimSpace(work.EngineProfile); p != "" {
+			payload["engine_profile"] = p
 		}
 	}
 	return payload

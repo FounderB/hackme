@@ -157,6 +157,14 @@ func (s *Service) AcceptResearchCorpusDelta(ctx context.Context, req ResearchCor
 				return out, err
 			}
 		}
+		// Coverage-guided Hunt: prove edges via coordinator replay (never trust miner counts).
+		if HuntEngineEnabled() && hunt.IsCoverageEngine(hunt.HuntEngineFromConfig(cfg)) {
+			proven, perr := s.ProveHuntCorpusSeedEdges(ctx, campaignID, cfg, seeds, now)
+			if perr != nil {
+				return out, perr
+			}
+			noteLeaseProven(campaignID, req.ItemID, len(seeds), proven, 0, hunt.HuntEngineFromConfig(cfg), "")
+		}
 	}
 
 	for _, crashB := range req.Crashes {
@@ -175,6 +183,9 @@ func (s *Service) AcceptResearchCorpusDelta(ctx context.Context, req ResearchCor
 			continue
 		}
 		out.CrashesReplayOK++
+		if HuntEngineEnabled() {
+			noteLeaseProven(campaignID, req.ItemID, 0, 0, 1, hunt.HuntEngineFromConfig(cfg), "")
+		}
 		u := fuzzengine.PackInputBytesToU64(crashB)
 		if err := s.upsertPoolCorpusSeed(ctx, campaignID, u, crashB, 12, 0, 0, true, now); err != nil {
 			return out, err

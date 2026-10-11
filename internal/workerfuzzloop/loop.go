@@ -22,6 +22,7 @@ import (
 
 	"hackme/internal/chain"
 	"hackme/internal/fuzzengine"
+	"hackme/internal/hunt"
 	"hackme/internal/poolfuzz"
 	"hackme/internal/sandbox"
 )
@@ -74,6 +75,13 @@ type ClaimResp struct {
 	SeedByteCorpus []any `json:"seed_byte_corpus,omitempty"`
 	// MutatorDictHex is Dig pack dictionary (hex) for SegmentExecInput parity.
 	MutatorDictHex string `json:"mutator_dict_hex,omitempty"`
+	// HuntEngine is libfuzzer|aflpp|byte (coverage-guided Hunt).
+	HuntEngine string `json:"hunt_engine,omitempty"`
+	Engine     string `json:"engine,omitempty"`
+	// EngineLeaseSec is wall seconds for coverage engines.
+	EngineLeaseSec int `json:"engine_lease_sec,omitempty"`
+	// EngineProfile is fleet|deep.
+	EngineProfile string `json:"engine_profile,omitempty"`
 }
 
 // Config drives a supervised fuzz dig loop.
@@ -410,32 +418,55 @@ func processClaim(ctx context.Context, cfg Config, base string, st *Stats, cr *C
 	var execDone int
 	var edgesTouched int
 	var edgesOK bool
+	var engineVersion string
+	engineRan := false
 	if IsHuntClaim(*cr) {
 		if err := HuntClaimMissingFields(*cr); err != nil {
 			fmt.Fprintf(os.Stderr, "%s: %v\n", cfg.LogPrefix, err)
 			release("hunt_missing_fields")
 			return
 		}
-		checkRet, durMS, trap, execDone = RunHuntShard(ctx, *cr, cfg.TimeoutMS)
-		want := cr.ExecPerUnit
-		if want < 1 {
-			want = 1
+		eng := strings.TrimSpace(cr.HuntEngine)
+		if eng == "" {
+			eng = strings.TrimSpace(cr.Engine)
 		}
-		if execDone < want {
-			fmt.Fprintf(os.Stderr, "%s: hunt incomplete shard exec_done=%d want=%d trap=%q — releasing\n",
-				cfg.LogPrefix, execDone, want, trap)
-			release("hunt_incomplete_shard")
-			return
+		cr.HuntEngine = hunt.ParseHuntEngine(eng)
+		if hunt.IsCoverageEngine(cr.HuntEngine) {
+			er := RunHuntEngineShard(ctx, ResearchSlotRun{
+				CoordURL: base, Token: cfg.Token, WorkerID: cfg.WorkerID,
+				MinerAddr: cfg.MinerAddr, HTTPClient: cfg.HTTPClient, Claim: *cr,
+			}, *cr)
+			if er.SoftSkip {
+				fmt.Fprintf(os.Stderr, "%s: hunt_engine soft_skip=%s — releasing\n", cfg.LogPrefix, er.SkipReason)
+				release("hunt_engine_soft_skip")
+				return
+			}
+			checkRet, durMS, trap, execDone = er.CheckResult, er.DurationMS, er.Trap, er.ExecDone
+			engineVersion = er.EngineVersion
+			engineRan = true
+			fmt.Fprintf(os.Stderr, "%s: hunt_engine=%s ver=%s corpus=%d crashes=%d wall_ms=%d\n",
+				cfg.LogPrefix, er.Engine, er.EngineVersion, er.CorpusDeltas, er.Crashes, er.DurationMS)
+		} else {
+			checkRet, durMS, trap, execDone = RunHuntShard(ctx, *cr, cfg.TimeoutMS)
+			want := cr.ExecPerUnit
+			if want < 1 {
+				want = 1
+			}
+			if execDone < want {
+				fmt.Fprintf(os.Stderr, "%s: hunt incomplete shard exec_done=%d want=%d trap=%q — releasing\n",
+					cfg.LogPrefix, execDone, want, trap)
+				release("hunt_incomplete_shard")
+				return
+			}
 		}
 	} else {
 		checkRet, durMS, trap, execDone, edgesTouched = RunSegmentCheck(ctx, *cr, cfg.TimeoutMS)
 		edgesOK = true
 	}
-	// Stage D: optional LF research slot while lease is still held (default OFF).
-	// Uploads new corpus units + crash artifacts only; coordinator ASAN-replays crashes.
+	// Stage D research slot: only for byte Hunt (coverage engine already ran LF/AFL).
 	// Does not enable HACKME_POOL_SEED_FROM_RESEARCH (customer Dig isolation).
 	rsCfg := ResearchSlotFromEnv()
-	if rsCfg.Enabled && (IsHuntClaim(*cr) || rsCfg.AllowDig) {
+	if rsCfg.Enabled && !engineRan && (IsHuntClaim(*cr) || rsCfg.AllowDig) {
 		rs := MaybeRunResearchSlot(ctx, ResearchSlotRun{
 			Config: rsCfg, CoordURL: base, Token: cfg.Token, WorkerID: cfg.WorkerID,
 			MinerAddr: cfg.MinerAddr, HTTPClient: cfg.HTTPClient, Claim: *cr,
@@ -448,7 +479,7 @@ func processClaim(ctx context.Context, cfg Config, base string, st *Stats, cr *C
 		}
 	}
 	nonce := uint64(time.Now().UnixNano())
-	if err := Submit(ctx, cfg.HTTPClient, base, cfg.Token, cfg.WorkerID, cfg.MinerAddr, cfg.Priv, cfg.PubHex, cfg.Hybrid, nonce, *cr, checkRet, durMS, trap, execDone, edgesTouched, edgesOK); err != nil {
+	if err := Submit(ctx, cfg.HTTPClient, base, cfg.Token, cfg.WorkerID, cfg.MinerAddr, cfg.Priv, cfg.PubHex, cfg.Hybrid, nonce, *cr, checkRet, durMS, trap, execDone, edgesTouched, edgesOK, engineVersion); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: submit: %v\n", cfg.LogPrefix, err)
 		release("submit_reject")
 		return
@@ -546,6 +577,7 @@ func backoffForReason(reason string) time.Duration {
 type ClaimCaps struct {
 	WorkerVersion   string
 	HuntHarnessExec string
+	HuntEngines     string // comma-separated: byte,libfuzzer,aflpp
 }
 
 func claimCaps(cfg Config) ClaimCaps {
@@ -560,7 +592,11 @@ func claimCaps(cfg Config) ClaimCaps {
 	if exec == "" {
 		exec = strings.TrimSpace(os.Getenv("HACKME_HUNT_HARNESS_EXEC"))
 	}
-	return ClaimCaps{WorkerVersion: ver, HuntHarnessExec: exec}
+	engines := strings.TrimSpace(os.Getenv("HACKME_WORKER_HUNT_ENGINES"))
+	if engines == "" {
+		engines = HuntEnginesClaimCSV()
+	}
+	return ClaimCaps{WorkerVersion: ver, HuntHarnessExec: exec, HuntEngines: engines}
 }
 
 // ClaimBatch leases up to limit items via /api/fuzz/work/claim_batch (1–16).
@@ -584,6 +620,9 @@ func ClaimBatch(ctx context.Context, cl *http.Client, base, token, workerID, pub
 	}
 	if h := strings.TrimSpace(caps.HuntHarnessExec); h != "" {
 		bodyMap["hunt_harness_exec"] = h
+	}
+	if e := strings.TrimSpace(caps.HuntEngines); e != "" {
+		bodyMap["hunt_engines"] = e
 	}
 	body, _ := json.Marshal(bodyMap)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/fuzz/work/claim_batch", bytes.NewReader(body))
@@ -629,6 +668,9 @@ func Claim(ctx context.Context, cl *http.Client, base, token, workerID, pubHex, 
 	}
 	if h := strings.TrimSpace(caps.HuntHarnessExec); h != "" {
 		bodyMap["hunt_harness_exec"] = h
+	}
+	if e := strings.TrimSpace(caps.HuntEngines); e != "" {
+		bodyMap["hunt_engines"] = e
 	}
 	body, _ := json.Marshal(bodyMap)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/fuzz/work/claim", bytes.NewReader(body))
@@ -820,7 +862,7 @@ func InputForCheck(cr ClaimResp) []byte {
 }
 
 // Submit posts a fuzz work result (optional hybrid signature).
-func Submit(ctx context.Context, cl *http.Client, base, token, workerID, minerAddress string, priv ed25519.PrivateKey, pubHex string, hybrid bool, nonce uint64, cr ClaimResp, checkResult int32, durationMS int, trap string, segmentExecDone int, edgesTouched int, edgesOK bool) error {
+func Submit(ctx context.Context, cl *http.Client, base, token, workerID, minerAddress string, priv ed25519.PrivateKey, pubHex string, hybrid bool, nonce uint64, cr ClaimResp, checkResult int32, durationMS int, trap string, segmentExecDone int, edgesTouched int, edgesOK bool, engineVersion string) error {
 	payload := map[string]any{
 		"worker_id":         workerID,
 		"work_id":           cr.WorkID,
@@ -836,6 +878,17 @@ func Submit(ctx context.Context, cl *http.Client, base, token, workerID, minerAd
 	}
 	if edgesOK {
 		payload["edges_touched"] = edgesTouched
+	}
+	eng := strings.TrimSpace(cr.HuntEngine)
+	if eng == "" {
+		eng = strings.TrimSpace(cr.Engine)
+	}
+	if eng != "" {
+		payload["hunt_engine"] = eng
+		payload["engine"] = eng
+	}
+	if v := strings.TrimSpace(engineVersion); v != "" {
+		payload["engine_version"] = v
 	}
 	if hybrid {
 		if priv == nil {

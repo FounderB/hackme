@@ -17,6 +17,11 @@ func TestMain(m *testing.M) {
 	if os.Getenv("HACKME_POOL_CANARY") == "" {
 		_ = os.Setenv("HACKME_POOL_CANARY", "0")
 	}
+	// Legacy Hunt tests use byte L1 + iterations_per_shard. Coverage-engine tests
+	// opt in via t.Setenv("HACKME_HUNT_COVERAGE_ENGINE", "1").
+	if os.Getenv("HACKME_HUNT_COVERAGE_ENGINE") == "" {
+		_ = os.Setenv("HACKME_HUNT_COVERAGE_ENGINE", "0")
+	}
 	resetCleanEdgesRollForTest()
 	os.Exit(m.Run())
 }

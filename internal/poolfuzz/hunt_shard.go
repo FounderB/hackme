@@ -84,6 +84,22 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 			seedCorpus = list
 		}
 	}
+	engine := hunt.EngineByte
+	leaseSec := 0
+	profile := ""
+	execPer := iter
+	covKind := huntCoverageKind(cfg, iter)
+	if HuntEngineEnabled() {
+		engine = hunt.HuntEngineFromConfig(cfg)
+		profile = hunt.EngineProfileFromConfig(cfg)
+		if hunt.IsCoverageEngine(engine) {
+			leaseSec = hunt.EngineLeaseSecFromConfig(cfg, engine)
+			execPer = 1 // coverage shard = one engine window, not L1 iteration chain
+			covKind = hunt.CoverageKindForEngine(engine)
+		} else {
+			engine = hunt.EngineByte
+		}
+	}
 	return ClaimedWork{
 		WorkID:               fmt.Sprintf("%s:%d", campaignID, itemID),
 		CampaignID:           campaignID,
@@ -95,9 +111,9 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 		CheckSemantics:       "native_crash",
 		DepthTier:            string(fuzzengine.DepthOSSCVE),
 		PerRunHMC:            perShardHMCFromConfig(cfg),
-		ExecPerUnit:          iter,
+		ExecPerUnit:          execPer,
 		MaxInputBytes:        fuzzengine.ParseMaxInputBytes(cfg),
-		CoverageKind:         huntCoverageKind(cfg, iter),
+		CoverageKind:         covKind,
 		CorpusSeeds:          corpusSeeds,
 		CorpusSnapshotSHA256: corpusSHA,
 		TaskClass:            "hunt",
@@ -117,7 +133,26 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 		DigGPUMutators:       digGPU,
 		CorpusExploreV2:      exploreV2,
 		SeedByteCorpus:       seedCorpus,
+		HuntEngine:           engine,
+		EngineLeaseSec:       leaseSec,
+		EngineProfile:        profile,
 	}, nil
+}
+
+// ApplyHuntEngineByteFallback rewrites a coverage-engine claim to legacy byte Hunt
+// when the worker cannot run libFuzzer/AFL++ but byte fallback is allowed.
+func ApplyHuntEngineByteFallback(work *ClaimedWork, cfg map[string]any) {
+	if work == nil || !hunt.IsCoverageEngine(work.HuntEngine) {
+		return
+	}
+	iter := work.IterationsPerShard
+	if iter < 1 {
+		iter = huntIterationsPerShard(cfg)
+	}
+	work.HuntEngine = hunt.EngineByte
+	work.EngineLeaseSec = 0
+	work.ExecPerUnit = iter
+	work.CoverageKind = huntCoverageKind(cfg, iter)
 }
 
 func huntCoverageKind(cfg map[string]any, iter int) string {
@@ -221,10 +256,32 @@ func (s *Service) evalHuntSubmitCheck(ctx context.Context, campaignID string, in
 	return s.evalHuntSubmitCheckProgress(ctx, campaignID, inputN, cfg, req, expectedB, seeds, nil)
 }
 
+// huntSubmitExecExpected is segment_exec_done required for Hunt submit.
+// Coverage engines use 1 (one engine window); byte Hunt uses iterations_per_shard.
+// Empty req.HuntEngine → byte/L1 semantics (legacy workers); never infer libfuzzer from cfg alone.
+func huntSubmitExecExpected(cfg map[string]any, req SubmitRequest) int {
+	engine := strings.TrimSpace(req.HuntEngine)
+	if HuntEngineEnabled() && engine != "" && hunt.IsCoverageEngine(engine) {
+		return 1
+	}
+	return huntIterationsPerShard(cfg)
+}
+
+// huntEngineSubmitMode is true only when the worker explicitly declared a coverage engine.
+func huntEngineSubmitMode(req SubmitRequest) bool {
+	engine := strings.TrimSpace(req.HuntEngine)
+	return HuntEngineEnabled() && engine != "" && hunt.IsCoverageEngine(engine)
+}
+
 func (s *Service) evalHuntSubmitCheckProgress(ctx context.Context, campaignID string, inputN uint64, cfg map[string]any, req SubmitRequest, expectedB []byte, seeds []fuzzengine.PoolCorpusSeed, onProgress func(int)) (checkResult int32, trap string, pass bool, recordFinding bool, findingB []byte, findingOrigLen int, err error) {
-	iter := huntIterationsPerShard(cfg)
+	iter := huntSubmitExecExpected(cfg, req)
 	if req.SegmentExecDone != iter {
 		return 0, "", false, false, nil, 0, nil
+	}
+	// Coverage-guided engine shard: do not re-run the L1 mutator chain.
+	// CLEAN → pass; crash claims → single-input ASAN replay (same cage as research).
+	if huntEngineSubmitMode(req) {
+		return s.evalHuntEngineSubmitCheck(ctx, campaignID, cfg, req, expectedB)
 	}
 	if !huntReplayEnabled() {
 		// Fail closed when escrow/bounty is on — never trust worker crash claims for payouts.
@@ -302,8 +359,42 @@ func (s *Service) evalHuntSubmitCheckProgress(ctx context.Context, campaignID st
 	return 0, "", true, false, nil, 0, nil
 }
 
+func (s *Service) evalHuntEngineSubmitCheck(ctx context.Context, campaignID string, cfg map[string]any, req SubmitRequest, expectedB []byte) (checkResult int32, trap string, pass bool, recordFinding bool, findingB []byte, findingOrigLen int, err error) {
+	workerTrap := strings.TrimSpace(req.Trap)
+	workerClaims := req.CheckResult != 0 && (strings.HasPrefix(workerTrap, "hunt_crash:") || strings.HasPrefix(workerTrap, "hunt_sanitizer:"))
+	if !workerClaims {
+		if req.CheckResult != 0 {
+			return 0, workerTrap, false, false, nil, 0, nil
+		}
+		return 0, "", true, false, nil, 0, nil
+	}
+	// Prefer crash bytes from trap path artifacts; else expected anchor (reject likely).
+	// Crash artifacts are primarily verified on corpus_delta; submit-time claims
+	// re-check the claim anchor (engine uploads do not rewrite claim input_bytes).
+	crashB := expectedB
+	ok, replayTrap, rerr := researchCrashReplayer(ctx, s, campaignID, cfg, crashB)
+	if rerr != nil {
+		return 0, "", false, false, nil, 0, rerr
+	}
+	if !ok {
+		// Lease already proved a crash via corpus_delta — accept CLEAN settle with prior finding.
+		if peekLeaseProven(campaignID, req.ItemID).CrashesOK > 0 {
+			return 0, "", true, false, nil, 0, nil
+		}
+		return 0, "hunt_replay_reject:fake_crash", false, false, nil, 0, nil
+	}
+	if strings.HasPrefix(workerTrap, "hunt_crash:") {
+		info, _ := fuzzupstream.ParseHuntTrap(replayTrap)
+		if info.Security {
+			return 1, replayTrap, true, true, crashB, len(crashB), nil
+		}
+		return 0, replayTrap, true, false, nil, 0, nil
+	}
+	return 0, replayTrap, true, true, crashB, len(crashB), nil
+}
+
 func (s *Service) evalHuntSubmitTrusted(cfg map[string]any, req SubmitRequest, expectedB []byte) (checkResult int32, trap string, pass bool, recordFinding bool) {
-	iter := huntIterationsPerShard(cfg)
+	iter := huntSubmitExecExpected(cfg, req)
 	if req.SegmentExecDone != iter {
 		return 0, "", false, false
 	}

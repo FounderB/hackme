@@ -46,6 +46,8 @@ DAILY_MIN_SETTLE_HMC="${DAILY_MIN_SETTLE_HMC:-0.0001}"
 FORCE_SETTLE_ALL="${FORCE_SETTLE_ALL:-0}"
 STATE_FILE="${STATE_FILE:-data/worker_settlement_state.json}"
 WORKER_PAYOUT_MAP="${WORKER_PAYOUT_MAP:-}"
+# Comma-separated worker_id allowlist (e.g. named fleet only). Empty = all workers.
+SETTLE_WORKER_ALLOWLIST="${SETTLE_WORKER_ALLOWLIST:-${HACKME_SETTLE_WORKER_ALLOWLIST:-}}"
 SETTLE_TX_WAIT_SEC="${SETTLE_TX_WAIT_SEC:-90}"
 SETTLE_SEQUENTIAL="${SETTLE_SEQUENTIAL:-1}"
 SETTLE_PAYOUT_PAUSE_SEC="${SETTLE_PAYOUT_PAUSE_SEC:-10}"
@@ -292,6 +294,12 @@ while IFS= read -r item; do
   [[ -z "$item" ]] && continue
   row="$(printf '%s' "$item" | base64 -d)"
   worker_id="$(jq -r '.key' <<<"$row")"
+  if [[ -n "$SETTLE_WORKER_ALLOWLIST" ]]; then
+    case ",${SETTLE_WORKER_ALLOWLIST}," in
+      *",${worker_id},"*) ;;
+      *) continue ;;
+    esac
+  fi
   if [[ "$(jq -r '.value.address_conflict // false' <<<"$row")" == "true" ]]; then
     echo "[settle-workers] skip ${worker_id}: address_conflict — refuse payout (fleet merge)" >&2
     continue

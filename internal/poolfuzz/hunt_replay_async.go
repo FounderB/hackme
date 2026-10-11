@@ -628,6 +628,10 @@ type finalizeHuntSubmitParams struct {
 	huntOrigLen       int
 	fromReplayPending bool
 	now               int64
+	// engineMode + pay flags: coverage-guided Hunt pay-for-proven-edges.
+	engineMode    bool
+	enginePayKind string
+	engineFullPay bool
 }
 
 func (s *Service) finalizeHuntSubmit(ctx context.Context, p finalizeHuntSubmitParams) error {
@@ -641,6 +645,14 @@ func (s *Service) finalizeHuntSubmit(ctx context.Context, p finalizeHuntSubmitPa
 		minerBind = miner
 	}
 	wantRunSettle := s.Settler != nil && escrowEnabled(p.cfg) && minerBind != "" && p.pass
+	// Coverage engines: full PayRun only for proven edges or ASAN crash.
+	// CLEAN without delta → floor (no full shard settle / pennies posture).
+	if p.engineMode && wantRunSettle && !p.engineFullPay && !p.recordFinding {
+		wantRunSettle = false
+		if p.enginePayKind == "" {
+			p.enginePayKind = HuntEnginePayFloor
+		}
+	}
 	runSettleStatus := ""
 	if wantRunSettle {
 		runSettleStatus = "pending"
