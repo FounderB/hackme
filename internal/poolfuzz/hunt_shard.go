@@ -133,6 +133,8 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 		DigGPUMutators:       digGPU,
 		CorpusExploreV2:      exploreV2,
 		SeedByteCorpus:       seedCorpus,
+		MutatorDict:          fuzzengine.ParseMutatorDict(cfg),
+		LibFuzzerDict:        hunt.LibFuzzerDictFromConfig(cfg),
 		HuntEngine:           engine,
 		EngineLeaseSec:       leaseSec,
 		EngineProfile:        profile,

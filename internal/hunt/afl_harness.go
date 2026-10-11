@@ -1,8 +1,11 @@
 package hunt
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,6 +22,23 @@ type CoverageHarnessOpts struct {
 	HarnessFetchURL      string
 	HarnessContentSHA256 string
 	ArtifactDB           *sql.DB
+	// CoverageHarnessHash is a published afl-cc inventory binary (coordinator showmap).
+	CoverageHarnessHash string
+	// PinPath + SourceRel enable afl-cc rebuild of inventory sources for showmap edges.
+	PinPath        string
+	SourceRel      string
+	TemplateAccept bool
+}
+
+// CoverageHarnessHash derives the artifact id for an afl-cc inventory showmap binary
+// bound to the published ASAN harness_hash (syncs to coordinator without pin path).
+func CoverageHarnessHash(asanHash string) string {
+	asanHash = strings.TrimSpace(strings.ToLower(asanHash))
+	if asanHash == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte("afl-showmap-inv|" + asanHash + "|" + stdinWrapperFingerprint))
+	return hex.EncodeToString(sum[:16])
 }
 
 // LookAFLClangFast resolves afl-clang-fast / afl-cc for instrumented Hunt builds.
@@ -73,10 +93,120 @@ func BuildAFLInstrumentedHarness(ctx context.Context, repoRoot, targetID string)
 	return binPath, err
 }
 
-// ResolveCoverageHarness prefers an afl-cc instrumented catalog binary for showmap/AFL++.
-// For custom inventory Hunt, materializes the published ASAN harness by harness_hash /
-// content_sha256 (showmap on non-instrumented ASAN yields empty edges — honest floor).
-// Falls back to cached ASAN stdin harness when afl-cc is unavailable.
+// BuildInventoryAFLHarness compiles inventory sources with afl-cc + AFL_USE_ASAN for showmap/AFL++.
+// Cache key is harness_hash (same fingerprint as the published ASAN binary) + wrapper stamp.
+func BuildInventoryAFLHarness(ctx context.Context, repoRoot string, req HarnessBuildRequest) (binPath string, err error) {
+	if req.Pin == nil || strings.TrimSpace(req.Pin.Path) == "" {
+		return "", fmt.Errorf("hunt afl inventory: pin required")
+	}
+	sourceRel := strings.TrimSpace(req.SourceRel)
+	if sourceRel == "" {
+		return "", fmt.Errorf("hunt afl inventory: source_rel required")
+	}
+	if SourceLanguage(sourceRel) == "rust" {
+		return "", fmt.Errorf("hunt afl inventory: C/C++ only")
+	}
+	if repoRoot == "" {
+		repoRoot = RepoRoot()
+	}
+	aflCC, err := LookAFLClangFast()
+	if err != nil {
+		return "", err
+	}
+	srcPath, err := resolveSourceFile(repoRoot, req.Pin.Path, sourceRel)
+	if err != nil {
+		return "", err
+	}
+	content, err := SafeReadFileUnder(req.Pin.Path, srcPath)
+	if err != nil {
+		return "", err
+	}
+	hasEntry := strings.Contains(string(content), inventoryMarker)
+	if !hasEntry && !req.TemplateAccept {
+		return "", fmt.Errorf("hunt afl inventory: LLVMFuzzerTestOneInput missing — set template_accept")
+	}
+	hash := InventoryHarnessHash(req.Pin.CommitSHA, sourceRel, content)
+	if err := ValidateHexHash(hash); err != nil {
+		return "", err
+	}
+	outDir := filepath.Join(repoRoot, ".cache", "hunt-afl-bin")
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256([]byte("inv-aflasan|" + hash + "|" + stdinWrapperFingerprint))
+	binPath = filepath.Join(outDir, "inv-"+hash+"-aflasan-"+hex.EncodeToString(sum[:6])+".bin")
+	if st, err := os.Stat(binPath); err == nil && st.Mode().IsRegular() {
+		return binPath, nil
+	}
+
+	plan, err := planInventoryCompile(req.Pin.Path, sourceRel)
+	if err != nil {
+		return "", err
+	}
+	tmpDir, err := os.MkdirTemp("", "hunt-inv-afl-*")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(tmpDir)
+	wrapperPath := filepath.Join(tmpDir, "hunt_wrapper.c")
+	if err := os.WriteFile(wrapperPath, []byte(stdinFuzzerWrapper), 0o644); err != nil {
+		return "", err
+	}
+	tmpBin := filepath.Join(tmpDir, "harness.bin")
+	args := []string{
+		"-fno-omit-frame-pointer",
+		"-g", "-O1",
+		"-o", tmpBin,
+		wrapperPath,
+		plan.MainAbs,
+	}
+	args = append(args, plan.CompanionAbs...)
+	for _, inc := range plan.IncludeDirs {
+		args = append(args, "-I", inc)
+	}
+	if plan.Language == "cpp" {
+		// afl-clang-fast++ when available; else force C++ via driver + -x.
+		if p, lerr := exec.LookPath("afl-clang-fast++"); lerr == nil {
+			aflCC = p
+		} else if p, lerr := exec.LookPath("afl-c++"); lerr == nil {
+			aflCC = p
+		}
+		args = append([]string{"-std=c++17"}, args...)
+	} else {
+		args = append([]string{"-std=c11"}, args...)
+	}
+
+	buildCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(buildCtx, aflCC, args...)
+	cmd.Env = append(os.Environ(),
+		"AFL_USE_ASAN=1",
+		"AFL_QUIET=1",
+		"AFL_PATH="+filepath.Dir(aflCC),
+	)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("hunt afl inventory: %w (%s)", err, strings.TrimSpace(stderr.String()))
+	}
+	in, err := os.ReadFile(tmpBin)
+	if err != nil {
+		return "", err
+	}
+	tmp := binPath + ".tmp"
+	if err := os.WriteFile(tmp, in, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmp, binPath); err != nil {
+		_ = os.Remove(tmp)
+		return "", err
+	}
+	return binPath, nil
+}
+
+// ResolveCoverageHarness prefers an afl-cc instrumented binary for showmap/AFL++.
+// Catalog targets use BuildTargetAFL; inventory rebuilds from pin+source_rel when available
+// (published ASAN alone yields empty showmap — honest floor).
 func ResolveCoverageHarness(ctx context.Context, repoRoot, targetID string, opts ...CoverageHarnessOpts) (path string, instrumented bool, err error) {
 	if repoRoot == "" {
 		repoRoot = RepoRoot()
@@ -90,6 +220,36 @@ func ResolveCoverageHarness(ctx context.Context, repoRoot, targetID string, opts
 		return bin, true, nil
 	} else if berr != nil {
 		err = berr
+	}
+	// Published inventory afl-cc binary (synced to coordinator with campaign).
+	covHash := strings.TrimSpace(o.CoverageHarnessHash)
+	if covHash == "" && strings.TrimSpace(o.HarnessHash) != "" {
+		covHash = CoverageHarnessHash(o.HarnessHash)
+	}
+	if covHash != "" {
+		fetch := o.HarnessFetchURL
+		if fetch == "" || !strings.Contains(fetch, covHash) {
+			fetch = HarnessFetchURL(covHash)
+		}
+		if p, merr := MaterializeHarness(ctx, repoRoot, covHash, fetch, "", o.ArtifactDB); merr == nil && p != "" {
+			return p, true, nil
+		} else if merr != nil && err == nil {
+			err = merr
+		}
+	}
+	// Inventory: afl-cc rebuild from pinned sources (real edges for pay prove).
+	pinPath := strings.TrimSpace(o.PinPath)
+	sourceRel := strings.TrimSpace(o.SourceRel)
+	if pinPath != "" && sourceRel != "" {
+		if bin, berr := BuildInventoryAFLHarness(ctx, repoRoot, HarnessBuildRequest{
+			Pin:            &RepoPinResult{Path: pinPath},
+			SourceRel:      sourceRel,
+			TemplateAccept: true, // showmap rebuild may lack LLVMFuzzer marker on stdin drivers
+		}); berr == nil && bin != "" {
+			return bin, true, nil
+		} else if berr != nil && err == nil {
+			err = berr
+		}
 	}
 	// Published inventory / pool harness (content_sha256-bound) — not AFL-instrumented.
 	hash := strings.TrimSpace(o.HarnessHash)

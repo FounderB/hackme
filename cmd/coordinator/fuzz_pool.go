@@ -1454,6 +1454,9 @@ func fuzzClaimPayload(workerID string, work poolfuzz.ClaimedWork) map[string]any
 	if len(work.MutatorDict) > 0 {
 		payload["mutator_dict_hex"] = hex.EncodeToString(work.MutatorDict)
 	}
+	if len(work.LibFuzzerDict) > 0 {
+		payload["libfuzzer_dict_hex"] = hex.EncodeToString(work.LibFuzzerDict)
+	}
 	if work.TaskClass == "hunt" || work.WorkKind == "hunt_shard" {
 		payload["task_class"] = "hunt"
 		payload["work_kind"] = "hunt_shard"

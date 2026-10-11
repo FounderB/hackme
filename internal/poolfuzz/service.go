@@ -102,6 +102,8 @@ type ClaimedWork struct {
 	// MutatorDict is the Dig/Hunt pack dictionary the worker must apply for SegmentExecInput
 	// parity with coordinator replay (hex-decoded bytes).
 	MutatorDict []byte
+	// LibFuzzerDict is an AFL/libFuzzer dictionary text for coverage-engine -dict=.
+	LibFuzzerDict []byte
 	// IsCanary is coordinator-internal (challenge shard); not advertised on claim JSON.
 	IsCanary bool
 	// HuntEngine is libfuzzer|aflpp|byte for coverage-guided Hunt shards.

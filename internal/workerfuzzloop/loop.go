@@ -75,6 +75,8 @@ type ClaimResp struct {
 	SeedByteCorpus []any `json:"seed_byte_corpus,omitempty"`
 	// MutatorDictHex is Dig pack dictionary (hex) for SegmentExecInput parity.
 	MutatorDictHex string `json:"mutator_dict_hex,omitempty"`
+	// LibFuzzerDictHex is AFL/libFuzzer dictionary text (hex) for -dict=.
+	LibFuzzerDictHex string `json:"libfuzzer_dict_hex,omitempty"`
 	// HuntEngine is libfuzzer|aflpp|byte (coverage-guided Hunt).
 	HuntEngine string `json:"hunt_engine,omitempty"`
 	Engine     string `json:"engine,omitempty"`

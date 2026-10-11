@@ -34,11 +34,15 @@ type EngineShardOpts struct {
 	WallSec   int
 	// SeedFiles optional seeds copied into the engine corpus before the run.
 	SeedFiles [][]byte
+	// DictBytes optional AFL/libFuzzer dictionary written beside the corpus (-dict=).
+	DictBytes []byte
 	// Published harness (inventory / custom) — used as LF stdin driver / AFL target.
 	HarnessHash          string
 	HarnessFetchURL      string
 	HarnessContentSHA256 string
 	ArtifactDB           *sql.DB // coordinator prove path; workers fetch via URL
+	PinPath              string
+	SourceRel            string
 }
 
 // LookPathFn is overridable in tests (defaults to exec.LookPath).
@@ -122,10 +126,11 @@ func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wal
 		_ = os.WriteFile(filepath.Join(corpusDir, fmt.Sprintf("claim-seed-%d.bin", i)), b, 0o600)
 	}
 	sess := LibFuzzerSessionOpts{
-		RepoRoot: repoRoot,
-		TargetID: targetID,
-		WallSec:  wall,
-		Persist:  true,
+		RepoRoot:  repoRoot,
+		TargetID:  targetID,
+		WallSec:   wall,
+		Persist:   true,
+		DictBytes: opts.DictBytes,
 	}
 	// Custom inventory: published ASAN stdin harness + generic LF subprocess driver.
 	if hash := strings.TrimSpace(opts.HarnessHash); hash != "" {
@@ -265,7 +270,14 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 		"ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:allocator_may_return_null=1",
 		"UBSAN_OPTIONS=halt_on_error=1",
 	)
-	args := []string{"-i", inDir, "-o", outDir, "-V", fmt.Sprint(wall), "--", harness}
+	args := []string{"-i", inDir, "-o", outDir, "-V", fmt.Sprint(wall)}
+	if len(opts.DictBytes) > 0 {
+		dictPath := filepath.Join(work, "afl.dict")
+		if err := os.WriteFile(dictPath, opts.DictBytes, 0o600); err == nil {
+			args = append(args, "-x", dictPath)
+		}
+	}
+	args = append(args, "--", harness)
 	runErr := RunIsolated(ctx, IsolateOpts{
 		Bin:  afl,
 		Args: args,
@@ -311,6 +323,9 @@ func resolveAFLStdinHarness(ctx context.Context, repoRoot, targetID string, opts
 		HarnessFetchURL:      opts.HarnessFetchURL,
 		HarnessContentSHA256: opts.HarnessContentSHA256,
 		ArtifactDB:           opts.ArtifactDB,
+		PinPath:              opts.PinPath,
+		SourceRel:            opts.SourceRel,
+		TemplateAccept:       true,
 	}
 	// Prefer afl-cc + ASAN instrumented harness (real AFL edges). Fall back to ASAN-only / published.
 	if path, instrumented, err := ResolveCoverageHarness(ctx, repoRoot, targetID, covOpts); err == nil && path != "" {

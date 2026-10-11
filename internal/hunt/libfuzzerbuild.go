@@ -126,11 +126,12 @@ func PersistentLibFuzzerCorpusDir(repoRoot, targetID string) string {
 // When StdinBin is set (published inventory ASAN harness), only the generic
 // subprocess LF driver is built — catalog TargetByID is not required.
 type LibFuzzerSessionOpts struct {
-	RepoRoot string
-	TargetID string
-	WallSec  int
-	Persist  bool
-	StdinBin string // optional override (inventory / custom)
+	RepoRoot  string
+	TargetID  string
+	WallSec   int
+	Persist   bool
+	StdinBin  string // optional override (inventory / custom)
+	DictBytes []byte // optional AFL/libFuzzer dictionary (-dict=)
 }
 
 // RunLibFuzzerImportSession runs libFuzzer for wallSec and imports corpus files into L2 seed cache.
@@ -218,6 +219,12 @@ func RunLibFuzzerSession(ctx context.Context, opts LibFuzzerSessionOpts) (int, e
 		"-rss_limit_mb=2048",
 		"-max_len=65536",
 		"-print_final_stats=1",
+	}
+	if len(opts.DictBytes) > 0 {
+		dictPath := filepath.Join(filepath.Dir(corpusDir), "libfuzzer.dict")
+		if err := os.WriteFile(dictPath, opts.DictBytes, 0o600); err == nil {
+			args = append(args, "-dict="+dictPath)
+		}
 	}
 	env := append(os.Environ(),
 		"ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:allocator_may_return_null=1",

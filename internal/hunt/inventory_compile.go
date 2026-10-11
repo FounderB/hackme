@@ -88,9 +88,13 @@ func collectCompanionSources(pinRoot, mainRel string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	common, err := collectCommonLibCompanions(pinRoot, mainRel)
+	if err != nil {
+		return nil, err
+	}
 	seen := map[string]struct{}{}
-	out := make([]string, 0, len(sameDir)+len(parent))
-	for _, rel := range append(sameDir, parent...) {
+	out := make([]string, 0, len(sameDir)+len(parent)+len(common))
+	for _, rel := range append(append(sameDir, parent...), common...) {
 		if _, ok := seen[rel]; ok {
 			continue
 		}
@@ -98,6 +102,24 @@ func collectCompanionSources(pinRoot, mainRel string) ([]string, error) {
 		out = append(out, rel)
 	}
 	sort.Strings(out)
+	return out, nil
+}
+
+// collectCommonLibCompanions picks non-fuzz sources under src/ lib/ source/
+// (e.g. heavywire: fuzz/fuzz_parse.c + src/heavywire.c).
+func collectCommonLibCompanions(pinRoot, mainRel string) ([]string, error) {
+	mainBase := filepath.Base(mainRel)
+	out := make([]string, 0, 8)
+	for _, dirRel := range []string{"src", "lib", "source"} {
+		got, err := collectCompanionSourcesInDir(pinRoot, dirRel, mainBase)
+		if err != nil {
+			continue
+		}
+		out = append(out, got...)
+		if len(out) >= maxCompanionSources {
+			break
+		}
+	}
 	return out, nil
 }
 

@@ -312,6 +312,10 @@ func (s *Service) ProveHuntCorpusSeedEdges(ctx context.Context, campaignID strin
 		HarnessFetchURL:      huntHarnessFetchURL(cfg),
 		HarnessContentSHA256: huntHarnessContentSHA256(ctx, s, hash, cfg),
 		ArtifactDB:           s.DB,
+		CoverageHarnessHash:  strings.TrimSpace(jsonString(cfg["coverage_harness_hash"])),
+		PinPath:              strings.TrimSpace(jsonString(cfg["hunt_pin_path"])),
+		SourceRel:            strings.TrimSpace(jsonString(cfg["hunt_source_rel"])),
+		TemplateAccept:       true,
 	})
 	n := 0
 	for _, seed := range seeds {

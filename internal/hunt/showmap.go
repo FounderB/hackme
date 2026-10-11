@@ -68,14 +68,19 @@ func ShowmapCoverageBitmap(ctx context.Context, harness string, input []byte) ([
 	}
 	defer stdin.Close()
 
+	harnessDir := filepath.Dir(harness)
 	err = RunIsolated(runCtx, IsolateOpts{
-		Bin:        showmap,
-		Args:       args,
-		Env:        env,
-		Dir:        tmpDir,
-		Wall:       wall,
-		RSSLimitMB: 1024,
-		Stdin:      stdin,
+		Bin:         showmap,
+		Args:        args,
+		Env:         env,
+		Dir:         tmpDir,
+		Wall:        wall,
+		// ASAN instrumented targets need large VA; RLIMIT_AS kills showmap before map write.
+		RSSLimitMB:  0,
+		Stdin:       stdin,
+		AllowBare:   true, // showmap prove must not soft-fail on missing bwrap
+		ExtraRoBind: []string{harnessDir},
+		ExtraBind:   []string{tmpDir},
 	})
 	// showmap may exit non-zero on crashy inputs; still read map if present.
 	b, rerr := os.ReadFile(outFile)

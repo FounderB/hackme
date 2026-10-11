@@ -117,6 +117,19 @@ func CampaignConfig(ctx context.Context, repoRoot string, req CreateRequest) (ma
 		if pool {
 			cfg["harness_fetch_path"] = HarnessFetchURL(build.HarnessHash)
 		}
+		// Best-effort afl-cc showmap binary for coordinator prove (no pin on hub).
+		if aflBin, aflErr := BuildInventoryAFLHarness(ctx, repoRoot, HarnessBuildRequest{
+			Pin:            buildPin,
+			SourceRel:      sourceRel,
+			TemplateAccept: req.TemplateAccept,
+		}); aflErr == nil && aflBin != "" {
+			covHash := CoverageHarnessHash(build.HarnessHash)
+			cfg["coverage_harness_hash"] = covHash
+			cfg["coverage_harness_path"] = aflBin
+			if pool {
+				cfg["coverage_harness_fetch_path"] = HarnessFetchURL(covHash)
+			}
+		}
 	}
 
 	if pool {
@@ -139,8 +152,26 @@ func CampaignConfig(ctx context.Context, repoRoot string, req CreateRequest) (ma
 	ApplyPackageDepthDefaults(cfg, pkgKey, pool)
 	ApplyCoverageEngineDefaults(cfg, pkgKey)
 	ApplyHuntMutatorDict(cfg, targetID)
-	if _, err := MergeLibFuzzerSeedCorpus(cfg, repoRoot, targetID); err != nil {
+	// Inventory public packs: corpus/*.bin → L2/seed_byte_corpus; fuzz/*.dict → libfuzzer_dict.
+	if huntSource == "inventory" {
+		pinForPack := strings.TrimSpace(toString(cfg["hunt_pin_path"]))
+		if pinForPack == "" {
+			pinForPack = invRoot
+		}
+		if err := ApplyInventoryPackAssets(cfg, repoRoot, targetID, pinForPack, sourceRel); err != nil {
+			return nil, "", err
+		}
+	} else if _, err := MergeLibFuzzerSeedCorpus(cfg, repoRoot, targetID); err != nil {
 		return nil, "", fmt.Errorf("hunt: libfuzzer seed import: %w", err)
+	}
+	// Long coverage leases for pool Standard/Heavy (cap MaxEngineLeaseSec=300).
+	if pool {
+		switch pkgKey {
+		case "hunt_standard", "standard", "hunt_heavy", "heavy":
+			if _, ok := cfg["engine_lease_sec"]; !ok {
+				cfg["engine_lease_sec"] = MaxEngineLeaseSec
+			}
+		}
 	}
 
 	if req.Inventory != nil && strings.TrimSpace(req.Inventory.Path) != "" {

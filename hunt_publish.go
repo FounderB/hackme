@@ -40,6 +40,16 @@ func (a *app) publishHuntHarnessForConfig(ctx context.Context, cfg map[string]an
 	}
 	cfg["harness_published"] = true
 	cfg["harness_fetch_path"] = hunt.HarnessFetchURL(hash)
+	// Publish afl-cc showmap harness when built at campaign create.
+	if covHash := strings.TrimSpace(toString(cfg["coverage_harness_hash"])); covHash != "" {
+		covPath := strings.TrimSpace(toString(cfg["coverage_harness_path"]))
+		if covPath != "" {
+			if err := hunt.PublishHarnessFile(ctx, a.db, covHash, covPath, sourceRel+"#afl"); err != nil {
+				return fmt.Errorf("hunt publish coverage harness: %w", err)
+			}
+			cfg["coverage_harness_fetch_path"] = hunt.HarnessFetchURL(covHash)
+		}
+	}
 	return nil
 }
 
@@ -60,13 +70,31 @@ func (a *app) syncHuntHarnessToCoordinator(ctx context.Context, cfg map[string]a
 	if err != nil {
 		return fmt.Errorf("hunt harness sync: local artifact: %w", err)
 	}
-	if err := poolsync.UploadHuntHarness(ctx, coord, token, hash, data, strings.TrimSpace(toString(cfg["hunt_source_rel"]))); err != nil {
+	srcRel := strings.TrimSpace(toString(cfg["hunt_source_rel"]))
+	if err := poolsync.UploadHuntHarness(ctx, coord, token, hash, data, srcRel); err != nil {
 		// Catalog hash is metadata-stable; clang rebuilds can differ byte-for-byte across hosts.
 		// "already bound" from the coordinator means that hash is already published and fetchable.
 		if poolsync.IsHarnessAlreadyBound(err) {
-			return nil
+			// continue to coverage harness upload
+		} else {
+			return err
 		}
-		return err
+	}
+	if covHash := strings.TrimSpace(toString(cfg["coverage_harness_hash"])); covHash != "" {
+		covData, cerr := hunt.GetHarnessArtifact(ctx, a.db, covHash)
+		if cerr != nil {
+			// Publish from on-disk path if not yet in local artifact DB.
+			if covPath := strings.TrimSpace(toString(cfg["coverage_harness_path"])); covPath != "" {
+				if perr := hunt.PublishHarnessFile(ctx, a.db, covHash, covPath, srcRel+"#afl"); perr == nil {
+					covData, cerr = hunt.GetHarnessArtifact(ctx, a.db, covHash)
+				}
+			}
+		}
+		if cerr == nil && len(covData) > 0 {
+			if uerr := poolsync.UploadHuntHarness(ctx, coord, token, covHash, covData, srcRel+"#afl"); uerr != nil && !poolsync.IsHarnessAlreadyBound(uerr) {
+				return fmt.Errorf("hunt coverage harness sync: %w", uerr)
+			}
+		}
 	}
 	return nil
 }
