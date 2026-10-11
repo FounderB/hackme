@@ -1199,19 +1199,35 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 	dec := decidePoolReplay(cfg, sem, req, execPer)
 	digReplayStatus := dec.Reason
 	if !dec.Full {
-		// Clean Dig hygiene: accept via existing submit auth without full segment
-		// replay. Findings are never minted on this path (forge attempts force Full).
-		// Floor + canary catch empty/fake CLEAN without making every shard full-replay.
+		// Clean Dig hygiene: no full segment replay, but NEVER trust miner check_result
+		// alone for pass/PayRun — prove locked input with coordinator WASM (C1).
 		if err := checkCleanHygieneFloor(req, execPer, cfg); err != nil {
 			return SubmitOutcome{}, err
 		}
 		if err := s.rejectCanaryMissIfNeeded(ctx, cfg, req, expectedU, expectedB); err != nil {
 			return SubmitOutcome{}, err
 		}
-		pass, _ = fuzzengine.EvalCheck(sem, req.CheckResult, nil)
-		checkResult = req.CheckResult
-		trap = ""
-		recordFinding = false
+		minerPass, _ := fuzzengine.EvalCheck(sem, req.CheckResult, nil)
+		if !minerPass {
+			return SubmitOutcome{}, fmt.Errorf("poolfuzz: hygiene_skip requires CLEAN check_result")
+		}
+		if hygieneProveEnabled() {
+			var proveErr error
+			checkResult, trap, pass, recordFinding, proveErr = s.proveHygieneAnchorCheck(ctx, cfg, sem, expectedU, expectedB)
+			if proveErr != nil {
+				return SubmitOutcome{}, proveErr
+			}
+			if recordFinding || !pass {
+				return SubmitOutcome{}, fmt.Errorf("poolfuzz: hygiene_anchor_not_clean: coordinator prove rejected CLEAN claim")
+			}
+			trap = ""
+			recordFinding = false
+		} else {
+			pass = minerPass
+			checkResult = req.CheckResult
+			trap = ""
+			recordFinding = false
+		}
 		findingU = expectedU
 		findingB = expectedB
 	} else {
@@ -1222,6 +1238,12 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 		}
 		if hasWasm && execPer > 1 && seg.ExecDone != seg.ExecExpected {
 			return SubmitOutcome{}, fmt.Errorf("poolfuzz: incomplete segment replay %d/%d", seg.ExecDone, seg.ExecExpected)
+		}
+		// Canary on sample/full path: CLEAN after full replay still means miss.
+		if pass && !recordFinding {
+			if err := s.rejectCanaryMissIfNeeded(ctx, cfg, req, expectedU, expectedB); err != nil {
+				return SubmitOutcome{}, err
+			}
 		}
 	}
 	req.InputN = inputN
@@ -1668,6 +1690,10 @@ func (s *Service) insertFinding(ctx context.Context, req SubmitRequest, cfg map[
 		"triage_class":    triage.Class,
 		"triage_label":    triage.Label,
 		"zero_day_hint":   triage.ZeroDayHint,
+	}
+	if isCanary, _ := s.workItemIsCanary(ctx, req.CampaignID, req.ItemID); isCanary {
+		detailMap["is_canary"] = true
+		detailMap["source"] = "pool_fuzz_canary_v1"
 	}
 	if IsHuntCampaign(cfg) {
 		if info, ok := fuzzupstream.ParseHuntTrap(strings.TrimSpace(req.Trap)); ok {

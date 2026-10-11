@@ -36,3 +36,17 @@ func TestSubmitSignPayloadIncludesInputBytes(t *testing.T) {
 	}
 	_ = hex.EncodeToString
 }
+
+func TestSubmitSignPayloadBindsDurationAndEdges(t *testing.T) {
+	p := SubmitSignPayload{
+		WorkerID: "w1", CampaignID: "c1", ItemID: 7, InputN: 3,
+		ActualInput: 42, CheckResult: 0, SubmitNonce: 99, SegmentExecDone: 64,
+		DurationMS: 128, EdgesTouched: 3, EdgesTouchedOK: true,
+	}
+	body := string(CanonicalSubmitBytes(p))
+	for _, want := range []string{`"duration_ms":128`, `"edges_touched":3`, `"edges_touched_ok":true`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("signature body must bind floor fields (%s): %s", want, body)
+		}
+	}
+}

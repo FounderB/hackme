@@ -2,6 +2,8 @@ package poolfuzz
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -81,7 +83,23 @@ func shouldInjectDigCanary(campaignID string, itemID int64, cfg map[string]any) 
 	if !ok {
 		return false
 	}
-	return replaySampleHit(campaignID, itemID, pct)
+	// Separate hash namespace from replay samples so canary shards are not a
+	// subset of audit/deep sample (those always Full-replay and skipped miss check).
+	return canarySampleHit(campaignID, itemID, pct)
+}
+
+// canarySampleHit mirrors replaySampleHit but with a distinct salt so the sets diverge.
+func canarySampleHit(campaignID string, itemID int64, pct int) bool {
+	if pct <= 0 {
+		return false
+	}
+	if pct >= 100 {
+		return true
+	}
+	seed := strings.TrimSpace(os.Getenv("HACKME_POOL_REPLAY_SAMPLE_SEED"))
+	sum := sha256.Sum256([]byte(fmt.Sprintf("canary|%s|%d|%s", strings.TrimSpace(campaignID), itemID, seed)))
+	n := binary.BigEndian.Uint32(sum[:4]) % 100
+	return int(n) < pct
 }
 
 func (s *Service) markWorkCanary(ctx context.Context, campaignID string, itemID int64) error {
@@ -156,11 +174,11 @@ func (s *Service) rejectCanaryMissIfNeeded(ctx context.Context, cfg map[string]a
 	}
 	wasmHex := wasmHexFromConfig(cfg)
 	if wasmHex == "" {
-		return nil
+		return fmt.Errorf("poolfuzz: canary_miss: canary item missing wasm_check_hex")
 	}
 	raw, err := hex.DecodeString(wasmHex)
 	if err != nil || len(raw) == 0 {
-		return nil
+		return fmt.Errorf("poolfuzz: canary_miss: invalid canary wasm")
 	}
 	sem := fuzzengine.ParseCheckSemantics(cfg)
 	var check int32

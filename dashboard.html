@@ -521,6 +521,60 @@
 			background: rgba(0,209,255,0.06);
 		}
 		.mine-calc-preset:hover { background: rgba(0,209,255,0.14); border-color: rgba(0,209,255,0.45); }
+		.price-chip {
+			display: inline-flex; align-items: center; gap: 0.35rem;
+			padding: 0.2rem 0.55rem; border-radius: 0.35rem;
+			border: 1px solid rgba(57,255,20,0.35); color: #8eff74;
+			background: rgba(57,255,20,0.07); font-family: ui-monospace, monospace; font-size: 10px;
+			transition: color 0.35s ease, border-color 0.35s ease, background 0.35s ease;
+		}
+		.price-chip.stale { border-color: rgba(255,176,32,0.4); color: #ffb020; background: rgba(255,176,32,0.08); }
+		.price-chip .px-dot {
+			width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+			box-shadow: 0 0 8px currentColor; animation: px-pulse 1.6s ease-in-out infinite;
+		}
+		@keyframes px-pulse { 0%,100%{ opacity: 0.45; } 50%{ opacity: 1; } }
+		.telemetry-hud {
+			position: absolute; top: 0.55rem; left: 0.65rem; right: 3.2rem;
+			display: flex; flex-wrap: wrap; gap: 0.4rem; pointer-events: none; z-index: 2;
+		}
+		.telemetry-hud-chip {
+			font-size: 9px; font-family: ui-monospace, monospace;
+			padding: 0.2rem 0.45rem; border-radius: 0.3rem;
+			border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.55);
+			color: #c8d0d8; backdrop-filter: blur(4px);
+		}
+		.telemetry-hud-chip strong { color: #53dfff; font-weight: 600; }
+		.telemetry-stream-wrap {
+			position: relative; border-radius: 0.5rem; overflow: hidden;
+			border: 1px solid rgba(0,209,255,0.16);
+			background:
+				radial-gradient(120% 80% at 10% 0%, rgba(0,209,255,0.1), transparent 55%),
+				radial-gradient(90% 70% at 90% 100%, rgba(57,255,20,0.07), transparent 50%),
+				#050608;
+			box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 0 28px rgba(0,209,255,0.05);
+		}
+		.file-pick {
+			display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;
+			border: 1px dashed rgba(0,209,255,0.28); border-radius: 0.5rem;
+			background: linear-gradient(135deg, rgba(0,209,255,0.06), rgba(0,0,0,0.35));
+			padding: 0.65rem 0.75rem; cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease;
+		}
+		.file-pick:hover, .file-pick:focus-within {
+			border-color: rgba(0,209,255,0.55); background: linear-gradient(135deg, rgba(0,209,255,0.12), rgba(0,0,0,0.4));
+		}
+		.file-pick.has-file { border-style: solid; border-color: rgba(57,255,20,0.4); }
+		.file-pick input[type="file"] {
+			position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0,0,0,0);
+		}
+		.file-pick-btn {
+			font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+			padding: 0.4rem 0.7rem; border-radius: 0.35rem;
+			border: 1px solid rgba(0,209,255,0.4); color: #9ee8ff; background: rgba(0,209,255,0.1);
+			white-space: nowrap;
+		}
+		.file-pick-name { font-size: 10px; color: #8a95a3; font-family: ui-monospace, monospace; min-width: 0; word-break: break-all; }
+		.file-pick.has-file .file-pick-name { color: #8eff74; }
 		@media (max-width: 640px) {
 			.quick-actions .mobile-compact-hide { display: none; }
 			.quick-actions { gap: 0.3rem; }
@@ -984,14 +1038,368 @@
 			display: flex;
 			flex-wrap: wrap;
 			align-items: center;
-			gap: 0.65rem 1rem;
-			border-radius: 0.65rem;
-			border: 1px solid rgba(192, 132, 252, 0.28);
-			background: linear-gradient(90deg, rgba(192, 132, 252, 0.08), rgba(0, 0, 0, 0.35));
-			padding: 0.65rem 0.85rem;
+			gap: 0.65rem 1.1rem;
+			border-radius: 0.85rem;
+			border: 1px solid rgba(0, 209, 255, 0.28);
+			background: linear-gradient(105deg, rgba(0, 209, 255, 0.1), rgba(255, 176, 32, 0.06) 55%, rgba(0, 0, 0, 0.4));
+			padding: 0.85rem 1.1rem;
 			font-size: 11px;
+			box-shadow: inset 0 1px 0 rgba(0, 209, 255, 0.12), 0 10px 28px rgba(0, 0, 0, 0.28);
 		}
-		.orders-balance-strip strong { color: #e9d5ff; font-variant-numeric: tabular-nums; }
+		.orders-balance-strip strong { color: #7ddfff; font-variant-numeric: tabular-nums; font-size: 13px; }
+		/* —— Orders / Mining / Fuzz visual refresh —— */
+		.orders-hero {
+			position: relative;
+			overflow: hidden;
+			border-radius: 1rem;
+			border: 1px solid rgba(0, 209, 255, 0.28);
+			background:
+				radial-gradient(ellipse 80% 60% at 10% 0%, rgba(0, 209, 255, 0.14), transparent 55%),
+				radial-gradient(ellipse 60% 50% at 90% 20%, rgba(255, 176, 32, 0.1), transparent 50%),
+				linear-gradient(160deg, rgba(12, 18, 28, 0.96), rgba(4, 8, 14, 0.98));
+			padding: 1.35rem 1.4rem 1.25rem;
+			box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+		}
+		.orders-hero::after {
+			content: "";
+			position: absolute;
+			inset: auto -20% -40% auto;
+			width: 18rem;
+			height: 18rem;
+			background: radial-gradient(circle, rgba(0, 209, 255, 0.12), transparent 70%);
+			pointer-events: none;
+		}
+		.orders-hero-title {
+			font-family: 'Orbitron', sans-serif;
+			font-size: 1.15rem;
+			font-weight: 700;
+			letter-spacing: 0.06em;
+			color: #f1f5f9;
+			margin: 0.15rem 0 0.35rem;
+		}
+		.orders-lane-nav {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.45rem;
+			margin: 1rem 0 0.25rem;
+		}
+		.orders-lane-btn {
+			font-family: 'Orbitron', sans-serif;
+			font-size: 10px;
+			font-weight: 700;
+			letter-spacing: 0.16em;
+			text-transform: uppercase;
+			padding: 0.55rem 1rem;
+			border-radius: 999px;
+			border: 1px solid rgba(255, 255, 255, 0.12);
+			color: #94a3b8;
+			background: rgba(0, 0, 0, 0.35);
+			transition: border-color 0.15s, color 0.15s, background 0.15s, box-shadow 0.15s;
+		}
+		.orders-lane-btn:hover { color: #e2e8f0; border-color: rgba(0, 209, 255, 0.35); }
+		.orders-lane-btn.active[data-orders-lane="dig"] {
+			color: #7ddfff;
+			border-color: rgba(0, 209, 255, 0.55);
+			background: rgba(0, 209, 255, 0.12);
+			box-shadow: 0 0 18px rgba(0, 209, 255, 0.18);
+		}
+		.orders-lane-btn.active[data-orders-lane="hunt"] {
+			color: #ffc86a;
+			border-color: rgba(255, 176, 32, 0.55);
+			background: rgba(255, 176, 32, 0.12);
+			box-shadow: 0 0 18px rgba(255, 176, 32, 0.16);
+		}
+		.orders-lane-btn.active[data-orders-lane="list"] {
+			color: #a7f3d0;
+			border-color: rgba(57, 255, 20, 0.4);
+			background: rgba(57, 255, 20, 0.08);
+		}
+		.order-product-card {
+			border-radius: 1rem;
+			padding: 1.35rem 1.4rem;
+			position: relative;
+			overflow: hidden;
+		}
+		.order-product-card.dig-card {
+			border: 1px solid rgba(0, 209, 255, 0.35);
+			background:
+				linear-gradient(145deg, rgba(0, 209, 255, 0.08), transparent 42%),
+				linear-gradient(160deg, rgba(14, 22, 34, 0.96), rgba(6, 10, 16, 0.98));
+			box-shadow: 0 0 0 1px rgba(0, 209, 255, 0.06), 0 18px 42px rgba(0, 0, 0, 0.38);
+		}
+		.order-product-card.hunt-card {
+			border: 1px solid rgba(255, 176, 32, 0.38);
+			background:
+				linear-gradient(145deg, rgba(255, 176, 32, 0.09), transparent 42%),
+				linear-gradient(160deg, rgba(22, 16, 8, 0.96), rgba(8, 8, 10, 0.98));
+			box-shadow: 0 0 0 1px rgba(255, 176, 32, 0.06), 0 18px 42px rgba(0, 0, 0, 0.38);
+		}
+		.order-product-card .card-kicker {
+			font-family: 'Orbitron', sans-serif;
+			font-size: 10px;
+			letter-spacing: 0.28em;
+			text-transform: uppercase;
+			margin-bottom: 0.35rem;
+		}
+		.sku-picker {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 0.65rem;
+			margin: 0.85rem 0 1rem;
+		}
+		@media (max-width: 900px) {
+			.sku-picker { grid-template-columns: 1fr; }
+		}
+		.sku-card {
+			text-align: left;
+			border-radius: 0.75rem;
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			background: rgba(0, 0, 0, 0.4);
+			padding: 0.85rem 0.95rem;
+			cursor: pointer;
+			transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
+		}
+		.sku-card:hover { transform: translateY(-1px); border-color: rgba(0, 209, 255, 0.35); }
+		.sku-card.active {
+			border-color: rgba(0, 209, 255, 0.65);
+			background: rgba(0, 209, 255, 0.1);
+			box-shadow: 0 0 22px rgba(0, 209, 255, 0.16);
+		}
+		.hunt-card .sku-card:hover { border-color: rgba(255, 176, 32, 0.4); }
+		.hunt-card .sku-card.active {
+			border-color: rgba(255, 176, 32, 0.7);
+			background: rgba(255, 176, 32, 0.1);
+			box-shadow: 0 0 22px rgba(255, 176, 32, 0.14);
+		}
+		.sku-card .sku-name {
+			font-family: 'Orbitron', sans-serif;
+			font-size: 11px;
+			font-weight: 700;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			color: #f8fafc;
+			display: block;
+			margin-bottom: 0.25rem;
+		}
+		.sku-card .sku-meta { font-size: 10px; color: #94a3b8; line-height: 1.4; }
+		.sku-card .sku-price {
+			display: inline-block;
+			margin-top: 0.45rem;
+			font-size: 11px;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+			color: #7ddfff;
+		}
+		.hunt-card .sku-card .sku-price { color: #ffc86a; }
+		.sku-card .sku-badge {
+			float: right;
+			font-size: 8px;
+			letter-spacing: 0.14em;
+			text-transform: uppercase;
+			padding: 0.15rem 0.4rem;
+			border-radius: 999px;
+			border: 1px solid rgba(255,255,255,0.12);
+			color: #94a3b8;
+		}
+		.sku-card.active .sku-badge {
+			border-color: rgba(0, 209, 255, 0.4);
+			color: #7ddfff;
+		}
+		.hunt-card .sku-card.active .sku-badge {
+			border-color: rgba(255, 176, 32, 0.45);
+			color: #ffc86a;
+		}
+		.order-form-grid {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 0.75rem 1rem;
+		}
+		@media (min-width: 1024px) {
+			.order-form-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+			.order-form-grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+		}
+		@media (max-width: 700px) {
+			.order-form-grid, .order-form-grid.cols-3, .order-form-grid.cols-4 { grid-template-columns: 1fr; }
+		}
+		.order-field label {
+			display: block;
+			font-size: 10px;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			color: #7b8798;
+			margin-bottom: 0.35rem;
+		}
+		.order-field input,
+		.order-field select,
+		.order-field textarea {
+			width: 100%;
+			font-size: 12px;
+			font-family: 'JetBrains Mono', ui-monospace, monospace;
+			border-radius: 0.55rem;
+			border: 1px solid rgba(255, 255, 255, 0.12);
+			background: rgba(0, 0, 0, 0.55);
+			padding: 0.55rem 0.7rem;
+			color: #dbeafe;
+			transition: border-color 0.15s, box-shadow 0.15s;
+		}
+		.order-field input:focus,
+		.order-field select:focus,
+		.order-field textarea:focus {
+			outline: none;
+			border-color: rgba(0, 209, 255, 0.55);
+			box-shadow: 0 0 0 3px rgba(0, 209, 255, 0.12);
+		}
+		.hunt-card .order-field input,
+		.hunt-card .order-field select { color: #ffe7b8; }
+		.hunt-card .order-field input:focus,
+		.hunt-card .order-field select:focus {
+			border-color: rgba(255, 176, 32, 0.55);
+			box-shadow: 0 0 0 3px rgba(255, 176, 32, 0.12);
+		}
+		.order-billing-strip {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.55rem 1.25rem;
+			align-items: center;
+			margin: 0.85rem 0;
+			padding: 0.75rem 0.9rem;
+			border-radius: 0.65rem;
+			border: 1px dashed rgba(0, 209, 255, 0.28);
+			background: rgba(0, 209, 255, 0.05);
+			font-size: 11px;
+			color: #94a3b8;
+		}
+		.hunt-card .order-billing-strip {
+			border-color: rgba(255, 176, 32, 0.3);
+			background: rgba(255, 176, 32, 0.05);
+		}
+		.order-billing-strip strong { color: #e2e8f0; font-variant-numeric: tabular-nums; }
+		.order-scope-box {
+			margin-top: 1rem;
+			border-radius: 0.75rem;
+			border: 1px solid rgba(255, 255, 255, 0.08);
+			background: rgba(0, 0, 0, 0.35);
+			padding: 0.9rem 1rem;
+			font-size: 11px;
+			line-height: 1.5;
+			color: #94a3b8;
+		}
+		.order-cta-row {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.65rem;
+			align-items: center;
+			margin-top: 1.1rem;
+		}
+		.btn-order-primary {
+			font-family: 'Orbitron', sans-serif;
+			font-size: 11px;
+			font-weight: 700;
+			letter-spacing: 0.14em;
+			text-transform: uppercase;
+			padding: 0.8rem 1.35rem;
+			border-radius: 0.65rem;
+			transition: background 0.15s, box-shadow 0.15s, transform 0.12s;
+		}
+		.btn-order-primary:hover { transform: translateY(-1px); }
+		.btn-order-primary.dig {
+			border: 1px solid rgba(0, 209, 255, 0.55);
+			background: linear-gradient(135deg, rgba(0, 209, 255, 0.22), rgba(0, 209, 255, 0.08));
+			color: #7ddfff;
+			box-shadow: 0 0 24px rgba(0, 209, 255, 0.18);
+		}
+		.btn-order-primary.dig:hover { background: linear-gradient(135deg, rgba(0, 209, 255, 0.32), rgba(0, 209, 255, 0.12)); }
+		.btn-order-primary.hunt {
+			border: 1px solid rgba(255, 176, 32, 0.55);
+			background: linear-gradient(135deg, rgba(255, 176, 32, 0.22), rgba(255, 176, 32, 0.08));
+			color: #ffc86a;
+			box-shadow: 0 0 24px rgba(255, 176, 32, 0.16);
+		}
+		.btn-order-primary.hunt:hover { background: linear-gradient(135deg, rgba(255, 176, 32, 0.32), rgba(255, 176, 32, 0.12)); }
+		.btn-order-ghost {
+			font-size: 10px;
+			letter-spacing: 0.12em;
+			text-transform: uppercase;
+			padding: 0.65rem 0.95rem;
+			border-radius: 0.55rem;
+			border: 1px solid rgba(255, 255, 255, 0.14);
+			color: #cbd5e1;
+			background: rgba(255, 255, 255, 0.02);
+		}
+		.btn-order-ghost:hover { background: rgba(255, 255, 255, 0.06); }
+		.orders-table-card {
+			border-radius: 1rem;
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			overflow: hidden;
+			background: linear-gradient(160deg, rgba(12, 16, 24, 0.95), rgba(4, 8, 12, 0.98));
+			box-shadow: 0 14px 36px rgba(0, 0, 0, 0.32);
+		}
+		.orders-table-card thead {
+			background: rgba(0, 209, 255, 0.06);
+		}
+		.orders-table-card tbody tr {
+			transition: background 0.12s;
+		}
+		.orders-table-card tbody tr:hover {
+			background: rgba(0, 209, 255, 0.05);
+		}
+		#panel-mining .mining-kpi-strip {
+			display: grid;
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+			gap: 0.55rem;
+		}
+		@media (max-width: 800px) {
+			#panel-mining .mining-kpi-strip { grid-template-columns: 1fr 1fr; }
+		}
+		#panel-mining .mining-kpi-tile {
+			border-radius: 0.75rem;
+			border: 1px solid rgba(0, 209, 255, 0.18);
+			background: linear-gradient(160deg, rgba(0, 0, 0, 0.5), rgba(0, 209, 255, 0.04));
+			padding: 0.85rem 0.95rem;
+			min-height: 4.25rem;
+		}
+		#panel-mining .mining-kpi-tile .kpi-label {
+			font-size: 9px;
+			letter-spacing: 0.14em;
+			text-transform: uppercase;
+			color: #7b8798;
+			margin-bottom: 0.35rem;
+		}
+		#panel-fuzz .fuzz-hero {
+			border-radius: 1rem;
+			border: 1px solid rgba(0, 209, 255, 0.28);
+			background:
+				radial-gradient(ellipse 70% 80% at 0% 0%, rgba(0, 209, 255, 0.12), transparent 55%),
+				linear-gradient(160deg, rgba(12, 18, 28, 0.96), rgba(4, 8, 14, 0.98));
+			padding: 1.2rem 1.35rem;
+			box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
+		}
+		#panel-orders .audit-code-shell,
+		#panel-orders .hunt-extra-shell {
+			border-radius: 0.75rem;
+			border: 1px solid rgba(255, 255, 255, 0.08);
+			background: rgba(0, 0, 0, 0.4);
+			padding: 0.85rem;
+			margin-top: 0.85rem;
+		}
+		#audit-code-input {
+			min-height: 9.5rem;
+			border-radius: 0.65rem !important;
+			border-color: rgba(0, 209, 255, 0.18) !important;
+			background: rgba(0, 0, 0, 0.55) !important;
+			line-height: 1.45;
+		}
+		.orders-banner {
+			border-radius: 0.75rem;
+			padding: 0.85rem 1rem;
+			font-size: 11px;
+			line-height: 1.5;
+		}
+		.orders-banner.info {
+			border: 1px solid rgba(0, 209, 255, 0.28);
+			background: rgba(0, 209, 255, 0.06);
+			color: #cbd5e1;
+		}
 		.wallet-detail-tabs {
 			display: flex;
 			flex-wrap: wrap;
@@ -1817,17 +2225,26 @@
 								<div class="flex flex-wrap justify-between items-start gap-2 mb-3">
 									<div>
 										<h2 class="font-display text-xs font-semibold tracking-[0.2em] text-gray-400 uppercase">Telemetry Stream</h2>
-										<p class="text-[10px] text-gray-600 mt-0.5">Hashrate · CPU · disk write</p>
+										<p class="text-[10px] text-gray-600 mt-0.5">Live PoH · CPU · disk write · silent sample stream</p>
 									</div>
-									<div class="flex gap-3 text-[10px] font-mono">
+									<div class="flex flex-wrap items-center gap-3 text-[10px] font-mono">
 										<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-neon shadow-neon"></span><span id="chart-legend-a">PoH / TH</span></span>
 										<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-matrix shadow-matrix"></span> CPU</span>
 										<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-warn"></span> WR</span>
+										<span id="chart-live-age" class="text-[9px] text-gray-600">—</span>
 									</div>
 								</div>
-								<div class="relative rounded border border-white/5 bg-[#050608] h-52 lg:h-60">
+								<div class="telemetry-stream-wrap relative h-56 lg:h-72">
+									<div class="telemetry-hud" aria-hidden="true">
+										<span class="telemetry-hud-chip">PoH <strong id="chart-hud-poh">—</strong></span>
+										<span class="telemetry-hud-chip">CPU <strong id="chart-hud-cpu">—</strong></span>
+										<span class="telemetry-hud-chip">WR <strong id="chart-hud-wr">—</strong></span>
+									</div>
 									<canvas id="chart-main" class="w-full h-full block"></canvas>
-									<div class="absolute bottom-2 left-3 text-[9px] text-gray-600 font-mono" id="chart-metrics-footnote">collecting metrics…</div>
+									<div class="absolute bottom-2 left-3 right-3 flex justify-between gap-2 text-[9px] text-gray-600 font-mono">
+										<span id="chart-metrics-footnote">collecting metrics…</span>
+										<span id="chart-sample-count">0 pts</span>
+									</div>
 								</div>
 							</div>
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2034,12 +2451,12 @@
 							<a class="text-[10px] px-3 py-1.5 rounded border border-white/15 text-gray-400 uppercase tracking-wider hover:text-gray-200 hover:bg-white/5" href="https://hackme.tech/reports/oss-cve-watch-libheif/" target="_blank" rel="noopener noreferrer">libheif series (archived)</a>
 						</div>
 					</div>
-					<div class="card card-glow rounded-lg p-3 border-neon/20">
-						<div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
-							<div class="rounded border border-neon/20 bg-black/40 px-3 py-2">Pool miners<br><span id="mining-strip-miners" class="text-neon text-sm">—</span></div>
-							<div class="rounded border border-matrix/20 bg-black/40 px-3 py-2"><span id="mining-strip-th-label">Pool hash</span><br><span id="mining-strip-th" class="text-matrix text-sm">—</span></div>
-							<div class="rounded border border-warn/20 bg-black/40 px-3 py-2">Workers online<br><span id="mining-strip-workers" class="text-warn text-sm">—</span></div>
-							<div class="rounded border border-white/10 bg-black/40 px-3 py-2"><span id="mining-strip-solves-label">Session solves</span><br><span id="mining-strip-solves" class="text-gray-200 text-sm">—</span></div>
+					<div class="card card-glow rounded-xl p-3 md:p-4 border-neon/25">
+						<div class="mining-kpi-strip text-[10px] font-mono">
+							<div class="mining-kpi-tile"><p class="kpi-label">Pool miners</p><span id="mining-strip-miners" class="text-neon text-lg font-display font-bold tabular-nums">—</span></div>
+							<div class="mining-kpi-tile border-matrix/25"><p class="kpi-label" id="mining-strip-th-label">Pool hash</p><span id="mining-strip-th" class="text-matrix text-lg font-display font-bold tabular-nums">—</span></div>
+							<div class="mining-kpi-tile border-warn/25"><p class="kpi-label">Workers online</p><span id="mining-strip-workers" class="text-warn text-lg font-display font-bold tabular-nums">—</span></div>
+							<div class="mining-kpi-tile"><p class="kpi-label" id="mining-strip-solves-label">Session solves</p><span id="mining-strip-solves" class="text-gray-100 text-lg font-display font-bold tabular-nums">—</span></div>
 						</div>
 					</div>
 					<div class="card card-glow rounded-xl p-5 lg:p-6 border-matrix/25">
@@ -2204,11 +2621,18 @@
 								</div>
 							</div>
 
-							<div id="mine-calc-live-strip" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 text-[10px] font-mono">
+							<div id="mine-calc-live-strip" class="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4 text-[10px] font-mono">
 								<div class="rounded border border-white/10 bg-black/30 px-2 py-1.5"><span class="text-gray-500">reward/M</span><div id="mine-calc-net-rpm" class="text-neon">—</div></div>
 								<div class="rounded border border-white/10 bg-black/30 px-2 py-1.5"><span class="text-gray-500">difficulty M</span><div id="mine-calc-net-target" class="text-white">—</div></div>
 								<div class="rounded border border-white/10 bg-black/30 px-2 py-1.5"><span class="text-gray-500">pool GH/s</span><div id="mine-calc-net-pool-gh" class="text-white">—</div></div>
 								<div class="rounded border border-white/10 bg-black/30 px-2 py-1.5"><span class="text-gray-500">found hit</span><div id="mine-calc-net-found" class="text-matrix">—</div></div>
+								<div class="rounded border border-matrix/25 bg-matrix/[0.06] px-2 py-1.5">
+									<span class="text-gray-500 flex items-center justify-between gap-1">HMC spot
+										<a href="https://exchange.hackme.tech/#spot/HMC_USDT/15m" target="_blank" rel="noopener noreferrer" class="text-[8px] text-neon/80 hover:text-neon no-underline">exchange ↗</a>
+									</span>
+									<div id="mine-calc-spot-px" class="text-matrix">—</div>
+									<div id="mine-calc-spot-sub" class="text-[8px] text-gray-600 mt-0.5">live USDT</div>
+								</div>
 							</div>
 
 							<div class="grid lg:grid-cols-12 gap-4">
@@ -2233,7 +2657,9 @@
 												<label class="text-gray-500" title="Payout weight from pool attempts, not GH/s">Share %<input type="number" id="mine-calc-share" class="mine-calc-input mt-1 w-full" min="0.01" max="100" step="0.01" value="100"></label>
 												<label class="text-gray-500">Rigs<input type="number" id="mine-calc-rigs" class="mine-calc-input mt-1 w-full" min="1" max="999" step="1" value="1"></label>
 											</div>
-											<label class="text-gray-500">HMC $ (optional)<input type="number" id="mine-calc-hmc-usd" class="mine-calc-input mt-1 w-full" min="0" step="0.000001" placeholder="—"></label>
+											<label class="text-gray-500">Override HMC $ <span class="text-gray-600 normal-case">(blank = live spot)</span>
+												<input type="number" id="mine-calc-hmc-usd" class="mine-calc-input mt-1 w-full" min="0" step="0.000001" placeholder="live from exchange">
+											</label>
 											<input type="hidden" id="mine-calc-scenario" value="pool">
 											<input type="hidden" id="mine-calc-uptime" value="95">
 											<input type="hidden" id="mine-calc-hw-cost" value="0">
@@ -2242,7 +2668,7 @@
 								</div>
 
 								<div class="lg:col-span-7 space-y-3">
-									<div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+									<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
 										<div class="mine-calc-kpi highlight">
 											<div class="text-[9px] text-gray-500 uppercase">HMC / hour</div>
 											<div id="mine-calc-out-hour" class="font-display text-lg text-matrix">—</div>
@@ -2255,6 +2681,10 @@
 										<div class="mine-calc-kpi">
 											<div class="text-[9px] text-gray-500 uppercase">HMC / month <span class="text-gray-600 normal-case">(tokens)</span></div>
 											<div id="mine-calc-out-month" class="font-mono text-sm text-white">—</div>
+										</div>
+										<div class="mine-calc-kpi">
+											<div class="text-[9px] text-gray-500 uppercase">USD / day</div>
+											<div id="mine-calc-out-usd-day" class="font-mono text-sm text-matrix">—</div>
 										</div>
 										<div class="mine-calc-kpi">
 											<div class="text-[9px] text-gray-500 uppercase">Attempts / sec</div>
@@ -2455,16 +2885,23 @@
 
 				<!-- ORDERS (SQLite tasks) -->
 				<div id="panel-orders" data-coin-scope="hmc-only" class="tab-panel max-w-[1600px] mx-auto space-y-4">
-					<div class="flex flex-wrap items-center justify-between gap-3">
-						<div>
-							<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">Useful-PoW market</p>
-							<h2 class="font-display text-sm font-bold text-white tracking-wide">Security audits &amp; orders</h2>
-							<p id="orders-panel-subtitle" class="text-[11px] text-gray-500 mt-1 max-w-2xl">Full audit = useful-PoW order + distributed fuzz + <code class="text-neon/80">fuzz_report_v2</code> HTML (repro + triage). Public research: <a href="https://hackme.tech/reports/l1-crypto-stack-v3.html" class="text-neon/90 underline" target="_blank" rel="noopener">L1 v3</a>. Debits <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">Wallet</a>.</p>
+					<div class="orders-hero">
+						<div class="flex flex-wrap items-start justify-between gap-3 relative z-[1]">
+							<div class="max-w-3xl">
+								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">Useful-PoW market</p>
+								<h2 class="orders-hero-title">Security audits &amp; orders</h2>
+								<p id="orders-panel-subtitle" class="text-[12px] text-gray-400 mt-1 max-w-2xl leading-relaxed">Place Dig (WASM smoke / deep) or Hunt (native ASAN) with escrow + attested report. Not an OSS-Fuzz/CVE warranty. Debits <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">Wallet</a> · reports in <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz</a>.</p>
+							</div>
+							<button type="button" id="btn-orders-refresh" class="btn-order-ghost shrink-0">Refresh</button>
 						</div>
-						<button type="button" id="btn-orders-refresh" class="text-[10px] px-3 py-1.5 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Refresh</button>
+						<div class="orders-lane-nav relative z-[1]" role="tablist" aria-label="Order lanes">
+							<button type="button" class="orders-lane-btn active" data-orders-lane="dig">Dig audit</button>
+							<button type="button" class="orders-lane-btn" data-orders-lane="hunt">Hunt ASAN</button>
+							<button type="button" class="orders-lane-btn" data-orders-lane="list">Order list</button>
+						</div>
 					</div>
-					<div id="orders-market-banner" class="rounded-lg border border-neon/25 bg-neon/5 p-3 text-[11px] text-gray-300 leading-snug">
-						<strong class="text-neon">Read-only</strong> — click <strong>Sync token</strong> (desktop) or save <strong>admin token</strong> to run Security audit / Hunt. Developer token alone is for PoH <code class="text-neon/70">/api/tasks</code> only. Reports: <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz tab</a>.
+					<div id="orders-market-banner" class="orders-banner info">
+						<strong class="text-neon">Read-only</strong> — click <strong>Sync token</strong> (desktop) or save <strong>admin token</strong> to run Dig / Hunt. Developer token alone is for PoH <code class="text-neon/70">/api/tasks</code> only.
 					</div>
 					<div id="orders-wallet-gate" class="hidden rounded-lg border border-warn/35 bg-warn/5 p-3 text-[11px] text-warn/95 leading-snug"></div>
 					<div id="orders-balance-strip" class="orders-balance-strip hidden">
@@ -2474,71 +2911,127 @@
 						<span id="orders-balance-alignment" class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded border border-white/10 text-gray-400"></span>
 						<a href="#" class="text-neon/90 underline text-[10px] ml-auto" data-goto-tab="wallet">Wallet breakdown →</a>
 					</div>
-					<div id="orders-security-audit" class="hidden card card-glow rounded-xl p-5 border-neon/30">
-						<h3 class="text-[10px] uppercase tracking-[0.2em] text-neon mb-2">Dig · Security audit (recommended)</h3>
-						<p class="text-[11px] text-gray-500 mb-3 leading-relaxed">One click: compile guard → <strong>PoH order</strong> + <strong>distributed fuzz</strong> (20/80 escrow) → <strong>fuzz_report_v2</strong>. Pick SKU: <strong>Scan</strong> smoke, <strong>Dig Audit</strong>, or <strong>Dig Deep</strong>. <span class="text-gray-600">Hunt (repo + ASAN) — Phase 1.</span></p>
-						<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
-							<label class="text-[10px] text-gray-500">Product SKU<br>
-								<select id="audit-depth-tier" class="mt-1 w-full text-xs font-mono rounded border border-white/15 bg-black/60 px-2 py-1 text-neon">
-									<option value="wasm_only" selected>Scan · WASM smoke (1 HMC / 64)</option>
-									<option value="wasm_native">Dig · Audit (5 HMC / 256)</option>
-									<option value="bytes_corpus">Dig · Deep (25 HMC / 2048)</option>
-								</select>
-							</label>
-							<label class="text-[10px] text-gray-500">Title<br><input id="audit-title" class="mt-1 w-full text-xs font-mono rounded border border-white/15 bg-black/60 px-2 py-1 text-neon" placeholder="My protocol audit" /></label>
-							<label class="text-[10px] text-gray-500">Payer ref<br><input id="audit-payer" class="mt-1 w-full text-xs font-mono rounded border border-white/15 bg-black/60 px-2 py-1 text-neon" placeholder="company:acme-2026" /></label>
-							<label class="text-[10px] text-gray-500">Fuzz budget HMC (min 0.5)<br><input id="audit-budget-hmc" type="number" min="0.5" step="0.1" class="mt-1 w-full text-xs font-mono rounded border border-white/15 bg-black/60 px-2 py-1 text-neon" value="1" /></label>
-							<label class="text-[10px] text-gray-500">Fuzz runs<br><input id="audit-runs" type="number" min="8" class="mt-1 w-full text-xs font-mono rounded border border-white/15 bg-black/60 px-2 py-1 text-neon" value="64" /></label>
+					<div id="orders-security-audit" class="hidden order-product-card dig-card" data-orders-section="dig">
+						<p class="card-kicker text-neon">Dig · recommended</p>
+						<h3 class="font-display text-base font-bold text-white tracking-wide mb-1">Security audit</h3>
+						<p class="text-[12px] text-gray-400 mb-1 leading-relaxed max-w-3xl">Compile guard → PoH order + distributed fuzz → <code class="text-neon/80">fuzz_report_v2</code>. Pick an honest SKU — smoke stays cheap; Deep pays for depth (40/60 escrow, seed merge).</p>
+						<div class="sku-picker" id="dig-sku-picker" role="listbox" aria-label="Dig product SKU">
+							<button type="button" class="sku-card active" data-dig-sku="wasm_only" role="option" aria-selected="true">
+								<span class="sku-badge">smoke</span>
+								<span class="sku-name">Scan</span>
+								<span class="sku-meta">Local WASM quick check · attested report</span>
+								<span class="sku-price">1 HMC · 64 runs · 20/80</span>
+							</button>
+							<button type="button" class="sku-card" data-dig-sku="wasm_native" role="option" aria-selected="false">
+								<span class="sku-badge">smoke</span>
+								<span class="sku-name">Dig · Audit</span>
+								<span class="sku-meta">Pool distributed · native repro path</span>
+								<span class="sku-price">5 HMC · 256 runs · 20/80</span>
+							</button>
+							<button type="button" class="sku-card" data-dig-sku="bytes_corpus" role="option" aria-selected="false">
+								<span class="sku-badge">deep</span>
+								<span class="sku-name">Dig · Deep</span>
+								<span class="sku-meta">Paid depth · seed merge · stricter verify</span>
+								<span class="sku-price">40 HMC · 2048 runs · 40/60</span>
+							</button>
 						</div>
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-							<label class="text-[10px] text-gray-500">Language<br>
-								<select id="audit-code-lang" class="mt-1 w-full text-xs font-mono rounded border border-white/15 bg-black/60 px-2 py-1 text-neon">
-									<option value="rust">rust</option><option value="c">c</option><option value="cpp">cpp</option><option value="tinygo">tinygo</option><option value="zig">zig</option><option value="assemblyscript">assemblyscript</option><option value="wat" selected>wat</option>
-								</select>
-							</label>
-							<label class="text-[10px] text-gray-500">Or WASM file (skips compile)<br><input id="audit-wasm-file" type="file" accept=".wasm" class="mt-1 text-[10px] text-gray-400 w-full" /></label>
+						<select id="audit-depth-tier" class="hidden" aria-hidden="true" tabindex="-1">
+							<option value="wasm_only" selected>Scan · WASM smoke (1 HMC / 64)</option>
+							<option value="wasm_native">Dig · Audit (5 HMC / 256)</option>
+							<option value="bytes_corpus">Dig · Deep (40 HMC / 2048)</option>
+						</select>
+						<div id="audit-billing-strip" class="order-billing-strip">
+							<span>Mode <strong id="audit-billing-mode">smoke</strong></span>
+							<span>Escrow <strong id="audit-billing-split">20/80</strong></span>
+							<span>~Miner / run <strong id="audit-billing-per-run">0.0031</strong> HMC</span>
+							<span class="text-gray-500" id="audit-billing-note">Not OSS-Fuzz / CVE replacement</span>
 						</div>
-						<p id="audit-wasm-meta" class="text-[10px] text-gray-500 mt-1 font-mono">Paste <code class="text-neon/80">check(i64)→i32</code> below, or upload .wasm.</p>
-						<textarea id="audit-code-input" class="mt-2 w-full h-32 text-[11px] font-mono rounded border border-white/10 bg-black/50 p-3 text-gray-300" spellcheck="false">(module
+						<div class="order-form-grid cols-4">
+							<div class="order-field"><label for="audit-title">Title</label><input id="audit-title" placeholder="My protocol audit" /></div>
+							<div class="order-field"><label for="audit-payer">Payer ref</label><input id="audit-payer" placeholder="company:acme-2026" /></div>
+							<div class="order-field"><label for="audit-budget-hmc">Budget HMC</label><input id="audit-budget-hmc" type="number" min="0.5" step="0.1" value="1" /></div>
+							<div class="order-field"><label for="audit-runs">Fuzz runs</label><input id="audit-runs" type="number" min="8" value="64" /></div>
+						</div>
+						<div class="audit-code-shell">
+							<div class="order-form-grid">
+								<div class="order-field"><label for="audit-code-lang">Language</label>
+									<select id="audit-code-lang">
+										<option value="rust">rust</option><option value="c">c</option><option value="cpp">cpp</option><option value="tinygo">tinygo</option><option value="zig">zig</option><option value="assemblyscript">assemblyscript</option><option value="wat" selected>wat</option>
+									</select>
+								</div>
+								<div class="order-field">
+									<label for="audit-wasm-file">Or WASM file (skips compile)</label>
+									<label class="file-pick mt-1 relative" id="audit-wasm-file-pick">
+										<input id="audit-wasm-file" type="file" accept=".wasm,application/wasm" />
+										<span class="file-pick-btn">Choose WASM</span>
+										<span class="file-pick-name" id="audit-wasm-file-name">No file selected</span>
+									</label>
+								</div>
+							</div>
+							<p id="audit-wasm-meta" class="text-[10px] text-gray-500 mt-2 font-mono">Paste <code class="text-neon/80">check(i64)→i32</code> below, or upload .wasm.</p>
+							<textarea id="audit-code-input" class="mt-2 w-full text-[11px] font-mono p-3 text-gray-300" spellcheck="false">(module
   (func (export "check") (param i64) (result i32)
     local.get 0
     i64.const 23
     i64.rem_s
     i64.eqz
     if (result i32) i32.const 1 else i32.const 0 end))</textarea>
-						<label class="mt-2 text-[10px] text-gray-500 flex items-center gap-2"><input type="checkbox" id="audit-include-poh" checked class="rounded" /> Include useful-PoW order (miners on pool + fuzz workers)</label>
-						<div id="audit-scope-contract" class="mt-3 rounded-lg border border-white/10 bg-black/35 p-3 text-[10px] text-gray-400 leading-relaxed space-y-1">
-							<p class="text-[9px] uppercase tracking-[0.2em] text-gray-500">Before you pay · scope contract</p>
+							<label class="mt-3 text-[11px] text-gray-400 flex items-center gap-2"><input type="checkbox" id="audit-include-poh" checked class="rounded" /> Include useful-PoW order (miners on pool + fuzz workers)</label>
+						</div>
+						<div id="audit-scope-contract" class="order-scope-box space-y-1">
+							<p class="text-[9px] uppercase tracking-[0.2em] text-gray-500 mb-1">Before you pay · scope contract</p>
 							<p id="audit-scope-seeks" class="text-gray-300"><strong class="text-neon/90">We search:</strong> —</p>
 							<p id="audit-scope-skips" class="text-gray-500"><strong class="text-warn/80">We do not promise:</strong> —</p>
 							<p id="audit-scope-clean" class="text-gray-600 font-mono text-[9px]">CLEAN = budget exhausted · not a security guarantee.</p>
 						</div>
-						<div class="mt-3 flex flex-wrap gap-2 items-center">
-							<button type="button" id="btn-audit-run" class="px-5 py-2.5 rounded-lg border border-neon/50 bg-neon/15 text-neon text-[11px] font-display font-bold uppercase tracking-wider hover:bg-neon/25">Run Dig security audit</button>
-							<button type="button" id="btn-audit-goto-report" class="px-3 py-2 rounded border border-white/20 text-gray-300 text-[10px] uppercase tracking-wider hover:bg-white/5">Open reports</button>
+						<div class="order-cta-row">
+							<button type="button" id="btn-audit-run" class="btn-order-primary dig">Run Dig security audit</button>
+							<button type="button" id="btn-audit-goto-report" class="btn-order-ghost">Open reports</button>
 						</div>
 						<p id="audit-run-msg" class="mt-2 text-[10px] font-mono text-gray-500"></p>
 						<div id="audit-run-result" class="hidden mt-2 rounded border border-matrix/25 bg-black/40 p-3 text-[10px] font-mono text-gray-300 space-y-1"></div>
 						<pre id="audit-compile-log" class="hidden mt-2 text-[10px] font-mono text-gray-400 overflow-x-auto whitespace-pre-wrap max-h-28 overflow-y-auto p-2 rounded bg-black/50 border border-white/10"></pre>
 					</div>
-					<div id="orders-hunt-campaign" class="hidden card card-glow rounded-xl p-5 border-warn/30 mt-4">
-						<h3 class="text-[10px] uppercase tracking-[0.2em] text-warn mb-2">Hunt · ASAN shards (50/50 escrow)</h3>
-						<p class="text-[11px] text-gray-500 mb-3 leading-relaxed">Catalog OSS or <strong>your repo</strong> → pool shards on miners (native ASAN). Escrow <strong>50% runs / 50% bounty</strong>. No guaranteed CVE.</p>
-						<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
-							<label class="text-[10px] text-gray-500">Mode<br>
-								<select id="hunt-mode" class="mt-1 w-full text-xs font-mono rounded border border-white/15 bg-black/60 px-2 py-1 text-warn">
+					<div id="orders-hunt-campaign" class="hidden order-product-card hunt-card mt-1" data-orders-section="hunt">
+						<p class="card-kicker text-warn">Hunt · native</p>
+						<h3 class="font-display text-base font-bold text-white tracking-wide mb-1">ASAN shards</h3>
+						<p class="text-[12px] text-gray-400 mb-1 leading-relaxed max-w-3xl">Catalog OSS or your repo → pool ASAN shards. Escrow <strong class="text-warn/90">50% runs / 50% bounty</strong>. CLEAN ≠ CVE.</p>
+						<div class="sku-picker" id="hunt-sku-picker" role="listbox" aria-label="Hunt package">
+							<button type="button" class="sku-card active" data-hunt-sku="hunt_lite" role="option" aria-selected="true">
+								<span class="sku-badge">smoke</span>
+								<span class="sku-name">Hunt Lite</span>
+								<span class="sku-meta">Fast pool sweep · attested CLEAN</span>
+								<span class="sku-price">20 HMC · 50/50</span>
+							</button>
+							<button type="button" class="sku-card" data-hunt-sku="hunt_standard" role="option" aria-selected="false">
+								<span class="sku-badge">smoke</span>
+								<span class="sku-name">Hunt Standard</span>
+								<span class="sku-meta">Deeper pool budget · 1–3d window</span>
+								<span class="sku-price">60 HMC · 50/50</span>
+							</button>
+							<button type="button" class="sku-card" data-hunt-sku="hunt_heavy" role="option" aria-selected="false">
+								<span class="sku-badge">deep</span>
+								<span class="sku-name">Hunt Heavy</span>
+								<span class="sku-meta">Pool-scale depth · longer wall clock</span>
+								<span class="sku-price">150 HMC · 50/50</span>
+							</button>
+						</div>
+						<div class="order-form-grid cols-4">
+							<div class="order-field"><label for="hunt-mode">Mode</label>
+								<select id="hunt-mode">
 									<option value="catalog" selected>Catalog OSS target</option>
 									<option value="inventory">Customer repo / inventory</option>
 								</select>
-							</label>
-							<label class="text-[10px] text-gray-500">Package<br>
-								<select id="hunt-package" class="mt-1 w-full text-xs font-mono rounded border border-white/15 bg-black/60 px-2 py-1 text-warn">
-									<option value="hunt_lite" selected>Hunt Lite · 20 HMC / 8 shards</option>
-									<option value="hunt_standard">Hunt Standard · 60 HMC / 24 shards</option>
+							</div>
+							<div class="order-field"><label for="hunt-package">Package</label>
+								<select id="hunt-package">
+									<option value="hunt_lite" selected>Hunt Lite · 20 HMC</option>
+									<option value="hunt_standard">Hunt Standard · 60 HMC</option>
+									<option value="hunt_heavy">Hunt Heavy · 150 HMC</option>
 								</select>
-							</label>
-							<label class="text-[10px] text-gray-500">Title<br><input id="hunt-title" class="mt-1 w-full text-xs font-mono rounded border border-white/15 bg-black/60 px-2 py-1 text-warn" placeholder="OSS hunt wave" /></label>
-							<label class="text-[10px] text-gray-500">Budget HMC (override)<br><input id="hunt-budget-hmc" type="number" min="15" step="1" class="mt-1 w-full text-xs font-mono rounded border border-white/15 bg-black/60 px-2 py-1 text-warn" placeholder="package default" /></label>
+							</div>
+							<div class="order-field"><label for="hunt-title">Title</label><input id="hunt-title" placeholder="OSS hunt wave" /></div>
+							<div class="order-field"><label for="hunt-budget-hmc">Budget HMC (override)</label><input id="hunt-budget-hmc" type="number" min="15" step="1" placeholder="package default" /></div>
 						</div>
 						<div id="hunt-catalog-fields" class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
 							<label class="text-[10px] text-gray-500">Catalog target<br>
@@ -2569,17 +3062,17 @@
 								<ul id="hunt-pack-suggestions-list" class="text-[10px] font-mono text-gray-400 space-y-1"></ul>
 							</div>
 						</div>
-						<label class="mt-2 text-[10px] text-gray-500 flex items-center gap-2"><input type="checkbox" id="hunt-pool-distributed" checked class="rounded" /> Pool distributed (miners run ASAN shards)</label>
-						<div id="hunt-scope-contract" class="mt-3 rounded-lg border border-white/10 bg-black/35 p-3 text-[10px] text-gray-400 leading-relaxed space-y-1">
-							<p class="text-[9px] uppercase tracking-[0.2em] text-gray-500">Before you pay · Hunt scope</p>
+						<label class="mt-3 text-[11px] text-gray-400 flex items-center gap-2"><input type="checkbox" id="hunt-pool-distributed" checked class="rounded" /> Pool distributed (miners run ASAN shards)</label>
+						<div id="hunt-scope-contract" class="order-scope-box space-y-1">
+							<p class="text-[9px] uppercase tracking-[0.2em] text-gray-500 mb-1">Before you pay · Hunt scope</p>
 							<p id="hunt-scope-seeks" class="text-gray-300"><strong class="text-warn/90">We search:</strong> pinned harness (catalog or your repo) · frozen shard inputs · ASAN crash-class on miners.</p>
 							<p id="hunt-scope-skips" class="text-gray-500"><strong class="text-warn/80">We do not promise:</strong> new CVE, whole-repo crawl, logic bugs without oracle, «fully secure» proof.</p>
 							<p id="hunt-scope-escrow" class="text-gray-600 font-mono text-[9px]">50/50 escrow · ~half to miners per verified shard · bounty only on coordinator-replayed ASAN crash + repro.</p>
 							<p id="hunt-scope-clean" class="text-gray-600 font-mono text-[9px]">CLEAN = budget exhausted · not a security guarantee.</p>
 						</div>
-						<div class="mt-3 flex flex-wrap gap-2 items-center">
-							<button type="button" id="btn-hunt-run" class="px-5 py-2.5 rounded-lg border border-warn/50 bg-warn/15 text-warn text-[11px] font-display font-bold uppercase tracking-wider hover:bg-warn/25">Start Hunt campaign</button>
-							<button type="button" id="btn-hunt-goto-fuzz" class="px-3 py-2 rounded border border-white/20 text-gray-300 text-[10px] uppercase tracking-wider hover:bg-white/5">Open fuzz tab</button>
+						<div class="order-cta-row">
+							<button type="button" id="btn-hunt-run" class="btn-order-primary hunt">Start Hunt campaign</button>
+							<button type="button" id="btn-hunt-goto-fuzz" class="btn-order-ghost">Open fuzz tab</button>
 						</div>
 						<p id="hunt-run-msg" class="mt-2 text-[10px] font-mono text-gray-500"></p>
 						<div id="hunt-run-result" class="hidden mt-2 rounded border border-warn/25 bg-black/40 p-3 text-[10px] font-mono text-gray-300 space-y-1"></div>
@@ -2622,8 +3115,12 @@
 						</div>
 						<div class="mt-3 rounded-lg border border-matrix/20 bg-black/30 p-3">
 							<p class="text-[10px] uppercase tracking-[0.2em] text-matrix mb-2">Upload compiled WASM (optional)</p>
-							<label class="text-[10px] text-gray-500 block">File <input id="orders-wasm-file" type="file" accept=".wasm,application/wasm" class="mt-1 text-[10px] text-gray-400" /></label>
-							<p id="orders-wasm-meta" class="text-[10px] text-gray-500 mt-1 font-mono">No WASM loaded — order may still validate if manifest includes wasm_check_hex.</p>
+							<label class="file-pick relative" id="orders-wasm-file-pick">
+								<input id="orders-wasm-file" type="file" accept=".wasm,application/wasm" />
+								<span class="file-pick-btn">Choose WASM</span>
+								<span class="file-pick-name" id="orders-wasm-file-name">No file selected</span>
+							</label>
+							<p id="orders-wasm-meta" class="text-[10px] text-gray-500 mt-2 font-mono">No WASM loaded — order may still validate if manifest includes wasm_check_hex.</p>
 						</div>
 						<div class="mt-2 flex flex-wrap gap-2 items-center">
 							<button type="button" id="btn-orders-submit" class="px-4 py-2 rounded-lg border border-matrix/40 bg-matrix/10 text-matrix text-[11px] font-display font-bold uppercase tracking-wider hover:bg-matrix/20">POST /api/tasks</button>
@@ -2671,19 +3168,25 @@
 						</div>
 					</div>
 					</div>
-					<div class="card card-glow rounded-lg border-white/10 overflow-hidden">
+					<div class="orders-table-card" data-orders-section="list">
+						<div class="px-4 py-3 border-b border-white/5 flex flex-wrap items-center justify-between gap-2">
+							<div>
+								<p class="font-display text-[10px] tracking-[0.25em] text-gray-500 uppercase">Live orders</p>
+								<p class="text-[11px] text-gray-400 mt-0.5">PoH market + campaign links</p>
+							</div>
+						</div>
 						<div class="overflow-x-auto">
 							<table class="w-full text-left text-[11px] font-mono">
-								<thead class="bg-black/60 text-gray-500 uppercase tracking-wider text-[9px]"><tr>
-									<th class="px-3 py-2">ID</th>
-									<th class="px-3 py-2">Status</th>
-									<th class="px-3 py-2">Reward</th>
-									<th class="px-3 py-2">Prepaid</th>
-									<th class="px-3 py-2">Payer</th>
-									<th class="px-3 py-2">Progress</th>
-									<th class="px-3 py-2">Artifact</th>
-									<th class="px-3 py-2">Created</th>
-									<th class="px-3 py-2">Report</th>
+								<thead class="text-gray-500 uppercase tracking-wider text-[9px]"><tr>
+									<th class="px-3 py-2.5">ID</th>
+									<th class="px-3 py-2.5">Status</th>
+									<th class="px-3 py-2.5">Reward</th>
+									<th class="px-3 py-2.5">Prepaid</th>
+									<th class="px-3 py-2.5">Payer</th>
+									<th class="px-3 py-2.5">Progress</th>
+									<th class="px-3 py-2.5">Artifact</th>
+									<th class="px-3 py-2.5">Created</th>
+									<th class="px-3 py-2.5">Report</th>
 								</tr></thead>
 								<tbody id="orders-rows" class="text-gray-300 divide-y divide-white/5"></tbody>
 							</table>
@@ -2693,9 +3196,10 @@
 
 				<!-- FUZZ CAMPAIGNS -->
 				<div id="panel-fuzz" data-coin-scope="hmc-only" class="tab-panel max-w-[1600px] mx-auto space-y-4">
-					<div id="fuzz-market-banner" class="rounded-lg border border-neon/25 bg-neon/5 p-3 text-[11px] text-gray-300 leading-snug">
-						<strong class="text-neon">Customer:</strong> run <strong>Security audit</strong> in <code class="text-neon/80">#orders</code> (desktop: Sync token / admin) — report token saved here. Open <strong>fuzz_report_v2</strong> HTML with repro commands.
-						<strong class="text-warn">Operator:</strong> admin token for full fuzz ops (CSV, diff, housekeeping). Developer token is PoH tasks only. Public L1 research: <a href="https://hackme.tech/reports/l1-crypto-stack-v3.html" class="text-neon/90 underline" target="_blank" rel="noopener">hackme.tech/reports/l1-crypto-stack-v3.html</a> (separate from token-gated campaigns).
+					<div id="fuzz-market-banner" class="fuzz-hero text-[12px] text-gray-300 leading-relaxed">
+						<p class="font-display text-[10px] tracking-[0.3em] text-neon uppercase mb-1">Fuzz operations</p>
+						<p><strong class="text-neon">Customer:</strong> place Dig / Hunt in <code class="text-neon/80">#orders</code> — report token stays in this browser. Open <strong>fuzz_report_v2</strong> HTML with repro.</p>
+						<p class="mt-1.5"><strong class="text-warn">Operator:</strong> admin token for full fuzz ops. Public L1 research: <a href="https://hackme.tech/reports/l1-crypto-stack-v3.html" class="text-neon/90 underline" target="_blank" rel="noopener">L1 stack</a>.</p>
 					</div>
 					<div id="fuzz-customer-only" class="hidden space-y-4">
 						<div class="flex flex-wrap items-center justify-between gap-2">
@@ -3057,6 +3561,7 @@
 							</div>
 							<div class="flex flex-wrap gap-2 text-[10px] font-mono items-center">
 								<span class="px-2 py-1 rounded border border-matrix/35 text-matrix">portfolio: <span id="wallet-portfolio-total">—</span></span>
+								<span id="wallet-spot-chip" class="price-chip stale" title="Live HMC/USDT from exchange.hackme.tech"><span class="px-dot"></span><span id="wallet-spot-label">HMC $—</span></span>
 								<span class="px-2 py-1 rounded border border-neon/35 text-neon">live: <span id="wallet-portfolio-live-count">1</span></span>
 								<span id="wallet-build-strip" class="px-2 py-1 rounded border border-white/10 text-gray-500 max-w-[280px] truncate" title="Dashboard UI + node build">ui — · node —</span>
 								<button type="button" id="btn-wallet-refresh" class="px-3 py-1.5 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Refresh</button>
@@ -3612,7 +4117,7 @@
 				roadmap: null,
 				walletLive: true,
 				walletDesc: 'Primary chain · on-chain balance · pool settlement to your HMC address.',
-				estPriceUsd: 1,
+				estPriceUsd: 0,
 			},
 			{
 				id: 'support',
@@ -4135,18 +4640,34 @@
 		function renderWalletPortfolioSummary() {
 			const live = walletHubCoins().filter((c) => c.status === 'live' || c.walletLive);
 			let totalUsd = 0;
+			let priced = false;
 			live.forEach((c) => {
-				const px = Number(c.estPriceUsd || 0);
-				if (px <= 0) return;
-				const onChain = Number(walletSnapshot.onChainHMC || walletSnapshot.balanceHMC || 0);
-				const unpaid = c.id === 'hmc' ? walletUnpaidHmc() : 0;
-				totalUsd += (onChain + unpaid) * px;
+				const px = coinEstPriceUsd(c);
+				if (!(px > 0)) return;
+				priced = true;
+				let qty = 0;
+				if (isWalletCoinHMC(c)) {
+					qty = Number(walletSnapshot.onChainHMC || walletSnapshot.balanceHMC || 0) + walletUnpaidHmc();
+				} else if (isWalletCoinSUP(c)) {
+					qty = Number(walletSnapshot.balanceSUP || 0);
+					try {
+						const s = latestWorkerSettlementSnap || {};
+						qty += Number(s.wallet_accrued_sup || s.total_accrued_sup || 0);
+					} catch (_) {}
+				} else if (isWalletCoinHMS(c)) {
+					qty = Number(walletSnapshot.balanceHMS || 0);
+				}
+				if (qty > 0) totalUsd += qty * px;
 			});
-			if ($('wallet-portfolio-total')) {
-				$('wallet-portfolio-total').textContent =
-					totalUsd > 0 ? ('≈ $' + fmt(totalUsd, 2)) : (fmt(Number(walletSnapshot.balanceHMC || 0), 4) + ' HMC');
+			const totalEl = $('wallet-portfolio-total');
+			if (totalEl) {
+				const next = (priced && totalUsd > 0)
+					? ('≈ $' + fmt(totalUsd, 2))
+					: (fmt(Number(walletSnapshot.balanceHMC || 0), 4) + ' HMC');
+				setTextSilent(totalEl, next);
 			}
-			if ($('wallet-portfolio-live-count')) $('wallet-portfolio-live-count').textContent = fmtUInt(live.length);
+			if ($('wallet-portfolio-live-count')) setTextSilent($('wallet-portfolio-live-count'), fmtUInt(live.length));
+			try { renderWalletSpotChip(); } catch (_) {}
 		}
 		function walletSelectedCoin() {
 			return walletHubCoinById(walletSelectedCoinId) || walletHubCoins()[0];
@@ -4573,9 +5094,25 @@
 		const POLL_INTERVAL_MS = 12000;
 		const POLL_INTERVAL_WALLET_MS = 6000;
 		const POLL_INTERVAL_HIDDEN_MS = 60000;
+		const EXCHANGE_PRICE_INTERVAL_MS = 3000;
+		const EXCHANGE_PRICE_INTERVAL_HIDDEN_MS = 20000;
+		const EXCHANGE_TICKERS_PROXY = '/api/exchange/tickers';
+		const EXCHANGE_TICKERS_FALLBACK = 'https://exchange-api.hackme.tech/tickers';
+		const EXCHANGE_PRICE_SCALE = 1e8;
 		const WALLET_EARNINGS_INTERVAL_MS = 55000;
 		const WALLET_FETCH_TIMEOUT_MS = 12000;
 		const WALLET_SNAP_CACHE_KEY = 'hackme.wallet.snapshot.v2';
+		let exchangeSpot = {
+			hmcUsdt: 0,
+			supUsdt: 0,
+			updatedAt: 0,
+			source: '',
+			ok: false,
+			error: '',
+			inFlight: false,
+		};
+		let exchangePriceTimer = null;
+		let mineCalcHmcUsdExplicit = false;
 		function restoreWalletSnapshotCache() {
 			try {
 				const raw = sessionStorage.getItem(WALLET_SNAP_CACHE_KEY);
@@ -5521,6 +6058,160 @@
 		const uiPrefsKey = 'hackme.ui.prefs.v1';
 
 		const $ = (id) => document.getElementById(id);
+		function setTextSilent(el, text) {
+			if (!el) return false;
+			const next = String(text);
+			if (el.textContent === next) return false;
+			el.textContent = next;
+			return true;
+		}
+		function parseExchangeLastUsd(raw) {
+			const n = Number(raw);
+			if (!Number.isFinite(n) || n <= 0) return 0;
+			return n / EXCHANGE_PRICE_SCALE;
+		}
+		function coinEstPriceUsd(coin) {
+			if (!coin) return 0;
+			if (isWalletCoinHMC(coin) && exchangeSpot.hmcUsdt > 0) return exchangeSpot.hmcUsdt;
+			if (isWalletCoinSUP(coin) && exchangeSpot.supUsdt > 0) return exchangeSpot.supUsdt;
+			const fallback = Number(coin.estPriceUsd || 0);
+			return fallback > 0 ? fallback : 0;
+		}
+		function liveHmcUsdPrice() {
+			if (exchangeSpot.hmcUsdt > 0) return exchangeSpot.hmcUsdt;
+			return 0;
+		}
+		function renderWalletSpotChip() {
+			const chip = $('wallet-spot-chip');
+			const label = $('wallet-spot-label');
+			if (!label) return;
+			const px = liveHmcUsdPrice();
+			const ageMs = exchangeSpot.updatedAt ? (Date.now() - exchangeSpot.updatedAt) : 0;
+			const stale = !exchangeSpot.ok || !(px > 0) || ageMs > 15000;
+			if (chip) chip.classList.toggle('stale', stale);
+			if (px > 0) {
+				setTextSilent(label, 'HMC $' + fmt(px, px >= 0.1 ? 4 : 6));
+				if (chip) {
+					chip.title = 'Live HMC/USDT · exchange.hackme.tech' +
+						(exchangeSpot.source ? (' · ' + exchangeSpot.source) : '') +
+						(ageMs > 0 ? (' · ' + Math.round(ageMs / 1000) + 's ago') : '');
+				}
+			} else {
+				setTextSilent(label, exchangeSpot.error ? 'HMC price…' : 'HMC $—');
+			}
+		}
+		function applyExchangeTickersPayload(payload, sourceTag) {
+			if (!payload || typeof payload !== 'object') return false;
+			const rows = payload.tickers || payload.data || [];
+			if (!Array.isArray(rows) || !rows.length) return false;
+			let hmc = 0;
+			let sup = 0;
+			rows.forEach((t) => {
+				const pair = String((t && (t.pair || t.symbol || t.market)) || '').toUpperCase().replace(/[_-]/g, '/');
+				const last = parseExchangeLastUsd(t && t.last);
+				if (!(last > 0)) return;
+				if (pair === 'HMC/USDT' || pair === 'HMCUSDT') hmc = last;
+				else if (pair === 'SUP/USDT' || pair === 'SUPUSDT') sup = last;
+			});
+			if (!(hmc > 0) && !(sup > 0)) return false;
+			const prevH = exchangeSpot.hmcUsdt;
+			const prevS = exchangeSpot.supUsdt;
+			if (hmc > 0) exchangeSpot.hmcUsdt = hmc;
+			if (sup > 0) exchangeSpot.supUsdt = sup;
+			exchangeSpot.updatedAt = Date.now();
+			exchangeSpot.ok = true;
+			exchangeSpot.error = '';
+			exchangeSpot.source = sourceTag || 'exchange';
+			const moved = Math.abs(prevH - exchangeSpot.hmcUsdt) > 1e-12 || Math.abs(prevS - exchangeSpot.supUsdt) > 1e-12;
+			try { renderWalletSpotChip(); } catch (_) {}
+			try { renderWalletPortfolioSummary(); } catch (_) {}
+			try { syncMineCalcLiveSpot(moved); } catch (_) {}
+			try { if (typeof renderEcosystemCoins === 'function') renderEcosystemCoins(); } catch (_) {}
+			return true;
+		}
+		async function refreshExchangeSpotPrices(force) {
+			if (exchangeSpot.inFlight) return exchangeSpot;
+			if (!force && exchangeSpot.updatedAt && (Date.now() - exchangeSpot.updatedAt) < 1200) return exchangeSpot;
+			exchangeSpot.inFlight = true;
+			const urls = [EXCHANGE_TICKERS_PROXY, EXCHANGE_TICKERS_FALLBACK];
+			try {
+				for (let i = 0; i < urls.length; i++) {
+					const url = urls[i];
+					try {
+						const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+						const to = window.setTimeout(() => { try { if (ctrl) ctrl.abort(); } catch (_) {} }, 5000);
+						const r = await fetch(url, {
+							method: 'GET',
+							cache: 'no-store',
+							credentials: url.indexOf('://') >= 0 ? 'omit' : 'same-origin',
+							signal: ctrl ? ctrl.signal : undefined,
+							headers: { 'Accept': 'application/json' },
+						});
+						window.clearTimeout(to);
+						if (!r.ok) continue;
+						const j = await r.json();
+						if (applyExchangeTickersPayload(j, url.indexOf('/api/') === 0 ? 'local-proxy' : 'public-api')) {
+							return exchangeSpot;
+						}
+					} catch (_) {
+						/* try next source */
+					}
+				}
+				exchangeSpot.ok = !!(exchangeSpot.hmcUsdt > 0);
+				if (!exchangeSpot.ok) exchangeSpot.error = 'price feed unavailable';
+				try { renderWalletSpotChip(); } catch (_) {}
+			} finally {
+				exchangeSpot.inFlight = false;
+			}
+			return exchangeSpot;
+		}
+		function scheduleExchangePriceRefresh() {
+			if (exchangePriceTimer) window.clearTimeout(exchangePriceTimer);
+			const ms = document.hidden ? EXCHANGE_PRICE_INTERVAL_HIDDEN_MS : EXCHANGE_PRICE_INTERVAL_MS;
+			exchangePriceTimer = window.setTimeout(async () => {
+				try { await refreshExchangeSpotPrices(false); } catch (_) {}
+				scheduleExchangePriceRefresh();
+			}, ms);
+		}
+		function syncMineCalcLiveSpot(forceRender) {
+			const spotEl = typeof mineCalcEl === 'function' ? mineCalcEl('mine-calc-spot-px') : null;
+			const spotSub = typeof mineCalcEl === 'function' ? mineCalcEl('mine-calc-spot-sub') : null;
+			const px = liveHmcUsdPrice();
+			let inputChanged = false;
+			if (spotEl) {
+				setTextSilent(spotEl, px > 0 ? ('$' + fmt(px, px >= 0.1 ? 4 : 6)) : '—');
+			}
+			if (spotSub) {
+				const ageMs = exchangeSpot.updatedAt ? (Date.now() - exchangeSpot.updatedAt) : 0;
+				setTextSilent(spotSub, px > 0
+					? ('live USDT · ' + (exchangeSpot.source || 'spot') + (ageMs > 0 ? (' · ' + Math.round(ageMs / 1000) + 's') : ''))
+					: 'waiting for exchange…');
+			}
+			const hmcUsdEl = typeof mineCalcEl === 'function' ? mineCalcEl('mine-calc-hmc-usd') : null;
+			if (hmcUsdEl && !mineCalcHmcUsdExplicit && px > 0) {
+				const shown = px >= 0.1 ? px.toFixed(4) : px.toFixed(6);
+				if (hmcUsdEl.value !== shown) {
+					hmcUsdEl.value = shown;
+					inputChanged = true;
+				}
+			}
+			if (forceRender || inputChanged) {
+				try { if (typeof renderMineCalc === 'function') renderMineCalc(); } catch (_) {}
+			}
+		}
+		function bindFilePick(inputId, nameId, pickId) {
+			const inp = $(inputId);
+			const nameEl = $(nameId);
+			const pick = $(pickId);
+			if (!inp || !nameEl) return;
+			const sync = () => {
+				const f = inp.files && inp.files[0];
+				nameEl.textContent = f ? (f.name + (f.size ? (' · ' + Math.max(1, Math.round(f.size / 1024)) + ' KB') : '')) : 'No file selected';
+				if (pick) pick.classList.toggle('has-file', !!f);
+			};
+			inp.addEventListener('change', sync);
+			sync();
+		}
 		function isLocalSoloMiningContextFromStatus(st) {
 			const s = st || latestStatus || {};
 			return !s.network_mode_active && !!(s.desktop_mode || s.chain_leader_local_poh || s.local_solo_allowed);
@@ -7655,6 +8346,7 @@
 				if (hmcUsdEl && Number(hmcUsdEl.value) === 1 && !p.hmcUsdExplicit) {
 					hmcUsdEl.value = '';
 				}
+				mineCalcHmcUsdExplicit = !!(p.hmcUsdExplicit && Number(p.hmcUsd) > 0 && Number(p.hmcUsd) !== 1);
 			} catch (_) {}
 		}
 
@@ -7662,7 +8354,7 @@
 			try {
 				const payload = Object.assign({}, inputs, {
 					coinId: mineCalcCoinId,
-					hmcUsdExplicit: Number(inputs.hmcUsd) > 0,
+					hmcUsdExplicit: !!mineCalcHmcUsdExplicit,
 				});
 				localStorage.setItem(MINE_CALC_PREFS_KEY, JSON.stringify(payload));
 			} catch (_) {}
@@ -7671,13 +8363,17 @@
 		function readMineCalcInputs() {
 			const gh = Number((mineCalcEl('mine-calc-gh') || {}).value || 0);
 			const uptimePct = Number((mineCalcEl('mine-calc-uptime') || {}).value || 95);
+			let hmcUsd = Number((mineCalcEl('mine-calc-hmc-usd') || {}).value || 0);
+			if ((!mineCalcHmcUsdExplicit || !(hmcUsd > 0)) && liveHmcUsdPrice() > 0) {
+				hmcUsd = liveHmcUsdPrice();
+			}
 			return {
 				hashrateGh: gh > 0 ? gh : 0,
 				rigCount: Math.max(1, Math.floor(Number((mineCalcEl('mine-calc-rigs') || {}).value || 1))),
 				poolSharePct: Number((mineCalcEl('mine-calc-share') || {}).value || 100),
 				powerW: Math.max(0, Number((mineCalcEl('mine-calc-power') || {}).value || 0)),
 				kwhUsd: Math.max(0, Number((mineCalcEl('mine-calc-kwh') || {}).value || 0)),
-				hmcUsd: Number((mineCalcEl('mine-calc-hmc-usd') || {}).value || 0),
+				hmcUsd: hmcUsd > 0 ? hmcUsd : 0,
 				hwCostUsd: Math.max(0, Number((mineCalcEl('mine-calc-hw-cost') || {}).value || 0)),
 				uptimePct: Number.isFinite(uptimePct) ? uptimePct : 95,
 				scenario: String((mineCalcEl('mine-calc-scenario') || {}).value || 'pool'),
@@ -8026,7 +8722,7 @@
 					? (fmt(net.poolGh, net.poolGh >= 10 ? 1 : 2) + ' GH/s')
 					: '—';
 			}
-			if (mineCalcEl('mine-calc-out-hour')) mineCalcEl('mine-calc-out-hour').textContent = fmt(displayHmcHour, 6);
+			if (mineCalcEl('mine-calc-out-hour')) setTextSilent(mineCalcEl('mine-calc-out-hour'), fmt(displayHmcHour, 6));
 			const hourSub = mineCalcEl('mine-calc-out-hour-sub');
 			if (hourSub) {
 				const parts = [];
@@ -8046,14 +8742,27 @@
 				} else if (displayHmcHour > 0) {
 					parts.push('model ~' + fmt(displayHmcHour, 4) + ' HMC/h');
 				}
-				hourSub.textContent = parts.length ? parts.join(' · ') : '';
+				setTextSilent(hourSub, parts.length ? parts.join(' · ') : '');
 			}
-			if (mineCalcEl('mine-calc-out-day')) mineCalcEl('mine-calc-out-day').textContent = fmt(displayHmcDay, 4);
-			if (mineCalcEl('mine-calc-out-month')) mineCalcEl('mine-calc-out-month').textContent = fmt(displayHmcMonth, 2);
+			if (mineCalcEl('mine-calc-out-day')) setTextSilent(mineCalcEl('mine-calc-out-day'), fmt(displayHmcDay, 4));
+			if (mineCalcEl('mine-calc-out-month')) setTextSilent(mineCalcEl('mine-calc-out-month'), fmt(displayHmcMonth, 2));
+			const usdDayEl = mineCalcEl('mine-calc-out-usd-day');
+			if (usdDayEl) {
+				if (inputs.hmcUsd > 0 && displayHmcDay > 0) {
+					setTextSilent(usdDayEl, '$' + fmt(displayHmcDay * inputs.hmcUsd, 2));
+				} else {
+					setTextSilent(usdDayEl, inputs.hmcUsd > 0 ? '$0.00' : 'spot…');
+				}
+			}
 			if (mineCalcEl('mine-calc-out-aps')) {
 				const apsShow = out.poolWork && out.billingAps > 0 ? out.billingAps : out.aps;
-				mineCalcEl('mine-calc-out-aps').textContent = fmtMiningTrialRate(apsShow) || fmt(apsShow, 0);
+				setTextSilent(mineCalcEl('mine-calc-out-aps'), fmtMiningTrialRate(apsShow) || fmt(apsShow, 0));
 			}
+			try {
+				const spotEl = mineCalcEl('mine-calc-spot-px');
+				const pxLive = liveHmcUsdPrice();
+				if (spotEl && pxLive > 0) setTextSilent(spotEl, '$' + fmt(pxLive, pxLive >= 0.1 ? 4 : 6));
+			} catch (_) {}
 			if (mineCalcEl('mine-calc-out-eta')) {
 				mineCalcEl('mine-calc-out-eta').textContent = out.poolWork ? 'pool work' : (out.etaSec > 0 ? fmtDur(out.etaSec) : '—');
 			}
@@ -8080,14 +8789,16 @@
 			if (mineCalcEl('mine-calc-out-cost-day')) mineCalcEl('mine-calc-out-cost-day').textContent = inputs.kwhUsd > 0 ? ('$' + fmt(out.costDay, 2)) : '—';
 			const revDayDisp = inputs.hmcUsd > 0 ? displayHmcDay * inputs.hmcUsd : null;
 			const netDayDisp = revDayDisp != null ? revDayDisp - out.costDay : null;
-			if (mineCalcEl('mine-calc-out-rev-day')) mineCalcEl('mine-calc-out-rev-day').textContent = inputs.hmcUsd > 0 ? ('$' + fmt(revDayDisp, 2)) : 'set HMC price';
+			if (mineCalcEl('mine-calc-out-rev-day')) {
+				setTextSilent(mineCalcEl('mine-calc-out-rev-day'), inputs.hmcUsd > 0 ? ('$' + fmt(revDayDisp, 2)) : 'live spot…');
+			}
 			if (mineCalcEl('mine-calc-out-net-day')) {
 				const el = mineCalcEl('mine-calc-out-net-day');
 				if (inputs.hmcUsd > 0) {
-					el.textContent = (netDayDisp >= 0 ? '$' : '-$') + fmt(Math.abs(netDayDisp), 2);
+					setTextSilent(el, (netDayDisp >= 0 ? '$' : '-$') + fmt(Math.abs(netDayDisp), 2));
 					el.className = 'font-mono ' + (netDayDisp >= 0 ? 'text-matrix' : 'text-danger');
 				} else {
-					el.textContent = '—';
+					setTextSilent(el, '—');
 					el.className = 'font-mono text-gray-400';
 				}
 			}
@@ -8110,11 +8821,13 @@
 						? ('Rare found bonus +' + fmt(net.foundBonus, 6) + ' HMC per hit — not averaged into HMC/h.')
 						: '',
 					'Higher M (more miners/hash) → lower reward/M. See Work payout for actual settled HMC.',
-					'HMC/day is token accrual, not USD — set optional HMC $ in advanced for revenue ROI only.',
+					inputs.hmcUsd > 0
+						? ('USD uses ' + (mineCalcHmcUsdExplicit ? 'your override' : 'live HMC/USDT spot') + ' @ $' + fmt(inputs.hmcUsd, inputs.hmcUsd >= 0.1 ? 4 : 6) + '.')
+						: 'USD ROI waits for live HMC/USDT from exchange.hackme.tech (or set override in advanced).',
 					'Pool accrual in Wallet resets after on-chain settlement; on-chain balance increases instead.',
 					inputs.scenario === 'fleet' ? ('Fleet: ' + inputs.rigCount + ' × ' + fmt(inputs.hashrateGh, 2) + ' GH/s = ' + fmt(inputs.hashrateGh * inputs.rigCount, 2) + ' GH/s aggregate.') : '',
 				].filter(Boolean);
-				mineCalcEl('mine-calc-footnote').textContent = parts.join(' ');
+				setTextSilent(mineCalcEl('mine-calc-footnote'), parts.join(' '));
 			}
 
 			mineCalcLastExport = { inputs, net, out: Object.assign({}, out, { displayHmcHour, displayHmcDay, displayHmcMonth }), exported_at_unix: Math.floor(Date.now() / 1000) };
@@ -8150,11 +8863,19 @@
 				el.addEventListener('input', () => {
 					if (id === 'mine-calc-share') mineCalcShareTouched = true;
 					if (id === 'mine-calc-gh') mineCalcGhTouched = true;
+					if (id === 'mine-calc-hmc-usd') {
+						const v = String(el.value || '').trim();
+						mineCalcHmcUsdExplicit = v !== '' && Number(v) > 0;
+					}
 					rerender();
 				});
 				el.addEventListener('change', () => {
 					if (id === 'mine-calc-share') mineCalcShareTouched = true;
 					if (id === 'mine-calc-gh') mineCalcGhTouched = true;
+					if (id === 'mine-calc-hmc-usd') {
+						const v = String(el.value || '').trim();
+						mineCalcHmcUsdExplicit = v !== '' && Number(v) > 0;
+					}
 					rerender();
 				});
 			});
@@ -8933,7 +9654,9 @@
 				targetMod: tm > 0 ? fmtUInt(tm) : '—',
 				rewardM: rewardM > 0 ? fmt(rewardM, 6) : '—',
 				blockReward: baseReward > 0 ? fmt(baseReward, 4) + ' HMC' : '—',
-				price: '$1.00',
+				price: (typeof liveHmcUsdPrice === 'function' && liveHmcUsdPrice() > 0)
+					? ('$' + fmt(liveHmcUsdPrice(), liveHmcUsdPrice() >= 0.1 ? 4 : 6))
+					: '…',
 				miners,
 			};
 		}
@@ -10640,9 +11363,11 @@
 			}
 		}
 
+		let lastTelemetryApplyMs = 0;
 		function applyTelemetryFromMetrics(m) {
 			const x = (m && typeof m === 'object') ? m : null;
 			if (!x) return;
+			lastTelemetryApplyMs = Date.now();
 			const wst = latestWorkerStatus || {};
 			const util = deriveTelemetryUtilPct(x, wst);
 			const cpu = util.cpu;
@@ -10661,23 +11386,29 @@
 			}
 			const netUp = Number(x.net_sent_mbps || 0);
 			const netDown = Number(x.net_recv_mbps || 0);
-			if ($('gauge-cpu')) $('gauge-cpu').textContent = Number.isFinite(cpu) ? fmt(cpu, 0) + '%' : '—';
-			if ($('gauge-gpu')) $('gauge-gpu').textContent = Number.isFinite(gpu) ? fmt(gpu, 0) + '%' : '—';
-			if ($('lbl-ram')) $('lbl-ram').textContent = Number.isFinite(ram) ? fmt(ram, 1) + '%' : '—';
-			if ($('lbl-disk')) $('lbl-disk').textContent = Number.isFinite(disk) ? fmt(disk, 1) + '%' : '—';
-			if ($('bar-ram')) $('bar-ram').style.width = Math.max(0, Math.min(100, ram || 0)) + '%';
-			if ($('bar-disk')) $('bar-disk').style.width = Math.max(0, Math.min(100, disk || 0)) + '%';
-			if ($('io-read')) $('io-read').textContent = fmtMB(Number(x.disk_read_mbps || 0)) + ' MB/s';
-			if ($('io-write')) $('io-write').textContent = fmtMB(wr) + ' MB/s';
-			if ($('net-up')) $('net-up').textContent = fmtMB(netUp) + ' MB/s';
-			if ($('net-down')) $('net-down').textContent = fmtMB(netDown) + ' MB/s';
-			if ($('meta-go')) $('meta-go').textContent = fmtUInt(Number(x.goroutines || 0));
+			if ($('gauge-cpu')) setTextSilent($('gauge-cpu'), Number.isFinite(cpu) ? fmt(cpu, 0) + '%' : '—');
+			if ($('gauge-gpu')) setTextSilent($('gauge-gpu'), Number.isFinite(gpu) ? fmt(gpu, 0) + '%' : '—');
+			if ($('lbl-ram')) setTextSilent($('lbl-ram'), Number.isFinite(ram) ? fmt(ram, 1) + '%' : '—');
+			if ($('lbl-disk')) setTextSilent($('lbl-disk'), Number.isFinite(disk) ? fmt(disk, 1) + '%' : '—');
+			if ($('bar-ram')) {
+				const ramW = Math.max(0, Math.min(100, ram || 0)) + '%';
+				if ($('bar-ram').style.width !== ramW) $('bar-ram').style.width = ramW;
+			}
+			if ($('bar-disk')) {
+				const diskW = Math.max(0, Math.min(100, disk || 0)) + '%';
+				if ($('bar-disk').style.width !== diskW) $('bar-disk').style.width = diskW;
+			}
+			if ($('io-read')) setTextSilent($('io-read'), fmtMB(Number(x.disk_read_mbps || 0)) + ' MB/s');
+			if ($('io-write')) setTextSilent($('io-write'), fmtMB(wr) + ' MB/s');
+			if ($('net-up')) setTextSilent($('net-up'), fmtMB(netUp) + ' MB/s');
+			if ($('net-down')) setTextSilent($('net-down'), fmtMB(netDown) + ' MB/s');
+			if ($('meta-go')) setTextSilent($('meta-go'), fmtUInt(Number(x.goroutines || 0)));
 			const upNode = Number(x.uptime_sec || 0);
 			const upWorker = Math.max(Number(wst.session_seconds || 0), Number(wst.pool_worker_session_seconds || 0));
-			if ($('meta-up')) $('meta-up').textContent = fmtDur(Math.max(upNode, upWorker));
-			if ($('lbl-cpu-temp')) $('lbl-cpu-temp').textContent = Number(x.cpu_temp_c) >= 0 ? fmt(Number(x.cpu_temp_c), 1) + '°C' : '—';
-			if ($('lbl-gpu-temp')) $('lbl-gpu-temp').textContent = Number(x.gpu_temp_c) >= 0 ? fmt(Number(x.gpu_temp_c), 1) + '°C' : '—';
-			if ($('lbl-load1')) $('lbl-load1').textContent = Number(x.load_avg_1) >= 0 ? fmt(Number(x.load_avg_1), 2) : '—';
+			if ($('meta-up')) setTextSilent($('meta-up'), fmtDur(Math.max(upNode, upWorker)));
+			if ($('lbl-cpu-temp')) setTextSilent($('lbl-cpu-temp'), Number(x.cpu_temp_c) >= 0 ? fmt(Number(x.cpu_temp_c), 1) + '°C' : '—');
+			if ($('lbl-gpu-temp')) setTextSilent($('lbl-gpu-temp'), Number(x.gpu_temp_c) >= 0 ? fmt(Number(x.gpu_temp_c), 1) + '°C' : '—');
+			if ($('lbl-load1')) setTextSilent($('lbl-load1'), Number(x.load_avg_1) >= 0 ? fmt(Number(x.load_avg_1), 2) : '—');
 			if ($('lbl-poh-est')) {
 				const poolCtx = isPoolWorkContext();
 				const effTmLbl = effectiveMiningTargetMod(x, latestWorkStats || lastGoodWorkStats || {});
@@ -10699,18 +11430,18 @@
 						pohTxt = fmtPoolAggHashrate(h) || '—';
 					}
 				}
-				$('lbl-poh-est').textContent = pohTxt;
+				setTextSilent($('lbl-poh-est'), pohTxt);
 			}
-			if ($('gpu-name')) $('gpu-name').textContent = String(x.gpu_name || wst.gpu_name || 'GPU…');
+			if ($('gpu-name')) setTextSilent($('gpu-name'), String(x.gpu_name || wst.gpu_name || 'GPU…'));
 			const hintEl = $('compute-worker-hint');
 			if (hintEl) {
 				if (wst.running && util.poolGh > 0) {
-					hintEl.textContent = 'Pool worker · ~' + fmtRigHashrateGHS(util.poolGh) +
-						' GH/s (GPU runs in worker subprocess; host util may read 0%)';
+					setTextSilent(hintEl, 'Pool worker · ~' + fmtRigHashrateGHS(util.poolGh) +
+						' GH/s (GPU runs in worker subprocess; host util may read 0%)');
 				} else if (util.miningBusy) {
-					hintEl.textContent = 'PoH active on command node';
+					setTextSilent(hintEl, 'PoH active on command node');
 				} else {
-					hintEl.textContent = '';
+					setTextSilent(hintEl, '');
 				}
 			}
 			try { setRing($('ring-cpu'), Number.isFinite(cpu) ? cpu : 0); } catch (_) {}
@@ -12139,32 +12870,32 @@
 			const lastH = series.hash.length ? series.hash[series.hash.length - 1] : 0;
 			const lastC = series.cpu.length ? series.cpu[series.cpu.length - 1] : 0;
 			const lastW = series.wr.length ? series.wr[series.wr.length - 1] : 0;
+			const mLeg = lastMetricsPayload || {};
+			const apsLeg = Number(mLeg.mining_attempts_per_sec || 0);
+			const pohLabel = (apsLeg > 0.25)
+				? (fmtMiningTrialRate(apsLeg) || fmtPoolAggHashrate(lastH) || '—')
+				: (fmtPoolAggHashrate(lastH) || '—');
 			const legA = $('chart-legend-a');
-			if (legA) {
-				const m = lastMetricsPayload || {};
-				const apsLeg = Number(m.mining_attempts_per_sec || 0);
-				if (apsLeg > 0.25) {
-					const tr = fmtMiningTrialRate(apsLeg);
-					legA.textContent = tr ? ('PoH ' + tr) : ('PoH ' + fmtPoolAggHashrate(lastH));
-				} else {
-					legA.textContent = 'PoH ' + fmtPoolAggHashrate(lastH);
-				}
+			if (legA) setTextSilent(legA, 'PoH ' + pohLabel);
+			if ($('chart-hud-poh')) setTextSilent($('chart-hud-poh'), pohLabel);
+			if ($('chart-hud-cpu')) setTextSilent($('chart-hud-cpu'), Number.isFinite(lastC) ? (fmt(lastC, 0) + '%') : '—');
+			if ($('chart-hud-wr')) setTextSilent($('chart-hud-wr'), Number.isFinite(lastW) ? (fmt(lastW, 2) + ' MB/s') : '—');
+			if ($('chart-sample-count')) setTextSilent($('chart-sample-count'), cnt + ' pts');
+			if ($('chart-live-age')) {
+				const stamp = lastTelemetryApplyMs || lastMetricsSnapshotMs || 0;
+				const age = stamp > 0 ? Math.max(0, Math.round((Date.now() - stamp) / 1000)) : -1;
+				setTextSilent($('chart-live-age'), age >= 0 ? (age + 's ago') : '—');
 			}
 
 			if (fn) {
 				if (chartPaused) {
-					fn.textContent = 'chart paused · ' + cnt + ' samples buffered';
+					setTextSilent(fn, 'chart paused · ' + cnt + ' samples buffered');
 				} else if (cnt < 1) {
-					fn.textContent = 'waiting for /api/metrics…';
+					setTextSilent(fn, 'waiting for /api/metrics…');
 				} else {
-					const mFn = lastMetricsPayload || {};
-					const apsFn = Number(mFn.mining_attempts_per_sec || 0);
-					const pohFn = apsFn > 0.25
-						? (fmtMiningTrialRate(apsFn) || fmtPoolAggHashrate(lastH))
-						: fmtPoolAggHashrate(lastH);
-					fn.textContent =
-						cnt + ' pts · PoH ' + pohFn + ' · CPU ' + fmt(lastC, 0) + '% · WR ' + fmt(lastW, 2) + ' MB/s · ' +
-						String(telemetryMetricsPollLabel || '~2s');
+					setTextSilent(fn,
+						'PoH ' + pohLabel + ' · CPU ' + fmt(lastC, 0) + '% · WR ' + fmt(lastW, 2) + ' MB/s · ' +
+						String(telemetryMetricsPollLabel || '~2s'));
 				}
 			}
 
@@ -13194,14 +13925,61 @@
 			const sel = $('audit-depth-tier');
 			const tier = sel ? String(sel.value || 'wasm_only') : 'wasm_only';
 			const presets = {
-				wasm_only: { hmc: 1, runs: 64 },
-				wasm_native: { hmc: 5, runs: 256 },
-				bytes_corpus: { hmc: 25, runs: 2048 },
+				wasm_only: { hmc: 1, runs: 64, mode: 'smoke', split: '20/80', share: 0.20 },
+				wasm_native: { hmc: 5, runs: 256, mode: 'smoke', split: '20/80', share: 0.20 },
+				bytes_corpus: { hmc: 40, runs: 2048, mode: 'deep', split: '40/60', share: 0.40 },
 			};
 			const p = presets[tier] || presets.wasm_only;
 			if ($('audit-budget-hmc')) $('audit-budget-hmc').value = String(p.hmc);
 			if ($('audit-runs')) $('audit-runs').value = String(p.runs);
+			syncDigSkuCards(tier);
+			updateAuditBillingStrip(p);
 			updateAuditScopeContract();
+		}
+		function syncDigSkuCards(tier) {
+			document.querySelectorAll('#dig-sku-picker .sku-card').forEach((btn) => {
+				const on = btn.getAttribute('data-dig-sku') === tier;
+				btn.classList.toggle('active', on);
+				btn.setAttribute('aria-selected', on ? 'true' : 'false');
+			});
+		}
+		function updateAuditBillingStrip(p) {
+			const mode = $('audit-billing-mode');
+			const split = $('audit-billing-split');
+			const per = $('audit-billing-per-run');
+			const note = $('audit-billing-note');
+			if (!p) return;
+			if (mode) mode.textContent = p.mode || 'smoke';
+			if (split) split.textContent = p.split || '20/80';
+			if (per && p.runs > 0) {
+				const v = (Number(p.hmc) * Number(p.share || 0.2)) / Number(p.runs);
+				per.textContent = v.toFixed(4);
+			}
+			if (note) {
+				note.textContent = p.mode === 'deep'
+					? 'Deep: seed merge on · paid depth · not CVE warranty'
+					: 'Smoke: attested distributed check · not OSS-Fuzz / CVE';
+			}
+		}
+		function syncHuntSkuCards(pkg) {
+			document.querySelectorAll('#hunt-sku-picker .sku-card').forEach((btn) => {
+				const on = btn.getAttribute('data-hunt-sku') === pkg;
+				btn.classList.toggle('active', on);
+				btn.setAttribute('aria-selected', on ? 'true' : 'false');
+			});
+		}
+		function setOrdersLane(lane) {
+			lane = String(lane || 'dig');
+			document.querySelectorAll('.orders-lane-btn').forEach((btn) => {
+				btn.classList.toggle('active', btn.getAttribute('data-orders-lane') === lane);
+			});
+			const dig = $('orders-security-audit');
+			const hunt = $('orders-hunt-campaign');
+			const list = document.querySelector('#panel-orders [data-orders-section="list"]');
+			const target = lane === 'hunt' ? hunt : lane === 'list' ? list : dig;
+			if (target && typeof target.scrollIntoView === 'function') {
+				target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			}
 		}
 		function updateAuditScopeContract() {
 			const tier = String(($('audit-depth-tier') && $('audit-depth-tier').value) || 'wasm_only');
@@ -13662,6 +14440,33 @@
 				$('audit-depth-tier').addEventListener('change', applyAuditDepthTierPreset);
 				applyAuditDepthTierPreset();
 			}
+			document.querySelectorAll('#dig-sku-picker .sku-card').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const tier = btn.getAttribute('data-dig-sku') || 'wasm_only';
+					if ($('audit-depth-tier')) $('audit-depth-tier').value = tier;
+					applyAuditDepthTierPreset();
+				});
+			});
+			document.querySelectorAll('#hunt-sku-picker .sku-card').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const pkg = btn.getAttribute('data-hunt-sku') || 'hunt_lite';
+					if ($('hunt-package')) {
+						$('hunt-package').value = pkg;
+						$('hunt-package').dispatchEvent(new Event('change', { bubbles: true }));
+					}
+					syncHuntSkuCards(pkg);
+					updateHuntScopeContract();
+				});
+			});
+			if ($('hunt-package')) {
+				$('hunt-package').addEventListener('change', () => {
+					syncHuntSkuCards(String($('hunt-package').value || 'hunt_lite'));
+				});
+				syncHuntSkuCards(String($('hunt-package').value || 'hunt_lite'));
+			}
+			document.querySelectorAll('.orders-lane-btn').forEach((btn) => {
+				btn.addEventListener('click', () => setOrdersLane(btn.getAttribute('data-orders-lane')));
+			});
 			if ($('btn-orders-toggle-poh-advanced')) {
 				$('btn-orders-toggle-poh-advanced').addEventListener('click', () => {
 					ordersPohAdvancedOpen = !ordersPohAdvancedOpen;
@@ -15332,6 +16137,9 @@
 				await Promise.allSettled(jobs);
 				scheduleMetricsSnapshotRefresh(false);
 				scheduleGlobalMetricsRefresh(false);
+				if ((pollSeq % 1) === 0) {
+					void refreshExchangeSpotPrices(false);
+				}
 				if (currentTab === 'mining') {
 					if (typeof refreshMiningLogsOnce === 'function') void refreshMiningLogsOnce();
 					if ((pollSeq % 2) === 0 && typeof refreshMiningDevices === 'function') void refreshMiningDevices();
@@ -15646,13 +16454,20 @@
 				});
 				const wasmIn = $('orders-wasm-file');
 				if (wasmIn) wasmIn.addEventListener('change', () => { void onOrdersWasmFileSelected(wasmIn.files && wasmIn.files[0]); });
+				try {
+					bindFilePick('orders-wasm-file', 'orders-wasm-file-name', 'orders-wasm-file-pick');
+					bindFilePick('audit-wasm-file', 'audit-wasm-file-name', 'audit-wasm-file-pick');
+				} catch (_) {}
 				if ($('btn-developer-token-save')) $('btn-developer-token-save').addEventListener('click', saveDeveloperTokenFromInput);
 				if ($('btn-developer-token-clear')) $('btn-developer-token-clear').addEventListener('click', clearDeveloperToken);
 				if ($('btn-developer-token-register')) $('btn-developer-token-register').addEventListener('click', () => { void registerDeveloperTokenLocal(); });
 				updateDeveloperTokenUI();
 				document.addEventListener('visibilitychange', () => {
 					if (!uiPollingPaused) scheduleNextPoll();
+					scheduleExchangePriceRefresh();
 				});
+				void refreshExchangeSpotPrices(true);
+				scheduleExchangePriceRefresh();
 				void poll();
 				scheduleNextPoll();
 			} catch (e) {

@@ -16,6 +16,9 @@ type SubmitSignPayload struct {
 	CheckResult     int32  `json:"check_result"`
 	SubmitNonce     uint64 `json:"submit_nonce"`
 	SegmentExecDone int    `json:"segment_exec_done,omitempty"`
+	DurationMS      int    `json:"duration_ms,omitempty"`
+	EdgesTouched    int    `json:"edges_touched,omitempty"`
+	EdgesTouchedOK  bool   `json:"edges_touched_ok,omitempty"`
 }
 
 // CanonicalSubmitBytes returns deterministic JSON for hybrid signature verification.
@@ -24,4 +27,13 @@ func CanonicalSubmitBytes(p SubmitSignPayload) []byte {
 	p.CampaignID = strings.TrimSpace(p.CampaignID)
 	b, _ := json.Marshal(p)
 	return b
+}
+
+// CanonicalSubmitBytesLegacy omits duration/edges (pre-hygiene-floor binding).
+// Used only as a one-release rolling-deploy fallback while workers upgrade.
+func CanonicalSubmitBytesLegacy(p SubmitSignPayload) []byte {
+	p.DurationMS = 0
+	p.EdgesTouched = 0
+	p.EdgesTouchedOK = false
+	return CanonicalSubmitBytes(p)
 }

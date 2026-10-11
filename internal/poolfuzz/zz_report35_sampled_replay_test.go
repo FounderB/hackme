@@ -138,6 +138,7 @@ func TestZZReport35HygieneSkipPath(t *testing.T) {
 	t.Setenv("HACKME_POOL_FULL_REPLAY", "")
 	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_PCT", "0")
 	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_SEED", "zz35-hygiene-ok")
+	t.Setenv("HACKME_POOL_CLEAN_EDGES_REQUIRE", "0")
 
 	dir := t.TempDir()
 	db, err := store.Open(filepath.Join(dir, "zz35h.db"))
@@ -148,11 +149,12 @@ func TestZZReport35HygieneSkipPath(t *testing.T) {
 	svc := &Service{DB: db}
 	ctx := context.Background()
 
+	// pow_gate + MinimalGate (always returns 1) so coordinator hygiene prove can pass.
 	cfg := fuzzengine.NormalizeCampaignConfig(map[string]any{
 		"pool_distributed": true,
 		"dig_package":      "audit",
 		"exec_per_unit":    8,
-		"check_semantics":  "detector",
+		"check_semantics":  "pow_gate",
 		"wasm_check_hex":   sandbox.MinimalGateWasmHex,
 		"seed_corpus":      []any{uint64(1)},
 	}, "property")
@@ -168,7 +170,7 @@ func TestZZReport35HygieneSkipPath(t *testing.T) {
 	out, err := svc.SubmitWithOutcome(ctx, SubmitRequest{
 		WorkerID: "w-skip", WorkID: w.WorkID, CampaignID: id, ItemID: w.ItemID,
 		InputN: w.InputN, ActualInput: w.ActualInput, InputBytes: w.InputBytes,
-		CheckResult: 0, DurationMS: 2, SegmentExecDone: w.ExecPerUnit,
+		CheckResult: 1, DurationMS: 2, SegmentExecDone: w.ExecPerUnit,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -208,7 +210,7 @@ func TestZZReport35SamplePathDeterministic(t *testing.T) {
 			"pool_distributed":  true,
 			"dig_package":       "audit",
 			"exec_per_unit":     4,
-			"check_semantics":   "detector",
+			"check_semantics":   "pow_gate",
 			"wasm_check_hex":    sandbox.MinimalGateWasmHex,
 			"guided_scheduling": false,
 			"seed_corpus":       []any{uint64(1)},
@@ -225,7 +227,7 @@ func TestZZReport35SamplePathDeterministic(t *testing.T) {
 		out, err := svc.SubmitWithOutcome(ctx, SubmitRequest{
 			WorkerID: "w-" + id, WorkID: w.WorkID, CampaignID: id, ItemID: w.ItemID,
 			InputN: w.InputN, ActualInput: w.ActualInput, InputBytes: w.InputBytes,
-			CheckResult: 0, DurationMS: 1, SegmentExecDone: w.ExecPerUnit,
+			CheckResult: 1, DurationMS: 1, SegmentExecDone: w.ExecPerUnit,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -317,7 +319,7 @@ func TestZZReport35LeaseStealStillBlocked(t *testing.T) {
 		"pool_distributed": true,
 		"dig_package":      "audit",
 		"exec_per_unit":    4,
-		"check_semantics":  "detector",
+		"check_semantics":  "pow_gate",
 		"wasm_check_hex":   sandbox.MinimalGateWasmHex,
 		"seed_corpus":      []any{uint64(1)},
 	}, "property")
@@ -333,7 +335,7 @@ func TestZZReport35LeaseStealStillBlocked(t *testing.T) {
 	err = svc.Submit(ctx, SubmitRequest{
 		WorkerID: "thief", WorkID: w.WorkID, CampaignID: id, ItemID: w.ItemID,
 		InputN: w.InputN, ActualInput: w.ActualInput, InputBytes: w.InputBytes,
-		CheckResult: 0, DurationMS: 1, SegmentExecDone: w.ExecPerUnit,
+		CheckResult: 1, DurationMS: 1, SegmentExecDone: w.ExecPerUnit,
 	})
 	if err == nil || !strings.Contains(err.Error(), "leased by another") {
 		t.Fatalf("lease steal must fail, err=%v", err)

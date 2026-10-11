@@ -675,12 +675,6 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		}
 		ipKey := clientIPKey(r)
 		now := time.Now().Unix()
-		if ok, reason := wm.allowClaimPeer(workerID, ipKey, now); !ok {
-			wm.recordDrop(reason)
-			w.WriteHeader(http.StatusTooManyRequests)
-			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reason})
-			return
-		}
 		if ok, reason := wm.allowFuzzClaimByGHS(workerID, now); !ok {
 			wm.recordDrop(reason)
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -702,6 +696,17 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		}
 		items := make([]map[string]any, 0, limit)
 		for i := 0; i < limit; i++ {
+			// Charge IP claim bucket per lease (not once per batch) so multi-id
+			// clients cannot pull up to 16 leases for a single IP slot.
+			if ok, reason := wm.allowClaimPeer(workerID, ipKey, now); !ok {
+				wm.recordDrop(reason)
+				if len(items) == 0 {
+					w.WriteHeader(http.StatusTooManyRequests)
+					_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reason})
+					return
+				}
+				break
+			}
 			work, ok, err := pf.Claim(r.Context(), workerID, now)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -835,15 +840,28 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reasonSub})
 			return
 		}
-		signBody := poolfuzz.CanonicalSubmitBytes(poolfuzz.SubmitSignPayload{
+		signPayload := poolfuzz.SubmitSignPayload{
 			WorkerID: req.WorkerID, CampaignID: req.CampaignID, ItemID: req.ItemID,
 			InputN: req.InputN, ActualInput: req.ActualInput, InputBytesHex: strings.TrimSpace(req.InputBytesHex),
 			CheckResult: req.CheckResult, SubmitNonce: req.SubmitNonce, SegmentExecDone: req.SegmentExecDone,
-		})
+			DurationMS: req.DurationMS,
+		}
+		if req.EdgesTouched != nil {
+			signPayload.EdgesTouched = *req.EdgesTouched
+			signPayload.EdgesTouchedOK = true
+		}
+		signBody := poolfuzz.CanonicalSubmitBytes(signPayload)
 		okSig, reason, payoutAddr := wm.validateFuzzHybridSignature(fuzzSubmitAuth{
 			WorkerID: req.WorkerID, MinerAddress: req.MinerAddress, MinerPubKey: req.MinerPubKey,
 			MinerSig: req.MinerSig, MinerSigAlg: req.MinerSigAlg, SubmitNonce: req.SubmitNonce,
 		}, signBody)
+		if !okSig {
+			// Rolling deploy: workers that predate duration/edges binding.
+			okSig, reason, payoutAddr = wm.validateFuzzHybridSignature(fuzzSubmitAuth{
+				WorkerID: req.WorkerID, MinerAddress: req.MinerAddress, MinerPubKey: req.MinerPubKey,
+				MinerSig: req.MinerSig, MinerSigAlg: req.MinerSigAlg, SubmitNonce: req.SubmitNonce,
+			}, poolfuzz.CanonicalSubmitBytesLegacy(signPayload))
+		}
 		if !okSig {
 			wm.markSubmitOutcome(req.WorkerID, ipKey, reason, now)
 			w.WriteHeader(submitRejectHTTPStatus(reason))
@@ -1028,15 +1046,27 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 				results = append(results, row)
 				continue
 			}
-			signBody := poolfuzz.CanonicalSubmitBytes(poolfuzz.SubmitSignPayload{
+			signPayload := poolfuzz.SubmitSignPayload{
 				WorkerID: workerID, CampaignID: it.CampaignID, ItemID: it.ItemID,
 				InputN: it.InputN, ActualInput: it.ActualInput, InputBytesHex: strings.TrimSpace(it.InputBytesHex),
 				CheckResult: it.CheckResult, SubmitNonce: it.SubmitNonce, SegmentExecDone: it.SegmentExecDone,
-			})
+				DurationMS: it.DurationMS,
+			}
+			if it.EdgesTouched != nil {
+				signPayload.EdgesTouched = *it.EdgesTouched
+				signPayload.EdgesTouchedOK = true
+			}
+			signBody := poolfuzz.CanonicalSubmitBytes(signPayload)
 			okSig, reason, payoutAddr := wm.validateFuzzHybridSignature(fuzzSubmitAuth{
 				WorkerID: workerID, MinerAddress: it.MinerAddress, MinerPubKey: it.MinerPubKey,
 				MinerSig: it.MinerSig, MinerSigAlg: it.MinerSigAlg, SubmitNonce: it.SubmitNonce,
 			}, signBody)
+			if !okSig {
+				okSig, reason, payoutAddr = wm.validateFuzzHybridSignature(fuzzSubmitAuth{
+					WorkerID: workerID, MinerAddress: it.MinerAddress, MinerPubKey: it.MinerPubKey,
+					MinerSig: it.MinerSig, MinerSigAlg: it.MinerSigAlg, SubmitNonce: it.SubmitNonce,
+				}, poolfuzz.CanonicalSubmitBytesLegacy(signPayload))
+			}
 			if !okSig {
 				wm.markSubmitOutcome(workerID, ipKey, reason, now)
 				row["error"] = reason

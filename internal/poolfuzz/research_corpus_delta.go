@@ -101,18 +101,28 @@ func (s *Service) AcceptResearchCorpusDelta(ctx context.Context, req ResearchCor
 	if !isHunt && !researchSlotDigAllowed(cfg) {
 		return out, fmt.Errorf("poolfuzz: research corpus_delta requires Hunt (or Dig research_slot_ok)")
 	}
-	targetID := strings.TrimSpace(jsonString(cfg["upstream_target_id"]))
+	var targetID string
 	if isHunt {
+		targetID = strings.TrimSpace(jsonString(cfg["upstream_target_id"]))
 		if targetID == "" {
 			return out, fmt.Errorf("poolfuzz: hunt missing upstream_target_id")
 		}
-		wantNS := ResearchNamespaceForTarget(targetID)
-		if ns != wantNS {
-			return out, fmt.Errorf("poolfuzz: namespace must match campaign target (%s)", wantNS)
+	} else {
+		// Dig research_slot: bind to guard pack / campaign id so leases cannot
+		// spray arbitrary research:<target> namespaces.
+		if gp := strings.TrimSpace(jsonString(cfg["guard_pack"])); gp != "" {
+			targetID = "dig:" + gp
+		} else {
+			targetID = "dig:" + campaignID
 		}
+	}
+	wantNS := ResearchNamespaceForTarget(targetID)
+	if ns != wantNS {
+		return out, fmt.Errorf("poolfuzz: namespace must match campaign target (%s)", wantNS)
 	}
 
 	now := time.Now().Unix()
+	const maxResearchEnergy = 64
 	seeds := make([]fuzzengine.PoolCorpusSeed, 0, len(req.Seeds))
 	for _, seed := range req.Seeds {
 		if seed.Crash {
@@ -129,6 +139,9 @@ func (s *Service) AcceptResearchCorpusDelta(ctx context.Context, req ResearchCor
 		energy := seed.Energy
 		if energy < 1 {
 			energy = 2
+		}
+		if energy > maxResearchEnergy {
+			energy = maxResearchEnergy
 		}
 		seeds = append(seeds, fuzzengine.PoolCorpusSeed{
 			Input: u, InputBytes: append([]byte(nil), b...), Energy: energy, Edge: seed.Edge, Path: seed.Path,
@@ -152,12 +165,8 @@ func (s *Service) AcceptResearchCorpusDelta(ctx context.Context, req ResearchCor
 			continue
 		}
 		if !isHunt {
-			// Dig research-only: store crash bytes as corpus only after namespace accept — no native ASAN path.
-			u := fuzzengine.PackInputBytesToU64(crashB)
-			_ = s.UpsertNamespaceCorpusSeeds(ctx, ns, []fuzzengine.PoolCorpusSeed{{
-				Input: u, InputBytes: crashB, Energy: 8,
-			}}, now)
-			out.CrashesRejected++ // not verified as finding
+			// Dig research-only: do not store unverified crash bytes into corpus.
+			out.CrashesRejected++
 			continue
 		}
 		ok, trap, err := researchCrashReplayer(ctx, s, campaignID, cfg, crashB)

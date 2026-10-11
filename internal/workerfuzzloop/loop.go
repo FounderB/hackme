@@ -845,6 +845,11 @@ func Submit(ctx context.Context, cl *http.Client, base, token, workerID, minerAd
 			WorkerID: workerID, CampaignID: cr.CampaignID, ItemID: cr.ItemID,
 			InputN: cr.InputN, ActualInput: cr.ActualInput, CheckResult: checkResult, SubmitNonce: nonce,
 			SegmentExecDone: segmentExecDone,
+			DurationMS:      durationMS,
+		}
+		if edgesOK {
+			signPayload.EdgesTouched = edgesTouched
+			signPayload.EdgesTouchedOK = true
 		}
 		if h := strings.TrimSpace(cr.InputBytesHex); h != "" {
 			signPayload.InputBytesHex = h

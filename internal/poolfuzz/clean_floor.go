@@ -38,7 +38,12 @@ func cleanFloorEnabled() bool {
 
 func cleanEdgesRequireMode() string {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_POOL_CLEAN_EDGES_REQUIRE")))
-	if v == "" || v == "auto" {
+	// Default ON — auto/omit-gameable mode was a migration bridge and left CLEAN
+	// edges unsigned + skippable. Ops may still set auto/off explicitly.
+	if v == "" {
+		return "on"
+	}
+	if v == "auto" {
 		return "auto"
 	}
 	switch v {
@@ -47,7 +52,7 @@ func cleanEdgesRequireMode() string {
 	case "1", "true", "yes", "on":
 		return "on"
 	default:
-		return "auto"
+		return "on"
 	}
 }
 

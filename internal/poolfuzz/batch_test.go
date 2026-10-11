@@ -68,7 +68,7 @@ func TestSubmitBatchCannotStealForeignLease(t *testing.T) {
 		"pool_distributed": true,
 		"dig_package":      "audit",
 		"exec_per_unit":    4,
-		"check_semantics":  "detector",
+		"check_semantics":  "pow_gate",
 		"wasm_check_hex":   sandbox.MinimalGateWasmHex,
 		"seed_corpus":      []any{uint64(1)},
 	}, "property")
@@ -91,12 +91,12 @@ func TestSubmitBatchCannotStealForeignLease(t *testing.T) {
 		{
 			WorkerID: "thief", WorkID: ownerItems[0].WorkID, CampaignID: id, ItemID: ownerItems[0].ItemID,
 			InputN: ownerItems[0].InputN, ActualInput: ownerItems[0].ActualInput, InputBytes: ownerItems[0].InputBytes,
-			CheckResult: 0, DurationMS: 1, SegmentExecDone: ownerItems[0].ExecPerUnit,
+			CheckResult: 1, DurationMS: 1, SegmentExecDone: ownerItems[0].ExecPerUnit,
 		},
 		{
 			WorkerID: "thief", WorkID: thiefItems[0].WorkID, CampaignID: id, ItemID: thiefItems[0].ItemID,
 			InputN: thiefItems[0].InputN, ActualInput: thiefItems[0].ActualInput, InputBytes: thiefItems[0].InputBytes,
-			CheckResult: 0, DurationMS: 1, SegmentExecDone: thiefItems[0].ExecPerUnit,
+			CheckResult: 1, DurationMS: 1, SegmentExecDone: thiefItems[0].ExecPerUnit,
 		},
 	})
 	if len(results) != 2 {

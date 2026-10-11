@@ -508,6 +508,7 @@ func main() {
 	mux.HandleFunc("/favicon.ico", a.handleFaviconICO)
 	mux.HandleFunc("/api/metrics", a.handleMetrics)
 	mux.HandleFunc("/api/canonical/metrics", a.handleCanonicalMetricsProxy)
+	mux.HandleFunc("/api/exchange/tickers", a.handleExchangeTickers)
 	mux.HandleFunc("/api/global/metrics", a.handleGlobalMetrics)
 	mux.HandleFunc("/api/network/stats", a.handleNetworkStats)
 	mux.HandleFunc("/api/work/stats", a.handleWorkStats)
