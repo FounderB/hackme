@@ -269,12 +269,13 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 	)
 	args := []string{"-i", inDir, "-o", outDir, "-V", fmt.Sprint(wall), "--", harness}
 	runErr := RunIsolated(ctx, IsolateOpts{
-		Bin:        afl,
-		Args:       args,
-		Env:        env,
-		Dir:        work,
-		Wall:       time.Duration(wall+30) * time.Second,
-		RSSLimitMB: 2048,
+		Bin:  afl,
+		Args: args,
+		Env:  env,
+		Dir:  work,
+		Wall: time.Duration(wall+30) * time.Second,
+		// ASAN targets need huge virtual address space; RLIMIT_AS≈2GiB kills them.
+		RSSLimitMB: 0,
 	})
 	if runErr != nil {
 		out.Err = runErr.Error()

@@ -236,6 +236,8 @@ func RunLibFuzzerSession(ctx context.Context, opts LibFuzzerSessionOpts) (int, e
 		extraRo = append(extraRo, filepath.Dir(stdinBin))
 	}
 	// Native LF under the same cage as AFL++ (bwrap when required).
+	// Do NOT set RLIMIT_AS for ASAN/libFuzzer — a 2GiB AS cap makes
+	// ReserveShadowMemoryRange fail immediately (errno 12) → ~0.2s "walls".
 	isoErr := RunIsolated(runCtx, IsolateOpts{
 		Bin:         binPath,
 		Args:        args,
@@ -244,7 +246,7 @@ func RunLibFuzzerSession(ctx context.Context, opts LibFuzzerSessionOpts) (int, e
 		ExtraBind:   []string{corpusDir},
 		ExtraRoBind: extraRo,
 		Wall:        time.Duration(wallSec+15) * time.Second,
-		RSSLimitMB:  2048,
+		RSSLimitMB:  0,
 		Stdout:      stderrFile,
 		Stderr:      stderrFile,
 	})
