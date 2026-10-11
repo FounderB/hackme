@@ -1,6 +1,44 @@
 {
   "items": [
     {
+      "id": "2026-10-11-coverage-hunt-live",
+      "date": "2026-10-11",
+      "title": "Coverage Hunt LIVE — libFuzzer fleet · AFL++ Deep · auto-install engines",
+      "summary": "Product Hunt is now coverage-guided on the public pool: libFuzzer fleet default, AFL++ for Deep, coordinator ASAN + afl-showmap prove. Dig stays WASM; hybrid workers keep earning. Fresh 90s bench: standalone LF still leads raw exec/s; Hunt LF lease grew cjson corpus +85 — old byte 100-vs-700 charts are retired. Linux miner auto-install for clang/AFL++/bubblewrap is in main and ships with the next installer cut (rc17.3).",
+      "impact": "Customers/miners on current hub get coverage-guided Hunt leases now. Installer/self-update engine auto-install lands in 0.1.0-rc17.3. Until then: bash scripts/ops/install_hunt_engines.sh --desktop. Legacy byte-Hunt remains opt-in only.",
+      "action": "News: https://hackme.tech/news.html · Downloads: https://hackme.tech/downloads.html · Bench/docs: https://github.com/jokeez/hackme/blob/main/docs/HUNT_VS_LIBFUZZER.md · Engines: docs/HUNT_COVERAGE_ENGINES.md",
+      "tags": [
+        "hunt",
+        "libfuzzer",
+        "aflpp",
+        "coverage",
+        "pool"
+      ],
+      "status": "published",
+      "telegram": {
+        "headline": "Coverage Hunt LIVE — libFuzzer + AFL++ on the pool",
+        "lead": "Hunt is no longer a byte-mutator story. Fleet = libFuzzer. Deep = AFL++. Pay on proven edges. Engine auto-install ships in rc17.3.",
+        "bullets": [
+          "libFuzzer fleet · AFL++ Deep · ASAN/showmap prove",
+          "Prove-or-floor pay · Dig hybrid unchanged",
+          "rc17.3: Linux update auto-installs clang/AFL++/bwrap",
+          "Old 100-vs-700 chart retired — HUNT_VS_LIBFUZZER.md"
+        ],
+        "footer": "hackme.tech/downloads.html · not financial advice"
+      },
+      "discord": {
+        "title": "Coverage Hunt LIVE",
+        "body": "**HackMe Coverage Hunt is LIVE**\n\n• Fleet **libFuzzer** · Deep **AFL++**\n• Pay on **proven edges / ASAN**\n• Dig hybrid unchanged\n• Engine auto-install → **rc17.3** installer cut\n\nhttps://hackme.tech/downloads.html",
+        "ping": "#announcements"
+      },
+      "links": {
+        "downloads": "https://hackme.tech/downloads.html",
+        "news": "https://hackme.tech/news.html",
+        "telegram": "https://t.me/hackme_tech",
+        "bitcointalk": "https://bitcointalk.org/index.php?topic=5583373.0"
+      }
+    },
+    {
       "id": "20260925-rc17.2-live",
       "date": "2026-09-25",
       "title": "0.1.0-rc17.2 LIVE — Hunt deep-havoc v2.8 · full Win/Linux/ISO bundle",
