@@ -38,7 +38,7 @@ Distributed **coverage-guided Hunt** — not an OSS-Fuzz replacement. Dig stays 
 
 ## Soft-skip
 
-Workers without the claimed runner release the lease (`hunt_engine_soft_skip`). With `HACKME_HUNT_ENGINE_BYTE_FALLBACK` (default ON), legacy workers omitting `hunt_engines` fall back to byte Hunt.
+Workers without the claimed runner release the lease (`hunt_engine_soft_skip`). Empty corpus after a finished libFuzzer wall does **not** soft-skip — the shard submits CLEAN floor and re-seeds boot starters (avoids lease churn). Soft-skip remains for missing clang/afl/target/build preflight only. With `HACKME_HUNT_ENGINE_BYTE_FALLBACK` (default ON), legacy workers omitting `hunt_engines` fall back to byte Hunt.
 
 ## Install (no git clone required)
 

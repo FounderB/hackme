@@ -153,14 +153,45 @@ install_aflpp_bundle() {
       warn "clang required to build AFL++ from source"
       return 0
     fi
-    log "building AFL++ PREFIX=$dest"
-    make -C "$src" all install PREFIX="$dest" -j"$(nproc 2>/dev/null || echo 2)" || {
+    # Prefer llvm-config-N when bare llvm-config is missing (Ubuntu packages).
+    local llvm_config=""
+    if have llvm-config; then
+      llvm_config="$(command -v llvm-config)"
+    else
+      for cand in llvm-config-18 llvm-config-17 llvm-config-16 llvm-config-15; do
+        if have "$cand"; then llvm_config="$(command -v "$cand")"; break; fi
+      done
+    fi
+    log "building AFL++ PREFIX=$dest LLVM_CONFIG=${llvm_config:-none}"
+    # Optional gcc_plugin/LTO may fail — still harvest afl-fuzz if the main tools built.
+    set +e
+    if [[ -n "$llvm_config" ]]; then
+      make -C "$src" all PREFIX="$dest" -j"$(nproc 2>/dev/null || echo 2)" LLVM_CONFIG="$llvm_config"
+    else
+      make -C "$src" all PREFIX="$dest" -j"$(nproc 2>/dev/null || echo 2)"
+    fi
+    local make_rc=$?
+    if [[ -x "$src/afl-fuzz" ]]; then
+      mkdir -p "$dest/bin"
+      # install target can fail on optional bits; copy core tools explicitly
+      make -C "$src" install PREFIX="$dest" LLVM_CONFIG="${llvm_config:-llvm-config}" >/dev/null 2>&1
+      for b in afl-fuzz afl-showmap afl-clang-fast afl-cc afl-c++ afl-clang-fast++; do
+        [[ -x "$src/$b" ]] && cp -a "$src/$b" "$dest/bin/" || true
+      done
+      # supporting libs next to prefix when present
+      for f in afl-compiler-rt.o libAFLDriver.a; do
+        [[ -f "$src/$f" ]] && cp -a "$src/$f" "$dest/" || true
+      done
+      make_rc=0
+    fi
+    set -e
+    if [[ "$make_rc" -ne 0 && ! -x "$dest/bin/afl-fuzz" && ! -x "$src/afl-fuzz" ]]; then
       warn "AFL++ build failed"
       return 0
-    }
+    fi
   fi
 
-  # If tarball laid out bin/ at top level:
+  # If tarball laid out bin/ at top level or build left afl-fuzz in src tree:
   if [[ ! -x "$dest/bin/afl-fuzz" ]]; then
     local found
     found="$(find "$tmp" -type f -name afl-fuzz -perm -111 2>/dev/null | head -1 || true)"
@@ -168,6 +199,12 @@ install_aflpp_bundle() {
       mkdir -p "$dest/bin"
       cp -a "$(dirname "$found")/." "$dest/bin/" || true
     fi
+  fi
+  # Last-resort: copy a working system/hub afl-fuzz into the prefix (no GitHub clone).
+  if [[ ! -x "$dest/bin/afl-fuzz" ]] && have afl-fuzz; then
+    mkdir -p "$dest/bin"
+    cp -a "$(command -v afl-fuzz)" "$dest/bin/afl-fuzz" || true
+    log "copied system afl-fuzz → $dest/bin/afl-fuzz"
   fi
   if [[ -x "$dest/bin/afl-fuzz" ]]; then
     ln -sfn "$dest/bin/afl-fuzz" "$HACKME_PREFIX/bin/afl-fuzz"

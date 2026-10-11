@@ -123,16 +123,49 @@ func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wal
 		out.NewCorpus = after - before
 	}
 	out.CrashFiles = collectCrashArtifacts(filepath.Dir(corpusDir), 16)
-	out.Ran = true
 	if err != nil {
 		out.Err = err.Error()
-		// Still Ran — soft session errors are ok if corpus grew or we finished the wall.
-		if out.NewCorpus == 0 && after == 0 {
-			out.SkippedReason = "lf_session"
-			out.Ran = false
+	}
+	// Soft-skip only on preflight (no clang/build/target) — never after a wall was spent.
+	// Empty corpus after LF ran → CLEAN floor submit + re-seed boot starters (avoid lease churn).
+	if after == 0 {
+		_ = seedPersistentCorpus(repoRoot, targetID, corpusDir)
+		if after2, _ := countCorpusFiles(corpusDir); after2 > after {
+			out.CorpusAfter = after2
+			after = after2
 		}
 	}
+	if err != nil && after == 0 && isLibFuzzerPreflightErr(err) {
+		out.SkippedReason = "lf_session"
+		out.Ran = false
+		return out
+	}
+	out.Ran = true
 	return out
+}
+
+func isLibFuzzerPreflightErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, needle := range []string{
+		"clang required",
+		"invalid target",
+		"missing subprocess harness",
+		"clang subprocess libfuzzer",
+		"build target",
+		"manifest",
+	} {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	// Import/empty-corpus after a session is NOT preflight.
+	if strings.Contains(msg, "no corpus files") || strings.Contains(msg, "corpus still empty") {
+		return false
+	}
+	return false
 }
 
 func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall int, seeds [][]byte) EngineShardResult {

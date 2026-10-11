@@ -152,11 +152,15 @@ func runLibFuzzerSession(ctx context.Context, repoRoot, targetID string, wallSec
 		if n, _ := countCorpusFiles(corpusDir); n == 0 {
 			_ = seedPersistentCorpus(repoRoot, targetID, corpusDir)
 		}
-		// Keep scratch import dir as a mirror for ImportLibFuzzerCorpusFromSession helpers.
+		// Keep scratch import dir as a mirror for legacy ImportLibFuzzerCorpusFromSession.
+		// Persist import itself reads corpusDir directly (symlink is best-effort).
 		scratch := LibFuzzerImportCorpusDir(repoRoot, targetID)
 		_ = os.RemoveAll(scratch)
 		if err := os.MkdirAll(filepath.Dir(scratch), 0o755); err == nil {
-			_ = os.Symlink(corpusDir, scratch)
+			if err := os.Symlink(corpusDir, scratch); err != nil {
+				// Directory left behind / no symlink perms — ignore; persist path is source of truth.
+				_ = err
+			}
 		}
 	} else {
 		corpusDir = LibFuzzerImportCorpusDir(repoRoot, targetID)
@@ -215,15 +219,23 @@ func runLibFuzzerSession(ctx context.Context, repoRoot, targetID string, wallSec
 		return 0, fmt.Errorf("hunt: libfuzzer persist: corpus still empty after %ds (broken harness?) %s", wallSec, msg)
 	}
 
+	// Persist sessions write to reports/.../corpus; scratch .cache/...-corpus is only a
+	// symlink mirror. Import must read the real persist dir (symlink may be missing).
+	if persist {
+		seeds, lerr := LoadLibFuzzerSeedFiles(corpusDir, 0)
+		if lerr != nil {
+			return 0, lerr
+		}
+		if len(seeds) == 0 {
+			if msg := strings.TrimSpace(sessionLog); msg != "" {
+				return 0, fmt.Errorf("hunt: libfuzzer persist: no corpus files in %s (%s)", corpusDir, msg)
+			}
+			return 0, fmt.Errorf("hunt: libfuzzer persist: no corpus files in %s", corpusDir)
+		}
+		return ExportLibFuzzerSeeds(repoRoot, targetID, seeds)
+	}
 	n, err := ImportLibFuzzerCorpusFromSession(repoRoot, targetID)
 	if err != nil {
-		// Persistent path may already have seeds; try export directly from persist dir.
-		if persist {
-			seeds, lerr := LoadLibFuzzerSeedFiles(corpusDir, 0)
-			if lerr == nil && len(seeds) > 0 {
-				return ExportLibFuzzerSeeds(repoRoot, targetID, seeds)
-			}
-		}
 		if msg := strings.TrimSpace(sessionLog); msg != "" {
 			return 0, fmt.Errorf("%w (%s)", err, msg)
 		}
