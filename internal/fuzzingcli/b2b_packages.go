@@ -45,9 +45,11 @@ var b2bPackages = map[string]B2BPackage{
 	},
 	"deep": {
 		Name: "deep", DepthTier: fuzzengine.DepthBytesCorpus,
-		BudgetHMC: 25.0, BudgetRuns: 2048, BudgetSeconds: 86400, // 24h hours-scale
-		PoolDistributed: true, CreatePoHOrder: true, RewardHMC: 0.05,
-		Summary:        "Deep · paid depth with seed merge + stricter verify — not OSS-Fuzz/CVE replacement",
+		// Paid depth: higher customer escrow + larger runs-pool share (40/60) so miners
+		// are paid for wall-clock depth, not just cheap CLEAN smoke shards.
+		BudgetHMC: 40.0, BudgetRuns: 2048, BudgetSeconds: 86400, // 24h hours-scale
+		PoolDistributed: true, CreatePoHOrder: true, RewardHMC: 0.25,
+		Summary:        "Deep · paid depth (40 HMC escrow, 40/60 runs/bounty, seed merge) — not OSS-Fuzz/CVE replacement",
 		SignalTypes:    []string{"byte_corpus", "structured_mutation", "corpus_scheduling", "segment_exec", "native_repro"},
 		MutationRounds: 12,
 		CoverageGuided: true,

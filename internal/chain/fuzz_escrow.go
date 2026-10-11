@@ -65,8 +65,11 @@ func (s *Service) OpenFuzzEscrowSplit(ctx context.Context, campaignID string, bu
 		return nil, errors.New("chain: campaign_id required")
 	}
 	minBudget := fuzzescrow.MinCampaignBudgetHMC
-	if escrowSplit == fuzzescrow.EscrowSplit5050 {
+	switch escrowSplit {
+	case fuzzescrow.EscrowSplit5050:
 		minBudget = fuzzescrow.HuntMinLiteBudgetHMC
+	case fuzzescrow.EscrowSplit4060:
+		minBudget = fuzzescrow.MinDeepCampaignBudgetHMC
 	}
 	if budgetHMC < minBudget {
 		return nil, fmt.Errorf("fuzz escrow: budget below minimum %.2f HMC", minBudget)
@@ -83,6 +86,8 @@ func (s *Service) OpenFuzzEscrowSplit(ctx context.Context, campaignID string, bu
 	switch escrowSplit {
 	case fuzzescrow.EscrowSplit5050:
 		split, err = fuzzescrow.ComputeHuntSplitUnits(total, budgetRuns)
+	case fuzzescrow.EscrowSplit4060:
+		split, err = fuzzescrow.ComputeSplitUnitsShare(total, budgetRuns, fuzzescrow.DeepRunsPoolShare)
 	default:
 		escrowSplit = fuzzescrow.EscrowSplit2080
 		split, err = fuzzescrow.ComputeSplitUnits(total, budgetRuns)

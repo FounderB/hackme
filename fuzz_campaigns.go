@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/fuzzescrow"
+	"hackme/internal/fuzzingcli"
 	"hackme/internal/logsafe"
 	"hackme/internal/poolfuzz"
 	"hackme/internal/poolsync"
@@ -727,14 +729,27 @@ func (a *app) handleFuzzCampaignCreate(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, http.StatusBadRequest, "invalid_budget_runs", "budget_runs must be >= 8 when budget_hmc is set", nil)
 			return
 		}
-		escrow, err := a.chain.OpenFuzzEscrow(r.Context(), id, req.BudgetHMC, req.BudgetRuns)
+		digPkg := strings.TrimSpace(strings.ToLower(toString(cfgMap["dig_package"])))
+		if digPkg == "" {
+			digPkg = fuzzingcli.DigPackageFromDepthTier(fuzzengine.ParseDepthTier(cfgMap))
+		}
+		escrowSplit := fuzzescrow.EscrowSplitForDigPackage(digPkg)
+		if minDig := fuzzescrow.MinBudgetHMCForDigPackage(digPkg); req.BudgetHMC+1e-12 < minDig {
+			_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, id)
+			writeAPIError(w, http.StatusBadRequest, "budget_too_low",
+				fmt.Sprintf("dig package %s requires budget_hmc >= %.2f", digPkg, minDig), nil)
+			return
+		}
+		escrow, err := a.chain.OpenFuzzEscrowSplit(r.Context(), id, req.BudgetHMC, req.BudgetRuns, escrowSplit)
 		if err != nil {
 			_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, id)
 			writeFuzzEscrowFailed(w, err)
 			return
 		}
 		cfgMap["budget_hmc"] = req.BudgetHMC
-		cfgMap["escrow_split"] = "20_80"
+		cfgMap["escrow_split"] = escrowSplit
+		cfgMap["dig_package"] = digPkg
+		cfgMap["product_mode"] = fuzzingcli.DigProductMode(digPkg)
 		cfg = marshalMapJSON(cfgMap)
 		_, _ = a.db.ExecContext(r.Context(), `UPDATE fuzz_campaigns SET config_json=? WHERE id=?`, cfg, id)
 		respEscrow := escrow

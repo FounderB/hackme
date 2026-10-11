@@ -72,8 +72,8 @@
       <ul class="list">
         <li><strong>packs</strong> — ready detectors: <code>secrets</code> · <code>script_bounds</code> · <code>filter_utf8</code> · parser <code>parser_expat</code> — list with <span class="code-inline">hackme-fuzzing packs</span></li>
         <li><strong>Smoke · Scan</strong> (<code>--package scan</code>) — ~1 HMC · 64 runs · local WASM smoke + attested report — <em>not</em> OSS-Fuzz/CVE replacement</li>
-        <li><strong>Smoke · Dig Audit</strong> (<code>--package audit</code>) — ~5 HMC · 256 runs · distributed smoke + native repro + attested report; seed merge off by default</li>
-        <li><strong>Deep · Dig</strong> (<code>--package deep</code>) — ~25 HMC · 2048 runs · paid depth, seed merge on, stricter verify · hub pool <strong>exec cap 256</strong> (<code>HACKME_POOL_EXEC_PER_UNIT_CAP</code>; code default 64; local Deep still 512)</li>
+        <li><strong>Smoke · Dig Audit</strong> (<code>--package audit</code>) — ~5 HMC · 256 runs · escrow <strong>20/80</strong> · distributed smoke + native repro + attested report; seed merge off</li>
+        <li><strong>Deep · Dig</strong> (<code>--package deep</code>) — ~40 HMC · 2048 runs · escrow <strong>40/60</strong> (miners paid more per run) · seed merge on · PoH reward 0.25 · hub pool <strong>exec cap 256</strong></li>
         <li><strong>coverage_kind</strong> — <code>wasm_edge_bitmap</code> on instrumented detector guards (<code>secrets</code>, <code>filter_utf8</code>, <code>script_bounds</code>) — 256-byte bitmap at linear memory offset <strong>8192</strong> (guided scheduling, <em>not</em> AFL coverage); <code>input_fingerprint</code> on parser packs (<code>parser_expat</code> uses <code>native_repro_mode: oss_upstream</code> — ASAN stdin on pinned libexpat)</li>
         <li><strong>ABI</strong> — <code>check(i64)→i32</code> <em>or</em> <code>check_bytes(ptr,len)→i32</code> when <code>input_mode=bytes</code></li>
       </ul>

@@ -17,8 +17,29 @@ const (
 	HuntMinHeavyBudgetHMC    = 150.0
 	HuntMinShards            = 8
 	EscrowSplit2080          = "20_80"
+	EscrowSplit4060          = "40_60" // Dig Deep — larger runs pool for paid depth
 	EscrowSplit5050          = "50_50"
 )
+
+// EscrowSplitForDigPackage returns smoke 20/80 or deep 40/60.
+func EscrowSplitForDigPackage(pkg string) string {
+	switch strings.TrimSpace(strings.ToLower(pkg)) {
+	case "deep", "enterprise":
+		return EscrowSplit4060
+	default:
+		return EscrowSplit2080
+	}
+}
+
+// MinBudgetHMCForDigPackage returns escrow floor for Dig SKUs.
+func MinBudgetHMCForDigPackage(pkg string) float64 {
+	switch strings.TrimSpace(strings.ToLower(pkg)) {
+	case "deep", "enterprise":
+		return MinDeepCampaignBudgetHMC
+	default:
+		return MinCampaignBudgetHMC
+	}
+}
 
 // ComputeHuntSplitUnits validates Hunt inputs and returns the 50/50 split.
 func ComputeHuntSplitUnits(totalUnits uint64, budgetShards int) (SplitUnits, error) {

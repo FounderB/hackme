@@ -6,6 +6,9 @@ import "errors"
 const (
 	RunsPoolShare         = 0.20
 	BountyPoolShare       = 0.80
+	// DeepRunsPoolShare pays miners more for paid-depth Dig work (40/60 vs smoke 20/80).
+	DeepRunsPoolShare   = 0.40
+	DeepBountyPoolShare = 0.60
 	BountyPlatformFeeRate = 0.05 // taken from bounty payout only
 	// UniqueCrashBonusRate is a small share of the bounty pool paid once for a unique crash.
 	// Main medium/high/critical bounty stays confirmed-native and receives the remainder.
@@ -14,9 +17,11 @@ const (
 	UniqueCrashBonusMaxUnits = 1_000_000
 	// MinCampaignBudgetHMC prevents dust campaigns that pay miners negligible per-run slices.
 	MinCampaignBudgetHMC = 0.5
-	MaxCampaignBudgetHMC = 500.0
-	MinCampaignRuns      = 8
-	MaxCampaignRuns      = 10_000_000
+	// MinDeepCampaignBudgetHMC is the floor for Dig Deep escrow (paid depth SKU).
+	MinDeepCampaignBudgetHMC = 25.0
+	MaxCampaignBudgetHMC     = 500.0
+	MinCampaignRuns          = 8
+	MaxCampaignRuns          = 10_000_000
 	// MinPerRunUnits is the minimum HMC paid per verified fuzz run (0.0001 HMC at 1e8 units/HMC).
 	MinPerRunUnits = 10_000
 )
@@ -31,6 +36,12 @@ type SplitUnits struct {
 
 // ComputeSplitUnits validates inputs and returns the 20/80 split with per-run rate.
 func ComputeSplitUnits(totalUnits uint64, budgetRuns int) (SplitUnits, error) {
+	return ComputeSplitUnitsShare(totalUnits, budgetRuns, RunsPoolShare)
+}
+
+// ComputeSplitUnitsShare validates inputs and returns a runs/bounty split with per-run rate.
+// runsShare is the fraction of totalUnits reserved for verified-run payouts (e.g. 0.20 or 0.40).
+func ComputeSplitUnitsShare(totalUnits uint64, budgetRuns int, runsShare float64) (SplitUnits, error) {
 	if totalUnits == 0 {
 		return SplitUnits{}, errors.New("fuzz escrow: budget rounds to zero units")
 	}
@@ -40,7 +51,18 @@ func ComputeSplitUnits(totalUnits uint64, budgetRuns int) (SplitUnits, error) {
 	if budgetRuns > MaxCampaignRuns {
 		return SplitUnits{}, errors.New("fuzz escrow: budget_runs too large")
 	}
-	runsUnits := totalUnits / 5 // 20% runs pool (integer)
+	if runsShare <= 0 || runsShare >= 1 {
+		runsShare = RunsPoolShare
+	}
+	var runsUnits uint64
+	switch {
+	case runsShare >= 0.399 && runsShare <= 0.401:
+		runsUnits = (totalUnits * 2) / 5 // 40%
+	case runsShare >= 0.199 && runsShare <= 0.201:
+		runsUnits = totalUnits / 5 // 20%
+	default:
+		runsUnits = uint64(float64(totalUnits) * runsShare)
+	}
 	bountyUnits := totalUnits - runsUnits
 	perRun := runsUnits / uint64(budgetRuns)
 	if perRun == 0 {

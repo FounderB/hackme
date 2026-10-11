@@ -48,6 +48,7 @@ type securityAuditRequest struct {
 	DifficultyScore  int      `json:"difficulty_score"`
 	TargetSolves     int      `json:"target_solves"`
 	PoolDistributed  *bool    `json:"pool_distributed"`
+	DigPackage       string   `json:"dig_package"`
 }
 
 func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
@@ -308,6 +309,11 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 	if len(seeds) == 0 {
 		seeds = []uint64{133452, 999001}
 	}
+	digPkgHint := strings.TrimSpace(strings.ToLower(req.DigPackage))
+	if digPkgHint == "" {
+		digPkgHint = fuzzingcli.DigPackageFromDepthTier(depthTier)
+	}
+	escrowSplit := fuzzescrow.EscrowSplitForDigPackage(digPkgHint)
 	cfgMap := map[string]any{
 		"pool_distributed": poolDist,
 		"check_semantics":  "detector",
@@ -315,8 +321,9 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 		"seed_corpus":      seeds,
 		"auto_runner":      "1",
 		"budget_hmc":       budgetHMC,
-		"escrow_split":     "20_80",
+		"escrow_split":     escrowSplit,
 		"depth_tier":       string(depthTier),
+		"dig_package":      digPkgHint,
 	}
 	if raw, err := hex.DecodeString(strings.TrimSpace(wasmHex)); err == nil && len(raw) > 0 {
 		sum := sha256.Sum256(raw)
@@ -381,7 +388,18 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 	if repoRoot == "" {
 		repoRoot = "."
 	}
-	cfgMap = fuzzingcli.FinalizeDigCampaignConfig(cfgMap, fuzzingcli.DigPackageFromDepthTier(depthTier), strings.TrimSpace(req.GuardPack), repoRoot)
+	cfgMap = fuzzingcli.FinalizeDigCampaignConfig(cfgMap, digPkgHint, strings.TrimSpace(req.GuardPack), repoRoot)
+	digPkgFinal := strings.TrimSpace(strings.ToLower(toString(cfgMap["dig_package"])))
+	if digPkgFinal == "" {
+		digPkgFinal = digPkgHint
+	}
+	escrowSplit = fuzzescrow.EscrowSplitForDigPackage(digPkgFinal)
+	cfgMap["escrow_split"] = escrowSplit
+	if minDig := fuzzescrow.MinBudgetHMCForDigPackage(digPkgFinal); escrowBudgetHMC+1e-12 < minDig {
+		writeAPIError(w, http.StatusBadRequest, "budget_too_low",
+			fmt.Sprintf("dig package %s requires budget_hmc >= %.2f", digPkgFinal, minDig), nil)
+		return
+	}
 	cfgMap = normalizeFuzzCampaignConfig(cfgMap, "property")
 	cfg := marshalMapJSON(cfgMap)
 
@@ -406,7 +424,7 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	escrow, err := openFuzzEscrowRetry(r.Context(), a.chain, campaignID, escrowBudgetHMC, budgetRuns)
+	escrow, err := openFuzzEscrowRetrySplit(r.Context(), a.chain, campaignID, escrowBudgetHMC, budgetRuns, escrowSplit)
 	if err != nil {
 		_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, campaignID)
 		writeFuzzEscrowFailed(w, err)
@@ -436,6 +454,16 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 
 	resp["campaign"] = c
 	resp["escrow"] = escrow
+	if pkg, err := fuzzingcli.B2BPackageFor(digPkgFinal); err == nil {
+		q := fuzzingcli.QuoteDigBilling(pkg)
+		q.BudgetHMC = budgetHMC
+		q.BudgetRuns = budgetRuns
+		q.BudgetSeconds = budgetSeconds
+		q.EscrowSplit = escrowSplit
+		resp["dig_billing"] = q
+	}
+	resp["product_mode"] = fuzzingcli.DigProductMode(digPkgFinal)
+	resp["escrow_split"] = escrowSplit
 	if supDiscountUsed > 0 {
 		resp["sup_discount_used"] = supDiscountUsed
 		resp["budget_hmc_cash"] = escrowBudgetHMC
@@ -462,13 +490,17 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 }
 
 func openFuzzEscrowRetry(ctx context.Context, ch *chain.Service, campaignID string, budgetHMC float64, budgetRuns int) (*chain.FuzzEscrowRow, error) {
+	return openFuzzEscrowRetrySplit(ctx, ch, campaignID, budgetHMC, budgetRuns, fuzzescrow.EscrowSplit2080)
+}
+
+func openFuzzEscrowRetrySplit(ctx context.Context, ch *chain.Service, campaignID string, budgetHMC float64, budgetRuns int, escrowSplit string) (*chain.FuzzEscrowRow, error) {
 	var escrow *chain.FuzzEscrowRow
 	var err error
 	for attempt := 0; attempt < 6; attempt++ {
 		if attempt > 0 {
 			time.Sleep(time.Duration(attempt*50) * time.Millisecond)
 		}
-		escrow, err = ch.OpenFuzzEscrow(ctx, campaignID, budgetHMC, budgetRuns)
+		escrow, err = ch.OpenFuzzEscrowSplit(ctx, campaignID, budgetHMC, budgetRuns, escrowSplit)
 		if err == nil || !strings.Contains(strings.ToLower(err.Error()), "database is locked") {
 			return escrow, err
 		}

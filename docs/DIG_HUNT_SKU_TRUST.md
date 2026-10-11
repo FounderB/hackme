@@ -9,10 +9,23 @@
 
 Promise language on reports: attested distributed smoke/depth — **not** OSS-Fuzz/CVE replacement.
 
+## Dig money (Deep vs Smoke)
+
+| SKU | Budget HMC | Escrow split | Est. miner per-run | PoH reward | Seeds |
+|-----|------------|--------------|--------------------|------------|-------|
+| Audit (smoke) | 5 | 20/80 | ~0.0039 | 0.05 | OFF |
+| Deep | 40 | **40/60** | ~0.0078 | 0.25 | ON |
+
+API/CLI expose `dig_billing` (`billing_model` = `smoke_runs` | `deep_depth`). Deep min escrow **25 HMC**.
+
 ## Env knobs (hub)
 
-See [POOL_FUZZ_DISTRIBUTED.md](POOL_FUZZ_DISTRIBUTED.md) for full tables. Rollout: keep `HACKME_POOL_CANARY_PCT=2`, `HACKME_POOL_CLEAN_MIN_MS_PER_EXEC=0`, `HACKME_POOL_CLEAN_EDGES_REQUIRE` off until workers report `edges_touched`. Tighten after soak.
+See [POOL_FUZZ_DISTRIBUTED.md](POOL_FUZZ_DISTRIBUTED.md). Floor soak:
+
+- `HACKME_POOL_CLEAN_EDGES_REQUIRE=auto` (default): ON when ≥90% of last 64 Dig CLEAN samples report `edges_touched` (n≥32). Force with `=1`, disable with `=0`.
+- `HACKME_POOL_CLEAN_MIN_MS_PER_EXEC` default **1**; deep min edges default **2** (`HACKME_POOL_CLEAN_MIN_EDGES_DEEP`).
+- Pool stats: `clean_floor.edges_report_rate` / `edges_require_active`.
 
 ## Worker
 
-Dig submit should include `edges_touched` (unique edges from segment). Legacy omit is allowed until `HACKME_POOL_CLEAN_EDGES_REQUIRE=1`.
+Dig submit must include `edges_touched` on `wasm_edge_bitmap` once auto-require flips or `REQUIRE=1`. Honest workers already send it.

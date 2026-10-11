@@ -41,11 +41,25 @@ func TestB2BPackagesHonestDepth(t *testing.T) {
 	if deep.BudgetRuns <= audit.BudgetRuns || deep.BudgetSeconds <= audit.BudgetSeconds {
 		t.Fatalf("deep must exceed audit on runs and wall clock: deep=%+v audit=%+v", deep, audit)
 	}
+	if deep.BudgetHMC <= audit.BudgetHMC || deep.RewardHMC <= audit.RewardHMC {
+		t.Fatalf("deep money must exceed audit: deep=%+v audit=%+v", deep, audit)
+	}
 	if deep.MutationRounds < 8 || !deep.CoverageGuided {
 		t.Fatalf("deep mutation/coverage: %+v", deep)
 	}
 	if scan.CreatePoHOrder || !audit.CreatePoHOrder || !deep.CreatePoHOrder {
 		t.Fatalf("PoH flags scan=%v audit=%v deep=%v", scan.CreatePoHOrder, audit.CreatePoHOrder, deep.CreatePoHOrder)
+	}
+	dq := QuoteDigBilling(deep)
+	aq := QuoteDigBilling(audit)
+	if dq.EscrowSplit != "40_60" || aq.EscrowSplit != "20_80" {
+		t.Fatalf("billing splits deep=%s audit=%s", dq.EscrowSplit, aq.EscrowSplit)
+	}
+	if dq.EstPerRunHMC <= aq.EstPerRunHMC {
+		t.Fatalf("deep per-run should pay miners more: deep=%v audit=%v", dq.EstPerRunHMC, aq.EstPerRunHMC)
+	}
+	if dq.BillingModel != "deep_depth" || aq.BillingModel != "smoke_runs" {
+		t.Fatalf("billing models deep=%s audit=%s", dq.BillingModel, aq.BillingModel)
 	}
 }
 

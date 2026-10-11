@@ -14,9 +14,9 @@ CLI/API keys stay `scan` | `audit` | `deep`. Customer-facing names:
 |-----|-----------------|------|-----|------|------|----------|
 | **Scan** | `scan` | smoke | ~1 | 64 | local only | CI smoke, nightly guard |
 | **Dig · Audit** | `audit` | smoke | ~5 | 256 | yes | Distributed smoke + attested report |
-| **Dig · Deep** | `deep` | deep | ~25 | 2048 | yes* | Paid depth, seed merge, stricter verify |
+| **Dig · Deep** | `deep` | deep | ~40 (40/60 escrow) | 2048 | yes* | Paid depth, seed merge, miners paid more per run |
 
-**Honest promise:** smoke = distributed smoke + attested report; deep = paid depth with seed merge + higher replay sample. **Not** an OSS-Fuzz/CVE replacement. Reports expose `product_mode`, `replay_policy`, `seeds_merged`, hub exec cap.
+**Honest promise:** smoke = distributed smoke + attested report (20/80 escrow); deep = paid depth with 40/60 escrow + seed merge + higher replay sample. **Not** an OSS-Fuzz/CVE replacement. Reports expose `product_mode`, `dig_billing`, `replay_policy`, `seeds_merged`, hub exec cap.
 
 **Dig depth v2:** richer pack `mutator_dict` profiles, tier power scheduling (Audit **mut_cap≥8** · Deep **≥14**), **Deep-only** external seeds in `.cache/dig-seeds/{pack}/`, cross-campaign corpus persist `pack:{id}`, CLEAN floor + canary anticheat, and customer report `dig_depth` / SKU honesty card.
 

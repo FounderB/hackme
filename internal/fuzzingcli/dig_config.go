@@ -27,6 +27,9 @@ func ApplyDigEngineToPayload(payload map[string]any, pkg B2BPackage) map[string]
 			payload[k] = v
 		}
 	}
+	payload["dig_package"] = pkg.Name
+	payload["product_mode"] = DigProductMode(pkg.Name)
+	payload["escrow_split"] = QuoteDigBilling(pkg).EscrowSplit
 	if pkg.DepthTier == fuzzengine.DepthWasmOnly {
 		return payload
 	}

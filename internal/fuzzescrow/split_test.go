@@ -17,6 +17,31 @@ func TestComputeSplitUnits2080(t *testing.T) {
 	}
 }
 
+func TestComputeSplitUnits4060Deep(t *testing.T) {
+	const unitsPerHMC = 100_000_000
+	total := uint64(40.0 * unitsPerHMC)
+	s, err := ComputeSplitUnitsShare(total, 2048, DeepRunsPoolShare)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRuns := uint64(16.0 * unitsPerHMC) // 40% of 40 HMC
+	if s.RunsPoolUnits != wantRuns {
+		t.Fatalf("runs pool=%d want %d", s.RunsPoolUnits, wantRuns)
+	}
+	if s.PerRunUnits < MinPerRunUnits {
+		t.Fatalf("per run too low: %d", s.PerRunUnits)
+	}
+	if EscrowSplitForDigPackage("deep") != EscrowSplit4060 {
+		t.Fatal("deep split")
+	}
+	if EscrowSplitForDigPackage("audit") != EscrowSplit2080 {
+		t.Fatal("audit split")
+	}
+	if MinBudgetHMCForDigPackage("deep") < MinDeepCampaignBudgetHMC {
+		t.Fatal("deep min budget")
+	}
+}
+
 func TestBountyPayoutFee(t *testing.T) {
 	miner, fee := BountyPayoutUnits(1_000_000_000)
 	if fee == 0 || miner == 0 {

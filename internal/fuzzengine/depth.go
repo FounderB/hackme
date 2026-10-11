@@ -46,7 +46,7 @@ var depthPresets = map[DepthTier]DepthPreset{
 	},
 	DepthBytesCorpus: {
 		Tier: DepthBytesCorpus, InputMode: InputModeBytes,
-		BudgetHMC: 25.0, BudgetRuns: 2048,
+		BudgetHMC: 40.0, BudgetRuns: 2048,
 		BountyRequiresNative: true, NativeReproEnabled: true,
 		UpstreamTarget: "bitcoin",
 	},

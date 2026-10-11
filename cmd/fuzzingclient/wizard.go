@@ -171,6 +171,7 @@ func doWizard(base string, args []string) error {
 	gateURL := publicBase + "/api/fuzz/campaigns/" + campaignID + "/gate?max_critical=0&max_high=0"
 	pulseURL := publicBase + "/api/fuzz/campaigns/" + campaignID + "/pulse"
 
+	billing := fuzzingcli.QuoteDigBilling(pkg)
 	out := map[string]any{
 		"ok":                    true,
 		"package":               pkg.Name,
@@ -178,6 +179,8 @@ func doWizard(base string, args []string) error {
 		"package_summary":       pkg.Summary,
 		"signal_types":          pkg.SignalTypes,
 		"depth_tier":            payload["depth_tier"],
+		"product_mode":          billing.ProductMode,
+		"dig_billing":           billing,
 		"budget_hmc":            pkg.BudgetHMC,
 		"budget_runs":           pkg.BudgetRuns,
 		"budget_seconds":        pkg.BudgetSeconds,

@@ -83,9 +83,10 @@ Rejects empty/fake CLEAN without paying. Defaults stay conservative so honest mi
 |-----|---------|---------|
 | `HACKME_POOL_CLEAN_FLOOR` | ON | Master switch |
 | `HACKME_POOL_CLEAN_MIN_DURATION_MS` | 1 | Absolute duration floor for multi-exec CLEAN |
-| `HACKME_POOL_CLEAN_MIN_MS_PER_EXEC` | 0 | Extra per-exec ms (0=off; raise after soak) |
-| `HACKME_POOL_CLEAN_MIN_EDGES` | 1 | Min `edges_touched` when worker reports it on `wasm_edge_bitmap` |
-| `HACKME_POOL_CLEAN_EDGES_REQUIRE` | off | If ON, omit `edges_touched` → reject (tighten after fleet upgrade) |
+| `HACKME_POOL_CLEAN_MIN_MS_PER_EXEC` | 0→1 | Extra per-exec ms; auto-defaults to 1 when edges require is active |
+| `HACKME_POOL_CLEAN_MIN_EDGES` | 1 | Min `edges_touched` when worker reports it (smoke) |
+| `HACKME_POOL_CLEAN_MIN_EDGES_DEEP` | 2 | Min edges for Dig Deep SKU |
+| `HACKME_POOL_CLEAN_EDGES_REQUIRE` | auto | `auto` = ON at ≥90% fleet report rate; `1` force; `0` off |
 
 ### Canary / challenge shards (Dig guided)
 

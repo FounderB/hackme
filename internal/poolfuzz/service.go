@@ -1851,6 +1851,7 @@ func (s *Service) PoolStats(ctx context.Context) (map[string]any, error) {
 			"processing": qProcessing,
 			"failed":     qFailed,
 		},
+		"clean_floor": CleanEdgesFloorStats(),
 	}, nil
 }
 

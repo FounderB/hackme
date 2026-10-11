@@ -12,9 +12,12 @@ import (
 )
 
 func TestCanaryMissRejectsFakeClean(t *testing.T) {
+	resetCleanEdgesRollForTest()
 	t.Setenv("HACKME_POOL_CANARY", "1")
 	t.Setenv("HACKME_POOL_CANARY_PCT", "100")
 	t.Setenv("HACKME_POOL_CLEAN_FLOOR", "1")
+	t.Setenv("HACKME_POOL_CLEAN_MIN_MS_PER_EXEC", "0")
+	t.Setenv("HACKME_POOL_CLEAN_EDGES_REQUIRE", "0")
 	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_PCT", "0")
 	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_SEED", "canary-miss")
 
@@ -59,9 +62,12 @@ func TestCanaryMissRejectsFakeClean(t *testing.T) {
 }
 
 func TestCanaryHitFindingPathOK(t *testing.T) {
+	resetCleanEdgesRollForTest()
 	t.Setenv("HACKME_POOL_CANARY", "1")
 	t.Setenv("HACKME_POOL_CANARY_PCT", "100")
 	t.Setenv("HACKME_POOL_CLEAN_FLOOR", "1")
+	t.Setenv("HACKME_POOL_CLEAN_MIN_MS_PER_EXEC", "0")
+	t.Setenv("HACKME_POOL_CLEAN_EDGES_REQUIRE", "0")
 	t.Setenv("HACKME_POOL_REPLAY_SAMPLE_PCT", "0")
 	t.Setenv("HACKME_POOL_REPLAY_CRASH_ALWAYS", "1")
 
