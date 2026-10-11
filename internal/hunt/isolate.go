@@ -75,6 +75,11 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	env = scrubIsolateEnv(env)
 
 	argv, useBwrap := wrapBubblewrap(opts.Bin, opts.Args, opts.Dir, opts.ExtraBind, opts.ExtraRoBind)
+	if useBwrap && !IsolateRequired() {
+		// Explicit escape (hub): skip bwrap when userns cages are denied.
+		useBwrap = false
+		argv = append([]string{opts.Bin}, opts.Args...)
+	}
 	if !useBwrap {
 		if IsolateRequired() && !opts.AllowBare {
 			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_REQUIRE)")
