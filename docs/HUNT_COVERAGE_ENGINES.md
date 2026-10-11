@@ -42,6 +42,7 @@ Cap: `HACKME_HUNT_ENGINE_PROVE_MAX` default **16** seeds per delta window (extra
 
 - Missing runner / missing **bwrap** (when `HACKME_HUNT_ISOLATE_REQUIRE=1`) / unknown catalog target without published harness → `hunt_engine_soft_skip` (release lease — **not** 1ms CLEAN success).
 - Inventory fleet uses **libFuzzer subprocess + published ASAN stdin harness** (~60s wall); never silent byte dilution.
+- Coordinator rejects coverage-engine submits with `duration_ms` ≪ lease wall (`hunt_engine_wall_too_short`; escape `HACKME_HUNT_ENGINE_MIN_WALL_MS=0`).
 - Empty corpus after a finished LF wall → CLEAN floor (not soft-skip).
 - `HACKME_HUNT_ENGINE_BYTE_FALLBACK` default **OFF**. Deep/Heavy never fall back unless `HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP=1`.
 

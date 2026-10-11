@@ -1177,6 +1177,11 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 	var seg fuzzengine.SegmentResult
 	if isHunt {
 		engineMode := huntEngineSubmitMode(req)
+		if engineMode {
+			if err := checkHuntEngineWallFloor(req, cfg); err != nil {
+				return SubmitOutcome{}, err
+			}
+		}
 		// Coverage engine CLEAN/crash: sync verify (no L1 async mutator replay).
 		if !engineMode && huntReplayAsyncEnabled() && poolDistributed(cfg) {
 			out, err := s.enqueueHuntReplay(ctx, req, inputN, now)

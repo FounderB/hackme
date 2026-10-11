@@ -132,6 +132,22 @@ func TestBuildHuntClaimCoverageEngine(t *testing.T) {
 	}
 }
 
+func TestCheckHuntEngineWallFloor(t *testing.T) {
+	t.Setenv("HACKME_HUNT_COVERAGE_ENGINE", "1")
+	t.Setenv("HACKME_HUNT_ENGINE_MIN_WALL_MS", "")
+	cfg := map[string]any{"hunt_engine": "libfuzzer", "engine_lease_sec": 60}
+	if err := checkHuntEngineWallFloor(SubmitRequest{HuntEngine: "libfuzzer", DurationMS: 2}, cfg); err == nil {
+		t.Fatal("1–2ms must reject")
+	}
+	if err := checkHuntEngineWallFloor(SubmitRequest{HuntEngine: "libfuzzer", DurationMS: 55_000}, cfg); err != nil {
+		t.Fatalf("55s ok: %v", err)
+	}
+	t.Setenv("HACKME_HUNT_ENGINE_MIN_WALL_MS", "0")
+	if err := checkHuntEngineWallFloor(SubmitRequest{HuntEngine: "libfuzzer", DurationMS: 1}, cfg); err != nil {
+		t.Fatalf("escape: %v", err)
+	}
+}
+
 func TestProveHuntCorpusSeedEdgesRequiresHarnessExec(t *testing.T) {
 	t.Setenv("HACKME_HUNT_COVERAGE_ENGINE", "1")
 	t.Setenv("HACKME_POOL_HUNT_REPLAY", "1")

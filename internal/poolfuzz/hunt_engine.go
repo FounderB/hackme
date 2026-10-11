@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -158,6 +159,39 @@ func DecideHuntEnginePay(provenEdges, seedsAccepted, crashesOK int, minerEdges i
 	}
 	// CLEAN without corpus delta — pennies / floor (no full shard PayRun).
 	return HuntEnginePayFloor, false
+}
+
+// checkHuntEngineWallFloor rejects coverage-engine CLEAN submits that never spent
+// the lease wall (legacy workers marking Ran=true after catalog TargetByID fail).
+// Escape: HACKME_HUNT_ENGINE_MIN_WALL_MS=0. Default floor ≈ 75% of engine_lease_sec
+// (min 15s) so 1–2ms "success" cannot settle as CLEAN.
+func checkHuntEngineWallFloor(req SubmitRequest, cfg map[string]any) error {
+	if !huntEngineSubmitMode(req) {
+		return nil
+	}
+	if v := strings.TrimSpace(os.Getenv("HACKME_HUNT_ENGINE_MIN_WALL_MS")); v != "" {
+		if v == "0" || strings.EqualFold(v, "off") || strings.EqualFold(v, "false") {
+			return nil
+		}
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			if req.DurationMS < n {
+				return fmt.Errorf("poolfuzz: hunt_engine_wall_too_short duration_ms=%d want>=%d", req.DurationMS, n)
+			}
+			return nil
+		}
+	}
+	leaseSec := hunt.EngineLeaseSecFromConfig(cfg, req.HuntEngine)
+	if leaseSec < hunt.MinEngineLeaseSec {
+		leaseSec = hunt.MinEngineLeaseSec
+	}
+	minMS := leaseSec * 1000 * 3 / 4
+	if minMS < hunt.MinEngineLeaseSec*1000 {
+		minMS = hunt.MinEngineLeaseSec * 1000
+	}
+	if req.DurationMS < minMS {
+		return fmt.Errorf("poolfuzz: hunt_engine_wall_too_short duration_ms=%d want>=%d (lease_sec=%d)", req.DurationMS, minMS, leaseSec)
+	}
+	return nil
 }
 
 // HuntEngineEnabled is true unless HACKME_HUNT_COVERAGE_ENGINE=0.

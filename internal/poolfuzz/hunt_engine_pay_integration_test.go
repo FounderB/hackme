@@ -29,6 +29,7 @@ func TestHuntEnginePayDoesNotUseDigCleanFloor(t *testing.T) {
 
 func TestFinalizeHuntEngineFloorSkipsPayRun(t *testing.T) {
 	t.Setenv("HACKME_HUNT_COVERAGE_ENGINE", "1")
+	t.Setenv("HACKME_HUNT_ENGINE_MIN_WALL_MS", "0")
 	dir := t.TempDir()
 	db, err := store.Open(filepath.Join(dir, "e.db"))
 	if err != nil {
@@ -82,6 +83,7 @@ func TestFinalizeHuntEngineFloorSkipsPayRun(t *testing.T) {
 
 func TestFinalizeHuntEngineEdgesPays(t *testing.T) {
 	t.Setenv("HACKME_HUNT_COVERAGE_ENGINE", "1")
+	t.Setenv("HACKME_HUNT_ENGINE_MIN_WALL_MS", "0")
 	dir := t.TempDir()
 	db, err := store.Open(filepath.Join(dir, "e2.db"))
 	if err != nil {
