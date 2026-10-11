@@ -121,6 +121,19 @@ func ApplyInventoryPackAssets(cfg map[string]any, repoRoot, targetID, pinPath, s
 	if cfg == nil {
 		return nil
 	}
+	// Prefer public pack corpus files as the L2 head (avoid burying TLV under stale LF dumps).
+	if seeds, err := LoadLibFuzzerSeedFiles(filepath.Join(strings.TrimSpace(pinPath), "corpus"), maxInventoryPackSeeds); err == nil && len(seeds) > 0 {
+		filtered := make([][]byte, 0, len(seeds))
+		for _, b := range seeds {
+			if len(b) == 0 {
+				continue
+			}
+			filtered = append(filtered, b)
+		}
+		if len(filtered) > 0 {
+			_ = mergeSeedByteCorpus(cfg, filtered)
+		}
+	}
 	if _, err := ImportInventoryPackSeeds(repoRoot, targetID, pinPath); err != nil {
 		return fmt.Errorf("hunt: inventory pack seeds: %w", err)
 	}
