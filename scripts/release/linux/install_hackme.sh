@@ -83,6 +83,7 @@ done
 [[ -d "${PAYLOAD_DIR}/bin" ]] && cp -a "${PAYLOAD_DIR}/bin/." "${INSTALL_DIR}/bin/" 2>/dev/null || true
 [[ -d "${PAYLOAD_DIR}/lib" ]] && cp -a "${PAYLOAD_DIR}/lib" "${INSTALL_DIR}/lib"
 for helper in update_hackme_miner.sh update_hackme_os_binaries.sh start_hackme_miner.sh stop_hackme_miner.sh \
+              install_hunt_engines.sh prune_hunt_miner_caches.sh install_from_code_toolchains.sh \
               install_menu_entry.sh setup_hackme_miner.sh hackme_desktop_launch.sh \
               detect_gpu_backend.sh fix_miner_layout.sh; do
   if [[ -f "${PAYLOAD_DIR}/${helper}" ]]; then
@@ -160,6 +161,19 @@ if [[ -f "${PAYLOAD_DIR}/install_from_code_toolchains.sh" ]]; then
   HACKME_PREFIX="${INSTALL_DIR}" bash "${PAYLOAD_DIR}/install_from_code_toolchains.sh" --system --prefix "${INSTALL_DIR}" || \
     echo "[install] WARN: toolchain install incomplete — see ${INSTALL_DIR}/.env.toolchains" >&2
   chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}" 2>/dev/null || true
+fi
+
+if [[ "${HACKME_SKIP_HUNT_ENGINES:-0}" != "1" ]]; then
+  eng=""
+  for cand in "${INSTALL_DIR}/install_hunt_engines.sh" "${PAYLOAD_DIR}/install_hunt_engines.sh"; do
+    [[ -f "$cand" ]] && { eng="$cand"; break; }
+  done
+  if [[ -n "$eng" ]]; then
+    echo "[install] Hunt engines (clang, AFL++, bubblewrap)..."
+    HACKME_PREFIX="${INSTALL_DIR}" bash "$eng" --system --prefix "${INSTALL_DIR}" || \
+      echo "[install] WARN: Hunt engines incomplete — Hunt soft-skips; Dig unchanged" >&2
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}" 2>/dev/null || true
+  fi
 fi
 
 echo "[install] done"

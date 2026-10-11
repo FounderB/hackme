@@ -189,6 +189,9 @@ replace_list=(
   stop_hackme_miner.sh
   update_hackme_miner.sh
   update_hackme_os_binaries.sh
+  install_hunt_engines.sh
+  prune_hunt_miner_caches.sh
+  install_from_code_toolchains.sh
   install_menu_entry.sh
   hackme.desktop.template
   hackme-dashboard.desktop.template
@@ -265,8 +268,34 @@ fi
   echo "source_sha256=${sha}"
 } >"${INSTALL_DIR}/BUILD_INFO.txt"
 
+# Hunt engines (clang + AFL++ + bubblewrap) — best-effort; Dig works without them.
+for helper in install_hunt_engines.sh prune_hunt_miner_caches.sh install_from_code_toolchains.sh; do
+  if [[ -f "${PAYLOAD}/${helper}" ]]; then
+    install -m 0755 "${PAYLOAD}/${helper}" "${INSTALL_DIR}/${helper}"
+  fi
+done
+if [[ "${HACKME_SKIP_HUNT_ENGINES:-0}" != "1" ]]; then
+  eng=""
+  for cand in "${INSTALL_DIR}/install_hunt_engines.sh" "${PAYLOAD}/install_hunt_engines.sh"; do
+    [[ -f "$cand" ]] && { eng="$cand"; break; }
+  done
+  if [[ -n "$eng" ]]; then
+    log "ensuring Hunt engines (clang/AFL++/bwrap) → $INSTALL_DIR"
+    if [[ "$(id -u)" == "0" ]]; then
+      HACKME_PREFIX="${INSTALL_DIR}" bash "$eng" --system --prefix "${INSTALL_DIR}" \
+        || log "WARN: Hunt engine install incomplete (Hunt soft-skips; Dig unchanged)"
+    else
+      HACKME_PREFIX="${INSTALL_DIR}" bash "$eng" --prefix "${INSTALL_DIR}" \
+        || log "WARN: Hunt engine install incomplete (need sudo for apt clang/bwrap)"
+    fi
+  fi
+  if [[ -x "${INSTALL_DIR}/prune_hunt_miner_caches.sh" ]]; then
+    bash "${INSTALL_DIR}/prune_hunt_miner_caches.sh" --repo "${INSTALL_DIR}" || true
+  fi
+fi
+
 # Preserve markers — assert we did not wipe env
-for keep in .env .env.desktop .env.vps data logs; do
+for keep in .env .env.desktop .env.vps data logs .env.hunt-engines; do
   if [[ -e "${INSTALL_DIR}/${keep}" ]]; then
     log "preserved: $keep"
   fi

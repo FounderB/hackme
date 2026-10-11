@@ -43,7 +43,7 @@
 |------------|--------|
 | [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) | Dig packages + Hunt ASAN (Lite/Standard/Heavy), packs, coverage, pool anticheat, CI gate |
 | [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) | Hunt 50/50 escrow, packages, pool shards |
-| [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md) | Honest Hunt vs libFuzzer depth |
+| [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md) | Coverage Hunt vs libFuzzer — live 2026-10-11 bench + sales framing |
 | [HUNT_RUST_PHASE_A.md](HUNT_RUST_PHASE_A.md) | Rust inventory + catalog ASAN (`serde_json`, `memchr`, `quick_xml`) |
 | [CUSTOMER_FUZZ_DELIVERABLES.md](CUSTOMER_FUZZ_DELIVERABLES.md) | Report token, repro, artifacts |
 | [DEVELOPERS_FUZZING.md](DEVELOPERS_FUZZING.md) | Orders API, limits, escrow |

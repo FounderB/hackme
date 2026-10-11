@@ -306,6 +306,7 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 	} {
 		out.CrashFiles = append(out.CrashFiles, listFiles(d, 16)...)
 	}
+	_ = pruneCorpusDir(persist, defaultMaxPersistentCorpus)
 	afterPersist, _ := countCorpusFiles(persist)
 	out.CorpusAfter = afterPersist
 	if afterPersist > beforePersist {

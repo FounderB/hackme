@@ -157,6 +157,35 @@ set -a
 . "$ENV_FILE"
 set +a
 
+# Hunt engines PATH (clang/AFL++) when install_hunt_engines.sh ran on this prefix.
+for hunt_env in "$INSTALL_DIR/.env.hunt-engines" \
+                "$INSTALL_DIR/toolchains/.env.hunt-engines" \
+                "${HOME}/.local/share/hackme/toolchains/.env.hunt-engines"; do
+  if [[ -f "$hunt_env" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$hunt_env"
+    set +a
+    export PATH
+    break
+  fi
+done
+# Best-effort first-boot engine ensure (skip with HACKME_SKIP_HUNT_ENGINES=1).
+if [[ "${HACKME_SKIP_HUNT_ENGINES:-0}" != "1" && -x "$INSTALL_DIR/install_hunt_engines.sh" ]]; then
+  if [[ ! -x "${HACKME_AFL_FUZZ:-}" ]] && ! command -v afl-fuzz >/dev/null 2>&1; then
+    echo "[miner] ensuring Hunt engines (first missing AFL++)..."
+    HACKME_PREFIX="$INSTALL_DIR" bash "$INSTALL_DIR/install_hunt_engines.sh" --prefix "$INSTALL_DIR" \
+      || echo "[miner] WARN: Hunt engines incomplete — coverage Hunt soft-skips" >&2
+    if [[ -f "$INSTALL_DIR/.env.hunt-engines" ]]; then
+      set -a
+      # shellcheck disable=SC1090
+      . "$INSTALL_DIR/.env.hunt-engines"
+      set +a
+      export PATH
+    fi
+  fi
+fi
+
 # Force-enable after sourcing (stop may have left =0 in the file we already rewrote;
 # re-export so the running process sees 1 even if sed raced).
 export HACKME_WORKER_WATCHDOG="${HACKME_WORKER_WATCHDOG:-1}"

@@ -42,7 +42,7 @@ Hashrate settles on-chain. Security work is escrowed, distributed, and reported 
 |------|---------|
 | **Mine** | Public HTTP pool · CUDA / OpenCL / CPU · hybrid Ed25519 submits · **HMC** rewards · **SUP** loyalty |
 | **Dig** | Customer WASM packs (Scan / Audit / Deep) · **20/80** escrow · pool workers · deliverable report |
-| **Hunt** | ASAN/UBSan catalog & customer repos · Lite / Standard / Heavy · **50/50** escrow · coordinator replay |
+| **Hunt** | **Coverage-guided** (libFuzzer fleet · AFL++ Deep) · ASAN prove · Lite / Standard / Heavy · **50/50** escrow |
 | **Exchange** | Soft-launch desk at [exchange.hackme.tech](https://exchange.hackme.tech/) — live matching + HMC/SUP custody; USDT BSC watch + manual KYT; no Didit/hot-send |
 | **Research** | Public ledgers (Hunt Watch, OSS CVE Watch, Bitcoin30) — evidence, not hype |
 
@@ -66,7 +66,7 @@ Payout follows **accepted work**, not lottery blocks. Model: [NETWORK_MODEL.md](
 |------|--------|
 | **Installers** | Win · Linux · `.deb` · Dig/Hunt CLI · HackMe OS ISO + **SHA256SUMS** |
 | **Pool** | Live public coordinator · auto `target_mod` · hybrid signer |
-| **Dig / Hunt** | Live product rails · verify SHA before upgrade |
+| **Dig / Hunt** | Live product rails · Hunt = **libFuzzer/AFL++ leases** + showmap/ASAN prove |
 | **Paper Exchange** | Desk live · **not** a CEX, **not** financial advice |
 | **Hunt Watch 2026sep** | **12/12 closed** · [ledger](https://hackme.tech/reports/hunt-watch-2026sep/) |
 | **OSS CVE Watch** | nghttp2 **14/14** · libheif **14/14** CLEAN ledgers |
@@ -74,7 +74,7 @@ Payout follows **accepted work**, not lottery blocks. Model: [NETWORK_MODEL.md](
 
 Channel notes: [docs/HACKME_RC17.md](docs/HACKME_RC17.md) · release: [GitHub 0.1.0-rc17.2](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.2)
 
-**Honesty:** Hunt/Dig **CLEAN ≠ CVE claim**. Customer value is **bugs in their target + report + escrow**, not “we mint CVEs.” libFuzzer often wins raw exec/s; Hunt wins fleet + deliverable — [HUNT_VS_LIBFUZZER.md](docs/HUNT_VS_LIBFUZZER.md).
+**Honesty:** Hunt/Dig **CLEAN ≠ CVE claim**. Customer value is **bugs in their target + report + escrow**, not “we mint CVEs.” Standalone libFuzzer still wins **raw local exec/s**; product Hunt ships the **same engine class on the pool** (prove + escrow + Dig hybrid) — live bench 2026-10-11 in [HUNT_VS_LIBFUZZER.md](docs/HUNT_VS_LIBFUZZER.md). Old byte “~100 vs ~700 exec/s” charts are **not** the fleet default.
 
 ---
 
@@ -137,12 +137,12 @@ GPU backends: [GPU_MINING_BACKENDS.md](docs/GPU_MINING_BACKENDS.md).
 | Product | Escrow | What you buy |
 |---------|--------|----------------|
 | **Dig · Scan / Audit / Deep** | 20/80 | WASM campaign on *your* guards · pool-distributed Dig (no AFL/LF in Dig) |
-| **Hunt · Lite / Standard / Heavy** | 50/50 | **Coverage-guided** ASAN (libFuzzer fleet · AFL++ Deep) · coordinator showmap/ASAN prove — **not** better than OSS-Fuzz |
+| **Hunt · Lite / Standard / Heavy** | 50/50 | **Coverage-guided** libFuzzer / AFL++ on the pool · coordinator **ASAN + afl-showmap** prove · escrow report — distributed Hunt, **not** an OSS-Fuzz replacement |
 
 ```bash
 hackme-fuzzing wizard --pack filter_utf8 --package audit
 hackme-fuzzing hunt … --package hunt_lite   # see docs
-bash scripts/ops/install_hunt_engines.sh --desktop   # clang + AFL++ tools (no git clone)
+bash scripts/ops/install_hunt_engines.sh --desktop   # clang + AFL++ + bwrap (also auto on Linux miner install/update)
 ```
 
 | Dig package | ~HMC | Runs (guide) |
@@ -157,10 +157,10 @@ bash scripts/ops/install_hunt_engines.sh --desktop   # clang + AFL++ tools (no g
 | Standard | 60 | libFuzzer fleet wall |
 | Heavy | 150+ | AFL++ when present |
 
-Pay: proven showmap edges and/or ASAN crash = full PayRun; CLEAN without delta = floor. Byte fallback OFF.
+Pay: proven showmap edges and/or ASAN crash = full PayRun; CLEAN without delta = floor. Byte fallback OFF. Linux miners: engines install on `install_hackme` / `update_hackme_miner` / firstboot (opt-out `HACKME_SKIP_HUNT_ENGINES=1`).
 
 - Landing: [developers.html](https://hackme.tech/developers.html) · [fuzz-guide.html](https://hackme.tech/fuzz-guide.html)
-- [HUNT_COVERAGE_ENGINES.md](docs/HUNT_COVERAGE_ENGINES.md) · [FUZZ_PRODUCT_GUIDE.md](docs/FUZZ_PRODUCT_GUIDE.md) · [HUNT_ECONOMICS.md](docs/HUNT_ECONOMICS.md)
+- [HUNT_COVERAGE_ENGINES.md](docs/HUNT_COVERAGE_ENGINES.md) · [HUNT_VS_LIBFUZZER.md](docs/HUNT_VS_LIBFUZZER.md) · [FUZZ_PRODUCT_GUIDE.md](docs/FUZZ_PRODUCT_GUIDE.md) · [HUNT_ECONOMICS.md](docs/HUNT_ECONOMICS.md)
 
 Bootstrap smoke orders prove the rail — they are **not** a paid Lite/Standard depth buy.
 

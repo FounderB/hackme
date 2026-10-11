@@ -36,6 +36,11 @@ LOCK="$ROOT/reports/hunt-daily/.rotate.lock"
 QUEUE_PY="$ROOT/scripts/ops/hunt_daily_queue.py"
 mkdir -p "$BASE_OUT" "$ROOT/reports/hunt-daily"
 
+# Disk hygiene before each slot (harness/AFL workdirs/corpus caps).
+if [[ -x "$ROOT/scripts/ops/prune_hunt_miner_caches.sh" ]]; then
+  bash "$ROOT/scripts/ops/prune_hunt_miner_caches.sh" --repo "$ROOT" || true
+fi
+
 log() { echo "[hunt-daily $(date -u +%H:%M:%S)] $*" | tee -a "$BASE_OUT/rotate.log"; }
 
 finish_slot() {

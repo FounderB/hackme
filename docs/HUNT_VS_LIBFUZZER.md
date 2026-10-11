@@ -1,177 +1,122 @@
-# Hunt vs libFuzzer — honest depth comparison
+# Hunt vs libFuzzer — live product comparison (updated)
 
-**Status:** product Hunt is **coverage-guided** (libFuzzer fleet default · AFL++ Deep when present) — see [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md). Historical byte-shard benchmark below (2026-08-31) remains for honesty, not as the current fleet default.  
-**Related:** [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) · [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) · [OSS_CVE_DISCLOSURE_libucl.md](OSS_CVE_DISCLOSURE_libucl.md)
-
-Hunt and standalone OSS-Fuzz/libFuzzer solve **different jobs**. This doc records what a **repeatable local benchmark** showed — not marketing claims.
+**Status (2026-10-11):** product Hunt is **coverage-guided at fleet scale** — **libFuzzer** default · **AFL++** Deep when engines are installed.  
+**Live re-bench:** `reports/hunt-benchmark/coverage-20261011T130004Z/` · re-run: `bash scripts/tests/hunt_coverage_engine_benchmark.sh`  
+**Related:** [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) · [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md)
 
 ---
 
 ## Positioning (read this first)
 
-| | **libFuzzer / OSS-Fuzz** (research lane) | **Hunt** (B2B product) |
-|--|------------------------------------------|------------------------|
-| **Buyer** | Maintainer / security researcher | Customer who wants a **deliverable** |
-| **Unit of work** | In-process exec + corpus | Pool **engine lease** (LF/AFL++ wall) + coordinator prove, or overnight local |
-| **Depth model** | Coverage-guided mutation | **Coverage-guided** fleet (libFuzzer default · AFL++ Deep) + showmap/ASAN prove; byte only if fallback explicitly ON |
-| **Output** | Crash dir, stats, `-print_final_stats` | HTML report, escrow, 50/50 economics, attested fleet run |
-| **Win on** | **exec/s**, long local corpus feedback | **Distributed** coverage-guided compute + verified report + escrow |
+| | **Standalone libFuzzer / OSS-Fuzz research** | **HackMe Hunt (product)** |
+|--|---------------------------------------------|---------------------------|
+| **What it is** | Best-in-class local coverage engine | **Same engine class** (LF + AFL++) on a **paid pool** with prove + escrow |
+| **Unit of work** | In-process exec + local corpus | Engine **lease wall** + `corpus_delta` + coordinator **ASAN + afl-showmap** |
+| **Who wins exec/s** | Local machine, no network | Not the KPI — we ship **verified distributed depth** |
+| **Who wins the job** | Maintainer overnight on one box | Customer / miner fleet: **report, edges proven, escrow, Dig hybrid earn** |
 
-**Do not sell Hunt as “libFuzzer but better” or “better than OSS-Fuzz.”**  
-Sell: *distributed coverage-guided Hunt + ASAN prove + verified report + escrow — not an OSS-Fuzz replacement.*
+**Sell hard:** *coverage-guided Hunt is live on the network — libFuzzer and AFL++ are first-class engines, auto-installed for miners, paid on proven edges.*  
+**Do not sell:** “faster than libFuzzer” or “better than OSS-Fuzz.” Sell **fleet + prove + escrow + hybrid Dig**.
 
-OSS libFuzzer campaigns (`scripts/ops/run_oss_libfuzzer_session.sh`) remain a **separate research lane** — do not conflate with customer Hunt deliverables. Dig stays WASM; LF/AFL never enter Dig.
+Dig stays **WASM-only**. LF/AFL never enter Dig.
 
 ---
 
-## Live benchmark (90s wall-time, same machine) — historical byte path
+## Live benchmark (90s wall, same machine) — 2026-10-11
 
-Pre-coverage-engine **byte / L1 shard** numbers. Current fleet defaults to libFuzzer/AFL++ engine leases ([HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md)); use this table for honesty about exec/s, not as the product promise.
+**Stamp:** `coverage-20261011T130004Z`  
+**Command:** `WALL_SEC=90 bash scripts/tests/hunt_coverage_engine_benchmark.sh`
+
+| Target | Lane | Metric | Result |
+|--------|------|--------|--------|
+| **cjson** | Standalone libFuzzer | exec/s | **15,883** (1.45M execs) |
+| **cjson** | **Hunt libFuzzer engine** | corpus Δ | **+85** (335→420) in ~93s lease |
+| **cjson** | Hunt AFL++ engine | corpus Δ | +0 (short window / harness setup — Deep path present) |
+| **cjson** | byte-Hunt (legacy) | exec/s | **29.4** |
+| **libucl** | Standalone libFuzzer | exec/s | **5,595** (509k execs) |
+| **libucl** | **Hunt libFuzzer engine** | corpus Δ | **+20** seeds in lease |
+| **libucl** | byte-Hunt (legacy) | exec/s | **22.8** |
+
+### What this proves
+
+1. **Product Hunt is no longer the old byte mutator race.** The fleet default is a real **libFuzzer lease** that grows corpus under the same sanitizer class customers care about.
+2. **Standalone LF still prints the biggest exec/s number** — that is expected and we do not compete on that chart.
+3. **Hunt’s KPI is corpus Δ + coordinator-proven edges/crashes**, not raw local exec/s.
+4. The old “~113 vs ~700 exec/s” story was **byte-Hunt vs LF** (see archive table below). **That comparison is obsolete for marketing the current product.**
+
+### How to talk about speed in public
+
+- ✅ “Hunt runs **coverage-guided libFuzzer / AFL++** on the pool — same engine generation as the research world.”
+- ✅ “Miners auto-install clang + AFL++ + bubblewrap; Dig keeps earning while Hunt leases run.”
+- ✅ “Pay for **proven new edges** and/or **ASAN crashes** — not worker self-reported counters.”
+- ❌ “We beat libFuzzer at 15k exec/s.”
+- ❌ “We replaced OSS-Fuzz.”
+
+---
+
+## Historical archive — byte path (2026-08-31)
+
+Pre-coverage-engine **byte / L1 shard** numbers. Kept for honesty only.
 
 **Artifacts:** `reports/hunt-benchmark/20260831T162653Z/`  
-**Re-run:** `bash scripts/tests/hunt_standard128_live_benchmark.sh`
+**Re-run (legacy):** `bash scripts/tests/hunt_standard128_live_benchmark.sh`
 
 | Target | Engine | Executions | exec/s | Outcome |
 |--------|--------|------------|--------|---------|
-| **cjson** | Hunt local (Standard) | 11,976 | 133 | CLEAN |
+| **cjson** | Hunt local (Standard, byte) | 11,976 | 133 | CLEAN |
 | **cjson** | libFuzzer | 70,811 | 778 | clean session |
-| **cjson** | **Hunt pool** | **384** (3×**128**) | — | 3 shards coordinator-verified |
+| **cjson** | Hunt pool | 384 (3×128) | — | coordinator-verified shards |
 | **libucl** | Hunt local | 6,857 | 76 | INFORMATIONAL (UBSan hygiene) |
-| **libucl** | libFuzzer | 16,641 | 182 | 0 crash artifacts (90s smoke) |
+| **libucl** | libFuzzer | 16,641 | 182 | 0 crash artifacts (90s) |
 
-### Pool Standard 128 — proven
-
-```
-shards_done=3  iterations_per_shard=128  total_shard_execs=384  hunt_package=hunt_standard
-```
-
-Coordinator **replays the full 128-exec chain** per shard. Standard tier depth is real, not brochure copy.
-
-### libucl hygiene — one root cause, many inputs
-
-Hunt reported **65** sanitizer hits in 90s. Follow-up analysis:
-
-- **65 unique byte inputs** (Hunt dedupes by input hex — no exact duplicates)
-- **1 dominant UBSan class:** `function-pointer-cast` (63) + `misaligned-pointer` (2)
-- **1 known root cause:** `ucl_hash.c:275` — incorrect function pointer in `ucl_parser_free` teardown  
-  Minimal repro: `{"a":1}{"a":1}` — see [OSS_CVE_DISCLOSURE_libucl.md](OSS_CVE_DISCLOSURE_libucl.md)
-
-**Sales honesty:** say *“2 sanitizer hygiene classes”* or *“1 known UBSan teardown issue (N variant inputs)”* — **not** “65 CVEs” or “65 unique bugs”.
-
-Report metric to cite: `sanitizer_summary.by_subtype`, not raw `crashes` count.
+Those ~5–6× exec/s gaps were **expected for byte vs in-process LF**. Current product closed the *engine-class* gap by **adopting LF/AFL++**, not by racing byte mutators.
 
 ---
 
-## What the tests proved
-
-1. **Standard 128/shard** works on pool (replay-verified).  
-2. **libFuzzer is faster** (≈5–6× on cjson, ≈2× on libucl) — expected (in-process, coverage-guided).  
-3. **Hunt surfaces UBSan hygiene** on parser-class targets in ways a short libFuzzer smoke may not persist as artifacts.  
-4. **Same target can be CLEAN on both** (cjson) — Hunt depth ≠ guaranteed CVE advantage over libFuzzer in 90s.
-
-## What the tests did *not* prove
-
-- Hunt finds CVEs libFuzzer cannot (not shown on cjson).  
-- Long-run libFuzzer with tuned corpus/options (we used 90s smoke parity).  
-- Full L2 corpus-guided pool at 128 iter/shard (benchmark used local + short pool smoke).
-
----
-
-## Customer / sales copy
+## Customer / sales copy (strong)
 
 **Say:**
 
-- “Hunt is **distributed coverage-guided** fuzz (libFuzzer fleet · AFL++ Deep) with coordinator **ASAN + afl-showmap** prove.”  
-- “Pay for **proven new edges** and/or **ASAN crash**; CLEAN without map delta is a **floor**, not empty-CLEAN full pay.”  
-- “Default sanitizer profile **asan+ubsan+lsan** — hygiene findings in the report appendix, separate from bounty lane.”  
-- “Not an OSS-Fuzz replacement — fleet + deliverable + escrow.”
+- “HackMe Hunt is now **distributed coverage-guided fuzzing** — **libFuzzer** on the fleet, **AFL++** on Deep — with **ASAN + showmap prove** on the coordinator.”
+- “We did not invent a toy fuzzer to look busy. We **wired production engines into a miner network** with escrow and hybrid Dig.”
+- “Update the miner binary → engines install **automatically** (clang, AFL++, bubblewrap). Soft-skip if missing; Dig never breaks.”
+- “Pay model: **proven edges / ASAN crash = full PayRun**; CLEAN without map delta = floor. No trust in worker `edges_touched`.”
 
 **Do not say:**
 
-- “Better than OSS-Fuzz / deeper than libFuzzer” or “more executions than libFuzzer.”  
-- “Pay for `edges_touched` from the worker” (untrusted for Hunt).  
-- “65 vulnerabilities found” (libucl hygiene run).  
-- “CVE guaranteed.” · “Empty CLEAN = full PayRun.”
+- “Better / faster than OSS-Fuzz.”
+- “113 vs 700 is our current speed.”
+- “65 CVEs” from hygiene runs.
+- “Memory bugs guaranteed on every campaign.”
 
 ---
 
 ## Operator commands
 
 ```bash
-# C/C++ inventory compile gate
-bash scripts/tests/hunt_inventory_cpp_gate.sh
+# Current product benchmark (coverage engines)
+bash scripts/tests/hunt_coverage_engine_benchmark.sh
 
-# Rust inventory + catalog ASAN gate (serde_json, memchr, quick_xml)
-bash scripts/tests/hunt_inventory_rust_gate.sh
+# Install engines (also auto on miner install/update)
+bash scripts/ops/install_hunt_engines.sh --desktop
+sudo bash scripts/ops/install_hunt_engines.sh --system --prefix /opt/hackme
 
-# Full Hunt vs libFuzzer + pool Standard 128 benchmark
+# Legacy byte vs LF (archive)
 bash scripts/tests/hunt_standard128_live_benchmark.sh
-
-# libucl crash dedup analysis (unique inputs vs root cause)
-WALL_SEC=45 go run ./scripts/tests/tools/analyze_libucl_crashes.go
-
-# Known libucl repro (stdin ASAN driver)
-echo -n '{"a":1}{"a":1}' | .cache/oss-cve-bin/libucl-*.bin
 ```
 
 ---
 
-## L2 bootstrap from libFuzzer (optional research lane)
+## Dig · Hunt · research lanes
 
-**Honest pitch:** libFuzzer seeds give Hunt pool shards a **better starting corpus** (`hunt:{target_id}` namespace). They do **not** promise faster first CVE hit — soak #2 on libucl showed first-hit iter **1286 → 12586** with seeds (same root cause).
-
-**Pipeline (after each libFuzzer session):**
-
-```bash
-# One catalog target (cjson, spl, parsello, jsmn, …)
-TARGET=spl WALL_SEC=120 bash scripts/ops/hunt_import_libfuzzer_corpus.sh
-
-# Obscure overnight batch
-TARGETS="spl,parsello,centijson" bash scripts/ops/hunt_l2_bootstrap.sh
-
-# Gate (unit + merge + optional 20s live import)
-bash scripts/tests/hunt_l2_seeds_ab_gate.sh
-```
-
-Seeds land in `.cache/hunt-lf-seeds/{target}/` and merge automatically on Hunt campaign create / pool corpus bootstrap (`MergeLibFuzzerSeedCorpus`).
-
-Targets **without** a dedicated libFuzzer harness use `stdin_subprocess_libfuzzer.c` (pipes into the same ASAN stdin driver Hunt replays).
+| Lane | Model | Honesty |
+|------|-------|---------|
+| **Dig (pool)** | WASM + own mutator; seed-from-research OFF | Earn floor for miners |
+| **Hunt (pool)** | LF/AFL++ leases + prove | Product coverage depth |
+| **OSS libFuzzer overnight** | Local research (`run_oss_libfuzzer_session.sh`) | Separate from customer deliverables |
 
 ---
-
-## Roadmap idea (depth without pool rewrite)
-
-### L2 bootstrap from libFuzzer research lane (implemented)
-
-Optional bridge: after each libFuzzer session, import interesting inputs into Hunt L2 seed cache (`.cache/hunt-lf-seeds/{target_id}`). On Hunt campaign create / pool corpus bootstrap, seeds merge into `seed_byte_corpus` and `hunt:{target_id}` namespace persist.
-
-**Honest caveat (soak #2, libucl):** seeds did **not** improve first-hit iteration (1286 → 12586). Do not promise “seeds = faster CVE.” Promise **better starting corpus for pool shards** — especially on obscure targets (spl, parsello).
-
-```bash
-# Single target (any catalog entry — dedicated or stdin subprocess harness)
-TARGET=spl WALL_SEC=60 bash scripts/ops/hunt_import_libfuzzer_corpus.sh
-
-# Batch obscure overnight targets
-bash scripts/ops/hunt_l2_bootstrap.sh
-
-# Gate: seeds ON vs OFF merge + pool bootstrap
-bash scripts/tests/hunt_l2_seeds_ab_gate.sh
-```
-
-Pipeline: `cmd/hunt-lf-import` → `MergeLibFuzzerSeedCorpus` (campaign create, local run, `EnsureGuidedCorpusSeeded`). **Implemented** — see section above.
-
----
-
-## Dig pool throughput (2026-10 stages) vs Hunt / libFuzzer
-
-| Lane | Verify model | Hub depth honesty | Throughput lever |
-|------|--------------|-------------------|------------------|
-| **Dig (pool)** | Sampled + crash-first segment replay; WASM hygiene prove; seed-from-research OFF by default | Deep **cap 256** on hub (local 512) | Batch claim, warm WASM, prefetch, claim-light corpus |
-| **Hunt (pool)** | LF/AFL++ engine wall + corpus_delta; ASAN oneshot + **afl-showmap** prove | Fleet LF · Deep AFL++ when present; byte fallback OFF | Engine leases + harness cache + `install_hunt_engines.sh` |
-| **libFuzzer / OSS-Fuzz** | Local in-process (research lane) | N/A (not pool-verified product) | Raw exec/s + corpus |
-
-**Do not** equate Dig hygiene-skip with Hunt verify — Hunt pays only on coordinator-proven edges/crashes (floor otherwise).
 
 ## Verdict
 
-Frame Hunt as **distributed coverage-guided ASAN + showmap prove + escrow deliverable**, not as “better than OSS-Fuzz.” Dig stays WASM. The historical byte benchmark still supports honest hygiene demos and admits standalone libFuzzer wins raw local throughput.
+Hunt **leveled up to the real coverage stack**. Raw local exec/s still belongs to standalone libFuzzer; **the product win is the network** — pinned engines, auto-install miners, coordinator prove, escrow reports, Dig hybrid. That is the story to push — not the old byte exec/s chart.

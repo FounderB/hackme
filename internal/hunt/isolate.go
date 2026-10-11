@@ -159,8 +159,26 @@ func bwrapCageFailed(err error, stderr string) bool {
 	return false
 }
 
+// bareIsolatedCommand execs the harness with no_new_privs when setpriv(1) is available
+// (Go 1.26+ removed syscall.SysProcAttr.NoNewPrivs).
+func bareIsolatedCommand(ctx context.Context, bin string, args []string) *exec.Cmd {
+	if sp, err := exec.LookPath("setpriv"); err == nil {
+		argv := append([]string{"--nnp", "--", bin}, args...)
+		return exec.CommandContext(ctx, sp, argv...)
+	}
+	return exec.CommandContext(ctx, bin, args...)
+}
+
 func runBareIsolated(runCtx context.Context, opts IsolateOpts, env []string, wall time.Duration) error {
-	cmd := exec.CommandContext(runCtx, opts.Bin, opts.Args...)
+	if os.Geteuid() == 0 && !opts.AllowBare {
+		// Paid Hunt must not exec untrusted harnesses as root on the bare path.
+		// AllowBare keeps showmap/unit helpers usable under CI root.
+		v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_HUNT_ALLOW_ROOT")))
+		if v != "1" && v != "true" && v != "yes" && v != "on" {
+			return fmt.Errorf("hunt isolate: refusing bare root exec (set HACKME_HUNT_ALLOW_ROOT=1 to override)")
+		}
+	}
+	cmd := bareIsolatedCommand(runCtx, opts.Bin, opts.Args)
 	cmd.Env = env
 	if opts.Dir != "" {
 		cmd.Dir = opts.Dir
@@ -238,15 +256,41 @@ func wrapBubblewrap(bin string, args []string, dir string, extraBind, extraRo []
 }
 
 func scrubIsolateEnv(env []string) []string {
-	deny := map[string]bool{
+	denyExact := map[string]bool{
 		"http_proxy": true, "https_proxy": true, "HTTP_PROXY": true, "HTTPS_PROXY": true,
 		"ALL_PROXY": true, "all_proxy": true, "GIT_ASKPASS": true, "SSH_AUTH_SOCK": true,
-		"AWS_SECRET_ACCESS_KEY": true, "AWS_ACCESS_KEY_ID": true,
+		"AWS_SECRET_ACCESS_KEY": true, "AWS_ACCESS_KEY_ID": true, "AWS_SESSION_TOKEN": true,
+		"COORD_TOKEN": true, "GITHUB_TOKEN": true, "GH_TOKEN": true,
+		"HACKME_ADMIN_TOKEN": true, "HACKME_POOL_COORDINATOR_TOKEN": true,
+		"HACKME_MINER_ED25519_SEED_HEX": true, "HACKME_COORDINATOR_ADMIN_TOKEN": true,
+		"HACKME_SETTLEMENT_ADMIN_TOKEN": true, "OPENAI_API_KEY": true, "ANTHROPIC_API_KEY": true,
+	}
+	denyPrefix := []string{
+		"HACKME_MINER_", "HACKME_POOL_", "HACKME_SETTLE", "AWS_", "GITHUB_",
 	}
 	out := make([]string, 0, len(env)+2)
 	for _, e := range env {
 		key, _, _ := strings.Cut(e, "=")
-		if deny[key] {
+		if denyExact[key] {
+			continue
+		}
+		skip := false
+		for _, p := range denyPrefix {
+			if strings.HasPrefix(key, p) {
+				// Keep non-secret pool knobs that engines need (URLs are OK; tokens scrubbed above).
+				if key == "HACKME_POOL_COORDINATOR_URL" || key == "HACKME_POOL_SEED_FROM_RESEARCH" {
+					break
+				}
+				if strings.Contains(strings.ToUpper(key), "TOKEN") ||
+					strings.Contains(strings.ToUpper(key), "SECRET") ||
+					strings.Contains(strings.ToUpper(key), "SEED") ||
+					strings.Contains(strings.ToUpper(key), "KEY") {
+					skip = true
+					break
+				}
+			}
+		}
+		if skip {
 			continue
 		}
 		out = append(out, e)

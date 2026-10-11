@@ -150,8 +150,28 @@ do_stop_local() {
   # Do not disable timers unless explicitly asked — stop is temporary.
 }
 
+ensure_hunt_engines_desktop() {
+  if [[ "${HACKME_SKIP_HUNT_ENGINES:-0}" == "1" ]]; then
+    return 0
+  fi
+  local eng="$ROOT/scripts/ops/install_hunt_engines.sh"
+  [[ -f "$eng" ]] || return 0
+  log "ensure Hunt engines (desktop)"
+  bash "$eng" --desktop || log "WARN: Hunt engines incomplete"
+  if [[ -f "$ROOT/logs/desktop/toolchains/.env.hunt-engines" ]]; then
+    # Append AFL PATH into hybrid env so workerfuzz sees afl-fuzz.
+    local afl_line path_line
+    afl_line="$(grep -E '^HACKME_AFL_FUZZ=' "$ROOT/logs/desktop/toolchains/.env.hunt-engines" | head -1 || true)"
+    path_line="$(grep -E '^PATH=' "$ROOT/logs/desktop/toolchains/.env.hunt-engines" | head -1 || true)"
+    [[ -n "$afl_line" ]] && echo "$afl_line" >>"$ENV_FILE"
+    [[ -n "$path_line" ]] && echo "$path_line" >>"$ENV_FILE"
+  fi
+  bash "$ROOT/scripts/ops/prune_hunt_miner_caches.sh" --repo "$ROOT" 2>/dev/null || true
+}
+
 do_ensure() {
   write_kapa_env
+  ensure_hunt_engines_desktop
   write_kapa_dropin
   # Align .env.desktop hybrid dig + research with process-mode stack (idempotent keys).
   if [[ -f "$ROOT/.env.desktop" ]]; then

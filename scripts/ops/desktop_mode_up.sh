@@ -73,6 +73,23 @@ ensure_from_code_toolchains() {
   fi
 }
 
+# Hunt coverage engines (clang + AFL++ + bwrap) — skip with SKIP_HUNT_ENGINES=1.
+ensure_hunt_engines() {
+  if [[ "${SKIP_HUNT_ENGINES:-0}" == "1" || "${HACKME_SKIP_HUNT_ENGINES:-0}" == "1" ]]; then
+    return 0
+  fi
+  local eng="$ROOT_DIR/scripts/ops/install_hunt_engines.sh"
+  [[ -f "$eng" ]] || return 0
+  if bash "$eng" --desktop --check-only 2>/dev/null; then
+    return 0
+  fi
+  echo "[desktop-up] installing Hunt engines (clang/AFL++/bwrap)..."
+  bash "$eng" --desktop || echo "[desktop-up] WARN: Hunt engines incomplete — soft-skip coverage Hunt" >&2
+  if [[ -f "$LOG_DIR/toolchains/.env.hunt-engines" ]]; then
+    cp -f "$LOG_DIR/toolchains/.env.hunt-engines" "$LOG_DIR/.hackme-hunt-engines.env" 2>/dev/null || true
+  fi
+}
+
 sync_toolchain_env_to_log_dir() {
   local src
   for src in "$ROOT_DIR/.hackme-toolchains.env" "$LOG_DIR/toolchains/.env.toolchains"; do
@@ -251,8 +268,22 @@ build_desktop_minersign() {
 build_desktop_minersign
 
 ensure_from_code_toolchains
+ensure_hunt_engines
 sync_toolchain_env_to_log_dir
 source_toolchain_env
+if [[ -f "$LOG_DIR/toolchains/.env.hunt-engines" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$LOG_DIR/toolchains/.env.hunt-engines"
+  set +a
+  export PATH
+elif [[ -f "$ROOT_DIR/logs/desktop/toolchains/.env.hunt-engines" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ROOT_DIR/logs/desktop/toolchains/.env.hunt-engines"
+  set +a
+  export PATH
+fi
 
 if [[ -f "$PID_FILE" ]]; then
   old_pid="$(cat "$PID_FILE" 2>/dev/null || true)"

@@ -56,7 +56,11 @@ bash scripts/ops/install_hunt_engines.sh --desktop
 sudo bash scripts/ops/install_hunt_engines.sh --system --prefix /opt/hackme
 ```
 
-Ships clang + AFL++ (`afl-fuzz`, `afl-clang-fast`, `afl-showmap`) from release tarball / bundle. Sets `HACKME_AFL_FUZZ`.
+Ships clang + AFL++ (`afl-fuzz`, `afl-clang-fast`, `afl-showmap`) + bubblewrap from apt / release tarball. Sets `HACKME_AFL_FUZZ`.
+
+**Auto on miner download/update (Linux):** `install_hackme.sh`, `update_hackme_miner.sh`, `start_hackme_miner.sh` (first missing AFL++), HackMe OS firstboot, and `desktop_mode_up.sh` all call `install_hunt_engines.sh` best-effort. Opt out: `HACKME_SKIP_HUNT_ENGINES=1`. Windows Hunt engines remain soft-skip (Linux-only AFL++/LF path).
+
+**Disk:** `prune_hunt_miner_caches.sh` caps harness/AFL workdirs and persistent corpora (default 4096 files, ~3d age). Also runs from daily-rotate + engine install. Dig WASM / wallets are never touched.
 
 ## Env knobs
 

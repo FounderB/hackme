@@ -65,10 +65,36 @@ HACKME_WORKER_SIGN_SUBMITS=1
 # Fleet default: PoH+fuzz hybrid (inline). Set =0 to disable dig.
 HACKME_WORKER_HYBRID_FUZZ=1
 HACKME_WORKER_HYBRID_FUZZ_MODE=inline
+# Coverage Hunt (libFuzzer/AFL++) when engines installed by firstboot.
+HACKME_HUNT_COVERAGE_ENGINE=1
+HACKME_HUNT_ENGINE_BYTE_FALLBACK=0
+HACKME_HUNT_ISOLATE_REQUIRE=1
+HACKME_HUNT_ISOLATE_STRICT=0
 EOF
 chmod 600 "$ENV_STATE"
 touch "$MARKER"
 chmod 600 "$MARKER"
+
+# Auto-install clang/AFL++/bubblewrap for Hunt (best-effort; Dig unaffected on failure).
+if [[ "${HACKME_SKIP_HUNT_ENGINES:-0}" != "1" ]]; then
+  eng=""
+  for cand in "${ROOT}/install_hunt_engines.sh" "${ROOT}/scripts/ops/install_hunt_engines.sh"; do
+    [[ -f "$cand" ]] && { eng="$cand"; break; }
+  done
+  if [[ -n "$eng" ]]; then
+    echo "[hackme-miner-firstboot] Hunt engines ← $eng"
+    HACKME_PREFIX="$ROOT" bash "$eng" --system --prefix "$ROOT" \
+      || echo "[hackme-miner-firstboot] WARN: Hunt engines incomplete" >&2
+    if [[ -f "${ROOT}/.env.hunt-engines" ]]; then
+      # shellcheck disable=SC1090
+      set -a; . "${ROOT}/.env.hunt-engines"; set +a
+      {
+        echo "HACKME_AFL_FUZZ=${HACKME_AFL_FUZZ:-${ROOT}/aflpp/bin/afl-fuzz}"
+        echo "HACKME_PREFIX=${HACKME_PREFIX:-$ROOT}"
+      } >>"$ENV_STATE"
+    fi
+  fi
+fi
 
 echo "[hackme-miner-firstboot] worker_id=${WORKER_ID} env=${ENV_STATE}"
 if command -v systemctl >/dev/null 2>&1; then

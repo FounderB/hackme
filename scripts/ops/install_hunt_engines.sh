@@ -11,9 +11,18 @@
 #   AFLPP_VERSION   default 4.21c (release tag without leading v)
 #   SKIP_AFLPP=1    only ensure clang
 #   SKIP_CLANG=1    only install AFL++
+#   SKIP_BWRAP=1    skip bubblewrap package install
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Release layout: script next to hackme (/opt/hackme). Repo layout: scripts/ops/.
+if [[ -x "${SCRIPT_DIR}/hackme" || -f "${SCRIPT_DIR}/BUILD_INFO.txt" ]]; then
+  ROOT_DIR="$SCRIPT_DIR"
+elif [[ -d "${SCRIPT_DIR}/../../internal/hunt" ]]; then
+  ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+else
+  ROOT_DIR="$SCRIPT_DIR"
+fi
 AFLPP_VERSION="${AFLPP_VERSION:-4.21c}"
 MODE_DESKTOP=0
 MODE_SYSTEM=0
@@ -21,6 +30,7 @@ CHECK_ONLY=0
 HACKME_PREFIX=""
 SKIP_AFLPP="${SKIP_AFLPP:-0}"
 SKIP_CLANG="${SKIP_CLANG:-0}"
+SKIP_BWRAP="${SKIP_BWRAP:-0}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -66,6 +76,11 @@ check_status() {
     warn "afl-fuzz missing — AFL++ Deep Hunt engine unavailable"
     ok=0
   fi
+  if have bwrap; then
+    log "bwrap: $(command -v bwrap)"
+  else
+    warn "bubblewrap missing — Hunt falls back to bare exec (no net namespace)"
+  fi
   return $((1 - ok))
 }
 
@@ -88,6 +103,22 @@ ensure_clang() {
     DEBIAN_FRONTEND=noninteractive apt-get install -y clang || warn "apt clang failed"
   else
     warn "install clang via your package manager for libFuzzer Hunt (fleet default)"
+  fi
+}
+
+ensure_bubblewrap() {
+  if [[ "$SKIP_BWRAP" == "1" ]]; then
+    return 0
+  fi
+  if have bwrap; then
+    log "bubblewrap already present"
+    return 0
+  fi
+  if [[ "$(id -u)" -eq 0 ]] && have apt-get; then
+    log "apt-get install bubblewrap (Hunt isolate cage)"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y bubblewrap || warn "apt bubblewrap failed"
+  else
+    warn "install bubblewrap for net-isolated Hunt (apt install bubblewrap)"
   fi
 }
 
@@ -119,6 +150,8 @@ install_aflpp_bundle() {
   for cand in \
     "$ROOT_DIR/third_party/aflpp/aflpp-${AFLPP_VERSION}-linux-${arch}.tar.gz" \
     "$ROOT_DIR/dist/toolchains/aflpp-${AFLPP_VERSION}-linux-${arch}.tar.gz" \
+    "$ROOT_DIR/aflpp-${AFLPP_VERSION}-linux-${arch}.tar.gz" \
+    "$HACKME_PREFIX/third_party/aflpp/aflpp-${AFLPP_VERSION}-linux-${arch}.tar.gz" \
     "${HACKME_AFLPP_TARBALL:-}"; do
     [[ -n "$cand" && -f "$cand" ]] && { local_tb="$cand"; break; }
   done
@@ -227,7 +260,14 @@ EOF
 }
 
 ensure_clang
+ensure_bubblewrap
 install_aflpp_bundle
 write_env
+# Best-effort miner cache hygiene after engine install (idempotent).
+if [[ -x "$ROOT_DIR/scripts/ops/prune_hunt_miner_caches.sh" ]]; then
+  bash "$ROOT_DIR/scripts/ops/prune_hunt_miner_caches.sh" --repo "$ROOT_DIR" 2>/dev/null || true
+elif [[ -x "$SCRIPT_DIR/prune_hunt_miner_caches.sh" ]]; then
+  bash "$SCRIPT_DIR/prune_hunt_miner_caches.sh" --repo "$ROOT_DIR" 2>/dev/null || true
+fi
 check_status || warn "partial install — Hunt soft-skips missing engines; Dig unchanged"
 log "done (promise: distributed coverage-guided Hunt — not OSS-Fuzz replacement)"
