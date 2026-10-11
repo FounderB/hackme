@@ -1,4 +1,4 @@
-To: hello@miningboard.com
+To: contact@miningboard.com
 Subject: Pool listing request — HackMe Official Pool (HMC) — HTTP coordinator, live stats API
 
 Hello MiningBoard team,

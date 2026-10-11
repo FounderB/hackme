@@ -20,7 +20,7 @@ Our public `/pool/coordinator/api/pool/stats` is a different shape (`pool` is a 
 | Path | URL / address | When |
 |------|----------------|------|
 | **A. Web form** | https://miningboard.com/en/pools/submit | Primary — **Validate** feed first |
-| **B. Email** | **hello@miningboard.com** | Same day after form (or if silent 3–5 days) |
+| **B. Email** | **contact@miningboard.com** | Same day after form (or if silent 3–5 days) |
 
 Contact page: https://miningboard.com/contact — data corrections & partnerships, response ~2–3 business days.
 
@@ -42,7 +42,7 @@ Checklist:
 - [ ] `GET …/api/miningboard/hmc` → has `coin`, `pool.hashrate`, `pool.miners`
 - [ ] Validator on MiningBoard submit page passes
 - [ ] https://hackme.tech/downloads.html — SHA256SUMS for current release
-- [ ] Follow-up email to hello@miningboard.com (template below)
+- [ ] Follow-up email to contact@miningboard.com (template below)
 
 ## Pool facts (canonical)
 
@@ -100,7 +100,7 @@ Use whatever the form exposes; map our values:
 
 ## Email — follow-up / resubmit (copy & send)
 
-**To:** hello@miningboard.com  
+**To:** contact@miningboard.com  
 **Subject:** Follow-up — HackMe Official Pool (HMC) — MiningBoard pool-v1 feed ready
 
 **Body (English):**

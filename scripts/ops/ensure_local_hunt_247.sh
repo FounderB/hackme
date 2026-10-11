@@ -107,6 +107,16 @@ ensure_daily_rotate() {
   fi
 }
 
+ensure_coord_admin_tunnel() {
+  # Desktop settle-pull needs VPS :18081 via SSH; public :18083 nginx 403s admin outbox.
+  if [[ ! -f "$UNIT_DIR/hackme-coord-admin-tunnel.service" ]] ||
+    ! systemctl --user is-enabled --quiet hackme-coord-admin-tunnel.service 2>/dev/null; then
+    bash "$ROOT/scripts/ops/install_coord_admin_tunnel_user.sh" || log "WARN: coord admin tunnel install failed"
+  else
+    systemctl --user start hackme-coord-admin-tunnel.service 2>/dev/null || true
+  fi
+}
+
 rebuild_bins() {
   log "rebuild bin/workerfuzz"
   go build -trimpath -ldflags "-s -w" -o "$ROOT/bin/workerfuzz" ./cmd/workerfuzz
@@ -121,7 +131,12 @@ rebuild_bins() {
 
 show_status() {
   echo "=== units ==="
-  systemctl --user is-active hackme-obscure-hunt.service hackme-hunt-daily-rotate.timer hackme-hunt-daily-rotate.service hackme-kapa-worker.service hackme-desktop-node.service 2>&1 || true
+  systemctl --user is-active hackme-obscure-hunt.service hackme-hunt-daily-rotate.timer hackme-hunt-daily-rotate.service hackme-kapa-worker.service hackme-desktop-node.service hackme-coord-admin-tunnel.service 2>&1 || true
+  if curl -fsS --max-time 3 http://127.0.0.1:18081/health >/dev/null 2>&1; then
+    echo "coord_admin_tunnel: http://127.0.0.1:18081/health OK"
+  else
+    echo "coord_admin_tunnel: WARN :18081/health down (settle-pull will 403 on :18083)"
+  fi
   echo
   echo "=== local Hunt processes ==="
   pgrep -af 'run_oss_cve_obscure_loop|oss_cve_hunt|hunt_daily_rotate|hunt_bench_local' 2>/dev/null | head -20 || echo "(none)"
@@ -218,6 +233,7 @@ PY
   rebuild_bins
   ensure_obscure_unit || true
   ensure_daily_rotate
+  ensure_coord_admin_tunnel
   systemctl --user daemon-reload
   # Clear stale workerfuzz lock for kapa so process-mode can spawn.
   rm -f "$ROOT/logs/workerlock-workerfuzz-worker-kapa-pc.pid" \
@@ -251,6 +267,7 @@ case "$ACTION" in
     write_kapa_env
     write_kapa_dropin
     rebuild_bins
+    ensure_coord_admin_tunnel
     systemctl --user daemon-reload
     rm -f "$ROOT/logs/workerlock-workerfuzz-worker-kapa-pc.pid" \
           "$ROOT/logs/workerlock-workerpoh-worker-kapa-pc.pid" 2>/dev/null || true
