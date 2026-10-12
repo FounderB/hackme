@@ -1031,15 +1031,16 @@ func (a *app) drainFuzzSettleBeforeClose(ctx context.Context, campaignID, closeK
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
-				log.Printf("fuzz escrow: refuse %s %s: context done during settle drain: %v",
-					closeKind, logsafe.ID(campaignID), ctx.Err())
+				log.Printf("fuzz escrow: refuse %s %s: context done during settle drain: %s",
+					logsafe.ID(closeKind), logsafe.ID(campaignID), logsafe.Err(ctx.Err()))
 				return false
 			case <-time.After(pause):
 			}
 		}
 		err := a.pullFuzzSettleOutbox(ctx)
 		if err != nil && !errors.Is(err, errSettleOutboxUndrainableHead) {
-			log.Printf("fuzz escrow: refuse %s %s: settle pull failed: %v", closeKind, logsafe.ID(campaignID), err)
+			log.Printf("fuzz escrow: refuse %s %s: settle pull failed: %s",
+				logsafe.ID(closeKind), logsafe.ID(campaignID), logsafe.Err(err))
 			// Transient edge noise — keep trying within the window.
 			if poolsync.SettleOutboxErrTransient(err) && attempt+1 < maxAttempts {
 				continue
@@ -1048,7 +1049,8 @@ func (a *app) drainFuzzSettleBeforeClose(ctx context.Context, campaignID, closeK
 		}
 		pending, perr := a.fuzzSettleOutboxPendingForCampaign(ctx, campaignID)
 		if perr != nil {
-			log.Printf("fuzz escrow: refuse %s %s: settle pending check: %v", closeKind, logsafe.ID(campaignID), perr)
+			log.Printf("fuzz escrow: refuse %s %s: settle pending check: %s",
+				logsafe.ID(closeKind), logsafe.ID(campaignID), logsafe.Err(perr))
 			if poolsync.SettleOutboxErrTransient(perr) && attempt+1 < maxAttempts {
 				continue
 			}
@@ -1066,9 +1068,10 @@ func (a *app) drainFuzzSettleBeforeClose(ctx context.Context, campaignID, closeK
 	}
 	if lastPending {
 		log.Printf("fuzz escrow: refuse %s %s: settle outbox still has rows for campaign after retries",
-			closeKind, logsafe.ID(campaignID))
+			logsafe.ID(closeKind), logsafe.ID(campaignID))
 	} else {
-		log.Printf("fuzz escrow: refuse %s %s: settle drain window exhausted", closeKind, logsafe.ID(campaignID))
+		log.Printf("fuzz escrow: refuse %s %s: settle drain window exhausted",
+			logsafe.ID(closeKind), logsafe.ID(campaignID))
 	}
 	return false
 }
@@ -2277,7 +2280,7 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 	}
 	assuranceNote := buildAssuranceNote(runsDone, crashCrit, crashHigh, "crash/hang/ASan/memory")
 	var humanSummary string
-	digDepthCard := map[string]any(nil)
+	var digDepthCard map[string]any
 	if strings.EqualFold(strings.TrimSpace(c.CampaignType), "hunt") {
 		critNote := "no ASAN crash-class"
 		if crashCrit > 0 {

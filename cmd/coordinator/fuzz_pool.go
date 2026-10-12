@@ -709,7 +709,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		if limit > poolfuzz.MaxBatchClaimSubmit {
 			limit = poolfuzz.MaxBatchClaimSubmit
 		}
-		items := make([]map[string]any, 0, limit)
+		// Capacity uses the compile-time cap so allocation size is not attacker-controlled
+		// (CodeQL go/uncontrolled-allocation-size); loop still respects capped limit.
+		items := make([]map[string]any, 0, poolfuzz.MaxBatchClaimSubmit)
 		for i := 0; i < limit; i++ {
 			// Charge IP claim bucket per lease (not once per batch) so multi-id
 			// clients cannot pull up to 16 leases for a single IP slot.

@@ -1261,7 +1261,8 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 		if hygieneProveEnabled() {
 			if hygieneSegmentProveApplies(cfg, execPer) {
 				var proveErr error
-				checkResult, trap, pass, recordFinding, findingU, findingB, seg, proveErr = s.evalSubmitCheck(ctx, cfg, sem, inputN, expectedU, expectedB, seeds)
+				// Discard trap/finding payloads from prove — CLEAN hygiene path resets them.
+				checkResult, _, pass, recordFinding, _, _, seg, proveErr = s.evalSubmitCheck(ctx, cfg, sem, inputN, expectedU, expectedB, seeds)
 				if proveErr != nil {
 					return SubmitOutcome{}, proveErr
 				}
@@ -1278,7 +1279,7 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 				digReplayStatus = replayReasonHygieneSegment
 			} else {
 				var proveErr error
-				checkResult, trap, pass, recordFinding, proveErr = s.proveHygieneAnchorCheck(ctx, cfg, sem, expectedU, expectedB)
+				checkResult, _, pass, recordFinding, proveErr = s.proveHygieneAnchorCheck(ctx, cfg, sem, expectedU, expectedB)
 				if proveErr != nil {
 					return SubmitOutcome{}, proveErr
 				}

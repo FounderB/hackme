@@ -92,3 +92,32 @@ func TestImportInventoryPackSeedsAndDict(t *testing.T) {
 		t.Fatalf("seed_byte_corpus=%v", cfg["seed_byte_corpus"])
 	}
 }
+
+func TestInventoryPackRejectsPathEscape(t *testing.T) {
+	repo := t.TempDir()
+	pin := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(pin, "corpus"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Absolute segment and parent traversal must be rejected by SafeJoinUnder.
+	if _, err := SafeJoinUnder(pin, "corpus", "/etc/passwd"); err == nil {
+		t.Fatal("expected absolute segment reject")
+	}
+	if _, err := SafeJoinUnder(pin, "corpus", "..", "..", "etc", "passwd"); err == nil {
+		t.Fatal("expected traversal reject")
+	}
+	n, err := ImportInventoryPackSeeds(repo, "tgt", pin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("imported=%d want 0", n)
+	}
+	dict, rel, err := LoadInventoryLibFuzzerDict(pin, "../etc/passwd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dict) != 0 || rel != "" {
+		t.Fatalf("traversal sourceRel must yield no dict, got rel=%q n=%d", rel, len(dict))
+	}
+}

@@ -182,7 +182,6 @@ func runLibFuzzerEngineShard(ctx context.Context, repoRoot, targetID string, wal
 		_ = seedPersistentCorpus(repoRoot, targetID, corpusDir)
 		if after2, _ := countCorpusFiles(corpusDir); after2 > after {
 			out.CorpusAfter = after2
-			after = after2
 		}
 	}
 	if err != nil && isLibFuzzerPreflightErr(err) {
