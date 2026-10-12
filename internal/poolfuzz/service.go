@@ -1328,8 +1328,10 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 	if pass || recordFinding {
 		minerBind = miner
 	}
-	// Run-pay only when the check passed — failed/fake_crash must not enqueue PayRun.
-	wantRunSettle := s.Settler != nil && escrowEnabled(cfg) && minerBind != "" && pass
+	// Run-pay when CLEAN, or Dig soft findings (detector/property) that bound a miner.
+	// fake_crash keeps recordFinding=false → no PayRun. Hunt stays pass-only (coverage CLEAN).
+	wantRunSettle := s.Settler != nil && escrowEnabled(cfg) && minerBind != "" &&
+		(pass || (!IsHuntCampaign(cfg) && recordFinding))
 	runSettleStatus := ""
 	if wantRunSettle {
 		runSettleStatus = "pending"

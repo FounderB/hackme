@@ -56,9 +56,9 @@ func IsCoverageEngine(engine string) bool {
 }
 
 // HuntEngineFromConfig picks engine for a Hunt campaign.
-// Prefer explicit hunt_engine; else deep/heavy → aflpp when HACKME_HUNT_ENGINE_DEEP_AFL=1 (default on);
-// otherwise libfuzzer. Inventory / custom published harnesses always prefer libfuzzer
-// (no catalog afl-cc rebuild). HACKME_HUNT_ENGINE forces override.
+// Prefer explicit hunt_engine; else deep/heavy → aflpp only when HACKME_HUNT_ENGINE_DEEP_AFL=1
+// (default OFF — published catalog harnesses are LF/ASAN; afl-fuzz exits in <1s without afl-cc).
+// Inventory / custom published harnesses always prefer libfuzzer. HACKME_HUNT_ENGINE forces override.
 func HuntEngineFromConfig(cfg map[string]any) string {
 	if v := strings.TrimSpace(os.Getenv("HACKME_HUNT_ENGINE")); v != "" {
 		return ParseHuntEngine(v)
@@ -77,7 +77,7 @@ func HuntEngineFromConfig(cfg map[string]any) string {
 		return EngineLibFuzzer
 	}
 	profile := EngineProfileFromConfig(cfg)
-	if profile == EngineProfileDeep && envTruthyDefaultOn("HACKME_HUNT_ENGINE_DEEP_AFL") {
+	if profile == EngineProfileDeep && envTruthyDefaultOff("HACKME_HUNT_ENGINE_DEEP_AFL") {
 		return EngineAFLPP
 	}
 	return EngineLibFuzzer
@@ -125,8 +125,8 @@ func isInventoryHuntCfg(cfg map[string]any) bool {
 }
 
 // ApplyCoverageEngineDefaults stamps hunt_engine / profile on campaign config.
-// Fleet / lite / inventory → libfuzzer (avoid deep→aflpp when AFL is missing on workers).
-// Catalog standard/heavy leave hunt_engine unset so HuntEngineFromConfig may pick aflpp.
+// Default fleet-wide to libfuzzer (published harnesses are LF/ASAN). Opt into AFL++ via
+// explicit hunt_engine=aflpp or HACKME_HUNT_ENGINE_DEEP_AFL=1 on the claim path.
 func ApplyCoverageEngineDefaults(cfg map[string]any, pkgKey string) {
 	if cfg == nil {
 		return
@@ -142,7 +142,9 @@ func ApplyCoverageEngineDefaults(cfg map[string]any, pkgKey string) {
 	if _, ok := cfg["hunt_engine_profile"]; !ok {
 		cfg["hunt_engine_profile"] = EngineProfileDeep
 	}
-	// Do not force aflpp into config — env HACKME_HUNT_ENGINE_DEEP_AFL gates runtime pick.
+	if _, ok := cfg["hunt_engine"]; !ok {
+		cfg["hunt_engine"] = EngineLibFuzzer
+	}
 }
 
 // EngineLeaseSecFromConfig returns wall seconds for a coverage-guided Hunt shard.
@@ -184,6 +186,19 @@ func envTruthyDefaultOn(key string) bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
 	if v == "" {
 		return true
+	}
+	switch v {
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
+
+func envTruthyDefaultOff(key string) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if v == "" {
+		return false
 	}
 	switch v {
 	case "0", "false", "no", "off":

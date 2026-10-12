@@ -64,6 +64,10 @@ type CreateRequest struct {
 	Status          string          `json:"status,omitempty"`
 	PoolDistributed bool            `json:"pool_distributed,omitempty"`
 	OwnerRef        string          `json:"owner_ref,omitempty"`
+	// HuntEngine optional override (libfuzzer|aflpp|byte). Empty → package defaults.
+	HuntEngine string `json:"hunt_engine,omitempty"`
+	// EngineLeaseSec optional coverage-engine wall seconds (fleet ~60, deep ~90–180).
+	EngineLeaseSec int `json:"engine_lease_sec,omitempty"`
 }
 
 // HarnessBuildAPIRequest is POST /api/hunt/harness/build body.

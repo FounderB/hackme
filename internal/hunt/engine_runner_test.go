@@ -98,3 +98,12 @@ func TestIsLibFuzzerPreflightErrAFLWallShort(t *testing.T) {
 		t.Fatal("afl_wall_short must soft-skip (Deep was lying Ran=true)")
 	}
 }
+
+func TestJoinEngineErr(t *testing.T) {
+	if got := joinEngineErr("a", "", "c"); got != "a; c" {
+		t.Fatalf("got %q", got)
+	}
+	if got := joinEngineErr("", "mid", ""); got != "mid" {
+		t.Fatalf("got %q", got)
+	}
+}

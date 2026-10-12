@@ -247,18 +247,29 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 	out := EngineShardResult{Engine: EngineAFLPP, WallSec: wall}
 	afl, err := LookAFLFuzz()
 	if err != nil {
-		out.SkippedReason = "afl_missing"
-		out.Err = err.Error()
-		return out
+		// No afl-fuzz on PATH — honor Deep lease via libFuzzer instead of soft_skip storm.
+		lf := runLibFuzzerEngineShard(ctx, repoRoot, targetID, wall, opts)
+		lf.Err = joinEngineErr("afl_missing→libfuzzer", err.Error(), lf.Err)
+		return lf
 	}
 	out.EngineVersion = AFLFuzzVersion(afl)
 
-	// Prefer stdin ASAN harness from catalog AFL build, else published inventory harness.
-	harness, err := resolveAFLStdinHarness(ctx, repoRoot, targetID, opts)
+	// Prefer afl-cc instrumented harness. Published LF/ASAN binaries are not AFL-ready —
+	// running them under afl-fuzz exits in <1s (wall_short storm on hunt_standard).
+	harness, instrumented, err := resolveAFLStdinHarness(ctx, repoRoot, targetID, opts)
 	if err != nil {
-		out.SkippedReason = "harness"
-		out.Err = err.Error()
-		return out
+		lf := runLibFuzzerEngineShard(ctx, repoRoot, targetID, wall, opts)
+		lf.Err = joinEngineErr("afl_harness→libfuzzer", err.Error(), lf.Err)
+		return lf
+	}
+	if !instrumented {
+		lf := runLibFuzzerEngineShard(ctx, repoRoot, targetID, wall, opts)
+		if lf.Err == "" {
+			lf.Err = "afl_uninstrumented→libfuzzer"
+		} else {
+			lf.Err = "afl_uninstrumented→libfuzzer; " + lf.Err
+		}
+		return lf
 	}
 	seeds := opts.SeedFiles
 
@@ -347,20 +358,37 @@ func runAFLPPEngineShard(ctx context.Context, repoRoot, targetID string, wall in
 	}
 	produced := len(out.CrashFiles) > 0 || imported > 0 || out.NewCorpus > 0
 	if elapsed < minWall && !produced {
-		out.SkippedReason = "afl_wall_short"
-		if out.Err == "" {
-			out.Err = fmt.Sprintf("elapsed_ms=%d want>=%d", elapsed.Milliseconds(), minWall.Milliseconds())
-		} else {
-			out.Err = fmt.Sprintf("%s; elapsed_ms=%d want>=%d", out.Err, elapsed.Milliseconds(), minWall.Milliseconds())
+		// AFL died early (often non-instrumented / bad argv) — spend remaining wall on LF.
+		remain := wall - int(elapsed.Seconds())
+		if remain < MinEngineLeaseSec {
+			remain = MinEngineLeaseSec
 		}
-		out.Ran = false
-		return out
+		lf := runLibFuzzerEngineShard(ctx, repoRoot, targetID, remain, opts)
+		msg := fmt.Sprintf("afl_wall_short→libfuzzer elapsed_ms=%d want>=%d", elapsed.Milliseconds(), minWall.Milliseconds())
+		if out.Err != "" {
+			msg = out.Err + "; " + msg
+		}
+		lf.Err = joinEngineErr(msg, "", lf.Err)
+		return lf
 	}
 	out.Ran = true
 	return out
 }
 
-func resolveAFLStdinHarness(ctx context.Context, repoRoot, targetID string, opts EngineShardOpts) (string, error) {
+func joinEngineErr(prefix, mid, suffix string) string {
+	parts := make([]string, 0, 3)
+	for _, p := range []string{prefix, mid, suffix} {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+// resolveAFLStdinHarness returns an AFL-ready harness path and whether it is afl-cc instrumented.
+// instrumented=false means caller should prefer libFuzzer (published LF/ASAN bins abort under afl-fuzz).
+func resolveAFLStdinHarness(ctx context.Context, repoRoot, targetID string, opts EngineShardOpts) (string, bool, error) {
 	covOpts := CoverageHarnessOpts{
 		HarnessHash:          opts.HarnessHash,
 		HarnessFetchURL:      opts.HarnessFetchURL,
@@ -370,26 +398,28 @@ func resolveAFLStdinHarness(ctx context.Context, repoRoot, targetID string, opts
 		SourceRel:            opts.SourceRel,
 		TemplateAccept:       true,
 	}
-	// Prefer afl-cc + ASAN instrumented harness (real AFL edges). Fall back to ASAN-only / published.
+	// Prefer afl-cc + ASAN instrumented harness (real AFL edges).
 	if path, instrumented, err := ResolveCoverageHarness(ctx, repoRoot, targetID, covOpts); err == nil && path != "" {
 		if instrumented {
-			return path, nil
+			return path, true, nil
 		}
-		// Keep ASAN / published path as last resort so Deep shards still run (weak feedback).
-		bestASAN := path
 		if aflPath, aerr := BuildAFLInstrumentedHarness(ctx, repoRoot, targetID); aerr == nil && aflPath != "" {
-			return aflPath, nil
+			return aflPath, true, nil
 		}
-		return bestASAN, nil
+		// Published / ASAN-only — not safe under afl-fuzz.
+		return path, false, nil
+	}
+	if aflPath, aerr := BuildAFLInstrumentedHarness(ctx, repoRoot, targetID); aerr == nil && aflPath != "" {
+		return aflPath, true, nil
 	}
 	_, stdinBin, err := BuildLibFuzzerImport(ctx, repoRoot, targetID)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	if stdinBin != "" {
-		return stdinBin, nil
+		return stdinBin, false, nil
 	}
-	return "", fmt.Errorf("hunt: no AFL stdin harness for %s", targetID)
+	return "", false, fmt.Errorf("hunt: no AFL stdin harness for %s", targetID)
 }
 
 func copyCorpusFiles(src, dst string, max int) int {

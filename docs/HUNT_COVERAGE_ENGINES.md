@@ -69,7 +69,7 @@ Ships clang + AFL++ (`afl-fuzz`, `afl-clang-fast`, `afl-showmap`) + bubblewrap f
 |-----|---------|---------|
 | `HACKME_HUNT_COVERAGE_ENGINE` | ON | Master switch |
 | `HACKME_HUNT_ENGINE` | (auto) | Force `libfuzzer`/`aflpp`/`byte` |
-| `HACKME_HUNT_ENGINE_DEEP_AFL` | ON | Heavy/standard → aflpp |
+| `HACKME_HUNT_ENGINE_DEEP_AFL` | OFF | Opt-in Heavy/standard → aflpp (default libfuzzer) |
 | `HACKME_HUNT_ENGINE_LEASE_SEC` | — | Override wall |
 | `HACKME_HUNT_ENGINE_BYTE_FALLBACK` | **OFF** | Soft-skip → byte |
 | `HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP` | OFF | Allow byte on Deep |

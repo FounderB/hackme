@@ -163,6 +163,13 @@ func CampaignConfig(ctx context.Context, repoRoot string, req CreateRequest) (ma
 	ApplyPackageDepthDefaults(cfg, pkgKey, pool)
 	ApplyCoverageEngineDefaults(cfg, pkgKey)
 	ApplyHuntMutatorDict(cfg, targetID)
+	// Explicit create overrides (bootstrap / CLI) win over package defaults.
+	if eng := strings.TrimSpace(req.HuntEngine); eng != "" {
+		cfg["hunt_engine"] = ParseHuntEngine(eng)
+	}
+	if req.EngineLeaseSec > 0 {
+		cfg["engine_lease_sec"] = clampEngineLeaseSec(req.EngineLeaseSec)
+	}
 	// Inventory public packs: corpus/*.bin → L2/seed_byte_corpus; fuzz/*.dict → libfuzzer_dict.
 	if huntSource == "inventory" {
 		pinForPack := strings.TrimSpace(toString(cfg["hunt_pin_path"]))
@@ -175,12 +182,12 @@ func CampaignConfig(ctx context.Context, repoRoot string, req CreateRequest) (ma
 	} else if _, err := MergeLibFuzzerSeedCorpus(cfg, repoRoot, targetID); err != nil {
 		return nil, "", fmt.Errorf("hunt: libfuzzer seed import: %w", err)
 	}
-	// Long coverage leases for pool Standard/Heavy (cap MaxEngineLeaseSec=300).
+	// Pool Standard/Heavy: ~90s LF walls (was MaxEngineLeaseSec=300 — over-long + AFL soft_skip storms).
 	if pool {
 		switch pkgKey {
 		case "hunt_standard", "standard", "hunt_heavy", "heavy":
 			if _, ok := cfg["engine_lease_sec"]; !ok {
-				cfg["engine_lease_sec"] = MaxEngineLeaseSec
+				cfg["engine_lease_sec"] = DefaultAFLPPLeaseSec / 2 // 90s
 			}
 		}
 	}

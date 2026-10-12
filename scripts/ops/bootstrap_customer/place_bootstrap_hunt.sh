@@ -33,7 +33,26 @@ ADMIN="$(grep -m1 '^HACKME_ADMIN_TOKEN=' "$INSTALL/.env" | cut -d= -f2- | tr -d 
 source "$(dirname "$0")/load_coord_token.sh"
 load_bootstrap_coord_token
 
-echo "[bootstrap-hunt $(date -u +%H:%M:%S)] PLACE $CID pkg=$PKG shards=$SHARDS"
+# Fleet-safe defaults: prefer libfuzzer walls (AFL only when instrumented harness exists).
+# Note: do not pre-set ENGINE_LEASE_SEC=0 — `${var:-90}` will not override an explicit 0.
+HUNT_ENGINE="${HUNT_ENGINE:-}"
+case "$PKG" in
+  hunt_lite|lite)
+    HUNT_ENGINE="${HUNT_ENGINE:-libfuzzer}"
+    ENGINE_LEASE_SEC="${ENGINE_LEASE_SEC:-60}"
+    ;;
+  hunt_standard|standard|hunt_heavy|heavy)
+    HUNT_ENGINE="${HUNT_ENGINE:-libfuzzer}"
+    ENGINE_LEASE_SEC="${ENGINE_LEASE_SEC:-90}"
+    ;;
+  *)
+    HUNT_ENGINE="${HUNT_ENGINE:-libfuzzer}"
+    ENGINE_LEASE_SEC="${ENGINE_LEASE_SEC:-60}"
+    ;;
+esac
+ENGINE_LEASE_SEC="${ENGINE_LEASE_SEC:-60}"
+
+echo "[bootstrap-hunt $(date -u +%H:%M:%S)] PLACE $CID pkg=$PKG shards=$SHARDS engine=$HUNT_ENGINE lease=${ENGINE_LEASE_SEC}s"
 resp="$(curl -sS --max-time 900 -X POST "$BASE/api/hunt/campaigns" \
   -H "Content-Type: application/json" \
   -H "X-Hackme-Admin-Token: $ADMIN" \
@@ -42,7 +61,9 @@ resp="$(curl -sS --max-time 900 -X POST "$BASE/api/hunt/campaigns" \
     --arg title "$TITLE" \
     --arg pkg "$PKG" \
     --arg tid "$TARGET" \
+    --arg eng "$HUNT_ENGINE" \
     --argjson shards "$SHARDS" \
+    --argjson lease "$ENGINE_LEASE_SEC" \
     '{
       id: $id,
       package: $pkg,
@@ -51,7 +72,9 @@ resp="$(curl -sS --max-time 900 -X POST "$BASE/api/hunt/campaigns" \
       budget_shards: $shards,
       status: "running",
       catalog: true,
-      target_id: $tid
+      target_id: $tid,
+      hunt_engine: $eng,
+      engine_lease_sec: $lease
     }')")"
 echo "$resp" | tee "$LOG_DIR/${CID}.json" >/dev/null
 echo "$resp" | jq -c '{ok,id:(.campaign.id//.id),pool_sync,err:(.error//.code//.message)}' || echo "$resp" | head -c 800
