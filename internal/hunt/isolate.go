@@ -9,10 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
 // IsolateOpts bounds a native Hunt harness / fuzzer process.
@@ -115,7 +112,7 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	} else {
 		cmd.Stderr = &bwrapDiag
 	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	setProcessGroup(cmd)
 	if err := cmd.Start(); err != nil {
 		if bwrapCageFailed(err, "") && !IsolateStrict() {
 			return runBareIsolated(runCtx, opts, env, wall)
@@ -192,7 +189,7 @@ func runBareIsolated(runCtx context.Context, opts IsolateOpts, env []string, wal
 	if opts.Stderr != nil {
 		cmd.Stderr = opts.Stderr
 	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	setProcessGroup(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -296,30 +293,6 @@ func scrubIsolateEnv(env []string) []string {
 		out = append(out, e)
 	}
 	return out
-}
-
-func killProcessGroup(cmd *exec.Cmd) error {
-	if cmd == nil || cmd.Process == nil {
-		return nil
-	}
-	pgid, err := syscall.Getpgid(cmd.Process.Pid)
-	if err == nil {
-		_ = syscall.Kill(-pgid, syscall.SIGKILL)
-	}
-	return cmd.Process.Kill()
-}
-
-func setRSSLimitMB(pid, mb int) error {
-	if pid <= 0 || mb <= 0 {
-		return nil
-	}
-	bytes := uint64(mb) * 1024 * 1024
-	lim := unix.Rlimit{Cur: bytes, Max: bytes}
-	// Address-space cap (closest portable RSS stand-in for native harnesses).
-	if err := unix.Prlimit(pid, unix.RLIMIT_AS, &lim, nil); err != nil {
-		return err
-	}
-	return nil
 }
 
 // LookAFLFuzz resolves afl-fuzz from PATH or hybrid bundle prefixes.
