@@ -40,5 +40,5 @@ cat <<EOF
 [bounty-overnight] started RUN_ID=$RUN_ID pid=$(cat "$OUT_DIR/marathon.pid")
   duration=${DURATION_HOURS}h  wasm_runs=$BUDGET_RUNS  foundry_fuzz=$FOUNDRY_FUZZ_RUNS
   log:  tail -f $OUT_DIR/marathon.log
-  утро: bash scripts/ops/bounty_morning_report.sh
+  утро: bash scripts/local/ops/bounty_morning_report.sh
 EOF

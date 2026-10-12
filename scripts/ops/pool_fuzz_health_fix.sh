@@ -99,7 +99,7 @@ else
 fi
 
 log "step 4: reconcile settlement state (clamp only)"
-NODE_SSH="$NODE_SSH" bash "$ROOT/scripts/ops/reconcile_settlement_state.sh" || log "reconcile skipped"
+NODE_SSH="$NODE_SSH" bash "$ROOT/scripts/local/ops/reconcile_settlement_state.sh" || log "reconcile skipped"
 
 log "after: $(snapshot || echo '{}')"
 log "done"

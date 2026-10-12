@@ -38,7 +38,7 @@ for t in "${TARGETS[@]}"; do
   log "wasm $t"
   mod_out="$HUNT_OUT/wasm/$t"
   OUT="$mod_out" TARGET="$t" STAMP="$STAMP" BUDGET_RUNS="$BUDGET_RUNS" CHECK_SEMANTICS=detector \
-    bash "$ROOT/scripts/ops/run_immunefi_pilot.sh" >>"$HUNT_OUT/hunt.log" 2>&1 || log "WARN $t (retry after sleep if SQLITE_BUSY)"
+    bash "$ROOT/scripts/local/ops/run_immunefi_pilot.sh" >>"$HUNT_OUT/hunt.log" 2>&1 || log "WARN $t (retry after sleep if SQLITE_BUSY)"
   sleep 2
   [[ -f "$mod_out/summary.json" ]] && jq -c . "$mod_out/summary.json" >>"$HUNT_OUT/wasm.jsonl"
 done

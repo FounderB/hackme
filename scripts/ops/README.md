@@ -1,6 +1,6 @@
 # `scripts/ops` — operator scripts (public repo)
 
-Production and CI-supported helpers only. **Lab / one-shot / marathon scripts stay on your disk** under the same paths but are listed in [`../.gitignore`](../.gitignore) (prefix globs + allowlists) and are **not** pushed to GitHub.
+Production and CI-supported helpers only. **Lab / one-shot / marathon scripts** live under [`../local/`](../local/) (`ops/`, `tests/`, `vast/`) — that whole tree is gitignored from the repo root and is **not** pushed to GitHub.
 
 ## Supported (production / miners)
 
@@ -25,7 +25,6 @@ Always read the script header before running. Prefer dry-run / gate scripts over
 | `run_oss_cve_hunt.sh` | ASAN upstream mutation runner |
 | `run_oss_cve_nightly.sh` | Nightly rotation (systemd) |
 | `run_oss_cve_wave.sh` | Generic wave runner (`WAVE=` + JSON registry) |
-| `start_test_named_fleet.sh` | Hybrid PoH+fuzz display fleet (preferred) |
 | `pool_fuzz_health_fix.sh` | Hub outbox drain + fuzz queue cleanup |
 
 Docs: [../../docs/BOUNTY_AUTOPILOT.md](../../docs/BOUNTY_AUTOPILOT.md) · [../../docs/OSS_CVE_HUNT.md](../../docs/OSS_CVE_HUNT.md)
@@ -34,12 +33,12 @@ Docs: [../../docs/BOUNTY_AUTOPILOT.md](../../docs/BOUNTY_AUTOPILOT.md) · [../..
 
 | Script | Use instead |
 |--------|-------------|
-| `start_test_named_fuzz_fleet.sh` | `start_test_named_fleet.sh` |
+| `start_test_named_fuzz_fleet.sh` | local display fleet (`start_test_named_fleet.sh`, gitignored) |
 | `start_local_fair_workers.sh` | `start_local_pool_display_rig.sh` |
 
 ## Local-only lab (not on GitHub)
 
-Historical marathons, OSS CVE Watch day scripts, Vast.ai matrix, mega-gates, VPS one-shots, and duplicate bounty hunts remain in your checkout but are **gitignored**. To run them locally: keep your tree, never `git add -f` those paths.
+Historical marathons, OSS CVE Watch day scripts, Vast.ai matrix, mega-gates, VPS one-shots, and duplicate bounty hunts live in [`../local/`](../local/). Never `git add -f` that tree.
 
 See [archive/README.md](archive/README.md) for naming patterns of retired one-shots.
 

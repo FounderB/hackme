@@ -18,7 +18,6 @@
 | [GPU_MINING_BACKENDS.md](GPU_MINING_BACKENDS.md) | CUDA / OpenCL / CPU |
 | [HACKME_OS.md](HACKME_OS.md) | Bootable rig OS (`MINER_ISO.md` is a stub redirect only) |
 | [MINER_WINDOWS_ONE_CLICK.md](MINER_WINDOWS_ONE_CLICK.md) | Windows installer |
-| [COORDINATOR_MEGA_STRESS.md](COORDINATOR_MEGA_STRESS.md) | Stress test results |
 | [MEMORY_LEAK_SPEC.md](MEMORY_LEAK_SPEC.md) | Coordinator memory spec |
 | [HMS_PUBLIC_ROADMAP.md](HMS_PUBLIC_ROADMAP.md) | HackMe Storage (HMS) — prelaunch |
 | [HMS_BACKEND.md](HMS_BACKEND.md) | HMS coordinator + workers |

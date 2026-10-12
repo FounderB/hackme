@@ -35,7 +35,7 @@ log "RUN_ID=$RUN_ID duration=${DURATION_HOURS}h runs=$BUDGET_RUNS fuzz=$FOUNDRY_
 PF_OUT="$HUNT_OUT/preflight"
 PF_OK=0
 for attempt in 1 2 3; do
-  if OUT="$PF_OUT" bash "$ROOT/scripts/ops/bounty_overnight_preflight.sh" >>"$HUNT_OUT/marathon.log" 2>&1; then
+  if OUT="$PF_OUT" bash "$ROOT/scripts/local/ops/bounty_overnight_preflight.sh" >>"$HUNT_OUT/marathon.log" 2>&1; then
     PF_OK=1
     break
   fi
@@ -131,7 +131,7 @@ run_wasm() {
   log "wasm round=$ROUND $t runs=$BUDGET_RUNS"
   OUT="$out" TARGET="$t" STAMP="${RUN_ID}-r${ROUND}-${t}" \
     BUDGET_RUNS="$BUDGET_RUNS" BUDGET_HMC="$BUDGET_HMC" CHECK_SEMANTICS="$CHECK_SEMANTICS" \
-    bash "$ROOT/scripts/ops/run_immunefi_pilot.sh" >>"$HUNT_OUT/marathon.log" 2>&1 \
+    bash "$ROOT/scripts/local/ops/run_immunefi_pilot.sh" >>"$HUNT_OUT/marathon.log" 2>&1 \
     || log "WARN wasm $t round $ROUND"
   if [[ -f "$out/summary.json" ]]; then
     jq -c --argjson r "$ROUND" '. + {round: $r}' "$out/summary.json" >>"$HUNT_OUT/wasm_all.jsonl"
