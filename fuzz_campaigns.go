@@ -8,6 +8,7 @@ import (
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -1001,44 +1002,75 @@ func (a *app) tryCloseFuzzEscrowForStatus(ctx context.Context, campaignID, statu
 	if a.chain == nil {
 		return
 	}
-	switch strings.TrimSpace(strings.ToLower(status)) {
-	case "cancelled":
-		// Same drain-before-close as completed (report #23 V1): Cancel refunds
-		// runsPool-runsPaid from local accounting and then permanently blocks
-		// unpaid outbox rows via ErrFuzzEscrowClosed.
-		if err := a.pullFuzzSettleOutbox(ctx); err != nil {
-			log.Printf("fuzz escrow: refuse cancel %s: settle pull failed: %v", logsafe.ID(campaignID), err)
+	status = strings.TrimSpace(strings.ToLower(status))
+	switch status {
+	case "cancelled", "completed":
+		if !a.drainFuzzSettleBeforeClose(ctx, campaignID, status) {
 			return
 		}
-		if pending, err := a.fuzzSettleOutboxPendingForCampaign(ctx, campaignID); err != nil || pending {
-			if err != nil {
-				log.Printf("fuzz escrow: refuse cancel %s: settle pending check: %v", logsafe.ID(campaignID), err)
-			} else {
-				log.Printf("fuzz escrow: refuse cancel %s: settle outbox still has rows for campaign", logsafe.ID(campaignID))
-			}
-			return
-		}
-		_, _ = a.chain.CancelFuzzEscrow(ctx, campaignID)
-	case "completed":
-		// Drain run/finding settles first so Finalize does not refund unpaid work.
-		// A failed pull must not finalize: pending worker payouts would hit a closed escrow
-		// (report #12 / #23 — silent no-op pull must not count as drained).
-		if err := a.pullFuzzSettleOutbox(ctx); err != nil {
-			log.Printf("fuzz escrow: refuse finalize %s: settle pull failed: %v", logsafe.ID(campaignID), err)
-			return
-		}
-		// Narrow TOCTOU: refuse refund if new outbox rows appeared for this campaign
-		// between the drain pass and close.
-		if pending, err := a.fuzzSettleOutboxPendingForCampaign(ctx, campaignID); err != nil || pending {
-			if err != nil {
-				log.Printf("fuzz escrow: refuse finalize %s: settle pending check: %v", logsafe.ID(campaignID), err)
-			} else {
-				log.Printf("fuzz escrow: refuse finalize %s: settle outbox still has rows for campaign", logsafe.ID(campaignID))
-			}
+		if status == "cancelled" {
+			_, _ = a.chain.CancelFuzzEscrow(ctx, campaignID)
 			return
 		}
 		_, _ = a.chain.FinalizeFuzzEscrow(ctx, campaignID)
 	}
+}
+
+// drainFuzzSettleBeforeClose pulls coordinator outbox with retries so a fast
+// pool campaign cannot finalize while settle rows are still in flight (yyjson
+// race: empty pull → close → 96 run rows land → stuck forever / block head).
+// Returns false when close must be refused.
+func (a *app) drainFuzzSettleBeforeClose(ctx context.Context, campaignID, closeKind string) bool {
+	campaignID = strings.TrimSpace(campaignID)
+	const (
+		maxAttempts = 12
+		pause       = 2 * time.Second
+	)
+	var lastPending bool
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				log.Printf("fuzz escrow: refuse %s %s: context done during settle drain: %v",
+					closeKind, logsafe.ID(campaignID), ctx.Err())
+				return false
+			case <-time.After(pause):
+			}
+		}
+		err := a.pullFuzzSettleOutbox(ctx)
+		if err != nil && !errors.Is(err, errSettleOutboxUndrainableHead) {
+			log.Printf("fuzz escrow: refuse %s %s: settle pull failed: %v", closeKind, logsafe.ID(campaignID), err)
+			// Transient edge noise — keep trying within the window.
+			if poolsync.SettleOutboxErrTransient(err) && attempt+1 < maxAttempts {
+				continue
+			}
+			return false
+		}
+		pending, perr := a.fuzzSettleOutboxPendingForCampaign(ctx, campaignID)
+		if perr != nil {
+			log.Printf("fuzz escrow: refuse %s %s: settle pending check: %v", closeKind, logsafe.ID(campaignID), perr)
+			if poolsync.SettleOutboxErrTransient(perr) && attempt+1 < maxAttempts {
+				continue
+			}
+			return false
+		}
+		lastPending = pending
+		if pending {
+			continue
+		}
+		// Grace re-check: first empty observation often races enqueue on the hub.
+		if attempt == 0 {
+			continue
+		}
+		return true
+	}
+	if lastPending {
+		log.Printf("fuzz escrow: refuse %s %s: settle outbox still has rows for campaign after retries",
+			closeKind, logsafe.ID(campaignID))
+	} else {
+		log.Printf("fuzz escrow: refuse %s %s: settle drain window exhausted", closeKind, logsafe.ID(campaignID))
+	}
+	return false
 }
 
 // fuzzSettleOutboxPendingForCampaign is true when the coordinator still has unpaid

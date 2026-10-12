@@ -12,6 +12,11 @@ import (
 	"hackme/internal/poolsync"
 )
 
+// errSettleOutboxUndrainableHead means the coordinator outbox head is all
+// non-local or permanently stuck (closed escrow + unpaid run/finding). Other
+// campaigns may still finalize; ops must recover the stuck campaign separately.
+var errSettleOutboxUndrainableHead = errors.New("fuzz settle pull: undrainable outbox head")
+
 func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 	if a.chain == nil || !poolSyncCoordinatorConfigured() {
 		return nil
@@ -35,6 +40,7 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 		}
 		acked := make([]int64, 0, len(items))
 		localHits := 0
+		undrainable := 0
 		// Prefer run/crash_bonus/finding before finalize so refund cannot race ahead of payouts.
 		ordered := make([]poolsync.SettleOutboxItem, 0, len(items))
 		var finals []poolsync.SettleOutboxItem
@@ -51,6 +57,7 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 		for _, it := range ordered {
 			st, local := a.localFuzzEscrowStatus(ctx, it.CampaignID)
 			if !local {
+				undrainable++
 				continue
 			}
 			localHits++
@@ -67,6 +74,8 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 				continue
 			}
 			if !apply {
+				// Closed escrow + unpaid run/finding — must not ACK (miner pay).
+				undrainable++
 				continue
 			}
 			if err := a.applyLocalFuzzSettleOnce(ctx, it); err != nil {
@@ -86,7 +95,11 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 			return fmt.Errorf("fuzz settle pull: pay failures blocked drain (%d campaign(s))", len(payFailed))
 		}
 		if len(acked) == 0 {
-			// Head of queue is all foreign / stuck — do not pretend the outbox is drained.
+			if undrainable == len(items) {
+				log.Printf("fuzz settle pull: %d undrainable outbox head row(s) (local_hits=%d) — not blocking other campaigns",
+					len(items), localHits)
+				return fmt.Errorf("%w (%d pending, local_hits=%d)", errSettleOutboxUndrainableHead, len(items), localHits)
+			}
 			if localHits == 0 {
 				log.Printf("fuzz settle pull: %d outbox row(s) not local to this node (head blocked)", len(items))
 			}
@@ -192,7 +205,7 @@ func (a *app) startFuzzSettlePullTicker() {
 		defer ticker.Stop()
 		for range ticker.C {
 			ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
-			a.pullFuzzSettleOutbox(ctx)
+			_ = a.pullFuzzSettleOutbox(ctx)
 			cancel()
 		}
 	}()

@@ -4,7 +4,7 @@
   "cve_candidates": [],
   "informational_targets": [],
   "clean_targets": [
-    "libcbor"
+    "mpack"
   ],
   "hold_disclosure": [
     "centijson",
@@ -29,8 +29,8 @@
     "wren",
     "gpslib"
   ],
-  "wave": "libcbor",
-  "started_at": "2026-10-12T12:24:27Z",
-  "finished_at": "2026-10-12T12:56:22Z",
+  "wave": "mpack",
+  "started_at": "2026-10-12T15:04:31Z",
+  "finished_at": "2026-10-12T15:38:11Z",
   "publish_allowed": true
 }

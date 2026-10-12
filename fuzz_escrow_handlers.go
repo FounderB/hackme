@@ -154,6 +154,80 @@ func (a *app) handleFuzzEscrowCleanupStale(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// handleFuzzEscrowReopenSettleDrain re-locks unpaid run pool after premature
+// finalize left coordinator outbox rows unpaid (ops recovery).
+func (a *app) handleFuzzEscrowReopenSettleDrain(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !requireAdminAuthStrict(w, r) {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
+	defer r.Body.Close()
+	var req struct {
+		CampaignID string `json:"campaign_id"`
+		Pull       *bool  `json:"pull"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid_json", "invalid json", nil)
+		return
+	}
+	campaignID := strings.TrimSpace(req.CampaignID)
+	if campaignID == "" {
+		writeAPIError(w, http.StatusBadRequest, "invalid_request", "campaign_id required", nil)
+		return
+	}
+	ctx := r.Context()
+	row, err := a.chain.ReopenFuzzEscrowForSettleDrain(ctx, campaignID)
+	reopened := err == nil
+	if err != nil {
+		// Idempotent ops: already-open escrow still allows a forced pull.
+		cur, gerr := a.chain.GetFuzzEscrow(ctx, campaignID)
+		if gerr != nil {
+			status := http.StatusInternalServerError
+			code := "reopen_failed"
+			if errors.Is(err, chain.ErrFuzzEscrowNotFound) || errors.Is(gerr, chain.ErrFuzzEscrowNotFound) {
+				status, code = http.StatusNotFound, "escrow_not_found"
+			} else if errors.Is(err, chain.ErrFuzzInsufficientBalance) {
+				status, code = http.StatusConflict, "insufficient_balance"
+			}
+			writeAPIError(w, status, code, err.Error(), nil)
+			return
+		}
+		st := strings.ToLower(strings.TrimSpace(cur.Status))
+		if st != "open" && st != "bounty_paid" {
+			status := http.StatusInternalServerError
+			code := "reopen_failed"
+			if errors.Is(err, chain.ErrFuzzInsufficientBalance) {
+				status, code = http.StatusConflict, "insufficient_balance"
+			}
+			writeAPIError(w, status, code, err.Error(), nil)
+			return
+		}
+		row = cur
+	}
+	pull := true
+	if req.Pull != nil {
+		pull = *req.Pull
+	}
+	var pullErr string
+	if pull {
+		if perr := a.pullFuzzSettleOutbox(ctx); perr != nil {
+			pullErr = perr.Error()
+		}
+		if refreshed, gerr := a.chain.GetFuzzEscrow(ctx, campaignID); gerr == nil {
+			row = refreshed
+		}
+	}
+	out := map[string]any{"ok": true, "escrow": row, "reopened": reopened}
+	if pullErr != "" {
+		out["pull_error"] = pullErr
+	}
+	writeJSON(w, out)
+}
+
 func (a *app) handleFuzzEscrowGet(w http.ResponseWriter, r *http.Request, campaignID string) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

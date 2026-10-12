@@ -295,6 +295,74 @@ func (s *Service) CancelFuzzEscrow(ctx context.Context, campaignID string) (*Fuz
 	return out, nil
 }
 
+// ReopenFuzzEscrowForSettleDrain re-locks the unpaid run pool after a premature
+// finalize left coordinator outbox rows unpaid (closed escrow + pending runs).
+// Debits the primary wallet for (runs_pool - runs_paid) and sets status=open so
+// pull can PayFuzzRun + ACK. Bounty stays closed/refunded (not re-locked).
+func (s *Service) ReopenFuzzEscrowForSettleDrain(ctx context.Context, campaignID string) (*FuzzEscrowRow, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	campaignID = strings.TrimSpace(campaignID)
+	if campaignID == "" {
+		return nil, fmt.Errorf("chain: campaign_id required")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	row, err := s.lockFuzzEscrowTx(ctx, tx, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	if row.status != "closed" {
+		return nil, fmt.Errorf("chain: reopen settle drain requires closed escrow (have %q)", row.status)
+	}
+	need := uint64(0)
+	if row.runsPoolUnits > row.runsPaidUnits {
+		need = row.runsPoolUnits - row.runsPaidUnits
+	}
+	if need == 0 {
+		return nil, fmt.Errorf("chain: no unpaid run pool to re-lock")
+	}
+	var walletAddr string
+	var balUnits uint64
+	if err := tx.QueryRowContext(ctx, `SELECT address, balance_units FROM wallet WHERE id=1`).Scan(&walletAddr, &balUnits); err != nil {
+		return nil, err
+	}
+	if balUnits < need {
+		return nil, ErrFuzzInsufficientBalance
+	}
+	var accountUnits uint64
+	if err := tx.QueryRowContext(ctx, `SELECT balance_units FROM accounts WHERE address = ?`, walletAddr).Scan(&accountUnits); err != nil {
+		return nil, err
+	}
+	if accountUnits < need {
+		return nil, ErrFuzzInsufficientBalance
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE wallet SET balance_units = balance_units - ?, balance_hmc = (balance_units - ?) / ? WHERE id=1`,
+		need, need, float64(UnitsPerHMC)); err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE accounts SET balance_units = balance_units - ?, updated_at = strftime('%s','now') WHERE address = ?`,
+		need, walletAddr); err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE fuzz_campaign_escrow SET status='open' WHERE campaign_id=?`, campaignID); err != nil {
+		return nil, err
+	}
+	if err := s.checkEconomicInvariants(ctx, tx); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return s.getFuzzEscrowUnlocked(ctx, campaignID)
+}
+
 // FinalizeFuzzEscrow refunds unused run-pool + bounty to the primary wallet and closes escrow.
 // Previously only bounty was refunded, which stranded unpaid runs_pool funds after time/budget complete.
 func (s *Service) FinalizeFuzzEscrow(ctx context.Context, campaignID string) (*FuzzEscrowRow, error) {

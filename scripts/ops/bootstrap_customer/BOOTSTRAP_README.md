@@ -40,7 +40,11 @@ No miner binary update for the PoH rail. Deep fuzz corpus work is still a separa
 
 Timers show `inactive dead` between ticks — that is normal; only the node + workerfuzz stay running.
 
-Settle-pull `502` / `outbox not drained` lines during an order are usually transient (hub edge); final escrow `status=closed` is the success signal.
+Settle-pull: HTTP `502` / connection resets through Cloudflare are retried; finalize waits and re-checks outbox so a fast Dig cannot close escrow before run rows land. If a premature close already left unpaid `run` rows stuck at the outbox head, recover with:
+
+```bash
+CAMPAIGN_ID=campaign-bootstrap-… bash /opt/hackme-bootstrap/scripts/bootstrap_customer/bootstrap_recover_stuck_settle.sh
+```
 
 ## Services
 | Service | Purpose |

@@ -26,6 +26,9 @@ type SettleOutboxItem struct {
 // When a coordinator URL is configured but the admin token is missing, this
 // returns an error (not a silent empty success): callers that close escrow
 // must not treat "no token" as "fully drained" (report #23).
+//
+// Transient edge failures (HTTP 502/503/504, connection reset) are retried
+// with short backoff — bootstrap nodes hit Cloudflare fronts often.
 func FetchSettleOutbox(ctx context.Context, limit int) ([]SettleOutboxItem, error) {
 	coordURL := ResolveCoordinatorURL()
 	token := CoordinatorAdminToken()
@@ -38,8 +41,31 @@ func FetchSettleOutbox(ctx context.Context, limit int) ([]SettleOutboxItem, erro
 	if limit <= 0 || limit > 500 {
 		limit = 64
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		coordURL+"/api/fuzz/pool/settle/outbox?limit="+strconv.Itoa(limit), nil)
+	url := coordURL + "/api/fuzz/pool/settle/outbox?limit=" + strconv.Itoa(limit)
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		if attempt > 0 {
+			delay := time.Duration(attempt*attempt) * 200 * time.Millisecond
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+		items, err := fetchSettleOutboxOnce(ctx, url, token)
+		if err == nil {
+			return items, nil
+		}
+		lastErr = err
+		if !settleOutboxTransient(err) {
+			return nil, err
+		}
+	}
+	return nil, lastErr
+}
+
+func fetchSettleOutboxOnce(ctx context.Context, url, token string) ([]SettleOutboxItem, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +89,29 @@ func FetchSettleOutbox(ctx context.Context, limit int) ([]SettleOutboxItem, erro
 	return payload.Items, nil
 }
 
+// SettleOutboxErrTransient reports edge/network failures worth retrying.
+func SettleOutboxErrTransient(err error) bool {
+	return settleOutboxTransient(err)
+}
+
+func settleOutboxTransient(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "http 502") ||
+		strings.Contains(msg, "http 503") ||
+		strings.Contains(msg, "http 504") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "i/o timeout") ||
+		strings.Contains(msg, "tls handshake timeout") ||
+		strings.Contains(msg, "unexpected eof") ||
+		strings.Contains(msg, "broken pipe") {
+		return true
+	}
+	return false
+}
+
 // AckSettleOutbox marks coordinator outbox rows applied on the origin node.
 func AckSettleOutbox(ctx context.Context, ids []int64) error {
 	if len(ids) == 0 {
@@ -77,6 +126,29 @@ func AckSettleOutbox(ctx context.Context, ids []int64) error {
 		return fmt.Errorf("settle outbox ack: coordinator admin token required")
 	}
 	body, _ := json.Marshal(map[string]any{"ids": ids})
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		if attempt > 0 {
+			delay := time.Duration(attempt*attempt) * 200 * time.Millisecond
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+		err := ackSettleOutboxOnce(ctx, coordURL, token, body)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !settleOutboxTransient(err) {
+			return err
+		}
+	}
+	return lastErr
+}
+
+func ackSettleOutboxOnce(ctx context.Context, coordURL, token string, body []byte) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		coordURL+"/api/fuzz/pool/settle/outbox/ack", bytes.NewReader(body))
 	if err != nil {
