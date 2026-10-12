@@ -43,7 +43,10 @@ summary_path = Path(sys.argv[2])
 
 skip_dirs = {
     ".git", ".cursor", ".cache", "bin", "dist", "data", "logs", "tmp", "node_modules",
-    "reports", "__pycache__", "data_backup_20260426_203131", "data_tmp_20260426_203243"
+    "reports", "__pycache__", "data_backup_20260426_203131", "data_tmp_20260426_203243",
+    # local-only trees (gitignored) — never fail the public quality gate on them
+    "local_scratch", "local_social_drafts", "scripts/local", "docs/local",
+    "adapters", "bounty-lab", ".venv-deploy", ".wip", ".deps", ".idea", ".vscode",
 }
 source_ext = {".go", ".sh", ".md", ".html", ".js", ".ts", ".css", ".json", ".yml", ".yaml"}
 def walk_source_files():
