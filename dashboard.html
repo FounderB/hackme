@@ -1485,21 +1485,112 @@
 		.eco-hero {
 			position: relative;
 			overflow: hidden;
-			border-radius: 0.75rem;
-			padding: 1.75rem 1.5rem 1.5rem;
+			border-radius: 0.85rem;
+			padding: 1.85rem 1.6rem 1.55rem;
 			background:
-				radial-gradient(ellipse 80% 60% at 10% 0%, rgba(0,209,255,0.14), transparent 55%),
-				radial-gradient(ellipse 60% 50% at 90% 20%, rgba(57,255,20,0.1), transparent 50%),
-				linear-gradient(145deg, rgba(12,18,28,0.97), rgba(4,8,14,0.99));
-			border: 1px solid rgba(0,209,255,0.28);
-			box-shadow: 0 0 48px rgba(0,209,255,0.08), inset 0 1px 0 rgba(255,255,255,0.04);
+				radial-gradient(ellipse 80% 60% at 8% -10%, rgba(0,209,255,0.18), transparent 55%),
+				radial-gradient(ellipse 55% 45% at 92% 10%, rgba(57,255,20,0.12), transparent 48%),
+				radial-gradient(ellipse 40% 35% at 70% 100%, rgba(255,176,32,0.06), transparent 55%),
+				linear-gradient(145deg, rgba(10,16,26,0.98), rgba(3,6,12,0.99));
+			border: 1px solid rgba(0,209,255,0.32);
+			box-shadow: 0 0 56px rgba(0,209,255,0.1), inset 0 1px 0 rgba(255,255,255,0.05);
+		}
+		.eco-hero::before {
+			content: '';
+			position: absolute;
+			inset: 0;
+			background-image:
+				linear-gradient(rgba(0,209,255,0.035) 1px, transparent 1px),
+				linear-gradient(90deg, rgba(0,209,255,0.035) 1px, transparent 1px);
+			background-size: 28px 28px;
+			mask-image: linear-gradient(180deg, rgba(0,0,0,0.55), transparent 85%);
+			pointer-events: none;
+			opacity: 0.7;
 		}
 		.eco-hero::after {
 			content: '';
 			position: absolute;
 			inset: 0;
-			background: linear-gradient(105deg, transparent 40%, rgba(0,209,255,0.03) 50%, transparent 60%);
+			background: linear-gradient(105deg, transparent 38%, rgba(0,209,255,0.045) 50%, transparent 62%);
 			pointer-events: none;
+			animation: eco-hero-sheen 9s ease-in-out infinite;
+		}
+		@keyframes eco-hero-sheen {
+			0%, 100% { opacity: 0.35; transform: translateX(-6%); }
+			50% { opacity: 0.85; transform: translateX(6%); }
+		}
+		.eco-lane-grid {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 0.65rem;
+			margin-top: 1.1rem;
+		}
+		@media (max-width: 900px) {
+			.eco-lane-grid { grid-template-columns: 1fr; }
+		}
+		.eco-lane {
+			position: relative;
+			z-index: 1;
+			border-radius: 0.55rem;
+			padding: 0.85rem 0.95rem;
+			border: 1px solid rgba(255,255,255,0.1);
+			background: rgba(0,0,0,0.38);
+			backdrop-filter: blur(6px);
+			transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+		}
+		.eco-lane:hover {
+			transform: translateY(-1px);
+			border-color: rgba(0,209,255,0.35);
+			box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+		}
+		.eco-lane[data-lane="mine"] { border-color: rgba(57,255,20,0.28); }
+		.eco-lane[data-lane="dig"] { border-color: rgba(0,209,255,0.28); }
+		.eco-lane[data-lane="hunt"] { border-color: rgba(255,176,32,0.3); }
+		.eco-lane-kicker {
+			font-family: 'Orbitron', sans-serif;
+			font-size: 9px;
+			letter-spacing: 0.22em;
+			text-transform: uppercase;
+			margin-bottom: 0.35rem;
+		}
+		.eco-lane[data-lane="mine"] .eco-lane-kicker { color: #39ff14; }
+		.eco-lane[data-lane="dig"] .eco-lane-kicker { color: #00d1ff; }
+		.eco-lane[data-lane="hunt"] .eco-lane-kicker { color: #ffb020; }
+		.eco-lane-title {
+			font-family: 'Orbitron', sans-serif;
+			font-size: 0.82rem;
+			font-weight: 700;
+			color: #fff;
+			letter-spacing: 0.04em;
+			margin-bottom: 0.3rem;
+		}
+		.eco-lane-copy {
+			font-size: 10px;
+			line-height: 1.45;
+			color: #8b97a8;
+		}
+		.eco-hero-actions {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.45rem;
+			margin-top: 1rem;
+			position: relative;
+			z-index: 1;
+		}
+		#mining-fuzz-rc15-banner .fuzz-sku-pills {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.35rem;
+			margin-top: 0.65rem;
+		}
+		#mining-fuzz-rc15-banner .fuzz-sku-pill {
+			font-size: 9px;
+			font-family: ui-monospace, monospace;
+			padding: 0.2rem 0.55rem;
+			border-radius: 999px;
+			border: 1px solid rgba(255,255,255,0.12);
+			color: #9aa8b8;
+			background: rgba(0,0,0,0.35);
 		}
 		.eco-stat-pill {
 			display: flex;
@@ -1888,7 +1979,7 @@
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div class="min-w-0 flex-1">
 							<p class="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-neon mb-1.5">What&apos;s new · <span id="dashboard-whats-new-ver">0.1.0-rc17.2</span></p>
-							<p id="dashboard-whats-new-body" class="text-gray-200/95">rc17 cutover: paper <strong class="text-white/90">Exchange</strong> tab · SUP wallet send/activity · Hunt ASAN + escrow · Dig customer-first. Self-update stays on published <code class="text-neon/80">latest.json</code> until the rc17 bundle lands.</p>
+							<p id="dashboard-whats-new-body" class="text-gray-200/95"><strong class="text-white/90">Coverage Hunt</strong> live — libFuzzer fleet · AFL++ Deep · Dig smoke <strong class="text-neon/90">20/80</strong> · Dig Deep <strong class="text-neon/90">40/60</strong> · Hunt <strong class="text-matrix">50/50</strong>. Channel <code class="text-neon/80">0.1.0-rc17.2</code>; fleet engine auto-install in <code class="text-neon/80">rc17.3</code>.</p>
 						</div>
 						<button type="button" id="dashboard-whats-new-dismiss" class="shrink-0 text-[10px] px-2 py-1 rounded border border-white/15 text-gray-400 hover:text-gray-200 uppercase tracking-wider">Dismiss</button>
 					</div>
@@ -1904,13 +1995,37 @@
 							<div class="max-w-2xl">
 								<p class="font-display text-[10px] tracking-[0.4em] text-neon uppercase mb-2" id="eco-hero-kicker">HackMe network</p>
 								<h1 class="font-display text-2xl lg:text-3xl font-bold text-white tracking-wide mb-2" id="eco-hero-title">Mining ecosystem</h1>
-								<p class="text-sm text-gray-400 leading-relaxed max-w-xl" id="eco-hero-copy">Mine <strong class="text-white/90">HMC</strong> on the live coordinator pool. Bonus assets (SUP) and roadmap coins accrue in <strong class="text-neon/90">Wallet hub</strong> — not separate pools here.</p>
+								<p class="text-sm text-gray-400 leading-relaxed max-w-xl" id="eco-hero-copy">Mine <strong class="text-white/90">HMC</strong> on the live coordinator pool. Hybrid workers earn PoH + Dig/Hunt when customers open campaigns. SUP and roadmap assets live in <strong class="text-neon/90">Wallet hub</strong>.</p>
 							</div>
 							<div class="flex flex-wrap gap-2 text-[10px] font-mono">
 								<span class="px-2 py-1 rounded border border-matrix/35 text-matrix">live pools: <span id="eco-live-count">—</span></span>
 								<span class="px-2 py-1 rounded border border-neon/35 text-neon">Σ hash: <span id="eco-total-hash">—</span></span>
+								<span class="px-2 py-1 rounded border border-warn/30 text-warn" title="Published installer channel">channel · rc17.2</span>
 								<button type="button" id="btn-eco-refresh" class="px-3 py-1.5 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Refresh</button>
 							</div>
+						</div>
+						<div class="eco-lane-grid" id="eco-lane-grid">
+							<article class="eco-lane" data-lane="mine">
+								<p class="eco-lane-kicker">Mine</p>
+								<p class="eco-lane-title">Useful PoH · HMC</p>
+								<p class="eco-lane-copy">GPU/CPU hybrid workers · Ed25519 submits · live coordinator tip &amp; difficulty below.</p>
+							</article>
+							<article class="eco-lane" data-lane="dig">
+								<p class="eco-lane-kicker">Dig</p>
+								<p class="eco-lane-title">WASM packs · smoke / Deep</p>
+								<p class="eco-lane-copy">Scan · Audit · Deep (~40 HMC · <strong class="text-neon/80">40/60</strong>). Fleet prioritizes customer Dig work.</p>
+							</article>
+							<article class="eco-lane" data-lane="hunt">
+								<p class="eco-lane-kicker">Hunt</p>
+								<p class="eco-lane-title">Coverage ASAN · 50/50</p>
+								<p class="eco-lane-copy">libFuzzer fleet · AFL++ Deep · published <code class="text-warn/90">harness_hash</code> — not full customer git.</p>
+							</article>
+						</div>
+						<div class="eco-hero-actions">
+							<button type="button" class="text-[10px] px-3 py-1.5 rounded border border-matrix/40 text-matrix uppercase tracking-wider hover:bg-matrix/10" data-goto-tab="mining">Open Workers</button>
+							<button type="button" class="text-[10px] px-3 py-1.5 rounded border border-neon/40 text-neon uppercase tracking-wider hover:bg-neon/10" data-goto-tab="orders">Place Dig / Hunt</button>
+							<button type="button" class="text-[10px] px-3 py-1.5 rounded border border-white/15 text-gray-300 uppercase tracking-wider hover:bg-white/5" data-goto-tab="wallet">Wallet hub</button>
+							<a class="text-[10px] px-3 py-1.5 rounded border border-white/15 text-gray-400 uppercase tracking-wider hover:text-gray-200 hover:bg-white/5" href="https://hackme.tech/fuzz-guide.html" target="_blank" rel="noopener noreferrer">Fuzz guide</a>
 						</div>
 					</section>
 					<div id="eco-miner-notice-banner" class="hidden rounded-lg border px-4 py-3 text-[11px] leading-relaxed" role="status" translate="no">
@@ -2436,19 +2551,26 @@
 						<p id="hms-preview-toast" class="mt-2 text-[10px] font-mono text-gray-500">Docs: <a class="text-neon/90 underline" href="https://hackme.tech/coins.html#hms" target="_blank" rel="noreferrer">coins.html#hms</a> · <a class="text-neon/90 underline" href="/docs/HMS_MARKET_PRICING.md" target="_blank" rel="noreferrer">market spec</a></p>
 					</div>
 					<div id="mining-hmc-stack" data-coin-scope="hmc-only" class="space-y-4">
-					<div id="mining-fuzz-rc15-banner" class="card card-glow rounded-lg p-4 md:p-5 border-neon/40 bg-gradient-to-r from-neon/12 via-black/45 to-matrix/[0.04]">
+					<div id="mining-fuzz-rc15-banner" class="card card-glow rounded-lg p-4 md:p-5 border-neon/40 bg-gradient-to-r from-neon/12 via-black/45 to-matrix/[0.06]">
 						<div class="flex flex-wrap items-start justify-between gap-3 mb-2">
 							<div class="max-w-3xl">
-								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">B2B fuzz · 0.1.0-rc17.2</p>
+								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">B2B fuzz · Coverage Hunt · 0.1.0-rc17.2</p>
 								<h3 class="font-display text-sm font-semibold text-white tracking-wide">Dig · Hunt · customer campaigns first</h3>
-								<p class="text-[11px] text-gray-400 leading-relaxed mt-1"><strong class="text-neon/90">Dig</strong> (WASM packs) + <strong class="text-matrix">Hunt</strong> (ASAN / escrow / pool replay). Fleet prioritizes customer work — <code class="text-neon/80">secrets</code> · <code class="text-neon/80">filter_utf8</code> · <code class="text-neon/80">script_bounds</code> · <code class="text-neon/80">parser_expat</code>. Pool tiers: Scan · Audit · Deep (hub-capped). libheif OSS series archived CLEAN.</p>
+								<p class="text-[11px] text-gray-400 leading-relaxed mt-1"><strong class="text-neon/90">Dig</strong> = WASM packs (<code class="text-neon/80">wizard</code> · smoke <strong class="text-white/85">20/80</strong> · Deep <strong class="text-white/85">~40 HMC · 40/60</strong>). <strong class="text-matrix">Hunt</strong> = coverage ASAN (<code class="text-matrix/90">libFuzzer</code> fleet · <code class="text-matrix/90">AFL++</code> Deep · escrow <strong class="text-white/85">50/50</strong> · published <code class="text-warn/90">harness_hash</code>). Fleet prioritizes customer work — packs <code class="text-neon/80">secrets</code> · <code class="text-neon/80">filter_utf8</code> · <code class="text-neon/80">script_bounds</code> · <code class="text-neon/80">parser_expat</code>. Hub Deep exec capped; engines auto-install in <code class="text-neon/80">rc17.3</code>.</p>
+								<div class="fuzz-sku-pills" aria-label="SKU escrow">
+									<span class="fuzz-sku-pill">Dig smoke · 20/80</span>
+									<span class="fuzz-sku-pill">Dig Deep · 40/60</span>
+									<span class="fuzz-sku-pill">Hunt · 50/50</span>
+									<span class="fuzz-sku-pill">LF fleet · AFL++ Deep</span>
+								</div>
 							</div>
-							<span class="tag-pill border-neon/40 text-neon shrink-0">rc17</span>
+							<span class="tag-pill border-neon/40 text-neon shrink-0">rc17.2</span>
 						</div>
 						<div class="flex flex-wrap gap-2 mt-2">
 							<button type="button" class="text-[10px] px-3 py-1.5 rounded border border-neon/40 text-neon uppercase tracking-wider hover:bg-neon/10" data-goto-tab="orders">Run B2B audit (#orders)</button>
 							<a class="text-[10px] px-3 py-1.5 rounded border border-white/20 text-gray-300 uppercase tracking-wider hover:bg-white/5" href="https://hackme.tech/fuzz-guide.html" target="_blank" rel="noopener noreferrer">Fuzz guide</a>
-							<a class="text-[10px] px-3 py-1.5 rounded border border-white/15 text-gray-400 uppercase tracking-wider hover:text-gray-200 hover:bg-white/5" href="https://hackme.tech/reports/oss-cve-watch-libheif/" target="_blank" rel="noopener noreferrer">libheif series (archived)</a>
+							<a class="text-[10px] px-3 py-1.5 rounded border border-matrix/35 text-matrix uppercase tracking-wider hover:bg-matrix/10" href="https://hackme.tech/news.html" target="_blank" rel="noopener noreferrer">Coverage Hunt news</a>
+							<a class="text-[10px] px-3 py-1.5 rounded border border-white/15 text-gray-400 uppercase tracking-wider hover:text-gray-200 hover:bg-white/5" href="https://hackme.tech/reports/oss-cve-watch-libheif/" target="_blank" rel="noopener noreferrer">libheif archive</a>
 						</div>
 					</div>
 					<div class="card card-glow rounded-xl p-3 md:p-4 border-neon/25">
@@ -2481,7 +2603,7 @@
 								<p class="text-[10px] uppercase tracking-[0.2em] text-neon">Fuzz work · earn HMC</p>
 								<button type="button" id="btn-fuzz-market-refresh" class="text-[9px] px-2 py-1 rounded border border-neon/30 text-neon uppercase tracking-wider">Refresh</button>
 							</div>
-							<p class="text-[10px] text-gray-500 mb-2">Live pool campaigns with escrow — customer B2B first. Dig with <code class="text-neon/80">workerfuzz</code> or hybrid alongside PoH. Local wizard: <code class="text-neon/70">hackme-fuzzing wizard --pack filter_utf8 --package audit</code>.</p>
+							<p class="text-[10px] text-gray-500 mb-2">Live pool campaigns with escrow — customer Dig/Hunt first. Hybrid <code class="text-neon/80">workerfuzz</code> alongside PoH. Dig: <code class="text-neon/70">hackme-fuzzing wizard --pack filter_utf8 --package audit</code> · Hunt: <code class="text-matrix/80">hackme-fuzzing hunt create …</code>.</p>
 							<p id="mining-fuzz-fleet-cap" class="text-[10px] font-mono text-neon/70 mb-2 hidden"></p>
 							<div id="mining-fuzz-market-rows" class="text-[10px] font-mono text-gray-400 space-y-0 max-h-56 overflow-y-auto pr-1">Loading…</div>
 						</div>
@@ -3995,7 +4117,7 @@
 		// Enable JS-driven tab behavior (single active panel view).
 		document.body.classList.add('js-ui');
 		const DASHBOARD_UI_VER = '0.1.0-rc17.2';
-		const DASHBOARD_WHATS_NEW_HTML = 'rc17 cutover: paper <strong class="text-white/90">Exchange</strong> tab · SUP wallet send/activity · <strong class="text-matrix">Hunt</strong> ASAN + escrow · Dig customer-first. Self-update stays on published <code class="text-neon/80">latest.json</code> until the rc17 bundle lands.';
+		const DASHBOARD_WHATS_NEW_HTML = '<strong class="text-white/90">Coverage Hunt</strong> live — libFuzzer fleet · AFL++ Deep · Dig smoke <strong class="text-neon/90">20/80</strong> · Dig Deep <strong class="text-neon/90">40/60</strong> · Hunt <strong class="text-matrix">50/50</strong>. Channel <code class="text-neon/80">0.1.0-rc17.2</code>; fleet engine auto-install in <code class="text-neon/80">rc17.3</code>.';
 		function updateUIModeBadge() {
 			const el = document.getElementById('hdr-ui-mode');
 			if (!el) return;
@@ -4197,8 +4319,8 @@
 				miningTabLabel: 'Workers',
 				heroKicker: 'HackMe network',
 				heroTitle: 'Mining ecosystem',
-				heroCopy: 'Mine <strong class="text-white/90">HMC</strong> on the live coordinator pool. Bonus assets (SUP) and roadmap coins accrue in <strong class="text-neon/90">Wallet hub</strong> — not separate pools here.',
-				hint: 'Live useful-PoW · GPU workers · on-chain settlement',
+				heroCopy: 'Mine <strong class="text-white/90">HMC</strong> on the live coordinator pool. Hybrid workers earn PoH + Dig/Hunt when customers open campaigns. SUP and roadmap assets live in <strong class="text-neon/90">Wallet hub</strong>.',
+				hint: 'Live useful-PoW · hybrid Dig/Hunt · on-chain settlement',
 				defaultTab: 'ecosystem',
 				solopoolVector: 'hmc',
 			},
@@ -5422,7 +5544,7 @@
 		function initDashboardWhatsNew() {
 			const wrap = $('dashboard-whats-new');
 			if (!wrap) return;
-			const dismissKey = 'hackme_notice_dismiss:dashboard-whats-new-rc17';
+			const dismissKey = 'hackme_notice_dismiss:dashboard-whats-new-rc17.2-hunt';
 			try {
 				if (localStorage.getItem(dismissKey) === '1') {
 					wrap.classList.add('hidden');
