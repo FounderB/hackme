@@ -45,8 +45,14 @@ echo "${status_resp}" | jq -e '.sandbox_policy.profile == "secure"' >/dev/null
 echo "${status_resp}" | jq -e '.sandbox_policy.block_quarantined == true' >/dev/null
 
 echo "[2/13] campaign listing + pulse endpoint availability"
-list_resp="$(curl_retry_fsS -x "" -sS "${BASE}/api/fuzz/campaigns?limit=5")"
-echo "${list_resp}" | jq -e '.ok == true and (.campaigns | type) == "array"' >/dev/null
+list_resp="$(curl_retry_fsS -x "" -sS \
+  -H "X-Hackme-Admin-Token: ${ADMIN_TOKEN}" \
+  "${BASE}/api/fuzz/campaigns?limit=5")"
+# Admin list may omit top-level ok; require a campaigns array (optional ok=true when present).
+echo "${list_resp}" | jq -e '
+  (.campaigns | type) == "array" and
+  ((.ok == null) or (.ok == true))
+' >/dev/null
 
 echo "[3/13] runtime gate flow"
 ADMIN_TOKEN="${ADMIN_TOKEN}" BASE="${BASE}" bash scripts/tests/fuzz_runtime_gate.sh
