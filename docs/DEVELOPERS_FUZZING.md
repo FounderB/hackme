@@ -48,7 +48,7 @@ hackme-fuzzing hunt inventory --path ./my-repo
 hackme-fuzzing hunt create --package hunt_lite   # or hunt_standard | hunt_heavy
 ```
 
-Hunt uses **50/50** escrow (not Dig 20/80). Packages: Lite ~20 HMC · Standard ~60 · Heavy ~150. Fleet engine: **libFuzzer** (default) · **AFL++** Deep when AFL present · byte fallback **OFF**.
+Hunt uses **50/50** escrow (Dig smoke 20/80 · Dig Deep 40/60). Packages: Lite ~20 HMC · Standard ~60 · Heavy ~150. Fleet engine: **libFuzzer** (default) · **AFL++** Deep when AFL present · byte fallback **OFF**.
 
 ```bash
 # Hunt engines on the worker/node (no AFL git clone)
@@ -65,7 +65,7 @@ bash scripts/ops/install_hunt_engines.sh --desktop
 |---------|-----|------|-----------|------|
 | **scan** | ~1 | 64 | 1 | local |
 | **audit** | ~5 | 256 | 64 | yes |
-| **deep** | ~25 | 2048 | 512 local · **hub cap 256** (`HACKME_POOL_EXEC_PER_UNIT_CAP`) | yes |
+| **deep** | ~40 · **40/60** | 2048 | 512 local · **hub cap 256** (`HACKME_POOL_EXEC_PER_UNIT_CAP`) | yes |
 
 **Packs:** `secrets` · `script_bounds` · `filter_utf8` · `parser_expat` — `hackme-fuzzing packs`  
 Dig stays WASM + hygiene prove; `HACKME_POOL_SEED_FROM_RESEARCH` default **OFF**.

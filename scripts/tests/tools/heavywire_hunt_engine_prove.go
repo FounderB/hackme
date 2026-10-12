@@ -79,18 +79,18 @@ func main() {
 		crashes = res.CrashFiles
 	}
 	payload := map[string]any{
-		"ok":            res.Ran && (asan || len(crashes) > 0 || res.Err == ""),
-		"engine":        "libfuzzer",
-		"seeds":         len(seeds),
-		"dict_bytes":    len(dict),
-		"wall_sec":      *wall,
-		"new_corpus":    res.NewCorpus,
-		"corpus_after":  after,
-		"crash_files":   len(crashes),
-		"asan_hit":      asan,
-		"err":           errString(res.Err),
-		"skipped":       res.SkippedReason,
-		"ran":           res.Ran,
+		"ok":             res.Ran && (asan || len(crashes) > 0 || res.Err == ""),
+		"engine":         "libfuzzer",
+		"seeds":          len(seeds),
+		"dict_bytes":     len(dict),
+		"wall_sec":       *wall,
+		"new_corpus":     res.NewCorpus,
+		"corpus_after":   after,
+		"crash_files":    len(crashes),
+		"asan_hit":       asan,
+		"err":            errString(res.Err),
+		"skipped":        res.SkippedReason,
+		"ran":            res.Ran,
 		"engine_version": res.EngineVersion,
 	}
 	if asan || len(crashes) > 0 {

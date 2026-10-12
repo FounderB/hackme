@@ -18,15 +18,16 @@ Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · release notes [HACKME_0.1.0-rc17.
 - Paper Exchange desk (`exchange.hackme.tech` iframe)
 - SUP public send/activity (nginx allowlist)
 - Hunt ASAN + escrow pool hardening (Lite / Standard / Heavy · 50/50)
-- Dig customer-first fleet (Scan / Audit / Deep · 20/80)
+- Dig customer-first fleet (Scan / Audit smoke · 20/80 · Deep · 40/60)
 - **rc17.1** hotpatch: worker lifecycle + claim-identity
 - **rc17.2** bundle: Hunt deep-havoc v2.8, fuzz release/capability harden, workerpoh env honor, pathsafe/CodeQL
+- **rc17.3** (planned): fleet installer auto-runs `install_hunt_engines.sh`
 
 ## Product paths (honest)
 
 | Product | CLI | Escrow |
 |---------|-----|--------|
-| **Dig** | `hackme-fuzzing wizard --package scan\|audit\|deep` | 20/80 |
+| **Dig** | `hackme-fuzzing wizard --package scan\|audit\|deep` | smoke 20/80 · Deep 40/60 |
 | **Hunt** | `hackme-fuzzing hunt … --package hunt_lite\|hunt_standard\|hunt_heavy` | 50/50 |
 
 ## PDFs / listing packs

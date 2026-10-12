@@ -23,7 +23,7 @@ What an audit customer should receive after a campaign completes.
 | Item | Detail |
 |------|--------|
 | **CLI** | `hackme-fuzzing wizard --pack secrets\|script_bounds\|filter_utf8\|… --package scan\|audit\|deep` |
-| **Packages** | scan ~1 HMC/64 · audit ~5/256 · deep ~25/2048 |
+| **Packages** | scan ~1 HMC/64 · audit ~5/256 · deep ~40/2048 (40/60 escrow) |
 | **Pool Deep** | 512 exec/unit local; hub **`HACKME_POOL_EXEC_PER_UNIT_CAP=256`** (code default 64) — sampled + crash-first replay anticheat |
 | **coverage_kind** | `wasm_edge_bitmap` @ mem **8192** on instrumented guards (scheduling, not AFL) |
 

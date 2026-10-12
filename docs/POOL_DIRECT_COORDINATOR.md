@@ -7,8 +7,9 @@ High-GH GPU miners can hit the origin directly to avoid CF timeouts on claim/sub
 - URL: `http://132.243.112.100:18083`
 - Auth: worker/coordinator token (`X-Hackme-Admin-Token` / pool worker token)
 - Nginx: `deploy/nginx/hackme-pool-direct.conf` → `127.0.0.1:18081`
-- **Allowlist only:** `/health`, `/api/work/claim|submit|stats|by-wallet`, `/api/pool/stats`, fuzz marketplace/settle pull (`/api/fuzz/pool/campaigns/list|progress`, `/api/fuzz/pool/stats`, `/api/fuzz/pool/settle/outbox(|/ack)`), Dig/Hunt worker paths (`/api/fuzz/work/claim|claim_batch|submit|submit_batch|corpus_snapshot|corpus_delta|release`, Hunt harness GET)
-- **Blocked at edge:** `/api/work/admin/*`, fuzz cleanup/admin, everything else → `403`
+- **Allowlist only (miner paths):** `/health`, `/api/work/claim|submit|stats|by-wallet`, `/api/pool/stats`, fuzz marketplace (`/api/fuzz/pool/campaigns/list|progress`, `/api/fuzz/pool/stats`), Dig/Hunt worker paths (`/api/fuzz/work/claim|claim_batch|submit|submit_batch|corpus_snapshot|corpus_delta|release`, Hunt harness GET)
+- **Blocked at edge:** `/api/work/admin/*`, fuzz cleanup/admin, many admin settle routes → `403`
+- **Desktop / hub settle-pull admin:** do **not** rely on `:18083` for `/api/fuzz/pool/settle/outbox` — nginx often returns **403**. Use VPS loopback `http://127.0.0.1:18081` or desktop SSH tunnel (`bash scripts/ops/install_coord_admin_tunnel_user.sh`).
 
 ## Worker config (no binary rebuild)
 

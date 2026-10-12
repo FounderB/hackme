@@ -31,7 +31,7 @@ func addCorpusDeltaRoute(mux *http.ServeMux, adminToken, workerToken string, all
 			CampaignID    string `json:"campaign_id"`
 			ItemID        int64  `json:"item_id"`
 			Namespace     string `json:"namespace"`
-			MinerAddr      string `json:"miner_address"`
+			MinerAddr     string `json:"miner_address"`
 			HuntEngine    string `json:"hunt_engine"`
 			EngineVersion string `json:"engine_version"`
 			Seeds         []struct {
@@ -81,7 +81,7 @@ func addCorpusDeltaRoute(mux *http.ServeMux, adminToken, workerToken string, all
 			CampaignID:    strings.TrimSpace(req.CampaignID),
 			ItemID:        req.ItemID,
 			Namespace:     strings.TrimSpace(req.Namespace),
-			MinerAddr:      strings.TrimSpace(req.MinerAddr),
+			MinerAddr:     strings.TrimSpace(req.MinerAddr),
 			HuntEngine:    strings.TrimSpace(req.HuntEngine),
 			EngineVersion: strings.TrimSpace(req.EngineVersion),
 			Seeds:         seeds,

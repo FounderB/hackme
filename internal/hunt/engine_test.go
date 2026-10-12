@@ -4,14 +4,14 @@ import "testing"
 
 func TestParseHuntEngine(t *testing.T) {
 	cases := map[string]string{
-		"":           EngineLibFuzzer,
-		"auto":       EngineLibFuzzer,
-		"libfuzzer":  EngineLibFuzzer,
-		"aflpp":      EngineAFLPP,
-		"afl++":      EngineAFLPP,
-		"byte":       EngineByte,
-		"legacy":     EngineByte,
-		"nope":       EngineByte,
+		"":          EngineLibFuzzer,
+		"auto":      EngineLibFuzzer,
+		"libfuzzer": EngineLibFuzzer,
+		"aflpp":     EngineAFLPP,
+		"afl++":     EngineAFLPP,
+		"byte":      EngineByte,
+		"legacy":    EngineByte,
+		"nope":      EngineByte,
 	}
 	for in, want := range cases {
 		if got := ParseHuntEngine(in); got != want {

@@ -28,7 +28,7 @@ Byte engine fallback default **OFF** (`HACKME_HUNT_ENGINE_BYTE_FALLBACK`). Spec:
 | Audit (smoke) | 5 | 20/80 | ~0.0039 | 0.05 | OFF |
 | Deep | 40 | **40/60** | ~0.0078 | 0.25 | ON |
 
-API/CLI expose `dig_billing` (`billing_model` = `smoke_runs` | `deep_depth`). Deep min escrow **25 HMC**.
+API/CLI expose `dig_billing` (`billing_model` = `smoke_runs` | `deep_depth`). Deep escrow **40 HMC** (min floor may still accept ≥25 on some paths — product SKU is 40).
 
 ## Env knobs (hub)
 

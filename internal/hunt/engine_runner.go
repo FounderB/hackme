@@ -28,10 +28,10 @@ type EngineShardResult struct {
 
 // EngineShardOpts configures a coverage-guided Hunt shard (lease = wall seconds).
 type EngineShardOpts struct {
-	RepoRoot  string
-	TargetID  string
-	Engine    string
-	WallSec   int
+	RepoRoot string
+	TargetID string
+	Engine   string
+	WallSec  int
 	// SeedFiles optional seeds copied into the engine corpus before the run.
 	SeedFiles [][]byte
 	// DictBytes optional AFL/libFuzzer dictionary written beside the corpus (-dict=).

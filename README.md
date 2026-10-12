@@ -41,7 +41,7 @@ Hashrate settles on-chain. Security work is escrowed, distributed, and reported 
 | Lane | You get |
 |------|---------|
 | **Mine** | Public HTTP pool · CUDA / OpenCL / CPU · hybrid Ed25519 submits · **HMC** rewards · **SUP** loyalty |
-| **Dig** | Customer WASM packs (Scan / Audit / Deep) · **20/80** escrow · pool workers · deliverable report |
+| **Dig** | Customer WASM packs (Scan / Audit / Deep) · smoke **20/80** · Deep **40/60** · pool workers · deliverable report |
 | **Hunt** | **Coverage-guided** (libFuzzer fleet · AFL++ Deep) · ASAN prove · Lite / Standard / Heavy · **50/50** escrow |
 | **Exchange** | Soft-launch desk at [exchange.hackme.tech](https://exchange.hackme.tech/) — live matching + HMC/SUP custody; USDT BSC watch + manual KYT; no Didit/hot-send |
 | **Research** | Public ledgers (Hunt Watch, OSS CVE Watch, Bitcoin30) — evidence, not hype |
@@ -136,20 +136,20 @@ GPU backends: [GPU_MINING_BACKENDS.md](docs/GPU_MINING_BACKENDS.md).
 
 | Product | Escrow | What you buy |
 |---------|--------|----------------|
-| **Dig · Scan / Audit / Deep** | 20/80 | WASM campaign on *your* guards · pool-distributed Dig (no AFL/LF in Dig) |
+| **Dig · Scan / Audit / Deep** | 20/80 smoke · 40/60 Deep | WASM campaign on *your* guards · pool-distributed Dig (no AFL/LF in Dig) |
 | **Hunt · Lite / Standard / Heavy** | 50/50 | **Coverage-guided** libFuzzer / AFL++ on the pool · coordinator **ASAN + afl-showmap** prove · escrow report — distributed Hunt, **not** an OSS-Fuzz replacement |
 
 ```bash
 hackme-fuzzing wizard --pack filter_utf8 --package audit
 hackme-fuzzing hunt … --package hunt_lite   # see docs
-bash scripts/ops/install_hunt_engines.sh --desktop   # clang + AFL++ + bwrap (also auto on Linux miner install/update)
+bash scripts/ops/install_hunt_engines.sh --desktop   # clang + AFL++ + bwrap (auto-install in published rc17.3; rc17.2 run manually)
 ```
 
 | Dig package | ~HMC | Runs (guide) |
 |-------------|------|----------------|
 | Scan | 1 | 64 |
 | Audit | 5 | 256 |
-| Deep | 25 | 2048 (hub Deep capped at 256) |
+| Deep | 40 | 2048 · 40/60 (hub Deep capped at 256) |
 
 | Hunt package | ~HMC | Engine (default) |
 |--------------|------|------------------|

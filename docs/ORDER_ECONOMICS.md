@@ -11,9 +11,9 @@ When a customer node creates `POST /api/security-audit` with **`create_poh_order
 - Existing **`workerpoh`** clients auto-enter `scheduler_mode=orders` — no binary update for that rail.
 - Deep fuzz **runs** use `/api/fuzz/work/*` (hybrid `workerpoh` or standalone `workerfuzz`). Hub **exec_per_unit** capped at **64** on distributed pool; coordinator replays segment on submit (see [POOL_FUZZ_DISTRIBUTED.md](POOL_FUZZ_DISTRIBUTED.md)).
 
-**B2B Dig packages (wizard):** scan ~1 HMC/64 · audit ~5/256 · deep ~25/2048. Packs: `secrets`, `script_bounds`, `filter_utf8`, `parser_expat`.
+**B2B Dig packages (wizard):** scan ~1 HMC/64 · audit ~5/256 · deep ~40/2048 (**40/60** escrow). Packs: `secrets`, `script_bounds`, `filter_utf8`, `parser_expat`.
 
-**Hunt packages (separate CLI):** `hunt_lite` ~20 · `hunt_standard` ~60 · `hunt_heavy` ~150 HMC · **50/50** escrow — [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md). Dig remains **20/80**.
+**Hunt packages (separate CLI):** `hunt_lite` ~20 · `hunt_standard` ~60 · `hunt_heavy` ~150 HMC · **50/50** escrow — [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md). Dig smoke (Scan/Audit) **20/80**; Dig Deep **40/60**.
 
 Disable with `HACKME_COORDINATOR_ATTACH_POH_ORDER=0`.
 

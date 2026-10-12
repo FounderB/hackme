@@ -15,7 +15,7 @@
 | **Who wins exec/s** | Local machine, no network | Not the KPI — we ship **verified distributed depth** |
 | **Who wins the job** | Maintainer overnight on one box | Customer / miner fleet: **report, edges proven, escrow, Dig hybrid earn** |
 
-**Sell hard:** *coverage-guided Hunt is live on the network — libFuzzer and AFL++ are first-class engines, auto-installed for miners, paid on proven edges.*  
+**Sell hard:** *coverage-guided Hunt is live on the network — libFuzzer and AFL++ are first-class engines, paid on proven edges. Engine auto-install ships in published **rc17.3** (rc17.2: `install_hunt_engines.sh`).*  
 **Do not sell:** “faster than libFuzzer” or “better than OSS-Fuzz.” Sell **fleet + prove + escrow + hybrid Dig**.
 
 Dig stays **WASM-only**. LF/AFL never enter Dig.
@@ -47,7 +47,7 @@ Dig stays **WASM-only**. LF/AFL never enter Dig.
 ### How to talk about speed in public
 
 - ✅ “Hunt runs **coverage-guided libFuzzer / AFL++** on the pool — same engine generation as the research world.”
-- ✅ “Miners auto-install clang + AFL++ + bubblewrap; Dig keeps earning while Hunt leases run.”
+- ✅ “Miners install clang + AFL++ + bubblewrap (`install_hunt_engines.sh`; auto in **rc17.3**); Dig keeps earning while Hunt leases run.”
 - ✅ “Pay for **proven new edges** and/or **ASAN crashes** — not worker self-reported counters.”
 - ❌ “We beat libFuzzer at 15k exec/s.”
 - ❌ “We replaced OSS-Fuzz.”

@@ -68,7 +68,7 @@ crash_bonus = min(0.01 × bounty_pool_hmc, 0.05 HMC)
 
 **Minimum campaign budget (Hunt):** **15 HMC** (Lite floor in UI), **50 HMC** (Standard).
 
-Compare Dig: Scan **1** · Audit **5** · Deep **25** HMC ([b2b_packages.go](../internal/fuzzingcli/b2b_packages.go)).
+Compare Dig: Scan **1** · Audit **5** · Deep **40** HMC ([b2b_packages.go](../internal/fuzzingcli/b2b_packages.go)); smoke Dig **20/80**, Deep Dig **40/60**.
 
 ---
 

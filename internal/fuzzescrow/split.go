@@ -4,11 +4,11 @@ package fuzzescrow
 import "errors"
 
 const (
-	RunsPoolShare         = 0.20
-	BountyPoolShare       = 0.80
+	RunsPoolShare   = 0.20
+	BountyPoolShare = 0.80
 	// DeepRunsPoolShare pays miners more for paid-depth Dig work (40/60 vs smoke 20/80).
-	DeepRunsPoolShare   = 0.40
-	DeepBountyPoolShare = 0.60
+	DeepRunsPoolShare     = 0.40
+	DeepBountyPoolShare   = 0.60
 	BountyPlatformFeeRate = 0.05 // taken from bounty payout only
 	// UniqueCrashBonusRate is a small share of the bounty pool paid once for a unique crash.
 	// Main medium/high/critical bounty stays confirmed-native and receives the remainder.

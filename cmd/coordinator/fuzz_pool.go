@@ -1384,10 +1384,10 @@ func applyHuntEngineClaimGate(work *poolfuzz.ClaimedWork, huntEnginesRaw string)
 		return false, ""
 	}
 	cfgHint := map[string]any{
-		"iterations_per_shard":  work.IterationsPerShard,
-		"hunt_corpus_guided":    work.CoverageKind == "hunt_corpus_guided",
-		"hunt_engine_profile":   work.EngineProfile,
-		"hunt_engine":           work.HuntEngine,
+		"iterations_per_shard": work.IterationsPerShard,
+		"hunt_corpus_guided":   work.CoverageKind == "hunt_corpus_guided",
+		"hunt_engine_profile":  work.EngineProfile,
+		"hunt_engine":          work.HuntEngine,
 	}
 	// Legacy workers omit hunt_engines — byte fallback only when explicitly enabled (default OFF).
 	if len(advertised) == 0 && poolfuzz.HuntEngineAllowByteFallbackForConfig(cfgHint) {

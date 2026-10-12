@@ -120,7 +120,7 @@ func TestReport27ReleaseLaneDoesNotPoisonPayoutLock(t *testing.T) {
 		"miner_pubkey":   hex.EncodeToString(vicPub),
 		"miner_address":  signerAddr(vicPub),
 		"worker_version": "9.9.9", "hunt_harness_exec": "libfuzzer_oneshot",
-		"hunt_engines":   "libfuzzer,aflpp,byte",
+		"hunt_engines": "libfuzzer,aflpp,byte",
 	}, false)
 	if code != http.StatusOK {
 		t.Fatalf("victim first claim must succeed after non-poisoning release: %d %v", code, out)
@@ -171,7 +171,7 @@ func TestReport27AdminUnbindClearsClaimSquat(t *testing.T) {
 		"miner_pubkey":   hex.EncodeToString(atkPub),
 		"miner_address":  signerAddr(atkPub),
 		"worker_version": "9.9.9", "hunt_harness_exec": "libfuzzer_oneshot",
-		"hunt_engines":   "libfuzzer,aflpp,byte",
+		"hunt_engines": "libfuzzer,aflpp,byte",
 	}, false)
 	if code != http.StatusOK {
 		t.Fatalf("attacker first claim: %d %v", code, out)
@@ -182,7 +182,7 @@ func TestReport27AdminUnbindClearsClaimSquat(t *testing.T) {
 		"miner_pubkey":   hex.EncodeToString(vicPub),
 		"miner_address":  signerAddr(vicPub),
 		"worker_version": "9.9.9", "hunt_harness_exec": "libfuzzer_oneshot",
-		"hunt_engines":   "libfuzzer,aflpp,byte",
+		"hunt_engines": "libfuzzer,aflpp,byte",
 	}, false)
 	reason, _ := out["reason"].(string)
 	if code != http.StatusForbidden || !strings.Contains(reason, "locked="+signerAddr(atkPub)) {
@@ -211,7 +211,7 @@ func TestReport27AdminUnbindClearsClaimSquat(t *testing.T) {
 		"miner_pubkey":   hex.EncodeToString(vicPub),
 		"miner_address":  signerAddr(vicPub),
 		"worker_version": "9.9.9", "hunt_harness_exec": "libfuzzer_oneshot",
-		"hunt_engines":   "libfuzzer,aflpp,byte",
+		"hunt_engines": "libfuzzer,aflpp,byte",
 	}, false)
 	if code != http.StatusOK {
 		t.Fatalf("victim claim after unbind must succeed: %d %v", code, out)

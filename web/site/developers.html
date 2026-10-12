@@ -91,7 +91,7 @@
               <tr><td>1 · Setup</td><td>Read 5 docs, guess budget</td><td><code>hackme-node</code> + fund wallet on <code>127.0.0.1:8080</code></td></tr>
               <tr><td>2 · Build guard</td><td><code>hackme-fuzzing build</code> + manual manifest</td><td>Same, or existing <code>.wasm</code></td></tr>
               <tr><td>3 · Order</td><td><code>create manifest.json</code> or long <code>curl security-audit</code></td><td><strong>One command:</strong> <code>wizard --pack secrets --package audit</code> or <code>wizard --wasm guard.wasm --package audit</code></td></tr>
-              <tr><td>4 · Package</td><td>Pick depth_tier + budget by hand</td><td><strong>Scan / Dig Audit / Deep</strong> presets (1 / 5 / 25 HMC) + Hunt inventory</td></tr>
+              <tr><td>4 · Package</td><td>Pick depth_tier + budget by hand</td><td><strong>Scan / Dig Audit / Deep</strong> presets (1 / 5 / 40 HMC) + Hunt inventory</td></tr>
               <tr><td>5 · Deliverable</td><td>Hunt for report token in JSON</td><td>Wizard prints <code>report_url</code>, <code>gate_url</code>, <code>pulse_url</code> (Dig). Hunt uses Hunt campaign status + escrow settle.</td></tr>
               <tr><td>6 · CI</td><td>Wire gate yourself</td><td>GitHub Action example in repo + gate URL in wizard output</td></tr>
               <tr><td>Where</td><td>Same localhost model</td><td>Same — <strong>no</strong> public upload on hackme.tech</td></tr>
@@ -125,7 +125,7 @@ bash scripts/ops/install_hunt_engines.sh --desktop
 hackme-fuzzing hunt packages
 hackme-fuzzing hunt inventory --path ./repo
 hackme-fuzzing hunt create --package hunt_lite …</code></pre>
-      <p class="subtle" style="margin-top:0.75rem">Dig escrow <strong>20/80</strong> · Hunt escrow <strong>50/50</strong> (full PayRun on proven edges/crash; CLEAN floor otherwise). Not better than OSS-Fuzz. Details: <a href="./fuzz-guide.html">fuzz guide</a> · <a href="https://github.com/jokeez/hackme/blob/main/docs/HUNT_COVERAGE_ENGINES.md" target="_blank" rel="noreferrer">HUNT_COVERAGE_ENGINES.md</a>.</p>
+      <p class="subtle" style="margin-top:0.75rem">Dig smoke escrow <strong>20/80</strong> · Dig Deep <strong>40/60</strong> · Hunt escrow <strong>50/50</strong> (full PayRun on proven edges/crash; CLEAN floor otherwise). Not better than OSS-Fuzz. Details: <a href="./fuzz-guide.html">fuzz guide</a> · <a href="https://github.com/jokeez/hackme/blob/main/docs/HUNT_COVERAGE_ENGINES.md" target="_blank" rel="noreferrer">HUNT_COVERAGE_ENGINES.md</a>.</p>
     </section>
 
     <section class="grid grid-2">

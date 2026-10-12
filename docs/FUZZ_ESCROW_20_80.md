@@ -1,6 +1,8 @@
-# Fuzz campaign escrow (20/80 hybrid)
+# Fuzz campaign escrow (Dig smoke 20/80 · Dig Deep 40/60)
 
-> **Hunt campaigns** use a separate **50/50** split — see [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md). Below applies to **Dig / Scan** (and legacy campaigns).
+> **Hunt campaigns** use a separate **50/50** split — see [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md).
+> **Dig Deep** uses **40/60** (`DeepRunsPoolShare` in `internal/fuzzescrow`) — more of the escrow pays verified runs.
+> Tables below describe the **smoke Dig / Scan 20/80** default unless noted.
 
 ## Split
 

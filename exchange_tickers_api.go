@@ -123,8 +123,8 @@ func (a *app) handleExchangeTickers(w http.ResponseWriter, r *http.Request) {
 	raw, staleErr, ok := cachedExchangeTickers(ctx)
 	if !ok {
 		writeJSON(w, map[string]any{
-			"ok":    false,
-			"error": staleErr,
+			"ok":     false,
+			"error":  staleErr,
 			"source": exchangeTickersUpstreamURL(),
 		})
 		return

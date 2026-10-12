@@ -4,7 +4,7 @@
   "cve_candidates": [],
   "informational_targets": [],
   "clean_targets": [
-    "mpack"
+    "cwalk"
   ],
   "hold_disclosure": [
     "centijson",
@@ -29,8 +29,8 @@
     "wren",
     "gpslib"
   ],
-  "wave": "mpack",
-  "started_at": "2026-10-11T18:10:52Z",
-  "finished_at": "2026-10-11T18:42:59Z",
+  "wave": "cwalk",
+  "started_at": "2026-10-12T00:49:07Z",
+  "finished_at": "2026-10-12T01:18:39Z",
   "publish_allowed": true
 }

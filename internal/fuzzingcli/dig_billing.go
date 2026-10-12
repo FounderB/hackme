@@ -6,19 +6,19 @@ import (
 
 // DigBillingQuote is the customer/miner-facing money card for a Dig SKU.
 type DigBillingQuote struct {
-	Package          string  `json:"package"`
-	ProductMode      string  `json:"product_mode"`
-	BudgetHMC        float64 `json:"budget_hmc"`
-	BudgetRuns       int     `json:"budget_runs"`
-	BudgetSeconds    int     `json:"budget_seconds"`
-	EscrowSplit      string  `json:"escrow_split"`
-	RunsPoolShare    float64 `json:"runs_pool_share"`
-	BountyPoolShare  float64 `json:"bounty_pool_share"`
-	EstPerRunHMC     float64 `json:"est_per_run_hmc"`
-	PoHRewardHMC     float64 `json:"poh_reward_hmc,omitempty"`
-	SeedsMerged      bool    `json:"seeds_merged_allowed"`
-	BillingModel     string  `json:"billing_model"` // smoke_runs | deep_depth
-	HonestyNote      string  `json:"honesty_note"`
+	Package         string  `json:"package"`
+	ProductMode     string  `json:"product_mode"`
+	BudgetHMC       float64 `json:"budget_hmc"`
+	BudgetRuns      int     `json:"budget_runs"`
+	BudgetSeconds   int     `json:"budget_seconds"`
+	EscrowSplit     string  `json:"escrow_split"`
+	RunsPoolShare   float64 `json:"runs_pool_share"`
+	BountyPoolShare float64 `json:"bounty_pool_share"`
+	EstPerRunHMC    float64 `json:"est_per_run_hmc"`
+	PoHRewardHMC    float64 `json:"poh_reward_hmc,omitempty"`
+	SeedsMerged     bool    `json:"seeds_merged_allowed"`
+	BillingModel    string  `json:"billing_model"` // smoke_runs | deep_depth
+	HonestyNote     string  `json:"honesty_note"`
 }
 
 // QuoteDigBilling builds the money card for a Dig package (pre-order quote).

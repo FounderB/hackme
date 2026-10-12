@@ -37,20 +37,20 @@ func main() {
 	})
 	elapsed := time.Since(start).Seconds()
 	payload := map[string]any{
-		"ok":              res.Err == "",
-		"target":          *target,
-		"engine":          res.Engine,
-		"engine_version":  res.EngineVersion,
-		"wall_sec":        *wall,
-		"elapsed_sec":     elapsed,
-		"ran":             res.Ran,
-		"corpus_before":   res.CorpusBefore,
-		"corpus_after":    res.CorpusAfter,
-		"new_corpus":      res.NewCorpus,
-		"crash_files":     len(res.CrashFiles),
-		"err":             res.Err,
-		"stamp_utc":       time.Now().UTC().Format(time.RFC3339),
-		"note":            "coverage engine lease — exec/s reported by engine logs, not byte-shard iterations",
+		"ok":             res.Err == "",
+		"target":         *target,
+		"engine":         res.Engine,
+		"engine_version": res.EngineVersion,
+		"wall_sec":       *wall,
+		"elapsed_sec":    elapsed,
+		"ran":            res.Ran,
+		"corpus_before":  res.CorpusBefore,
+		"corpus_after":   res.CorpusAfter,
+		"new_corpus":     res.NewCorpus,
+		"crash_files":    len(res.CrashFiles),
+		"err":            res.Err,
+		"stamp_utc":      time.Now().UTC().Format(time.RFC3339),
+		"note":           "coverage engine lease — exec/s reported by engine logs, not byte-shard iterations",
 	}
 	b, _ := json.MarshalIndent(payload, "", "  ")
 	if *out != "" {

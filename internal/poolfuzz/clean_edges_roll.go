@@ -51,13 +51,13 @@ func resetCleanEdgesRollForTest() {
 func CleanEdgesFloorStats() map[string]any {
 	rate, n := cleanEdgesReportRate()
 	return map[string]any{
-		"edges_report_rate":     rate,
-		"edges_report_samples":  n,
-		"edges_require_mode":    cleanEdgesRequireMode(),
-		"edges_require_active":  cleanEdgesRequireActive(),
-		"auto_on_at_rate":       0.90,
-		"auto_on_min_samples":   32,
-		"clean_floor_enabled":   cleanFloorEnabled(),
+		"edges_report_rate":    rate,
+		"edges_report_samples": n,
+		"edges_require_mode":   cleanEdgesRequireMode(),
+		"edges_require_active": cleanEdgesRequireActive(),
+		"auto_on_at_rate":      0.90,
+		"auto_on_min_samples":  32,
+		"clean_floor_enabled":  cleanFloorEnabled(),
 		"min_ms_per_exec":      envIntClamped("HACKME_POOL_CLEAN_MIN_MS_PER_EXEC", map[bool]int{true: 1, false: 0}[cleanEdgesRequireActive()], 0, 1000),
 		"min_edges_default":    envIntClamped("HACKME_POOL_CLEAN_MIN_EDGES", 1, 0, 100000),
 		"min_edges_deep":       envIntClamped("HACKME_POOL_CLEAN_MIN_EDGES_DEEP", 2, 0, 100000),

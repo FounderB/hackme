@@ -1,6 +1,6 @@
 # Coverage Hunt launch — social paste drafts (2026-10-11)
 
-Strong product story. Facts only: engines live, auto-install, prove/pay, Dig hybrid.  
+Strong product story. Facts only: engines live, prove/pay, Dig hybrid. Auto-install = **rc17.3** published cut; until then `install_hunt_engines.sh`.  
 **Do not** claim a new public ASAN CVE in these posts until scorecard shows ≥1 on a public pack.
 
 Links: https://hackme.tech · https://hackme.tech/downloads.html · https://t.me/hackme_tech · Bitcointalk https://bitcointalk.org/index.php?topic=5583373.0
@@ -33,7 +33,7 @@ Different KPI. Same seriousness.
 Report: docs/HUNT_VS_LIBFUZZER.md
 
 **4/**
-Miners: download / update Linux binaries → **clang + AFL++ + bubblewrap auto-install**.
+Miners: run `install_hunt_engines.sh` on **rc17.2**; **rc17.3** download/update auto-installs clang + AFL++ + bubblewrap.
 
 Dig keeps mining. Hunt takes coverage leases. Soft-skip if engines missing — never break PoH.
 
@@ -84,7 +84,7 @@ Ship note for miners & customers:
 - Fleet Hunt engine = **libFuzzer**
 - Deep = **AFL++** when present
 - Pay = **proven edges / ASAN** (showmap on coordinator) — floor otherwise
-- Linux miner install/update **auto-installs** clang + AFL++ + bubblewrap
+- Linux miner install/update **auto-installs** clang + AFL++ + bubblewrap in **rc17.3** (rc17.2: script)
 - Dig stays WASM; hybrid workers keep earning while Hunt leases run
 
 Bench (90s, equal wall): standalone libFuzzer still wins raw exec/s; Hunt LF lease delivered **+85 corpus** on cjson. We stopped competing on the wrong chart.
