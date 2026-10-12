@@ -17,6 +17,7 @@ By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 2. Keep changes focused; match existing Go and shell style.
 3. Do not commit secrets, databases, or local env files (see `.gitignore` and [docs/SECURITY_REPO.md](docs/SECURITY_REPO.md)).
 4. User-facing strings in **new** UI or public docs should be **English**.
+5. Root `*_test.go` files (e.g. `pool_inference_test.go`) stay next to `package main` — that is normal Go layout, not clutter. Lab one-shots live under `scripts/local/` (gitignored).
 
 ## Reporting security issues
 

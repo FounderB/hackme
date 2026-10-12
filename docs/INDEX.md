@@ -120,6 +120,7 @@
 | Doc | Topic |
 |-----|--------|
 | [OPERATIONS_MONITORING.md](OPERATIONS_MONITORING.md) | Metrics, alerts, pool health (`run_pool_health_check.sh`) |
+| [../scripts/ops/bootstrap_customer/BOOTSTRAP_README.md](../scripts/ops/bootstrap_customer/BOOTSTRAP_README.md) | Bootstrap customer VPS — Dig/Hunt bots, wallet, timers |
 | [VPS_CAPACITY.md](VPS_CAPACITY.md) | Hub sizing & multi-coin layout |
 | [HACKME_RC17.md](HACKME_RC17.md) | **Current** Win/Linux/fuzz/ISO channel |
 | [HACKME_RC16.md](HACKME_RC16.md) | Prior / superseded by rc17 |

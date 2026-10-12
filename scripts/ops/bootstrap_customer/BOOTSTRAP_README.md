@@ -23,6 +23,25 @@ No miner binary update for the PoH rail. Deep fuzz corpus work is still a separa
 - Address configured on the bootstrap VPS from its node seed (see `setup_bootstrap_vps.sh`)
 - Bot spends **local fuzz escrow**; PoH attach prepaid is debited on the **command node** (`ORDERS_URL`) when the coordinator attach runs
 
+
+## Live status (ops snapshot · 2026-10-12)
+
+| Item | Value |
+|------|--------|
+| VPS | `root@89.150.41.40` · `/opt/hackme-bootstrap` |
+| Node | `hackme-bootstrap-node` **active** · `0.1.0-rc17.3` |
+| Dig bot | `hackme-bootstrap-bot.timer` · ~every 6h (next ~22:01 UTC) |
+| Hunt bot | `hackme-bootstrap-hunt.timer` · ~every 6h (next ~22:10 UTC) |
+| workerfuzz | `bootstrap-fuzz-01..04` **active** |
+| Wallet | `HMC-23336d92da342724` |
+| On-chain | ~**2851.67 HMC** · spendable for orders ~**1369 HMC** · ~**229 SUP** |
+| Plan window | Dig/Hunt rotate until **2026-10-23** |
+| Latest Dig | `campaign-bootstrap-cjson-20261012t150055z` · escrow **closed** · runs_paid ≈10 HMC · bounty refunded |
+
+Timers show `inactive dead` between ticks — that is normal; only the node + workerfuzz stay running.
+
+Settle-pull `502` / `outbox not drained` lines during an order are usually transient (hub edge); final escrow `status=closed` is the success signal.
+
 ## Services
 | Service | Purpose |
 |---------|---------|

@@ -14,6 +14,8 @@ Automated coverage spans **Go unit tests**, **bash integration matrices**, **Pla
 | Mock 15 workers load | `bash scripts/tests/mock_miners_load.sh` |
 | Playwright dashboard E2E | `bash scripts/tests/run_ui_e2e.sh` |
 
+Root `*_test.go` (e.g. `pool_inference_test.go`) belong to `package main` beside `main.go` — keep them there; do not move into `scripts/tests/` or `tests/`.
+
 ## 1. UI / dashboard (Playwright)
 
 Location: `tests/e2e/`
