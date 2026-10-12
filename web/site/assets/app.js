@@ -1,8 +1,8 @@
 (() => {
   /** Channel label (UI / news). Artifact URLs use PUBLISHED_ARTIFACT_VER. */
-  const RELEASE_VER = "0.1.0-rc17.2";
-  /** Published downloadables on GitHub / dist (installers rc17.2 full bundle). */
-  const PUBLISHED_ARTIFACT_VER = "0.1.0-rc17.2";
+  const RELEASE_VER = "0.1.0-rc17.3";
+  /** Published downloadables on GitHub / dist (installers rc17.3 channel). */
+  const PUBLISHED_ARTIFACT_VER = "0.1.0-rc17.3";
   /** HackMe OS ISO channel follows PUBLISHED_ARTIFACT_VER. */
   const ISO_CHANNEL = PUBLISHED_ARTIFACT_VER;
 
@@ -40,7 +40,7 @@
     newsDisplay: "/assets/news-display.json",
     newsArchive: "/assets/news.json",
     releaseChannel: RELEASE_VER,
-    releaseChannelNote: "rc17.2 LIVE — Dig/Hunt pool, paper Exchange, SUP wallet; installers " + PUBLISHED_ARTIFACT_VER,
+    releaseChannelNote: "rc17.3 channel — Coverage Hunt engines auto-install · Dig/Hunt pool · paper Exchange · SUP; installers " + PUBLISHED_ARTIFACT_VER,
     publishedArtifactVer: PUBLISHED_ARTIFACT_VER,
     releaseBase: `/dist/release_${PUBLISHED_ARTIFACT_VER}`,
     // Primary downloads: GitHub Releases (Cloudflare /dist often stalls or truncates large files).

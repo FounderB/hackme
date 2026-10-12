@@ -1,8 +1,22 @@
 {
-  "updated": "2026-10-12T00:00:00Z",
+  "updated": "2026-10-12T12:00:00Z",
   "interval_ms": 6200,
   "pool_poll_ms": 30000,
   "slides": [
+    {
+      "kind": "release",
+      "badge": "CHANNEL",
+      "title": "0.1.0-rc17.3 \u2014 Coverage Hunt engines",
+      "detail": "Linux install/update auto-installs clang + AFL++ + bwrap \u00b7 Dig 40/60 Deep \u00b7 Hunt 50/50",
+      "cta": "Downloads",
+      "href": "/downloads.html#start",
+      "accent": "success",
+      "stats": [
+        "rc17.3",
+        "Hunt",
+        "SHA"
+      ]
+    },
     {
       "kind": "product",
       "badge": "HUNT",
@@ -19,23 +33,9 @@
     },
     {
       "kind": "release",
-      "badge": "HOTPATCH",
-      "title": "0.1.0-rc17.2 \u2014 worker lifecycle + claim identity",
-      "detail": "Full Win/Linux/deb/ISO channel rc17.2 \u2014 verify SHA256SUMS",
-      "cta": "Downloads",
-      "href": "/downloads.html#start",
-      "accent": "success",
-      "stats": [
-        "rc17.2",
-        "bundle",
-        "SHA"
-      ]
-    },
-    {
-      "kind": "release",
       "badge": "CHANNEL",
       "title": "0.1.0-rc17 published \u2014 Win/Linux/deb/ISO",
-      "detail": "Superseded by rc17.2 full bundle \u2014 verify SHA256SUMS",
+      "detail": "Superseded by rc17.3 full bundle \u2014 verify SHA256SUMS",
       "cta": "Downloads",
       "href": "/downloads.html#start",
       "accent": "success",

@@ -23,4 +23,4 @@ Public news feed: https://hackme.tech/news.html · `web/site/assets/news.json`
 
 ## Version policy
 
-Win/Linux runtime + published installers: `scripts/release/CURRENT_VERSION` / `PUBLISHED_ARTIFACT_VER` → **0.1.0-rc17.2** (full bundle cut 2026-09-25). Hunt engine auto-install for fleet installers: **rc17.3**.
+Win/Linux runtime + published installers: `scripts/release/CURRENT_VERSION` / `PUBLISHED_ARTIFACT_VER` → **0.1.0-rc17.3** (full bundle cut 2026-09-25). Hunt engine auto-install for fleet installers: **rc17.3**.

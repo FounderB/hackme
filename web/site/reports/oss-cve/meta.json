@@ -4,7 +4,7 @@
   "cve_candidates": [],
   "informational_targets": [],
   "clean_targets": [
-    "cwalk"
+    "libcbor"
   ],
   "hold_disclosure": [
     "centijson",
@@ -29,8 +29,8 @@
     "wren",
     "gpslib"
   ],
-  "wave": "cwalk",
-  "started_at": "2026-10-12T00:49:07Z",
-  "finished_at": "2026-10-12T01:18:39Z",
+  "wave": "libcbor",
+  "started_at": "2026-10-12T12:24:27Z",
+  "finished_at": "2026-10-12T12:56:22Z",
   "publish_allowed": true
 }

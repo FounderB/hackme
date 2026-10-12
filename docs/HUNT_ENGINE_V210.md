@@ -1,6 +1,6 @@
 # Hunt engine v2.10 — max-noticeable depth (FounderB)
 
-Extends rc17.2 **DeepHavocV28** + FounderB **v2.9** soft weights.
+Extends rc17.3 **DeepHavocV28** + FounderB **v2.9** soft weights.
 
 ## What’s new
 

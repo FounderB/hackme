@@ -1,17 +1,17 @@
 # HackMe 0.1.0-rc17 — cutover channel
 
-**Status:** LIVE · full channel **0.1.0-rc17.2** (runtime + installers + ISO) · [downloads](https://hackme.tech/downloads.html) · [GitHub](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.2)
+**Status:** LIVE · full channel **0.1.0-rc17.3** (runtime + installers + ISO) · [downloads](https://hackme.tech/downloads.html) · [GitHub](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.3)
 
-Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · release notes [HACKME_0.1.0-rc17.2_RELEASE.md](releases/HACKME_0.1.0-rc17.2_RELEASE.md) · prior [HACKME_RC16.md](HACKME_RC16.md) · [BUG_BOUNTY.md](BUG_BOUNTY.md)
+Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · release notes [HACKME_0.1.0-rc17.3_RELEASE.md](releases/HACKME_0.1.0-rc17.3_RELEASE.md) · prior [HACKME_RC16.md](HACKME_RC16.md) · [BUG_BOUNTY.md](BUG_BOUNTY.md)
 
-## What rc17.2 means
+## What rc17.3 means
 
 | Layer | State |
 |-------|--------|
-| Hub UI (`dashboard.html`) | `0.1.0-rc17.2` — Exchange · SUP · Hunt/Dig · deep-havoc v2.8 |
-| `main.go` / `CURRENT_VERSION` / `app.js` `RELEASE_VER` | `0.1.0-rc17.2` |
-| Public downloads (`PUBLISHED_ARTIFACT_VER`) | **0.1.0-rc17.2** Win/Linux/deb/fuzz/ISO + SHA256SUMS |
-| News / ticker | rc17.2 LIVE full bundle |
+| Hub UI (`dashboard.html`) | `0.1.0-rc17.3` — Exchange · SUP · Hunt/Dig · deep-havoc v2.8 |
+| `main.go` / `CURRENT_VERSION` / `app.js` `RELEASE_VER` | `0.1.0-rc17.3` |
+| Public downloads (`PUBLISHED_ARTIFACT_VER`) | **0.1.0-rc17.3** Win/Linux/deb/fuzz/ISO + SHA256SUMS |
+| News / ticker | rc17.3 LIVE full bundle |
 
 ## Ships since rc17 cut
 
@@ -21,7 +21,7 @@ Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · release notes [HACKME_0.1.0-rc17.
 - Dig customer-first fleet (Scan / Audit smoke · 20/80 · Deep · 40/60)
 - **rc17.1** hotpatch: worker lifecycle + claim-identity
 - **rc17.2** bundle: Hunt deep-havoc v2.8, fuzz release/capability harden, workerpoh env honor, pathsafe/CodeQL
-- **rc17.3** (planned): fleet installer auto-runs `install_hunt_engines.sh`
+- **rc17.3**: Coverage Hunt engines auto-install on Linux miner install/update (`install_hunt_engines.sh`)
 
 ## Product paths (honest)
 
@@ -32,8 +32,8 @@ Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · release notes [HACKME_0.1.0-rc17.
 
 ## PDFs / listing packs
 
-Listing PDFs under `dist/docs/` were regenerated for **rc17** (2026-09-15). Site links use `?v=20260915-rc17` — verify `SHA256SUMS-docs.txt` on [docs.html](https://hackme.tech/docs.html).
+Listing PDFs under `dist/docs/` — rebuild with `bash scripts/release/build_listing_pdfs.sh` for the active channel; verify `SHA256SUMS-docs.txt` on [docs.html](https://hackme.tech/docs.html).
 
 ## Operator note
 
-Published artifacts and `latest.json` point at **0.1.0-rc17.2**. Ops history: [RC17_CUTOVER.md](RC17_CUTOVER.md).
+Published channel **0.1.0-rc17.3** (rebuild/publish bundle, then verify SHA). Ops history: [RC17_CUTOVER.md](RC17_CUTOVER.md).

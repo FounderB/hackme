@@ -29,7 +29,7 @@ import (
 
 // Version is stamped at link time (-X hackme/internal/workerfuzzloop.Version=…).
 // Falls back to a fleet-gate baseline when unset.
-var Version = "0.1.0-rc17.2"
+var Version = "0.1.0-rc17.3"
 
 // ClaimResp is one leased fuzz work item from the coordinator.
 type ClaimResp struct {

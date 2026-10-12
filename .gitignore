@@ -21,7 +21,8 @@ hackme-coordinator
 *.deb
 !scripts/release/**/*.deb
 
-# Local social drafts and crash telemetry (never commit)
+# Local scratch (social drafts, one-off advice posts, temp scripts — never commit)
+local_scratch/
 local_social_drafts/
 .sentry-native/
 

@@ -52,12 +52,12 @@ func TestClaimCapsIncludeHarness(t *testing.T) {
 	}))
 	defer srv.Close()
 	_, err := Claim(context.Background(), srv.Client(), srv.URL, "tok", "w1", "", "", ClaimCaps{
-		WorkerVersion: "0.1.0-rc17.2", HuntHarnessExec: "libfuzzer_oneshot",
+		WorkerVersion: "0.1.0-rc17.3", HuntHarnessExec: "libfuzzer_oneshot",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got["worker_version"] != "0.1.0-rc17.2" {
+	if got["worker_version"] != "0.1.0-rc17.3" {
 		t.Fatalf("version=%v", got["worker_version"])
 	}
 	if got["hunt_harness_exec"] != "libfuzzer_oneshot" {

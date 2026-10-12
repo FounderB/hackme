@@ -168,7 +168,7 @@ func TestHuntClaimConfigMatchesCampaignExecInputsDigGPU(t *testing.T) {
 }
 
 // campaignCfgFixture mirrors what CampaignConfig persists for a JSON catalog
-// target running hunt_standard under rc17.2: power schedule, deep-havoc opt-in
+// target running hunt_standard under rc17.3: power schedule, deep-havoc opt-in
 // and the target's static mutator dict.
 func campaignCfgFixture() map[string]any {
 	return map[string]any{

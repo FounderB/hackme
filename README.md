@@ -17,7 +17,7 @@ Hashrate settles on-chain. Security work is escrowed, distributed, and reported 
 
 <br/>
 
-[![Release](https://img.shields.io/badge/release-0.1.0--rc17.2_LIVE-00d1ff?style=for-the-badge)](https://hackme.tech/downloads.html)
+[![Release](https://img.shields.io/badge/release-0.1.0--rc17.3_LIVE-00d1ff?style=for-the-badge)](https://hackme.tech/downloads.html)
 [![Pool](https://img.shields.io/badge/pool-LIVE-39ff14?style=for-the-badge)](https://hackme.tech/pool/coordinator/api/pool/stats)
 [![CI](https://github.com/jokeez/hackme/actions/workflows/ci.yml/badge.svg)](https://github.com/jokeez/hackme/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-7fe7ff?style=for-the-badge)](LICENSE)
@@ -60,7 +60,7 @@ Payout follows **accepted work**, not lottery blocks. Model: [NETWORK_MODEL.md](
 
 ---
 
-## Status · 0.1.0-rc17.2 LIVE
+## Status · 0.1.0-rc17.3 LIVE
 
 | Area | State |
 |------|--------|
@@ -72,7 +72,7 @@ Payout follows **accepted work**, not lottery blocks. Model: [NETWORK_MODEL.md](
 | **OSS CVE Watch** | nghttp2 **14/14** · libheif **14/14** CLEAN ledgers |
 | **HMS storage** | Preview only — not a miner lane |
 
-Channel notes: [docs/HACKME_RC17.md](docs/HACKME_RC17.md) · release: [GitHub 0.1.0-rc17.2](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.2)
+Channel notes: [docs/HACKME_RC17.md](docs/HACKME_RC17.md) · release: [GitHub 0.1.0-rc17.3](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.3)
 
 **Honesty:** Hunt/Dig **CLEAN ≠ CVE claim**. Customer value is **bugs in their target + report + escrow**, not “we mint CVEs.” Standalone libFuzzer still wins **raw local exec/s**; product Hunt ships the **same engine class on the pool** (prove + escrow + Dig hybrid) — live bench 2026-10-11 in [HUNT_VS_LIBFUZZER.md](docs/HUNT_VS_LIBFUZZER.md). Old byte “~100 vs ~700 exec/s” charts are **not** the fleet default.
 
@@ -142,7 +142,7 @@ GPU backends: [GPU_MINING_BACKENDS.md](docs/GPU_MINING_BACKENDS.md).
 ```bash
 hackme-fuzzing wizard --pack filter_utf8 --package audit
 hackme-fuzzing hunt … --package hunt_lite   # see docs
-bash scripts/ops/install_hunt_engines.sh --desktop   # clang + AFL++ + bwrap (auto-install in published rc17.3; rc17.2 run manually)
+bash scripts/ops/install_hunt_engines.sh --desktop   # clang + AFL++ + bwrap (auto-install on published rc17.3 installers)
 ```
 
 | Dig package | ~HMC | Runs (guide) |
@@ -199,7 +199,7 @@ bash scripts/tests/public_site_smoke.sh
 bash scripts/tests/version_consistency_gate.sh
 ```
 
-Release: `VERSION=0.1.0-rc17.2 bash scripts/release/make_release_bundle.sh` — [scripts/release/README.md](scripts/release/README.md)
+Release: `VERSION=0.1.0-rc17.3 bash scripts/release/make_release_bundle.sh` — [scripts/release/README.md](scripts/release/README.md)
 
 ---
 
