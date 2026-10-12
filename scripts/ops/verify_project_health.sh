@@ -13,6 +13,9 @@ require_cmd() {
   }
 }
 
+# Cargo/rustc needed by internal/hunt rust-build tests; keep ahead of minimal PATH.
+export PATH="${HOME}/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+
 require_cmd go
 require_cmd jq
 require_cmd python3

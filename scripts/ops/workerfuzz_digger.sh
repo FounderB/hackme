@@ -1,5 +1,6 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Systemd digger entry for hub named fuzz workers.
+# Use /bin/bash (not env) so ProtectSystem=full units still start when PATH is odd.
 set -euo pipefail
 ROOT="${HACKME_REPO_ROOT:-/opt/hackme}"
 cd "$ROOT"

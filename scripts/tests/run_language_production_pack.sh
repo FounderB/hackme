@@ -42,8 +42,14 @@ else
   go run ./tools/task_manifest_lint "${manifests[@]}"
 fi
 
-echo "== [2/6] task_abi_check (all tasks/**/*.wasm) =="
-mapfile -t wasm_files < <(find tasks -name '*.wasm' -type f 2>/dev/null | sort -u || true)
+echo "== [2/6] task_abi_check (tasks/**/*.wasm; skip intentional break leftovers) =="
+# language_break_attempts leaves gitignored break-* wasm that are meant to fail
+# ValidateCheckWasm (e.g. start section). Do not treat those as production ABI fails.
+mapfile -t wasm_files < <(
+  find tasks -name '*.wasm' -type f \
+    ! -name 'break-*' \
+    2>/dev/null | sort -u || true
+)
 if ((${#wasm_files[@]} == 0)); then
   warn "no wasm under tasks/ — skipping ABI check"
 else
