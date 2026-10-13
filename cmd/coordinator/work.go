@@ -2318,6 +2318,19 @@ func (m *workManager) pruneAbuseStateLocked(now int64) {
 
 const poolHashrateStaleSec int64 = 300 // include GPU rigs with 90s leases + submit jitter (120s hid Windows ~3 GH/s)
 
+// workerCountsAsPoolMiner: PoH submit activity (or live GH/s). Pure fuzz diggers only
+// refresh LastSeenUnix / LastFuzzSeenUnix and must not inflate "Pool miners".
+func workerCountsAsPoolMiner(st workerPayoutStat, now, staleSec int64) bool {
+	if staleSec <= 0 {
+		staleSec = poolHashrateStaleSec
+	}
+	if st.LastPoHSeenUnix > 0 && (now-st.LastPoHSeenUnix) <= staleSec {
+		return true
+	}
+	gh := effectiveWorkerHashrateGHS(st)
+	return gh > 0 && st.LastSeenUnix > 0 && (now-st.LastSeenUnix) <= staleSec
+}
+
 // poolOnlineSummaryUnlocked aggregates live hashrate; caller must hold m.mu.
 func (m *workManager) poolOnlineSummaryUnlocked(staleSec, now int64) (poolGH float64, online int, rigs []map[string]any) {
 	if m == nil {
@@ -2332,7 +2345,7 @@ func (m *workManager) poolOnlineSummaryUnlocked(staleSec, now int64) (poolGH flo
 	}
 	agg := make(map[string]rigAgg, len(m.worker))
 	for id, st := range m.worker {
-		if st.LastSeenUnix <= 0 || (now-st.LastSeenUnix) > staleSec {
+		if !workerCountsAsPoolMiner(st, now, staleSec) {
 			continue
 		}
 		gh := effectiveWorkerHashrateGHS(st)
@@ -2342,8 +2355,12 @@ func (m *workManager) poolOnlineSummaryUnlocked(staleSec, now int64) (poolGH flo
 		base := fleetBaseWorkerID(id)
 		cur := agg[base]
 		cur.gh += gh
-		if st.LastSeenUnix > cur.lastSeen {
-			cur.lastSeen = st.LastSeenUnix
+		seen := st.LastPoHSeenUnix
+		if st.LastSeenUnix > seen {
+			seen = st.LastSeenUnix
+		}
+		if seen > cur.lastSeen {
+			cur.lastSeen = seen
 		}
 		agg[base] = cur
 	}
@@ -2591,7 +2608,8 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 	workers := make(map[string]workerPayoutStat, len(m.worker))
 	for k, v := range m.worker {
 		st := v
-		online := st.LastSeenUnix > 0 && (now-st.LastSeenUnix) <= poolHashrateStaleSec
+		// Online for mining UI / Pool miners = PoH (not fuzz-only heartbeats).
+		online := workerCountsAsPoolMiner(st, now, poolHashrateStaleSec)
 		st.Online = online
 		if !online {
 			st.LastHashrateGHS = 0

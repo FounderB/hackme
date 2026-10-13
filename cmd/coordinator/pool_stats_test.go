@@ -3,7 +3,49 @@ package main
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
+
+func TestPoolOnlineSummaryExcludesFuzzOnlyDiggers(t *testing.T) {
+	now := time.Now().Unix()
+	wm := &workManager{
+		worker: map[string]workerPayoutStat{
+			"worker-kapa-pc": {
+				LastSeenUnix:    now,
+				LastPoHSeenUnix: now,
+				LastHashrateGHS: 100,
+				PeakHashrateGHS: 100,
+			},
+			"vps-canary-poh-01": {
+				LastSeenUnix:    now,
+				LastPoHSeenUnix: now,
+				LastHashrateGHS: 0.02,
+				PeakHashrateGHS: 0.02,
+			},
+			"hub-fuzz-02": {
+				LastSeenUnix:     now,
+				LastFuzzSeenUnix: now,
+			},
+			"bootstrap-fuzz-01": {
+				LastSeenUnix:     now,
+				LastFuzzSeenUnix: now,
+			},
+		},
+	}
+	gh, online, rigs := wm.poolOnlineSummary(poolHashrateStaleSec)
+	if online != 2 {
+		t.Fatalf("online=%d want 2 (PoH only); rigs=%v", online, rigs)
+	}
+	if gh < 100 {
+		t.Fatalf("pool GH/s=%v want >=100", gh)
+	}
+	for _, r := range rigs {
+		id, _ := r["worker_id"].(string)
+		if id == "hub-fuzz-02" || id == "bootstrap-fuzz-01" {
+			t.Fatalf("fuzz digger %q must not appear in pool active_rigs", id)
+		}
+	}
+}
 
 func TestPoolListingHashrateAndMiners(t *testing.T) {
 	hr, wc := poolListingHashrateAndMiners(map[string]any{

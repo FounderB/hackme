@@ -7112,16 +7112,25 @@
 			if (ref > 0 && est > ref * 4) return 0;
 			return Math.min(est, 5000);
 		}
-		/** Prefer merged workers{} / workers_online over raw workers_count (fleet -gpuN inflate). */
+		/** Prefer merged workers{} / workers_online over raw workers_count (fleet -gpuN inflate).
+		 *  Count PoH pool miners only — pure fuzz diggers (0 GH, fuzz heartbeat) must not inflate the strip. */
 		function poolWorkersCountFromWorkStats(ws) {
 			if (!ws || typeof ws !== 'object') return 0;
-			const mapN = Object.keys(ws.workers || {}).length;
-			const online = Number(ws.workers_online != null ? ws.workers_online : ws.miners);
-			if (Number.isFinite(online) && online > 0) {
-				if (mapN > 0) return Math.min(mapN, Math.floor(online)) || mapN;
-				return Math.floor(online);
+			const workers = ws.workers || {};
+			const ids = Object.keys(workers);
+			let pohOnline = 0;
+			for (const id of ids) {
+				const w = workers[id] || {};
+				const gh = clampRigHashrateGHS(w.hashrate_gh_s);
+				const poh = Number(w.last_poh_seen_unix || 0);
+				const nowSec = Math.floor(Date.now() / 1000);
+				const pohFresh = poh > 0 && (nowSec - poh) <= 300;
+				if (w.online === true && (gh > 0 || pohFresh)) pohOnline++;
+				else if (gh > 0) pohOnline++;
 			}
-			if (mapN > 0) return mapN;
+			if (pohOnline > 0) return pohOnline;
+			const online = Number(ws.workers_online != null ? ws.workers_online : ws.miners);
+			if (Number.isFinite(online) && online > 0) return Math.floor(online);
 			const tracked = Number(ws.workers_count || 0);
 			return Number.isFinite(tracked) && tracked > 0 ? Math.floor(tracked) : 0;
 		}
