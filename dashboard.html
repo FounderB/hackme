@@ -9763,9 +9763,10 @@
 			const st = latestStatus || {};
 			const poolGh = resolvePoolAggregateGh(ws);
 			const tm = effectiveMiningTargetMod(null, ws).mod;
+			// Same online PoH count as Mining strip / hackme.tech — not workers{} map size
+			// (map keeps stale offline entries → inflated "40" vs live "32").
 			const miners = Math.max(
-				Object.keys(ws.workers || {}).length,
-				Number(ws.workers_count || 0),
+				poolWorkersCountFromWorkStats(ws),
 				Number((latestNetworkStats && latestNetworkStats.total_miners) || 0)
 			);
 			const heightNums = overviewChainHeightNumbers(st, null);
@@ -11893,10 +11894,7 @@
 				const mw = Number(payload.mining_workers || 0);
 				const backend = String(payload.mining_poh_backend || 'wasm').trim() || 'wasm';
 				const gpuActive = Number(md.gpu_active || 0);
-				const poolW = Math.max(
-					Object.keys((ws && ws.workers) || {}).length,
-					Number((ws && ws.workers_count) || 0)
-				);
+				const poolW = poolWorkersCountFromWorkStats(ws || {});
 				if (netMode && !leaderLocal) {
 					const parts = [];
 					if (poolRun) parts.push('pool worker ON');
