@@ -128,7 +128,7 @@ CLI: `hackme-fuzzing hunt pin|inventory|template|build|create|pack-suggest|packa
 | GET | `/api/sup/earnings?window_hours=24&bucket_sec=3600&address=HMC-…` | SUP on-chain earnings buckets (transfers + pool mint credits). Same shape as `/api/wallet/earnings`; amounts are **SUP** (field names remain `*_hmc` for UI reuse). `settled_out_*` tracks pool mint settlement memos (`worker_sup_settlement:*`). |
 | GET | `/api/sup/activity` | SUP transfer activity for an address: query `address`, `window_hours`, `limit`. Returns `{ "ok": true, "asset": "SUP", "source": "local_db", "data": { "total_received_hmc", "total_sent_hmc", "total_net_hmc", "tx_count_window", "recent": [...] } }` (amount fields are SUP values; field names mirror HMC activity for UI reuse). |
 | GET | `/api/sup/economics` | SUP supply / mint policy snapshot: `{ "ok": true, "economics": { "max_supply_sup", "total_minted_sup", "remaining_sup", "mint_enabled", "on_chain_settle_live", … } }`. |
-| GET | `/api/tx/{hash}` | Transaction status: `pending` / `included` / `rejected`, plus block fields upon confirmation. |
+| GET | `/api/tx/{hash}` | Transaction status: `pending` / `included` / `rejected`, plus block fields upon confirmation. Includes `memo` when present in the signed transfer payload (`tx_json`). |
 | GET | `/api/address/{address}` | Address status: `{ "address", "balance_units", "next_nonce" }`, where `balance_units` is in **Kapa**. |
 | GET | `/api/tx/pool` | Current mempool (debug/admin): list of pending tx with sorting fields. |
 

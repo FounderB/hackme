@@ -79,6 +79,21 @@ type TransferStatusRow struct {
 	AmountUnits uint64 `json:"amount_units"`
 	FeeUnits    uint64 `json:"fee_units"`
 	Nonce       uint64 `json:"nonce"`
+	Memo        string `json:"memo,omitempty"`
+}
+
+func memoFromTransferTxJSON(txJSON string) string {
+	txJSON = strings.TrimSpace(txJSON)
+	if txJSON == "" {
+		return ""
+	}
+	var memo struct {
+		Memo string `json:"memo"`
+	}
+	if err := json.Unmarshal([]byte(txJSON), &memo); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(memo.Memo)
 }
 
 func HMCToUnits(v float64) uint64 {
@@ -648,7 +663,7 @@ func (s *Service) TransferPool(ctx context.Context, limit int) ([]TransferStatus
 		limit = 200
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT tx_hash, status, from_address, to_address, amount_units, fee_units, nonce, reject_code
+		`SELECT tx_hash, status, from_address, to_address, amount_units, fee_units, nonce, reject_code, tx_json
 		 FROM tx_pool WHERE status = 'pending'
 		 ORDER BY fee_units DESC, received_at ASC LIMIT ?`, limit)
 	if err != nil {
@@ -658,9 +673,11 @@ func (s *Service) TransferPool(ctx context.Context, limit int) ([]TransferStatus
 	var out []TransferStatusRow
 	for rows.Next() {
 		var r TransferStatusRow
-		if err := rows.Scan(&r.TxHash, &r.Status, &r.From, &r.To, &r.AmountUnits, &r.FeeUnits, &r.Nonce, &r.RejectCode); err != nil {
+		var txJSON string
+		if err := rows.Scan(&r.TxHash, &r.Status, &r.From, &r.To, &r.AmountUnits, &r.FeeUnits, &r.Nonce, &r.RejectCode, &txJSON); err != nil {
 			return nil, err
 		}
+		r.Memo = memoFromTransferTxJSON(txJSON)
 		out = append(out, r)
 	}
 	return out, rows.Err()
@@ -668,26 +685,29 @@ func (s *Service) TransferPool(ctx context.Context, limit int) ([]TransferStatus
 
 func (s *Service) TransferTxByHash(ctx context.Context, txHash string) (TransferStatusRow, bool, error) {
 	var r TransferStatusRow
+	var txJSON string
 	err := s.db.QueryRowContext(ctx,
-		`SELECT tx_hash, status, block_index, block_hash, reject_code, from_address, to_address, amount_units, fee_units, nonce
+		`SELECT tx_hash, status, block_index, block_hash, reject_code, from_address, to_address, amount_units, fee_units, nonce, tx_json
 		 FROM tx_history WHERE tx_hash = ?`, strings.TrimSpace(txHash)).
-		Scan(&r.TxHash, &r.Status, &r.BlockIndex, &r.BlockHash, &r.RejectCode, &r.From, &r.To, &r.AmountUnits, &r.FeeUnits, &r.Nonce)
+		Scan(&r.TxHash, &r.Status, &r.BlockIndex, &r.BlockHash, &r.RejectCode, &r.From, &r.To, &r.AmountUnits, &r.FeeUnits, &r.Nonce, &txJSON)
 	if err == nil {
+		r.Memo = memoFromTransferTxJSON(txJSON)
 		return r, true, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return TransferStatusRow{}, false, err
 	}
 	err = s.db.QueryRowContext(ctx,
-		`SELECT tx_hash, status, from_address, to_address, amount_units, fee_units, nonce, reject_code
+		`SELECT tx_hash, status, from_address, to_address, amount_units, fee_units, nonce, reject_code, tx_json
 		 FROM tx_pool WHERE tx_hash = ?`, strings.TrimSpace(txHash)).
-		Scan(&r.TxHash, &r.Status, &r.From, &r.To, &r.AmountUnits, &r.FeeUnits, &r.Nonce, &r.RejectCode)
+		Scan(&r.TxHash, &r.Status, &r.From, &r.To, &r.AmountUnits, &r.FeeUnits, &r.Nonce, &r.RejectCode, &txJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return TransferStatusRow{}, false, nil
 	}
 	if err != nil {
 		return TransferStatusRow{}, false, err
 	}
+	r.Memo = memoFromTransferTxJSON(txJSON)
 	return r, true, nil
 }
 

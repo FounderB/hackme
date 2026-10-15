@@ -70,6 +70,7 @@ func TestTransferSubmitAndApplyOnBlock(t *testing.T) {
 		FeeUnits:      DefaultTransferMinFee,
 		Nonce:         0,
 		TimestampUnix: time.Now().Unix(),
+		Memo:          "test-memo-roundtrip",
 		PubKeyEd25519: hex.EncodeToString(pubA),
 	}
 	tx = signTransfer(t, tx, privA)
@@ -108,6 +109,9 @@ func TestTransferSubmitAndApplyOnBlock(t *testing.T) {
 	}
 	if !ok || row.Status != "included" {
 		t.Fatalf("tx status: %+v ok=%v", row, ok)
+	}
+	if row.Memo != tx.Memo {
+		t.Fatalf("GET tx memo: got %q want %q", row.Memo, tx.Memo)
 	}
 }
 

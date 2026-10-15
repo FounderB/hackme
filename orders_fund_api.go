@@ -436,7 +436,7 @@ func (a *app) verifyCanonicalOrdersFundTx(row map[string]any, from string, amoun
 		gotTo = strings.TrimSpace(fmt.Sprint(row["to_address"]))
 	}
 	gotAmount := parseUint64Any(row["amount_units"])
-	memo := strings.TrimSpace(fmt.Sprint(row["memo"]))
+	memo := canonicalTransferMemo(row)
 	if !strings.EqualFold(gotFrom, from) {
 		return fmt.Errorf("from mismatch: %s want %s", gotFrom, from)
 	}
@@ -450,6 +450,18 @@ func (a *app) verifyCanonicalOrdersFundTx(row map[string]any, from string, amoun
 		return fmt.Errorf("memo must start with %s", chain.OrdersFundMemoPrefix)
 	}
 	return nil
+}
+
+// canonicalTransferMemo reads memo from GET /api/tx/{hash} JSON (missing key must not become "<nil>").
+func canonicalTransferMemo(row map[string]any) string {
+	if row == nil {
+		return ""
+	}
+	v, ok := row["memo"]
+	if !ok || v == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(v))
 }
 
 func parseUint64Any(v any) uint64 {

@@ -116,3 +116,51 @@ func TestOrdersFundConfirmMismatchAndCredit(t *testing.T) {
 		t.Fatalf("replay inflated %v -> %v", bal, bal2)
 	}
 }
+
+func TestCanonicalTransferMemoMissingKey(t *testing.T) {
+	if got := canonicalTransferMemo(map[string]any{}); got != "" {
+		t.Fatalf("missing memo key: got %q", got)
+	}
+	if got := canonicalTransferMemo(map[string]any{"memo": nil}); got != "" {
+		t.Fatalf("nil memo: got %q", got)
+	}
+	if got := canonicalTransferMemo(map[string]any{"memo": chain.OrdersFundMemo("HMC-abc")}); got == "" {
+		t.Fatal("expected orders fund memo")
+	}
+}
+
+func TestOrdersFundConfirmCanonicalTxGetOmitsMemo(t *testing.T) {
+	a, _ := newWalletTestApp(t)
+	from := a.signer.Address()
+	tok := "orders-fund-admin-token-32chars!!"
+	t.Setenv("HACKME_ADMIN_TOKEN", tok)
+	t.Setenv("HACKME_DESKTOP_MODE", "1")
+
+	txHash := "aabbccddaabbccddaabbccddaabbccdd112233445566778899aabbccddeeff"
+	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/tx/") {
+			// Simulates production GET /api/tx/{hash} before memo round-trip fix.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"tx_hash":      txHash,
+				"status":       "included",
+				"from":         from,
+				"to":           chain.DevFeeAddress,
+				"amount_units": chain.HMCToUnits(20),
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer peer.Close()
+	t.Setenv("HACKME_CANONICAL_CHAIN_URL", peer.URL)
+
+	body, _ := json.Marshal(map[string]any{"tx_hash": txHash, "amount_hmc": 20})
+	req := httptest.NewRequest(http.MethodPost, "/api/orders/fund/confirm", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Hackme-Admin-Token", tok)
+	rec := httptest.NewRecorder()
+	a.handleOrdersFundAPI(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("confirm status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
