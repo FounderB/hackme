@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HackMe Orders — Customer path (local node)</title>
-  <meta name="description" content="Order B2B security fuzz on HackMe: download local node, fund HMC wallet, run wizard. Escrow and reports stay on your machine — not a checkout on hackme.tech." />
+  <meta name="description" content="Order B2B security fuzz on HackMe: download local node, top up on-chain HMC on #wallet, Start Dig/Hunt or run wizard. Escrow and reports stay on your machine — not a checkout on hackme.tech." />
   <link rel="canonical" href="https://hackme.tech/orders.html" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -36,7 +36,7 @@
       <p class="hero-copy">
         HackMe.tech explains the path. You create the order on <strong>your local node</strong>
         (<code>127.0.0.1:8080</code>): wallet, escrow, WASM guard, report.
-        Pool miners on <strong>0.1.0-rc17.3</strong> pick <strong>customer work first</strong>; you keep keys and spendable HMC.
+        Pool miners on <strong>0.1.0-rc17.3</strong> pick <strong>customer work first</strong>; you keep keys and on-chain HMC on <code>#wallet</code> — Dig/Hunt <strong>Start</strong> auto-funds escrow (no mandatory Fund Orders step).
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="./downloads.html#local-node">1 · Download local node</a>
@@ -56,8 +56,8 @@
     <section class="panel glass" style="margin-top:1rem">
       <div class="panel-head"><h2>Three steps</h2></div>
       <ol class="check-list">
-        <li><strong>Install</strong> — from <a href="./downloads.html">Downloads</a>: Windows Setup → <strong>Orders</strong>, or Linux <code>bash start_hackme_orders.sh</code> (tar/deb). Opens <code>http://127.0.0.1:8080/#orders</code> → Wallet.</li>
-        <li><strong>Order</strong> — fund HMC, then
+        <li><strong>Install</strong> — from <a href="./downloads.html">Downloads</a>: Windows Setup → <strong>Orders</strong>, or Linux <code>bash start_hackme_orders.sh</code> (tar/deb). Opens <code>http://127.0.0.1:8080/#orders</code> · sync token on <code>#wallet</code> (starter HMC = 0).</li>
+        <li><strong>Order</strong> — top up on-chain HMC on <code>#wallet</code>, then Dig/Hunt <strong>Start</strong> (auto-funds escrow) or CLI
           <code>./hackme-fuzzing wizard --pack filter_utf8 --package audit</code>
           (CLI ships next to the node in Orders profile; packs: <code>secrets</code> · <code>script_bounds</code> · <code>filter_utf8</code> · <code>parser_expat</code>
           · <code>bounds_smoke</code> · <code>overflow_smoke</code> · <code>state_smoke</code>
@@ -94,7 +94,7 @@ hackme-fuzzing wizard \
     <section class="panel glass">
       <div class="panel-head"><h2>Why not a shop on hackme.tech?</h2></div>
       <p class="subtle">
-        Orders spend <strong>your</strong> HMC from a local wallet. Putting checkout on the hub would make the site a custodian —
+        Orders spend <strong>your</strong> on-chain HMC from <code>#wallet</code>; Start locks prepaid escrow in one click. Putting checkout on the hub would make the site a custodian —
         wrong for security customers and for the multi-coin roadmap.
         Same pattern later for <a href="./coins.html#hms">HMS</a> and other lanes: site = catalog + onboarding, node = shop + settlement.
       </p>

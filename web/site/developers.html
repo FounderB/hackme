@@ -46,7 +46,7 @@
         <span class="pill">Scan · Dig · Audit · Deep</span>
         <span class="pill">Hunt · coverage-guided</span>
         <span class="pill">CI gate</span>
-        <span class="pill">rc17</span>
+        <span class="pill">0.1.0-rc17.3</span>
         <span class="pill">No browser admin on prod</span>
       </div>
     </section>
@@ -88,7 +88,7 @@
           <table class="endpoint-table">
             <thead><tr><th>Step</th><th>Before (v3)</th><th>Now (B2B final)</th></tr></thead>
             <tbody>
-              <tr><td>1 · Setup</td><td>Read 5 docs, guess budget</td><td><code>hackme-node</code> + fund wallet on <code>127.0.0.1:8080</code></td></tr>
+              <tr><td>1 · Setup</td><td>Read 5 docs, guess budget</td><td><code>hackme-node</code> + on-chain HMC on <code>#wallet</code> (starter 0; Start auto-funds)</td></tr>
               <tr><td>2 · Build guard</td><td><code>hackme-fuzzing build</code> + manual manifest</td><td>Same, or existing <code>.wasm</code></td></tr>
               <tr><td>3 · Order</td><td><code>create manifest.json</code> or long <code>curl security-audit</code></td><td><strong>One command:</strong> <code>wizard --pack secrets --package audit</code> or <code>wizard --wasm guard.wasm --package audit</code></td></tr>
               <tr><td>4 · Package</td><td>Pick depth_tier + budget by hand</td><td><strong>Scan / Dig Audit / Deep</strong> presets (1 / 5 / 40 HMC) + Hunt inventory</td></tr>
@@ -171,7 +171,7 @@ hackme-fuzzing hunt create --package hunt_lite …</code></pre>
       <div class="panel-head"><h2>Windows integrator path</h2></div>
       <ol class="check-list">
         <li>Install node from <a href="./downloads.html">Downloads</a> — start dashboard at <code>127.0.0.1:8080</code>.</li>
-        <li>Confirm <strong>Wallet → local spendable HMC</strong> (<code>balance_orders_spendable_hmc</code>). On-chain display alone is not enough for escrow.</li>
+        <li>Top up <strong>Wallet → on-chain HMC</strong> on <code>#wallet</code> (starter spendable = 0). Dig/Hunt <strong>Start</strong> auto-funds prepaid escrow — Fund Orders is optional.</li>
         <li>Download <strong>both</strong> <code>hackme-fuzzing</code> and <code>hackme-fuzzing-build</code> into the same folder.</li>
         <li>Issue a developer token in the dashboard, or <code>hackme-fuzzing register --base http://127.0.0.1:8080 --save</code> when <code>HACKME_INTEGRATOR_SELF_REGISTER=1</code>.</li>
         <li><strong>Recommended:</strong> <code>hackme-fuzzing wizard --pack secrets --package audit</code> — or <code>--wasm guard.wasm</code>. Add <code>--public-proof</code> for a public facts page + README badge.</li>

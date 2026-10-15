@@ -276,7 +276,7 @@ bash /opt/hackme/hackme_desktop_launch.sh
       </div>
       <ol class="check-list" style="margin-top:0.85rem">
         <li>Install above → start <em>HackMe Orders</em> (or Miner, then open <code>#orders</code>) on <code>127.0.0.1:8080</code>.</li>
-        <li>Dashboard → <strong>Wallet</strong>: orders need <strong>local spendable HMC</strong> (not only on-chain display). Fresh install: genesis is enough; follower desktops must fund the local wallet row.</li>
+        <li>Dashboard → <strong>Wallet</strong> (<code>#wallet</code>): top up <strong>on-chain HMC</strong> for Orders. <strong>Starter HMC is 0</strong> — no free genesis spendable. Dig/Hunt <strong>Start</strong> auto-funds prepaid escrow from that balance (<em>Fund Orders</em> is optional).</li>
         <li>Dashboard → <strong>Developer token</strong> → <strong>Issue</strong> (or CLI <code>./hackme-fuzzing register --save</code> — ships in the Orders folder / Linux tar).</li>
         <li>Create Dig in <strong>#orders</strong>, or CLI: <code>./hackme-fuzzing wizard --pack secrets --package audit</code> · Hunt: engines auto-install on Linux update; or <code>bash install_hunt_engines.sh --desktop</code> then <code>./hackme-fuzzing hunt create …</code>.</li>
         <li>Use gate/report URLs on <code>http://127.0.0.1:8080</code> (campaign data stays on your PC).</li>
@@ -310,7 +310,7 @@ bash /opt/hackme/hackme_desktop_launch.sh
       <details class="dev-details" style="margin-top:0.85rem">
         <summary>Quick start</summary>
         <pre class="code-block" style="margin-top:0.5rem;font-size:0.84rem"><code># Keep both binaries in one folder. Node must be up on :8080.
-# Orders debit local spendable HMC (Wallet → balance_orders_spendable_hmc).
+# Top up on-chain HMC on Wallet (#wallet); Dig/Hunt Start auto-funds escrow (Fund Orders optional).
 
 # Windows (PowerShell)
 .\hackme-fuzzing-*-windows-amd64.exe register --base http://127.0.0.1:8080 --save
