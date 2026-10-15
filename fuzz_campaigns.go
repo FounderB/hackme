@@ -741,6 +741,11 @@ func (a *app) handleFuzzCampaignCreate(w http.ResponseWriter, r *http.Request) {
 				fmt.Sprintf("dig package %s requires budget_hmc >= %.2f", digPkg, minDig), nil)
 			return
 		}
+		if _, fundErr := a.ensureOrdersSpendableForBudget(r.Context(), req.BudgetHMC); fundErr != nil {
+			_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, id)
+			writeOrdersAutoFundOrEscrowFailed(w, fundErr)
+			return
+		}
 		escrow, err := a.chain.OpenFuzzEscrowSplit(r.Context(), id, req.BudgetHMC, req.BudgetRuns, escrowSplit)
 		if err != nil {
 			_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, id)

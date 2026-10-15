@@ -424,6 +424,11 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, fundErr := a.ensureOrdersSpendableForBudget(r.Context(), escrowBudgetHMC); fundErr != nil {
+		_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, campaignID)
+		writeOrdersAutoFundOrEscrowFailed(w, fundErr)
+		return
+	}
 	escrow, err := openFuzzEscrowRetrySplit(r.Context(), a.chain, campaignID, escrowBudgetHMC, budgetRuns, escrowSplit)
 	if err != nil {
 		_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, campaignID)

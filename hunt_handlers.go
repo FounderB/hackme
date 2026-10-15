@@ -191,6 +191,11 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusConflict, "create_failed", "campaign create failed", map[string]any{"detail": err.Error()})
 		return
 	}
+	if _, fundErr := a.ensureOrdersSpendableForBudget(r.Context(), budgetHMC); fundErr != nil {
+		_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, id)
+		writeOrdersAutoFundOrEscrowFailed(w, fundErr)
+		return
+	}
 	escrow, err := a.chain.OpenHuntEscrow(r.Context(), id, budgetHMC, shards)
 	if err != nil {
 		_, _ = a.db.ExecContext(r.Context(), `DELETE FROM fuzz_campaigns WHERE id=?`, id)

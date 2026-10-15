@@ -1752,7 +1752,7 @@ func (a *app) handleWallet(w http.ResponseWriter, r *http.Request) {
 		"balance_alignment":              alignment,
 	}
 	if canonActive && balanceUnits > localMirrorUnits {
-		out["orders_spendable_note"] = "Order escrow debits local mirror balance only. On-chain HMC shown above is not auto-spendable for POST /api/security-audit until credited to the local wallet row (desktop follower)."
+		out["orders_spendable_note"] = "Dig/Hunt Start auto-funds from this on-chain Wallet balance (locks HMC into prepaid escrow). Prepaid spendable shown separately."
 	}
 	if canonActive {
 		out["balance_on_chain_hmc"] = bal

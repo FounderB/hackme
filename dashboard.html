@@ -3012,7 +3012,7 @@
 							<div class="max-w-3xl">
 								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">Useful-PoW market</p>
 								<h2 class="orders-hero-title">Security audits &amp; orders</h2>
-								<p id="orders-panel-subtitle" class="text-[12px] text-gray-400 mt-1 max-w-2xl leading-relaxed">Send on-chain HMC to your Orders address → <strong class="text-white/85">Fund Orders</strong> → Dig/Hunt Start. Spendable is prepaid escrow (not free genesis). Debits <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">Orders spendable</a> · reports in <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz</a>.</p>
+								<p id="orders-panel-subtitle" class="text-[12px] text-gray-400 mt-1 max-w-2xl leading-relaxed">Top up on-chain HMC on <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">Wallet</a>, then Dig/Hunt <strong class="text-white/85">Start</strong> — payment locks from that balance in one click. Prepaid escrow is automatic (Fund Orders is optional). Reports in <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz</a>.</p>
 							</div>
 							<button type="button" id="btn-orders-refresh" class="btn-order-ghost shrink-0">Refresh</button>
 						</div>
@@ -3023,7 +3023,7 @@
 						</div>
 					</div>
 					<div id="orders-market-banner" class="orders-banner info">
-						<strong class="text-neon">Fund then Start</strong> — sync desktop token, send on-chain HMC to the Orders address, press <strong>Fund Orders</strong>, then Dig/Hunt.
+						<strong class="text-neon">Start pays from Wallet</strong> — sync desktop token, have on-chain HMC on <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">#wallet</a>, press Dig/Hunt Start (auto-funds escrow).
 					</div>
 					<div id="orders-wallet-gate" class="hidden rounded-lg border border-warn/35 bg-warn/5 p-3 text-[11px] text-warn/95 leading-snug"></div>
 					<div id="orders-balance-strip" class="orders-balance-strip hidden">
@@ -3033,14 +3033,14 @@
 						<span id="orders-balance-alignment" class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded border border-white/10 text-gray-400"></span>
 						<a href="#" class="text-neon/90 underline text-[10px] ml-auto" data-goto-tab="wallet">Wallet breakdown →</a>
 					</div>
-					<div id="orders-fund-panel" class="rounded-lg border border-neon/25 bg-black/30 p-3 space-y-2">
-						<p class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Fund Orders · on-chain → spendable</p>
-						<p class="text-[11px] text-gray-400 leading-snug">Address <code id="orders-fund-address" class="text-neon/90 break-all">—</code> — send HMC here from miner/CEX, then fund.</p>
+					<div id="orders-fund-panel" class="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+						<p class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Optional · Fund Orders (prepaid)</p>
+						<p class="text-[11px] text-gray-400 leading-snug">Usually skip this — <strong class="text-white/80">Start</strong> auto-funds from Wallet. Address <code id="orders-fund-address" class="text-neon/90 break-all">—</code></p>
 						<div class="flex flex-wrap items-end gap-2">
 							<label class="text-[10px] text-gray-500">Amount HMC
 								<input id="orders-fund-amount" type="number" min="15" step="1" value="20" class="ml-1 w-24 rounded border border-white/15 bg-black/50 px-2 py-1 text-white font-mono text-[12px]" />
 							</label>
-							<button type="button" id="btn-orders-fund" class="btn-order-primary">Fund Orders</button>
+							<button type="button" id="btn-orders-fund" class="btn-order-ghost">Fund Orders</button>
 						</div>
 						<p id="orders-fund-msg" class="text-[11px] text-gray-400 font-mono min-h-[1.25rem]"></p>
 					</div>
@@ -3745,7 +3745,7 @@
 								</div>
 							</div>
 							<div class="wallet-bd-orders" id="wallet-bd-orders-row">
-								<span class="wallet-bd-label">Orders spendable (pay Dig/Hunt)</span>
+								<span class="wallet-bd-label">Prepaid escrow (after Start)</span>
 								<span id="wallet-bd-orders" class="wallet-bd-value">0 HMC</span>
 								<span class="wallet-bd-sub">local escrow budget · not the same as on-chain</span>
 							</div>
@@ -5475,7 +5475,7 @@
 					banner.textContent = 'Local ledger is ahead of canonical — sync before large order escrows.';
 				} else if (align === 'canonical_ahead') {
 					banner.classList.remove('hidden');
-					banner.textContent = 'To pay Dig/Hunt use «Orders spendable» (' + fmt(orders, 2) + ' HMC) — not the on-chain number. Use Fund Orders to lock on-chain HMC into spendable.';
+					banner.textContent = 'Wallet on-chain ' + fmt(onChain, 2) + ' HMC · Dig/Hunt Start auto-funds prepaid escrow (now prepaid ' + fmt(orders, 2) + ' HMC).';
 				} else {
 					banner.classList.add('hidden');
 					banner.textContent = '';
@@ -5644,11 +5644,11 @@
 			strip.classList.remove('hidden');
 			const orders = Number(walletSnapshot.ordersSpendableHMC || 0);
 			const onChain = Number(walletSnapshot.onChainHMC || 0);
-			if ($('orders-spendable-hmc')) $('orders-spendable-hmc').textContent = fmt(orders, 6) + ' HMC spendable';
+			if ($('orders-spendable-hmc')) $('orders-spendable-hmc').textContent = fmt(Math.max(orders, onChain), 6) + ' HMC (Wallet)';
 			if ($('orders-onchain-hmc')) {
 				$('orders-onchain-hmc').textContent = onChain > 0.000001
-					? ('on-chain ' + fmt(onChain, 6) + ' (display) · your pending +' + fmt(walletUnpaidHmc(), 4))
-					: ('your pending +' + fmt(walletUnpaidHmc(), 4));
+					? ('on-chain ' + fmt(onChain, 6) + ' · prepaid ' + fmt(orders, 6) + ' · pending +' + fmt(walletUnpaidHmc(), 4))
+					: ('prepaid ' + fmt(orders, 6) + ' · pending +' + fmt(walletUnpaidHmc(), 4));
 			}
 			const badge = $('orders-balance-alignment');
 			if (badge) {
@@ -10600,7 +10600,7 @@
 			const orders = Number(walletSnapshot.ordersSpendableHMC || 0);
 			if (spendNote || (onChain > orders + 0.000001)) {
 				note.classList.remove('hidden');
-				note.textContent = spendNote || ('Orders use local mirror (' + orders.toFixed(4) + ' HMC). On-chain ' + onChain.toFixed(4) + ' HMC is not auto-spendable for escrow.');
+				note.textContent = spendNote || ('Dig/Hunt Start pays from on-chain Wallet (' + onChain.toFixed(4) + ' HMC); prepaid escrow now ' + orders.toFixed(4) + ' HMC.');
 			} else {
 				note.classList.add('hidden');
 				note.textContent = '';
@@ -14857,14 +14857,16 @@
 			const el = $('hunt-spendable-hint');
 			if (!el) return;
 			const spend = Number(walletSnapshot.ordersSpendableHMC || 0);
+			const onChain = Number(walletSnapshot.onChainHMC || walletSnapshot.balanceHMC || 0);
 			const pkg = String(($('hunt-package') && $('hunt-package').value) || 'hunt_lite');
 			const need = pkg === 'hunt_heavy' ? 150 : (pkg === 'hunt_standard' ? 60 : 20);
 			const tok = !!(developerTokenCurrent() || adminTokenCurrent());
-			el.textContent = 'Spendable: ' + fmt(spend, 2) + ' HMC · need ~' + need + ' for ' + pkg
+			const canPay = spend + 0.0001 >= need || onChain + 0.0001 >= need;
+			el.textContent = 'Wallet on-chain: ' + fmt(onChain, 2) + ' · prepaid: ' + fmt(spend, 2) + ' · need ~' + need + ' for ' + pkg
 				+ (tok ? ' · auth OK' : ' · waiting for desktop token sync')
-				+ (spend + 0.0001 >= need ? ' · ready to Start' : ' · Fund Orders from on-chain first');
-			el.classList.toggle('text-warn', spend + 0.0001 < need || !tok);
-			el.classList.toggle('text-matrix', spend + 0.0001 >= need && tok);
+				+ (canPay ? ' · ready to Start' : ' · top up #wallet first');
+			el.classList.toggle('text-warn', !canPay || !tok);
+			el.classList.toggle('text-matrix', canPay && tok);
 		}
 		async function submitHuntCampaign() {
 			const msg = $('hunt-run-msg');
@@ -14880,8 +14882,9 @@
 			const pkg = String(($('hunt-package') && $('hunt-package').value) || 'hunt_lite');
 			const need = pkg === 'hunt_heavy' ? 150 : (pkg === 'hunt_standard' ? 60 : 20);
 			const spend = Number(walletSnapshot.ordersSpendableHMC || 0);
-			if (spend + 0.0001 < need) {
-				if (msg) msg.textContent = 'Not enough Orders spendable (' + fmt(spend, 2) + ' HMC). Send on-chain HMC to the Orders address, then click Fund Orders (min 15 HMC).';
+			const onChain = Number(walletSnapshot.onChainHMC || walletSnapshot.balanceHMC || 0);
+			if (spend + 0.0001 < need && onChain + 0.0001 < need) {
+				if (msg) msg.textContent = 'Not enough Wallet HMC (on-chain ' + fmt(onChain, 2) + ', prepaid ' + fmt(spend, 2) + '; need ~' + need + '). Top up #wallet, then Start.';
 				return;
 			}
 			const title = String(($('hunt-title') && $('hunt-title').value) || '').trim() || ('hunt-' + Date.now());

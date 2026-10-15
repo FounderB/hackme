@@ -57,56 +57,69 @@ func (a *app) ordersFundCanonicalBase() (string, error) {
 	return base, nil
 }
 
-func (a *app) handleOrdersFund(w http.ResponseWriter, r *http.Request) {
-	if !a.allowRate("orders_fund:"+clientIP(r), 10) {
-		writeAPIError(w, http.StatusTooManyRequests, "rate_limited", "rate limited", nil)
-		return
-	}
-	if !a.requireOrdersFundAuth(w, r) {
-		return
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
-	defer r.Body.Close()
-	var req ordersFundRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid_json", "invalid json", nil)
-		return
-	}
-	if err := chain.ValidateOrdersFundAmountHMC(req.AmountHMC); err != nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid_amount", err.Error(), nil)
-		return
+// ordersFundOutcome is the result of a successful or pending fund attempt.
+type ordersFundOutcome struct {
+	Funded      *chain.OrdersFundResult
+	TxHash      string
+	OnChain     map[string]any
+	Pending     bool
+	AmountHMC   float64
+	AmountUnits uint64
+}
+
+// fundOrdersSpendable submits Orders→DevFee on canonical and credits local spendable when included.
+// Callers must enforce auth. Returns outcome.Pending when inclusion timed out (confirm later).
+func (a *app) fundOrdersSpendable(ctx context.Context, amountHMC float64) (*ordersFundOutcome, error) {
+	if err := chain.ValidateOrdersFundAmountHMC(amountHMC); err != nil {
+		return nil, &ordersAutoFundError{
+			HTTPStatus: http.StatusBadRequest,
+			Code:       "invalid_amount",
+			Msg:        err.Error(),
+		}
 	}
 	if a.signer == nil {
-		writeAPIError(w, http.StatusBadRequest, "signer_unavailable", "node signer unavailable", nil)
-		return
+		return nil, &ordersAutoFundError{
+			HTTPStatus: http.StatusBadRequest,
+			Code:       "signer_unavailable",
+			Msg:        "node signer unavailable",
+		}
 	}
 	base, err := a.ordersFundCanonicalBase()
 	if err != nil {
-		writeAPIError(w, http.StatusBadRequest, "canonical_required", err.Error(), nil)
-		return
+		return nil, &ordersAutoFundError{
+			HTTPStatus: http.StatusBadRequest,
+			Code:       "canonical_required",
+			Msg:        err.Error(),
+		}
 	}
 	from := strings.TrimSpace(a.signer.Address())
-	amountUnits := chain.HMCToUnits(req.AmountHMC)
+	amountUnits := chain.HMCToUnits(amountHMC)
 	fee := chain.DefaultTransferMinFee
 	need := amountUnits + fee
 
-	addrCtx, addrCancel := context.WithTimeout(r.Context(), 10*time.Second)
+	addrCtx, addrCancel := context.WithTimeout(ctx, 10*time.Second)
 	balUnits, nonce, ok := a.fetchCanonicalAddressState(addrCtx, from)
 	addrCancel()
 	if !ok {
-		writeAPIError(w, http.StatusBadGateway, "canonical_balance_unavailable", "could not read on-chain balance", nil)
-		return
+		return nil, &ordersAutoFundError{
+			HTTPStatus: http.StatusBadGateway,
+			Code:       "canonical_balance_unavailable",
+			Msg:        "could not read on-chain balance",
+		}
 	}
 	if balUnits < need {
-		writeAPIError(w, http.StatusPaymentRequired, "insufficient_on_chain",
-			fmt.Sprintf("on-chain balance %.8f HMC < need %.8f HMC (amount+fee)", chain.UnitsToHMC(balUnits), chain.UnitsToHMC(need)),
-			map[string]any{
-				"on_chain_hmc":  chain.UnitsToHMC(balUnits),
-				"amount_hmc":    req.AmountHMC,
-				"fee_units":     fee,
+		return nil, &ordersAutoFundError{
+			HTTPStatus: http.StatusPaymentRequired,
+			Code:       "insufficient_on_chain",
+			Msg: fmt.Sprintf("on-chain balance %.8f HMC < need %.8f HMC (amount+fee) — top up Wallet (#wallet) first",
+				chain.UnitsToHMC(balUnits), chain.UnitsToHMC(need)),
+			Extra: map[string]any{
+				"on_chain_hmc":   chain.UnitsToHMC(balUnits),
+				"amount_hmc":     amountHMC,
+				"fee_units":      fee,
 				"orders_address": from,
-			})
-		return
+			},
+		}
 	}
 
 	tx := chain.TransferTx{
@@ -123,53 +136,108 @@ func (a *app) handleOrdersFund(w http.ResponseWriter, r *http.Request) {
 	}
 	canon, err := tx.CanonicalBytes()
 	if err != nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid_tx_encoding", "invalid tx canonical payload", nil)
-		return
+		return nil, &ordersAutoFundError{
+			HTTPStatus: http.StatusBadRequest,
+			Code:       "invalid_tx_encoding",
+			Msg:        "invalid tx canonical payload",
+		}
 	}
 	tx.SigEd25519 = strings.TrimSpace(a.signer.SignHex(canon))
 	submitRaw, err := json.Marshal(tx)
 	if err != nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid_tx_encoding", "invalid tx json", nil)
-		return
+		return nil, &ordersAutoFundError{
+			HTTPStatus: http.StatusBadRequest,
+			Code:       "invalid_tx_encoding",
+			Msg:        "invalid tx json",
+		}
 	}
 
-	txHash, submitStatus, submitErr := a.relayOrdersFundTransfer(r.Context(), base, submitRaw)
+	txHash, submitStatus, submitErr := a.relayOrdersFundTransfer(ctx, base, submitRaw)
 	if submitErr != nil {
-		writeAPIError(w, http.StatusBadGateway, "fund_submit_failed", submitErr.Error(), map[string]any{"status": submitStatus})
-		return
+		return nil, &ordersAutoFundError{
+			HTTPStatus: http.StatusBadGateway,
+			Code:       "fund_submit_failed",
+			Msg:        submitErr.Error(),
+			Extra:      map[string]any{"status": submitStatus},
+		}
 	}
 	if txHash == "" {
-		writeAPIError(w, http.StatusBadGateway, "fund_submit_failed", "canonical submit returned empty tx_hash", nil)
-		return
+		return nil, &ordersAutoFundError{
+			HTTPStatus: http.StatusBadGateway,
+			Code:       "fund_submit_failed",
+			Msg:        "canonical submit returned empty tx_hash",
+		}
 	}
 
-	included, row, waitErr := a.waitCanonicalOrdersFundTx(r.Context(), base, txHash, amountUnits, from)
+	included, row, waitErr := a.waitCanonicalOrdersFundTx(ctx, base, txHash, amountUnits, from)
 	if waitErr != nil {
-		writeAPIError(w, http.StatusBadGateway, "fund_verify_failed", waitErr.Error(), map[string]any{"tx_hash": txHash})
-		return
+		return nil, &ordersAutoFundError{
+			HTTPStatus: http.StatusBadGateway,
+			Code:       "fund_verify_failed",
+			Msg:        waitErr.Error(),
+			Extra:      map[string]any{"tx_hash": txHash},
+		}
+	}
+	out := &ordersFundOutcome{
+		TxHash:      txHash,
+		OnChain:     row,
+		AmountHMC:   amountHMC,
+		AmountUnits: amountUnits,
 	}
 	if !included {
-		writeJSON(w, map[string]any{
-			"ok":      false,
-			"code":    "fund_pending_confirm",
-			"error":   "transfer submitted; wait for inclusion then POST /api/orders/fund/confirm",
-			"tx_hash": txHash,
-			"status":  row["status"],
-			"amount_hmc": req.AmountHMC,
-			"amount_units": amountUnits,
-		})
+		out.Pending = true
+		return out, nil
+	}
+	res, err := a.chain.CreditOrdersFund(ctx, from, txHash, amountUnits)
+	if err != nil {
+		return nil, &ordersAutoFundError{
+			HTTPStatus: http.StatusInternalServerError,
+			Code:       "fund_credit_failed",
+			Msg:        err.Error(),
+			Extra:      map[string]any{"tx_hash": txHash},
+		}
+	}
+	out.Funded = res
+	return out, nil
+}
+
+func (a *app) handleOrdersFund(w http.ResponseWriter, r *http.Request) {
+	if !a.allowRate("orders_fund:"+clientIP(r), 10) {
+		writeAPIError(w, http.StatusTooManyRequests, "rate_limited", "rate limited", nil)
 		return
 	}
-	res, err := a.chain.CreditOrdersFund(r.Context(), from, txHash, amountUnits)
+	if !a.requireOrdersFundAuth(w, r) {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
+	defer r.Body.Close()
+	var req ordersFundRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid_json", "invalid json", nil)
+		return
+	}
+	out, err := a.fundOrdersSpendable(r.Context(), req.AmountHMC)
 	if err != nil {
-		writeAPIError(w, http.StatusInternalServerError, "fund_credit_failed", err.Error(), map[string]any{"tx_hash": txHash})
+		writeOrdersAutoFundFailed(w, err)
+		return
+	}
+	if out.Pending {
+		writeJSON(w, map[string]any{
+			"ok":           false,
+			"code":         "fund_pending_confirm",
+			"error":        "transfer submitted; wait for inclusion then POST /api/orders/fund/confirm",
+			"tx_hash":      out.TxHash,
+			"status":       out.OnChain["status"],
+			"amount_hmc":   out.AmountHMC,
+			"amount_units": out.AmountUnits,
+		})
 		return
 	}
 	writeJSON(w, map[string]any{
 		"ok":       true,
-		"funded":   res,
-		"tx_hash":  txHash,
-		"on_chain": row,
+		"funded":   out.Funded,
+		"tx_hash":  out.TxHash,
+		"on_chain": out.OnChain,
 	})
 }
 
