@@ -72,7 +72,7 @@ function Install-WabtPortable {
       Copy-Item $found.FullName $wat -Force
     }
   } catch {
-    Warn "wabt download failed — install LLVM/wabt manually or: winget install WebAssembly.wabt"
+    Warn "wabt download failed -- install LLVM/wabt manually or: winget install WebAssembly.wabt"
   }
   Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 }
@@ -81,7 +81,7 @@ function Install-RustupUser {
   $cargo = Join-Path $Prefix ".cargo\bin\rustc.exe"
   if (Test-Path $cargo) { return }
   if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
-    Warn "rustup missing — install from https://rustup.rs/ or: winget install Rustlang.Rustup"
+    Warn "rustup missing -- install from https://rustup.rs/ or: winget install Rustlang.Rustup"
     return
   }
   $env:CARGO_HOME = Join-Path $Prefix ".cargo"
@@ -107,7 +107,7 @@ function Install-NodePortable {
     if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
     Move-Item (Join-Path $tmp "node-v${nodeVer}-win-x64") $dest
   } catch {
-    Warn "portable Node download failed — winget install OpenJS.NodeJS.LTS"
+    Warn "portable Node download failed -- winget install OpenJS.NodeJS.LTS"
   }
   Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 }
@@ -122,7 +122,7 @@ function Install-AscNpm {
     if (Test-Path $portableNpm) { $npm = Get-Command $portableNpm }
   }
   if (-not $npm) {
-    Warn "npm missing — install Node.js LTS (nodejs.org or winget install OpenJS.NodeJS.LTS)"
+    Warn "npm missing -- install Node.js LTS (nodejs.org or winget install OpenJS.NodeJS.LTS)"
     return
   }
   $env:NPM_CONFIG_PREFIX = Join-Path $Prefix ".npm-global"
@@ -180,5 +180,5 @@ Copy-Item $envFile (Join-Path $AppDir ".hackme-toolchains.env") -Force
 
 Log "toolchain root: $Prefix"
 Log "env file: $envFile"
-if (-not (Check-All)) { Warn "some toolchains missing — re-run or install via winget" }
+if (-not (Check-All)) { Warn "some toolchains missing -- re-run or install via winget" }
 Log "done"

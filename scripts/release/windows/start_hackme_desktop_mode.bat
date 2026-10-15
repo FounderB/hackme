@@ -58,10 +58,10 @@ if "!HACKME_ADMIN_TOKEN!"=="" (
 )
 
 echo Starting HackMe Desktop Mode...
-rem Browser after bind (same folder as node — see HACKME_WORKING_DIR / exe chdir in hackme.exe)
+rem Browser after bind (same folder as node -- see HACKME_WORKING_DIR / exe chdir in hackme.exe)
 start "hackme-browser-delay" cmd /c "timeout /t 2 /nobreak >nul && start http://127.0.0.1:8080/#mining"
 
-rem Foreground node (same as Miner/Orders) — nested cmd /c + \"log\" breaks on VirtualBox paths
+rem Foreground node (same as Miner/Orders) -- nested cmd /c + \"log\" breaks on VirtualBox paths
 echo Dashboard: http://127.0.0.1:8080
 echo Log: %LOG_FILE%
 echo.

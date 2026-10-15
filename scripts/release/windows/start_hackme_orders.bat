@@ -13,7 +13,7 @@ set "DATA_DIR=%APP_DIR%\data\orders"
 set "BASE_URL=http://127.0.0.1:8080"
 
 echo.
-echo HackMe Orders — preparing...
+echo HackMe Orders -- preparing...
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
 if not exist "%DATA_DIR%" mkdir "%DATA_DIR%" >nul 2>&1
 
@@ -25,7 +25,7 @@ if not exist "%APP_DIR%\hackme.exe" (
   exit /b 1
 )
 
-rem Toolchains are optional and slow on first run — never block the node.
+rem Toolchains are optional and slow on first run -- never block the node.
 rem Set HACKME_INSTALL_TOOLCHAINS=1 to install Dig toolchains in the background.
 if /I "%HACKME_INSTALL_TOOLCHAINS%"=="1" (
   if /I not "%SKIP_TOOLCHAINS%"=="1" (
@@ -115,7 +115,7 @@ echo Keep this window open while placing orders. Close when finished.
 echo.
 echo Launching hackme.exe ...
 
-rem Open browser after bind (same pattern as Miner — no nested cmd /c log redirect)
+rem Open browser after bind (same pattern as Miner -- no nested cmd /c log redirect)
 start "hackme-orders-browser" cmd /c "timeout /t 4 /nobreak >nul && start http://127.0.0.1:8080/#orders"
 
 cd /d "%APP_DIR%"
