@@ -5,9 +5,25 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestEnsurePoolCoordinatorAdminTokenEnvLoadsOrdersPublishFile(t *testing.T) {
+	dir := t.TempDir()
+	const want = "orders-publish-from-file-test!!"
+	if err := os.WriteFile(filepath.Join(dir, "pool.orders.token"), []byte(want+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HACKME_REPO_ROOT", dir)
+	t.Setenv("HACKME_COORDINATOR_ADMIN_TOKEN", "")
+	t.Setenv("HACKME_POOL_COORDINATOR_ADMIN_TOKEN", "")
+	ensurePoolCoordinatorAdminTokenEnv()
+	if got := os.Getenv("HACKME_POOL_COORDINATOR_ADMIN_TOKEN"); got != want {
+		t.Fatalf("HACKME_POOL_COORDINATOR_ADMIN_TOKEN=%q want %q", got, want)
+	}
+}
 
 func TestCanonicalRelayAdminTokenNeverFallsBackToNodeAdmin(t *testing.T) {
 	t.Setenv("HACKME_ADMIN_TOKEN", "local-node-admin-secret")

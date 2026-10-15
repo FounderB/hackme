@@ -168,6 +168,24 @@ func ensurePoolCoordinatorTokenEnv() {
 	}
 }
 
+// ensurePoolCoordinatorAdminTokenEnv loads pool campaign register credentials for Dig/Hunt pool_sync.
+// Worker pool.miner.token is not valid for POST /api/fuzz/pool/campaigns (coordinator admin only).
+func ensurePoolCoordinatorAdminTokenEnv() {
+	if strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_ADMIN_TOKEN")) != "" {
+		return
+	}
+	if strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_ADMIN_TOKEN")) != "" {
+		return
+	}
+	if t := operator.ReadOrdersPublishToken(); t != "" {
+		_ = os.Setenv("HACKME_POOL_COORDINATOR_ADMIN_TOKEN", t)
+		return
+	}
+	if t := operator.ReadCoordinatorAdminToken(); t != "" {
+		_ = os.Setenv("HACKME_POOL_COORDINATOR_ADMIN_TOKEN", t)
+	}
+}
+
 // requestFromLoopback is true when the TCP peer is the local machine.
 // Uses RemoteAddr + IP.IsLoopback only — never Host (spoofable) or forwarded headers.
 func requestFromLoopback(r *http.Request) bool {

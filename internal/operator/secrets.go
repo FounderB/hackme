@@ -9,6 +9,7 @@ import (
 
 const coordinatorAdminTokenFile = "hackme_coordinator_admin_token"
 const coordinatorWorkerTokenFile = "hackme_coordinator_worker_token"
+const ordersPublishTokenFile = "pool.orders.token"
 
 // CoordinatorAdminTokenPaths returns candidate paths for the pool coordinator admin token.
 func CoordinatorAdminTokenPaths() []string {
@@ -93,6 +94,66 @@ func ReadCoordinatorAdminToken() string {
 // Never confuse this with the admin settle/register token.
 func ReadCoordinatorWorkerToken() string {
 	return readCoordinatorTokenFile(CoordinatorWorkerTokenPaths())
+}
+
+// OrdersPublishTokenPaths returns candidate paths for the public B2B pool register token
+// (coordinator admin class — not the miner worker pool.miner.token).
+func OrdersPublishTokenPaths() []string {
+	var paths []string
+	seen := make(map[string]struct{})
+	add := func(p string) {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return
+		}
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		paths = append(paths, p)
+	}
+	if root := strings.TrimSpace(os.Getenv("HACKME_REPO_ROOT")); root != "" {
+		add(filepath.Join(root, ordersPublishTokenFile))
+	}
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		for i := 0; i < 6; i++ {
+			add(filepath.Join(dir, ordersPublishTokenFile))
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+	if dataDir := strings.TrimSpace(os.Getenv("HACKME_DATA_DIR")); dataDir != "" {
+		dir := filepath.Dir(dataDir)
+		for i := 0; i < 4; i++ {
+			add(filepath.Join(dir, ordersPublishTokenFile))
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+	add(ordersPublishTokenFile)
+	return paths
+}
+
+// ReadOrdersPublishToken loads pool.orders.token (release / Orders profile).
+func ReadOrdersPublishToken() string {
+	for _, p := range OrdersPublishTokenPaths() {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		line := strings.TrimSpace(strings.SplitN(string(b), "\n", 2)[0])
+		if line != "" && line != "REPLACE_WITH_ORDERS_PUBLISH_TOKEN" {
+			return line
+		}
+	}
+	return ""
 }
 
 func readCoordinatorTokenFile(paths []string) string {

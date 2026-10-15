@@ -371,6 +371,7 @@ func main() {
 	loadHackmeDotEnv()
 	applyRigProfileAtStartup()
 	ensurePoolCoordinatorTokenEnv()
+	ensurePoolCoordinatorAdminTokenEnv()
 	applyFromCodeToolchainEnv()
 	logsetup.ConfigureFromEnv("HACKME_NODE")
 	applyPublicAuthorityBaseEnv()

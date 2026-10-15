@@ -80,6 +80,18 @@ func TestReadCoordinatorAdminTokenRejectsSymlink(t *testing.T) {
 	}
 }
 
+func TestReadOrdersPublishToken(t *testing.T) {
+	dir := t.TempDir()
+	const want = "orders-publish-token-test-value!!"
+	if err := os.WriteFile(filepath.Join(dir, "pool.orders.token"), []byte(want+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HACKME_REPO_ROOT", dir)
+	if got := ReadOrdersPublishToken(); got != want {
+		t.Fatalf("ReadOrdersPublishToken()=%q want %q", got, want)
+	}
+}
+
 func TestOpenSecretFileRejectsGroupReadable(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "tok")

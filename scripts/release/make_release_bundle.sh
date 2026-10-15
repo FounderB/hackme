@@ -297,6 +297,24 @@ else
   echo "[release] wrote pool.miner.token (${#POOL_MINER_TOKEN} chars) for Windows + Linux miners"
 fi
 
+# B2B Orders: coordinator admin-class token for pool_distributed campaign register (not worker claim token).
+ORDERS_PUBLISH_TOKEN="${HACKME_RELEASE_ORDERS_PUBLISH_TOKEN:-}"
+if [[ -z "${ORDERS_PUBLISH_TOKEN}" && -f "${ROOT_DIR}/.secrets/hackme_coordinator_orders_publish_token" ]]; then
+  ORDERS_PUBLISH_TOKEN="$(tr -d '\r\n' <"${ROOT_DIR}/.secrets/hackme_coordinator_orders_publish_token")"
+fi
+if [[ -z "${ORDERS_PUBLISH_TOKEN}" && -f "${ROOT_DIR}/.secrets/hackme_coordinator_admin_token" ]]; then
+  echo "[release] WARN: pool.orders.token ← .secrets/hackme_coordinator_admin_token (prefer hackme_coordinator_orders_publish_token)" >&2
+  ORDERS_PUBLISH_TOKEN="$(tr -d '\r\n' <"${ROOT_DIR}/.secrets/hackme_coordinator_admin_token")"
+fi
+if [[ -z "${ORDERS_PUBLISH_TOKEN}" ]]; then
+  echo "[release] WARN: no orders publish token — Orders pool_sync will fail until pool.orders.token is present" >&2
+  ORDERS_PUBLISH_TOKEN="REPLACE_WITH_ORDERS_PUBLISH_TOKEN"
+else
+  printf '%s' "${ORDERS_PUBLISH_TOKEN}" >"${WIN_DIR}/pool.orders.token"
+  printf '%s' "${ORDERS_PUBLISH_TOKEN}" >"${LINUX_DIR}/pool.orders.token"
+  echo "[release] wrote pool.orders.token (${#ORDERS_PUBLISH_TOKEN} chars) for Orders Dig/Hunt pool sync"
+fi
+
 cat > "${DIST_DIR}/BUILD_INFO.txt" <<EOF
 app=${APP_NAME}
 version=${VERSION}

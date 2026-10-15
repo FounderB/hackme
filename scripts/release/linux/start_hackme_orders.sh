@@ -34,6 +34,8 @@ ENV_FILE="${ENV_FILE:-$CONFIG_DIR/env.orders}"
 PID_FILE="${PID_FILE:-$LOG_DIR/hackme-orders.pid}"
 NODE_LOG="${NODE_LOG:-$LOG_DIR/hackme-orders.log}"
 
+DEFAULT_COORD_URL="${HACKME_POOL_COORDINATOR_URL:-https://hackme.tech/pool/coordinator}"
+
 notify() {
   local msg="$1"
   echo "[hackme-orders] $msg" >&2
@@ -55,21 +57,21 @@ die() {
 mkdir -p "$STATE_DIR" "$CONFIG_DIR" "$LOG_DIR" "$DATA_DIR"
 chmod 700 "$DATA_DIR" 2>/dev/null || true
 
-# Optional Dig from_code toolchains (portable under install or XDG).
-ensure_toolchains() {
-  if [[ "${SKIP_TOOLCHAINS:-0}" == "1" ]]; then
-    return 0
-  fi
-  local tc=""
-  for tc in \
-    "${INSTALL_DIR}/install_from_code_toolchains.sh" \
-    "${INSTALL_DIR}/../ops/install_from_code_toolchains.sh" \
-    "/opt/hackme/install_from_code_toolchains.sh"; do
-    if [[ -x "$tc" ]]; then
-      APP_DIR="${INSTALL_DIR}" bash "$tc" >/dev/null 2>&1 || true
-      break
+read_orders_publish_token() {
+  local tok="" f
+  for f in \
+    "${INSTALL_DIR}/pool.orders.token" \
+    "${CONFIG_DIR}/pool.orders.token" \
+    "${INSTALL_DIR}/.secrets/hackme_coordinator_admin_token" \
+    "${INSTALL_DIR}/.secrets/coordinator_admin.token"; do
+    [[ -f "$f" ]] || continue
+    tok="$(tr -d '\r\n' <"$f")"
+    if [[ -n "$tok" && "$tok" != "REPLACE_WITH_ORDERS_PUBLISH_TOKEN" ]]; then
+      printf '%s' "$tok"
+      return 0
     fi
   done
+  return 1
 }
 
 ensure_env() {
@@ -85,7 +87,8 @@ ensure_env() {
     fi
   fi
 
-  cat >"$ENV_FILE" <<EOF
+  if [[ ! -f "$ENV_FILE" ]]; then
+    cat >"$ENV_FILE" <<EOF
 HACKME_BIND_ADDR=127.0.0.1:8080
 HACKME_ADMIN_TOKEN=${admin}
 HACKME_REQUIRE_ADMIN_TOKEN=1
@@ -94,6 +97,7 @@ HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN=1
 HACKME_INTEGRATOR_SELF_REGISTER=1
 HACKME_PUBLIC_AUTHORITY_BASE=https://hackme.tech
 HACKME_CANONICAL_CHAIN_URL=https://hackme.tech
+HACKME_POOL_COORDINATOR_URL=${DEFAULT_COORD_URL}
 HACKME_DATA_DIR=${DATA_DIR}
 HACKME_WORKING_DIR=${STATE_DIR}
 HACKME_WORKER_LOCK_DIR=${STATE_DIR}/logs
@@ -103,13 +107,62 @@ HACKME_ORDERS_STARTER_HMC=0
 WORKER_AUTOSTART=0
 HACKME_WORKER_WATCHDOG=0
 HACKME_DESKTOP_GPU_POOL=0
-HACKME_FUZZ_SETTLE_PULL=1
+HACKME_FUZZ_SETTLE_PULL=0
 EOF
+  fi
+
+  repair_pool_coordinator_env
   chmod 600 "$ENV_FILE" 2>/dev/null || true
   chmod 700 "$DATA_DIR" 2>/dev/null || true
   for f in "${DATA_DIR}/node_ed25519.seed" "${DATA_DIR}/miner_submit_ed25519_seed.hex"; do
     [[ -f "$f" ]] || continue
     chmod 600 "$f" 2>/dev/null || true
+  done
+}
+
+repair_pool_coordinator_env() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  if ! grep -q '^HACKME_POOL_COORDINATOR_URL=.\+' "$ENV_FILE" 2>/dev/null; then
+    if grep -q '^HACKME_POOL_COORDINATOR_URL=' "$ENV_FILE" 2>/dev/null; then
+      sed -i "s|^HACKME_POOL_COORDINATOR_URL=.*|HACKME_POOL_COORDINATOR_URL=${DEFAULT_COORD_URL}|" "$ENV_FILE"
+    else
+      echo "HACKME_POOL_COORDINATOR_URL=${DEFAULT_COORD_URL}" >>"$ENV_FILE"
+    fi
+    echo "[hackme-orders] set HACKME_POOL_COORDINATOR_URL=${DEFAULT_COORD_URL}"
+  fi
+  if grep -q '^HACKME_POOL_COORDINATOR_ADMIN_TOKEN=.\+' "$ENV_FILE" 2>/dev/null \
+    || grep -q '^HACKME_COORDINATOR_ADMIN_TOKEN=.\+' "$ENV_FILE" 2>/dev/null; then
+    return 0
+  fi
+  local pub
+  pub="$(read_orders_publish_token 2>/dev/null || true)"
+  [[ -n "$pub" ]] || return 0
+  if grep -q '^HACKME_POOL_COORDINATOR_ADMIN_TOKEN=' "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^HACKME_POOL_COORDINATOR_ADMIN_TOKEN=.*|HACKME_POOL_COORDINATOR_ADMIN_TOKEN=${pub}|" "$ENV_FILE"
+  else
+    echo "HACKME_POOL_COORDINATOR_ADMIN_TOKEN=${pub}" >>"$ENV_FILE"
+  fi
+  if [[ -f "${INSTALL_DIR}/pool.orders.token" && ! -f "${CONFIG_DIR}/pool.orders.token" ]]; then
+    cp "${INSTALL_DIR}/pool.orders.token" "${CONFIG_DIR}/pool.orders.token"
+    chmod 600 "${CONFIG_DIR}/pool.orders.token" 2>/dev/null || true
+  fi
+  echo "[hackme-orders] repaired pool register token from pool.orders.token (not pool.miner.token)"
+}
+
+# Optional Dig from_code toolchains (portable under install or XDG).
+ensure_toolchains() {
+  if [[ "${SKIP_TOOLCHAINS:-0}" == "1" ]]; then
+    return 0
+  fi
+  local tc=""
+  for tc in \
+    "${INSTALL_DIR}/install_from_code_toolchains.sh" \
+    "${INSTALL_DIR}/../ops/install_from_code_toolchains.sh" \
+    "/opt/hackme/install_from_code_toolchains.sh"; do
+    if [[ -x "$tc" ]]; then
+      APP_DIR="${INSTALL_DIR}" bash "$tc" >/dev/null 2>&1 || true
+      break
+    fi
   done
 }
 
@@ -165,6 +218,7 @@ start_node() {
   set +a
   export HACKME_DATA_DIR="$DATA_DIR"
   export HACKME_WORKING_DIR="$STATE_DIR"
+  export HACKME_REPO_ROOT="${HACKME_REPO_ROOT:-$INSTALL_DIR}"
 
   notify "Starting HackMe Orders node…"
   nohup "$BIN" >"$NODE_LOG" 2>&1 &

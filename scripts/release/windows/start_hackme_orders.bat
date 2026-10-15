@@ -67,6 +67,7 @@ if not exist "%ENV_FILE%" (
     echo HACKME_REPO_ROOT=!APP_DIR!
     echo HACKME_PUBLIC_AUTHORITY_BASE=https://hackme.tech
     echo HACKME_CANONICAL_CHAIN_URL=https://hackme.tech
+    echo HACKME_POOL_COORDINATOR_URL=https://hackme.tech/pool/coordinator
   ) > "%ENV_FILE%"
   echo Created %ENV_FILE%
 )
@@ -86,6 +87,32 @@ if "!HACKME_ADMIN_TOKEN!"=="" (
   exit /b 1
 )
 
+rem Pool Dig/Hunt register needs coordinator URL + admin-class publish token (not pool.miner.token).
+set "COORD_URL=https://hackme.tech/pool/coordinator"
+if "!HACKME_POOL_COORDINATOR_URL!"=="" set "HACKME_POOL_COORDINATOR_URL=!COORD_URL!"
+findstr /B /I "HACKME_POOL_COORDINATOR_URL=" "%ENV_FILE%" >nul 2>&1 || (
+  echo HACKME_POOL_COORDINATOR_URL=!COORD_URL!>> "%ENV_FILE%"
+)
+set "HAS_POOL_ADMIN="
+for /f "usebackq tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
+  if /I "%%~A"=="HACKME_POOL_COORDINATOR_ADMIN_TOKEN" if not "%%~B"=="" set "HAS_POOL_ADMIN=1"
+  if /I "%%~A"=="HACKME_COORDINATOR_ADMIN_TOKEN" if not "%%~B"=="" set "HAS_POOL_ADMIN=1"
+)
+if not "!HAS_POOL_ADMIN!"=="1" (
+  set "ORD_PUB="
+  if exist "%APP_DIR%\pool.orders.token" (
+    for /f "usebackq delims=" %%T in ("%APP_DIR%\pool.orders.token") do set "ORD_PUB=%%T"
+  )
+  if "!ORD_PUB!"=="" if exist "%APP_DIR%\.secrets\hackme_coordinator_admin_token" (
+    for /f "usebackq delims=" %%T in ("%APP_DIR%\.secrets\hackme_coordinator_admin_token") do set "ORD_PUB=%%T"
+  )
+  if not "!ORD_PUB!"=="" if /I not "!ORD_PUB!"=="REPLACE_WITH_ORDERS_PUBLISH_TOKEN" (
+    echo HACKME_POOL_COORDINATOR_ADMIN_TOKEN=!ORD_PUB!>> "%ENV_FILE%"
+    set "HACKME_POOL_COORDINATOR_ADMIN_TOKEN=!ORD_PUB!"
+    echo Repaired pool register token from pool.orders.token
+  )
+)
+
 rem Ensure Orders isolation even if env file is from an older install
 if "!HACKME_DATA_DIR!"=="" set "HACKME_DATA_DIR=%DATA_DIR%"
 if "!HACKME_WORKING_DIR!"=="" set "HACKME_WORKING_DIR=%APP_DIR%"
@@ -103,6 +130,8 @@ set "HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN=1"
 set "HACKME_INTEGRATOR_SELF_REGISTER=1"
 set "HACKME_PUBLIC_AUTHORITY_BASE=https://hackme.tech"
 set "HACKME_CANONICAL_CHAIN_URL=https://hackme.tech"
+if "!HACKME_POOL_COORDINATOR_URL!"=="" set "HACKME_POOL_COORDINATOR_URL=https://hackme.tech/pool/coordinator"
+set "HACKME_REPO_ROOT=%APP_DIR%"
 
 echo.
 echo Starting HackMe Orders ^(local node for Dig / Hunt^)...
