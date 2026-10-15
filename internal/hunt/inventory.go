@@ -134,7 +134,7 @@ func resolveInventoryRoot(repoRoot, rawPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	st, err := os.Stat(safe)
+	st, err := fsStat(safe)
 	if err != nil {
 		return "", fmt.Errorf("hunt inventory: %w", err)
 	}

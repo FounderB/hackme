@@ -110,7 +110,7 @@ func WriteHarnessObject(dir, hash string, data []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := fsMkdirAllParent(path, 0o755); err != nil {
 		return "", err
 	}
 	if HarnessObjectExists(dir, hash) {
@@ -123,7 +123,7 @@ func WriteHarnessObject(dir, hash string, data []byte) (string, error) {
 		}
 		return path, nil
 	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	f, err := fsOpenFileCreateExcl(path, 0o600)
 	if err != nil {
 		if os.IsExist(err) {
 			existing, rerr := ReadHarnessObject(dir, hash)
@@ -139,11 +139,11 @@ func WriteHarnessObject(dir, hash string, data []byte) (string, error) {
 	}
 	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
-		_ = os.Remove(path)
+		_ = fsRemove(path)
 		return "", err
 	}
 	if err := f.Close(); err != nil {
-		_ = os.Remove(path)
+		_ = fsRemove(path)
 		return "", err
 	}
 	return path, nil
@@ -155,7 +155,7 @@ func ReadHarnessObject(dir, hash string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	data, err := fsReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func HarnessObjectExists(dir, hash string) bool {
 	if err != nil {
 		return false
 	}
-	st, err := os.Stat(path)
+	st, err := fsStat(path)
 	return err == nil && st.Mode().IsRegular() && st.Size() > 0
 }
 

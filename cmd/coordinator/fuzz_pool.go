@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	"hackme/internal/fuzzengine"
 	"hackme/internal/fuzzingcli"
 	"hackme/internal/hunt"
+	"hackme/internal/pathsafe"
 	"hackme/internal/poolfuzz"
 )
 
@@ -1350,12 +1352,15 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			}
 		}
 		if path, ok := hunt.GetHarnessArtifactPath(hash); ok {
-			w.Header().Set("Content-Type", "application/octet-stream")
-			if fp, err := hunt.GetHarnessContentSHA256(r.Context(), pf.DB, hash); err == nil && fp != "" {
-				w.Header().Set("X-Hackme-Content-SHA256", fp)
+			safe, allowOk := pathsafe.Allow(path)
+			if allowOk && pathsafe.AbsRE.MatchString(safe) {
+				w.Header().Set("Content-Type", "application/octet-stream")
+				if fp, err := hunt.GetHarnessContentSHA256(r.Context(), pf.DB, hash); err == nil && fp != "" {
+					w.Header().Set("X-Hackme-Content-SHA256", fp)
+				}
+				http.ServeFile(w, r, filepath.FromSlash(safe))
+				return
 			}
-			http.ServeFile(w, r, path)
-			return
 		}
 		data, err := huntGetHarnessArtifact(r.Context(), pf.DB, hash)
 		if err != nil {

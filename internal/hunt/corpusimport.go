@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/pathsafe"
 )
 
 const (
@@ -45,15 +46,17 @@ func LoadLibFuzzerSeedFiles(dir string, maxSeeds int) ([][]byte, error) {
 			return nil, nil
 		}
 		// Missing seed cache is normal on fresh Orders installs — not an error.
-		if _, stErr := os.Stat(filepath.Clean(dir)); stErr != nil && os.IsNotExist(stErr) {
-			return nil, nil
+		if checkDir, ok := pathsafe.Allow(dir); ok && pathsafe.AbsRE.MatchString(checkDir) {
+			if _, stErr := fsStat(checkDir); stErr != nil && os.IsNotExist(stErr) {
+				return nil, nil
+			}
 		}
 		// Fall back: allowlisted absolute dir outside repo root (tests/tmp).
 		safeDir, aerr := allowlistedAbs(dir)
 		if aerr != nil {
 			return nil, err
 		}
-		entries, err = os.ReadDir(safeDir)
+		entries, err = fsReadDir(safeDir)
 		if err != nil {
 			if os.IsNotExist(err) {
 				return nil, nil

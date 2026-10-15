@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"hackme/internal/gitutil"
+	"hackme/internal/pathsafe"
 )
 
 // Hex allowlist for cache ids (git URL/ref live in gitutil).
@@ -19,6 +20,114 @@ var (
 	// Windows absolute paths after ToSlash (C:/Users/...); CodeQL sees FindString barrier.
 	reSafeAbsPathWin = regexp.MustCompile(`(?i)^[A-Z]:(/[A-Za-z0-9._+-]+)+$`)
 )
+
+// guardPathSink returns a slash-normalized path only when pathsafe AbsRE matches (CodeQL barrier).
+func guardPathSink(p string) (string, error) {
+	safe, ok := pathsafe.Allow(p)
+	if !ok || !pathsafe.AbsRE.MatchString(safe) {
+		return "", fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return safe, nil
+}
+
+func fsReadFile(p string) ([]byte, error) {
+	safe, err := guardPathSink(p)
+	if err != nil {
+		return nil, err
+	}
+	if !pathsafe.AbsRE.MatchString(safe) {
+		return nil, fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.ReadFile(safe)
+}
+
+func fsStat(p string) (os.FileInfo, error) {
+	safe, err := guardPathSink(p)
+	if err != nil {
+		return nil, err
+	}
+	if !pathsafe.AbsRE.MatchString(safe) {
+		return nil, fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.Stat(safe)
+}
+
+func fsReadDir(p string) ([]os.DirEntry, error) {
+	safe, err := guardPathSink(p)
+	if err != nil {
+		return nil, err
+	}
+	if !pathsafe.AbsRE.MatchString(safe) {
+		return nil, fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.ReadDir(safe)
+}
+
+func fsWriteFile(p string, data []byte, perm os.FileMode) error {
+	safe, err := guardPathSink(p)
+	if err != nil {
+		return err
+	}
+	if !pathsafe.AbsRE.MatchString(safe) {
+		return fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.WriteFile(safe, data, perm)
+}
+
+func fsRename(oldpath, newpath string) error {
+	from, err := guardPathSink(oldpath)
+	if err != nil {
+		return err
+	}
+	if !pathsafe.AbsRE.MatchString(from) {
+		return fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	to, err := guardPathSink(newpath)
+	if err != nil {
+		return err
+	}
+	if !pathsafe.AbsRE.MatchString(to) {
+		return fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.Rename(from, to)
+}
+
+func fsRemove(p string) error {
+	safe, err := guardPathSink(p)
+	if err != nil {
+		return err
+	}
+	if !pathsafe.AbsRE.MatchString(safe) {
+		return fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.Remove(safe)
+}
+
+func fsMkdirAllParent(p string, perm os.FileMode) error {
+	safe, err := guardPathSink(p)
+	if err != nil {
+		return err
+	}
+	if !pathsafe.AbsRE.MatchString(safe) {
+		return fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	dir, ok := pathsafe.DirAllow(safe)
+	if !ok || !pathsafe.AbsRE.MatchString(dir) {
+		return fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.MkdirAll(dir, perm)
+}
+
+func fsOpenFileCreateExcl(p string, perm os.FileMode) (*os.File, error) {
+	safe, err := guardPathSink(p)
+	if err != nil {
+		return nil, err
+	}
+	if !pathsafe.AbsRE.MatchString(safe) {
+		return nil, fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.OpenFile(safe, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+}
 
 func matchSafeAbsPath(p string) string {
 	if m := reSafeAbsPath.FindString(p); m != "" {
@@ -133,10 +242,7 @@ func SafeReadFileUnder(root, path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if matchSafeAbsPath(abs) == "" {
-		return nil, fmt.Errorf("hunt: path rejected by allowlist")
-	}
-	return os.ReadFile(abs)
+	return fsReadFile(abs)
 }
 
 // SafeStatUnder stats a path only after confining it under root.
@@ -145,10 +251,7 @@ func SafeStatUnder(root, path string) (os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	if matchSafeAbsPath(abs) == "" {
-		return nil, fmt.Errorf("hunt: path rejected by allowlist")
-	}
-	return os.Stat(abs)
+	return fsStat(abs)
 }
 
 // SafeReadDirUnder lists a directory confined under root.
@@ -157,10 +260,7 @@ func SafeReadDirUnder(root, path string) ([]os.DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if matchSafeAbsPath(abs) == "" {
-		return nil, fmt.Errorf("hunt: path rejected by allowlist")
-	}
-	return os.ReadDir(abs)
+	return fsReadDir(abs)
 }
 
 // SafeWriteFileUnder writes data to path confined under root.
@@ -169,10 +269,7 @@ func SafeWriteFileUnder(root, path string, data []byte, perm os.FileMode) error 
 	if err != nil {
 		return err
 	}
-	if matchSafeAbsPath(abs) == "" {
-		return fmt.Errorf("hunt: path rejected by allowlist")
-	}
-	return os.WriteFile(abs, data, perm)
+	return fsWriteFile(abs, data, perm)
 }
 
 // SafeRenameUnder renames oldpath to newpath; both must confine under root.
@@ -181,17 +278,11 @@ func SafeRenameUnder(root, oldpath, newpath string) error {
 	if err != nil {
 		return err
 	}
-	if matchSafeAbsPath(fromAbs) == "" {
-		return fmt.Errorf("hunt: path rejected by allowlist")
-	}
 	toAbs, err := confineUnderRoot(root, newpath)
 	if err != nil {
 		return err
 	}
-	if matchSafeAbsPath(toAbs) == "" {
-		return fmt.Errorf("hunt: path rejected by allowlist")
-	}
-	return os.Rename(fromAbs, toAbs)
+	return fsRename(fromAbs, toAbs)
 }
 
 // confineUnderRoot joins relative paths under root; absolute paths must already be under root.

@@ -12,6 +12,15 @@
   color: #4fe6ff;
 }
 .dev-input:focus { outline: 2px solid rgba(0,209,255,0.45); outline-offset: 1px; }
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+input[type=number] {
+	-moz-appearance: textfield;
+	appearance: textfield;
+}
 .dev-label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.12em; display: block; margin-bottom: 0.25rem; }
 .dev-kpi-val { font-size: 1.1rem; color: #39ff14; font-variant-numeric: tabular-nums; }
 .dev-status-line { font-size: 10px; color: #9ca3af; min-height: 1.2em; }

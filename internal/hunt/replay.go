@@ -149,9 +149,7 @@ func EnsureHarnessBinary(ctx context.Context, repoRoot, targetID, harnessHash st
 		return "", err
 	}
 	if err := SafeRenameUnder(repoRoot, tmp, cachePath); err != nil {
-		if matchSafeAbsPath(tmp) != "" {
-			_ = os.Remove(tmp)
-		}
+		_ = fsRemove(tmp)
 		return "", err
 	}
 	if err := writeHarnessCacheAttestation(cachePath, contentSHA256Hex(in)); err != nil {

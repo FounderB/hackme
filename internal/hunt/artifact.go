@@ -264,7 +264,7 @@ func PublishHarnessFile(ctx context.Context, db *sql.DB, hash, path, sourceRel s
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(safe)
+	data, err := fsReadFile(safe)
 	if err != nil {
 		return err
 	}
@@ -338,9 +338,9 @@ func quarantineHarnessCache(cachePath string) {
 	if strings.TrimSpace(cachePath) == "" {
 		return
 	}
-	_ = os.Remove(cachePath)
-	_ = os.Remove(cachePath + ".sha256")
-	_ = os.Remove(cachePath + ".bad")
+	_ = fsRemove(cachePath)
+	_ = fsRemove(cachePath + ".sha256")
+	_ = fsRemove(cachePath + ".bad")
 }
 
 func harnessCacheAttestationPath(cachePath string) string {
@@ -352,11 +352,11 @@ func writeHarnessCacheAttestation(cachePath, contentSHA string) error {
 	if !ValidContentSHA256(contentSHA) {
 		return fmt.Errorf("hunt artifact: invalid attestation")
 	}
-	return os.WriteFile(harnessCacheAttestationPath(cachePath), []byte(contentSHA+"\n"), 0o600)
+	return fsWriteFile(harnessCacheAttestationPath(cachePath), []byte(contentSHA+"\n"), 0o600)
 }
 
 func readVerifiedHarnessCache(cachePath, expectedContentSHA256 string) ([]byte, string, error) {
-	data, err := os.ReadFile(cachePath)
+	data, err := fsReadFile(cachePath)
 	if err != nil {
 		return nil, "", err
 	}
@@ -365,7 +365,7 @@ func readVerifiedHarnessCache(cachePath, expectedContentSHA256 string) ([]byte, 
 	}
 	got := contentSHA256Hex(data)
 	want := strings.TrimSpace(strings.ToLower(expectedContentSHA256))
-	sideBytes, sideErr := os.ReadFile(harnessCacheAttestationPath(cachePath))
+	sideBytes, sideErr := fsReadFile(harnessCacheAttestationPath(cachePath))
 	side := strings.TrimSpace(strings.ToLower(string(sideBytes)))
 	if sideErr == nil && side != "" {
 		if side != got {

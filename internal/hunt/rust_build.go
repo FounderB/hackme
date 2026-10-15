@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"hackme/internal/pathsafe"
 )
 
 const rustStdinBin = "hunt_stdin"
@@ -313,9 +315,13 @@ name = "%s"
 path = "main.rs"
 `, rustStdinBin)
 	if plan.PackageName != "" && plan.CargoRoot != "" {
-		if st, err := os.Stat(filepath.Join(plan.CargoRoot, "Cargo.toml")); err == nil && !st.IsDir() {
-			abs, _ := filepath.Abs(plan.CargoRoot)
-			manifest += fmt.Sprintf("\n[dependencies]\n%s = { path = %q }\n", plan.PackageName, abs)
+		if rootSafe, ok := pathsafe.Allow(plan.CargoRoot); ok && pathsafe.AbsRE.MatchString(rootSafe) {
+			if toml, ok := pathsafe.JoinUnder(rootSafe, "Cargo.toml"); ok && pathsafe.AbsRE.MatchString(toml) {
+				if st, err := fsStat(toml); err == nil && !st.IsDir() {
+					depPath := filepath.FromSlash(rootSafe)
+					manifest += fmt.Sprintf("\n[dependencies]\n%s = { path = %q }\n", plan.PackageName, depPath)
+				}
+			}
 		}
 	}
 	if err := os.WriteFile(filepath.Join(crateDir, "Cargo.toml"), []byte(manifest), 0o644); err != nil {
