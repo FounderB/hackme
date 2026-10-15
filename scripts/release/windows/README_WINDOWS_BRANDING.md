@@ -37,4 +37,4 @@ The `.syso` is picked by Go build automatically and embeds:
 
 - file version metadata
 - icon
-- app manifest (`requireAdministrator`)
+- app manifest (`asInvoker` — no UAC for localhost Orders/Miner; use Run as administrator only when needed)

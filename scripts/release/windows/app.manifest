@@ -5,7 +5,9 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
       <requestedPrivileges>
-        <requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
+        <!-- asInvoker: Orders/Miner bind 127.0.0.1 and must not hang on UAC secure desktop.
+             Optional elevation remains available via Start Menu "Run as administrator". -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
       </requestedPrivileges>
     </security>
   </trustInfo>

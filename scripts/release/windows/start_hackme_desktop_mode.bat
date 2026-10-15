@@ -61,20 +61,17 @@ echo Starting HackMe Desktop Mode...
 rem Browser after bind (same folder as node — see HACKME_WORKING_DIR / exe chdir in hackme.exe)
 start "hackme-browser-delay" cmd /c "timeout /t 2 /nobreak >nul && start http://127.0.0.1:8080/#mining"
 
-rem Inherit env in child; cwd is already APP_DIR so hackme.exe resolves without nested quotes
-start "hackme-node" /b cmd /c "hackme.exe >> \"%LOG_FILE%\" 2>&1"
-echo %RANDOM% > "%PID_FILE%"
-
+rem Foreground node (same as Miner/Orders) — nested cmd /c + \"log\" breaks on VirtualBox paths
 echo Dashboard: http://127.0.0.1:8080
 echo Log: %LOG_FILE%
 echo.
-echo Keep this window open for startup checks, then you can close it.
-timeout /t 2 /nobreak >nul
-curl -s http://127.0.0.1:8080/api/status >nul 2>&1
-if errorlevel 1 (
-  echo WARN: Node is still starting. Check log if needed.
-) else (
-  echo Node is up.
+echo Keep this window open while the node runs. Close when finished.
+echo.
+cd /d "%APP_DIR%"
+hackme.exe
+set "EC=%ERRORLEVEL%"
+if not "%EC%"=="0" (
+  echo Node exited with code %EC%. Check %LOG_FILE% if present.
+  pause
 )
-
-exit /b 0
+exit /b %EC%
