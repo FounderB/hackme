@@ -87,6 +87,13 @@ def is_intentional_mirror(group):
     for left, right in prefixes:
         if a.startswith(left) and b.startswith(right):
             return Path(a).name == Path(b).name
+    # go:embed copy of upstream/oss_cve_targets.json (see internal/fuzzupstream/targets.go)
+    embed_catalog = {
+        "internal/fuzzupstream/oss_cve_targets.json",
+        "upstream/oss_cve_targets.json",
+    }
+    if set(group) == embed_catalog:
+        return True
     return False
 
 dup_groups = []
