@@ -865,8 +865,16 @@ func (a *app) enrichFuzzCampaignFromCoordinator(ctx context.Context, c *fuzzCamp
 	if rc.RunsDone > intFromAny(c.Summary["runs_done"]) {
 		c.Summary["runs_done"] = rc.RunsDone
 	}
-	if rc.Findings > 0 {
-		c.Summary["findings"] = rc.Findings
+	// Crash-class only (coordinator findings field is crash-class since Dig noise fix).
+	if rc.Findings > intFromAny(c.Summary["unique_crashes"]) {
+		c.Summary["unique_crashes"] = rc.Findings
+		c.Summary["crash_count"] = rc.Findings
+	}
+	if rc.FailedChecks > intFromAny(c.Summary["failed_checks"]) {
+		c.Summary["failed_checks"] = rc.FailedChecks
+	}
+	if rc.FindingsTotal > intFromAny(c.Summary["findings_total"]) {
+		c.Summary["findings_total"] = rc.FindingsTotal
 	}
 	if rc.BudgetRuns > 0 {
 		c.BudgetRuns = rc.BudgetRuns
@@ -1005,6 +1013,9 @@ func (a *app) tryCloseFuzzEscrowForStatus(ctx context.Context, campaignID, statu
 	status = strings.TrimSpace(strings.ToLower(status))
 	switch status {
 	case "cancelled", "completed":
+		if poolSyncCoordinatorConfigured() {
+			_ = a.applyPoolCampaignProgressFromCoordinator(ctx, campaignID, false)
+		}
 		if !a.drainFuzzSettleBeforeClose(ctx, campaignID, status) {
 			return
 		}
@@ -2236,17 +2247,19 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 		runsDone = intFromAny(c.Summary["executions"])
 	}
 	poolDist := poolDistributedCampaign(c.Config)
+	// Crash-class pool hint only — Dig detector rows live in findings_total / failed_checks
+	// and must not fail the customer gate (coverage noise, not ASAN).
 	poolFindingHint := intFromAny(c.Summary["unique_crashes"])
 	if poolFindingHint == 0 {
-		poolFindingHint = intFromAny(c.Summary["findings"])
+		poolFindingHint = intFromAny(c.Summary["crash_count"])
 	}
 	// Honesty for pool-distributed campaigns:
-	// 1) Coordinator findings not yet mirrored locally → never claim clean.
+	// 1) Coordinator crash-class findings not yet mirrored locally → never claim clean.
 	// 2) Zero runs while still open / never started → incomplete, not clean.
 	if poolDist && crashCount == 0 && poolFindingHint > 0 && verdict == "clean" {
 		verdict = "warn_pool_findings"
 		recommendations = append([]string{
-			fmt.Sprintf("Pool reported %d finding(s); local crash mirror pending settle/sync — do not treat as clean.", poolFindingHint),
+			fmt.Sprintf("Pool reported %d crash-class finding(s); local mirror pending settle/sync — do not treat as clean.", poolFindingHint),
 		}, recommendations...)
 	}
 	if verdict == "clean" && runsDone <= 0 {

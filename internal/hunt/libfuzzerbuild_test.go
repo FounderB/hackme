@@ -19,6 +19,24 @@ func TestDedicatedLibFuzzerHarness(t *testing.T) {
 	}
 }
 
+func TestIsSubprocessStubLibFuzzerBin(t *testing.T) {
+	dir := t.TempDir()
+	stub := filepath.Join(dir, "stub.bin")
+	realish := filepath.Join(dir, "real.bin")
+	if err := os.WriteFile(stub, []byte("xxstdin_subprocess_libfuzzer.c yy"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(realish, []byte("cwalk_libfuzzer LLVMFuzzerTestOneInput"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !isSubprocessStubLibFuzzerBin(stub) {
+		t.Fatal("expected stub detection")
+	}
+	if isSubprocessStubLibFuzzerBin(realish) {
+		t.Fatal("dedicated-style bin must not look like stub")
+	}
+}
+
 func TestLibFuzzerSeedDirPaths(t *testing.T) {
 	dir := t.TempDir()
 	target := "jsmn"

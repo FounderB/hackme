@@ -1985,8 +1985,12 @@ func (s *Service) CampaignProgress(ctx context.Context, campaignID string) (map[
 	if runsOK < 0 {
 		runsOK = 0
 	}
-	var findings int
-	_ = s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM fuzz_findings WHERE campaign_id=?`, campaignID).Scan(&findings)
+	// findings = crash-class only (honest customer metric). Dig detector/property
+	// rows inflate fuzz_findings; counting them here used to poison node reports
+	// as warn_pool_findings / gate FAIL with "500 findings" and 0 crashes.
+	var findingsTotal int
+	_ = s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM fuzz_findings WHERE campaign_id=?`, campaignID).Scan(&findingsTotal)
+	findings, _ := s.countCrashClassFindings(ctx, campaignID)
 	displayStatus := status
 	if budgetRuns > 0 && runsDone >= budgetRuns && displayStatus == "running" {
 		displayStatus = "completed"
@@ -1996,6 +2000,8 @@ func (s *Service) CampaignProgress(ctx context.Context, campaignID string) (map[
 		now := time.Now().Unix()
 		summary["runs_done"] = runsDone
 		summary["failed_checks"] = failedChecks
+		summary["unique_crashes"] = findings
+		summary["crash_count"] = findings
 		_, _ = s.DB.ExecContext(ctx,
 			`UPDATE fuzz_campaigns
 			 SET status='completed',
@@ -2006,16 +2012,17 @@ func (s *Service) CampaignProgress(ctx context.Context, campaignID string) (map[
 		completedAt = now
 	}
 	return map[string]any{
-		"ok":            true,
-		"id":            campaignID,
-		"title":         title,
-		"status":        displayStatus,
-		"budget_runs":   budgetRuns,
-		"runs_done":     runsDone,
-		"runs_ok":       runsOK,
-		"failed_checks": failedChecks,
-		"findings":      findings,
-		"completed_at":  completedAt,
+		"ok":             true,
+		"id":             campaignID,
+		"title":          title,
+		"status":         displayStatus,
+		"budget_runs":    budgetRuns,
+		"runs_done":      runsDone,
+		"runs_ok":        runsOK,
+		"failed_checks":  failedChecks,
+		"findings":       findings,
+		"findings_total": findingsTotal,
+		"completed_at":   completedAt,
 	}, nil
 }
 

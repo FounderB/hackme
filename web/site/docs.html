@@ -6,12 +6,24 @@
   <title>HackMe Docs — Architecture & Operations</title>
   <meta name="description" content="HackMe architecture, security model, economics, WASM order languages, and release operations overview." />
   <link rel="canonical" href="https://hackme.tech/docs.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://hackme.tech/docs.html" />
+  <meta property="og:title" content="HackMe Docs — Architecture & Operations" />
+  <meta property="og:description" content="Architecture, security model, economics, WASM orders, paper Exchange D0, release ops." />
+  <meta property="og:image" content="https://hackme.tech/assets/og-share-1200x630.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="HackMe Docs" />
+  <meta name="twitter:description" content="Architecture, security model, economics, WASM orders, paper Exchange D0." />
+  <meta name="twitter:image" content="https://hackme.tech/assets/og-share-1200x630.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20260916more3" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20261015site1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="/assets/favicon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
 </head>
 <body>
   <div class="bg-glow bg-glow-a" aria-hidden="true"></div>
@@ -32,10 +44,10 @@
         <span class="pill">Worker mode</span>
         <span class="pill">Explorer</span>
         <span class="pill">WASM gate</span>
-        <span class="pill">Exchange D0</span>
+        <span class="pill">Paper Exchange D0</span>
       </div>
       <p class="hero-copy" style="margin-top:0.85rem">
-        Exchange desk: <a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a>
+        Paper soft-launch desk (D0): <a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a>
         · local node dashboard tab <code>#exchange</code> embeds the same public SPA.
       </p>
     </section>
@@ -110,10 +122,11 @@
       <ul class="list">
         <li>Coordinator leases bounded work batches per worker session.</li>
         <li>Dig: WASM segment claim/submit + hygiene prove + CI gate. Hunt: engine lease + showmap/ASAN pay prove + crash bounty.</li>
-        <li>Orders stay on your local node; hackme.tech is tracker/docs.</li>
+        <li>Orders stay on your local node (Win Setup → Orders / Linux <code>start_hackme_orders.sh</code>); hackme.tech is tracker/docs.</li>
       </ul>
       <p style="margin-top:0.85rem" class="cta-row">
         <a class="btn btn-primary" href="./fuzz-guide.html">Fuzz guide (Dig + Hunt)</a>
+        <a class="btn btn-secondary" href="./orders.html">Orders path</a>
         <a class="btn btn-secondary" href="./developers.html">Packages</a>
         <a class="btn btn-secondary" href="./api-reference.html">API</a>
       </p>
@@ -364,7 +377,7 @@
     <div class="footer-nav"></div>
   </footer>
 
-  <script src="./assets/site-shell.js?v=20260916more3"></script>
-  <script src="./assets/app.js?v=20260914dev1"></script>
+  <script src="./assets/site-shell.js?v=20261015site1"></script>
+  <script src="./assets/app.js?v=20261015site1"></script>
 </body>
 </html>

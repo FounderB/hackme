@@ -3,6 +3,7 @@ package hunt
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,6 +12,9 @@ import (
 // Issue #13 D — customer-repo edge cases must fail closed (no stub that never hits target code).
 
 func TestRustBuildRefusePackageStubWithoutFuzzTarget(t *testing.T) {
+	if _, err := exec.LookPath("cargo"); err != nil {
+		t.Skip("cargo required")
+	}
 	dir := t.TempDir()
 	write := func(rel, body string) {
 		p := filepath.Join(dir, rel)

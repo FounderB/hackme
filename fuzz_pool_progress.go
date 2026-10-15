@@ -15,11 +15,13 @@ import (
 )
 
 type coordinatorPoolCampaign struct {
-	ID         string `json:"id"`
-	Status     string `json:"status"`
-	RunsDone   int    `json:"runs_done"`
-	BudgetRuns int    `json:"budget_runs"`
-	Findings   int    `json:"findings"`
+	ID            string `json:"id"`
+	Status        string `json:"status"`
+	RunsDone      int    `json:"runs_done"`
+	BudgetRuns    int    `json:"budget_runs"`
+	Findings      int    `json:"findings"`       // crash-class only (honest)
+	FindingsTotal int    `json:"findings_total"` // all rows incl. Dig detector noise
+	FailedChecks  int    `json:"failed_checks"`
 }
 
 func (a *app) fetchCoordinatorPoolCampaigns(ctx context.Context) (map[string]coordinatorPoolCampaign, error) {
@@ -305,6 +307,13 @@ func (a *app) mergeCoordinatorPoolMarketplaceWithRemote(ctx context.Context, ite
 }
 
 func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campaignID string) error {
+	return a.applyPoolCampaignProgressFromCoordinator(ctx, campaignID, true)
+}
+
+// applyPoolCampaignProgressFromCoordinator merges coordinator progress into the local
+// campaign row. When closeEscrow is false, escrow is not finalized (used from
+// tryCloseFuzzEscrowForStatus to avoid sync→close recursion).
+func (a *app) applyPoolCampaignProgressFromCoordinator(ctx context.Context, campaignID string, closeEscrow bool) error {
 	rc, ok := a.fetchCoordinatorPoolCampaignProgress(ctx, campaignID)
 	if !ok {
 		return nil
@@ -334,8 +343,19 @@ func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campa
 		summary["runs_done"] = rc.RunsDone
 		changed = true
 	}
-	if rc.Findings > 0 {
+	// Crash-class only — never map Dig detector noise / findings_total into unique_crashes
+	// (that forced warn_pool_findings + gate FAIL with 0 local crashes).
+	if rc.Findings > intFromAny(summary["unique_crashes"]) {
 		summary["unique_crashes"] = rc.Findings
+		summary["crash_count"] = rc.Findings
+		changed = true
+	}
+	if rc.FailedChecks > intFromAny(summary["failed_checks"]) {
+		summary["failed_checks"] = rc.FailedChecks
+		changed = true
+	}
+	if rc.FindingsTotal > intFromAny(summary["findings_total"]) {
+		summary["findings_total"] = rc.FindingsTotal
 		changed = true
 	}
 	nextStatus := strings.TrimSpace(strings.ToLower(status))
@@ -348,7 +368,7 @@ func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campa
 		changed = true
 	}
 	if !changed {
-		if nextStatus == "completed" || nextStatus == "cancelled" {
+		if closeEscrow && (nextStatus == "completed" || nextStatus == "cancelled") {
 			// Local row already matches the coordinator. Still close escrow:
 			// an earlier sync may have written status without a settle.
 			a.tryCloseFuzzEscrowForStatus(ctx, campaignID, nextStatus)
@@ -369,7 +389,7 @@ func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campa
 	if err != nil {
 		return err
 	}
-	if nextStatus == "completed" || nextStatus == "cancelled" {
+	if closeEscrow && (nextStatus == "completed" || nextStatus == "cancelled") {
 		// Coordinator terminal status is enough to settle. tryClose still
 		// refuses finalize when the settle pull fails (report #12).
 		a.tryCloseFuzzEscrowForStatus(ctx, campaignID, nextStatus)

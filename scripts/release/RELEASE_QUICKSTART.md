@@ -21,6 +21,7 @@ Binaries: `hackme.exe` (node), `workerpoh.exe` (pool worker), `minersign.exe` (h
 2. `tar -xzf hackme_*_linux.tar.gz && cd linux`
 3. Run **`bash start_hackme_miner.sh`** — pool token is in `pool.miner.token`; setup runs once automatically.
 4. Browser opens the local dashboard; mining on **hackme.tech** starts without editing env files.
+5. **Orders (B2B Dig/Hunt):** `bash start_hackme_orders.sh` — local node + `#orders` (no mining worker). CLI: `./hackme-fuzzing` in the same folder.
 
 **Advanced:** `sudo bash install_hackme.sh --archive ../hackme_*_linux.tar.gz` (systemd). Dev tree: `bash desktop_mode_up.sh` (needs Go).
 

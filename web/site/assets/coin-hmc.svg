@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="HMC">
+  <defs>
+    <linearGradient id="hmcStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4de4ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="hmcFill" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#12202c"/>
+      <stop offset="100%" stop-color="#070b10"/>
+    </linearGradient>
+    <filter id="hmcSoft" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="1.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- plate -->
+  <rect width="128" height="128" rx="28" fill="#070b10"/>
+  <rect x="3" y="3" width="122" height="122" rx="26" fill="none" stroke="url(#hmcStroke)" stroke-opacity="0.5" stroke-width="2"/>
+  <!-- outer hex -->
+  <path d="M64 16 L106 40 L106 88 L64 112 L22 88 L22 40 Z" fill="url(#hmcFill)" stroke="url(#hmcStroke)" stroke-width="2.6" filter="url(#hmcSoft)"/>
+  <!-- inner hex glow -->
+  <path d="M64 30 L94 47 L94 81 L64 98 L34 81 L34 47 Z" fill="none" stroke="#4de4ff" stroke-width="1.4" opacity="0.55"/>
+  <!-- useful-PoW hash ticks -->
+  <path d="M28 64h12M88 64h12M64 28v8M64 92v8" stroke="#67e8f9" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+  <!-- bold H -->
+  <path d="M48 44v40M80 44v40M48 64h32" fill="none" stroke="#f4fbff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48 44v40M80 44v40M48 64h32" fill="none" stroke="#4de4ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+  <text x="64" y="122" text-anchor="middle" fill="#a5f3fc" font-family="Space Grotesk, IBM Plex Sans, system-ui, sans-serif" font-size="13" font-weight="700" letter-spacing="0.12em">HMC</text>
+</svg>

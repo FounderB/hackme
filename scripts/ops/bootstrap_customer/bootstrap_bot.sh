@@ -68,7 +68,8 @@ fi
 # Light budgets: visible on marketplace, finish in tens of minutes on healthy dig.
 # Hard cap: never place > MAX_BUDGET_RUNS (old formula could hit 24k via (budget*0.20)/0.0001).
 RESERVE="${RESERVE_HMC:-100}"
-MAX_ORDER="${MAX_ORDER_HMC:-6}"
+# Dig deep floor is budget_hmc >= 25 (security-audit). Keep timer above that.
+MAX_ORDER="${MAX_ORDER_HMC:-25}"
 MIN_PER_RUN="${MIN_PER_RUN_HMC:-0.0001}"
 MAX_BUDGET_RUNS="${MAX_BUDGET_RUNS:-5000}"
 budget="$(python3 -c "b=float('$bal'); r=float('$RESERVE'); m=float('$MAX_ORDER'); print(round(min(m, max(5.0, min(m, b-r))), 4))")"

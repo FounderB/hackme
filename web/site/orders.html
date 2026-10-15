@@ -56,10 +56,10 @@
     <section class="panel glass" style="margin-top:1rem">
       <div class="panel-head"><h2>Three steps</h2></div>
       <ol class="check-list">
-        <li><strong>Install</strong> — Win/Linux node from <a href="./downloads.html#local-node">Downloads</a>. Open <code>http://127.0.0.1:8080</code> → Wallet.</li>
+        <li><strong>Install</strong> — from <a href="./downloads.html">Downloads</a>: Windows Setup → <strong>Orders</strong>, or Linux <code>bash start_hackme_orders.sh</code> (tar/deb). Opens <code>http://127.0.0.1:8080/#orders</code> → Wallet.</li>
         <li><strong>Order</strong> — fund HMC, then
-          <code>hackme-fuzzing wizard --pack filter_utf8 --package audit</code>
-          (packs: <code>secrets</code> · <code>script_bounds</code> · <code>filter_utf8</code> · <code>parser_expat</code>
+          <code>./hackme-fuzzing wizard --pack filter_utf8 --package audit</code>
+          (CLI ships next to the node in Orders profile; packs: <code>secrets</code> · <code>script_bounds</code> · <code>filter_utf8</code> · <code>parser_expat</code>
           · <code>bounds_smoke</code> · <code>overflow_smoke</code> · <code>state_smoke</code>
           · or <code>--wasm guard.wasm</code> · dashboard <code>#orders</code> · <strong>Hunt</strong> inventory).</li>
         <li><strong>Deliverable</strong> — wizard prints <code>report_url</code>, <code>gate_url</code>, <code>pulse_url</code>. Pool diggers pick customer work first.</li>

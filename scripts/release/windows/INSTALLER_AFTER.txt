@@ -1,27 +1,23 @@
 HackMe is installed.
-===================
+====================
 
-What was configured:
-  • hackme.env with pool token (from pool.miner.token)
-  • Local admin token for the dashboard
-  • GPU backend per your wizard choice
-  • Start menu + optional desktop shortcut
+Miner profile
+  • Open "HackMe Miner" — detect GPU → node → pool worker
+  • Keep the Miner window open (watchdog restarts the worker if needed)
+  • Dashboard: http://127.0.0.1:8080/#mining
 
-Start mining (golden path):
-  • Open "HackMe Miner" from the Start menu or desktop — ONE step (detect GPU → node → pool worker)
-  • Keep the Miner window open — a hidden watchdog restarts the pool worker if GPU stops
-  • Watchdog status: install_folder\logs\watchdog_worker.log (no blank console window)
-  • Browser: http://127.0.0.1:8080/#ecosystem — Workers tab GH/s matches the public pool coordinator
-  • If Mining API fails: Start menu → HackMe → Configure miner (repairs empty admin token)
+Orders profile (B2B)
+  • Open "HackMe Orders" — local node for Dig / Hunt campaigns
+  • Dashboard: http://127.0.0.1:8080/#orders
+  • CLI in the install folder:
+      hackme-fuzzing.exe wizard --pack secrets --package audit
+      hackme-fuzzing.exe hunt packages
+  • Keep both CLI executables next to hackme.exe (already done by Setup)
 
-Linux rigs: use HackMe OS live ISO from https://hackme.tech/downloads.html#hackme-os
-  (Zero-Knowledge Start — no wallet setup; write down the recovery phrase on screen)
+Tips
+  • Admin token is in hackme.env (Miner) or .env.orders.windows (Orders)
+  • Dig packs run on Windows; Hunt pool execution is on Linux miners —
+    you still create / escrow Hunt from this node
 
-Install folder (default):
-  C:\Program Files\HackMe
-
-If mining does not start:
-  • Start menu → HackMe → Configure miner
-  • Or reinstall from https://hackme.tech/downloads.html
-
-Support: https://hackme.tech
+Site: https://hackme.tech/downloads.html
+Guide: https://hackme.tech/fuzz-guide.html

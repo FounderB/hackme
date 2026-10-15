@@ -6,12 +6,24 @@
   <title>HackMe Ecosystem Coins — HMC · SUP · HMS</title>
   <meta name="description" content="Official HackMe multi-coin registry: HMC primary useful-PoW, SUP support coin on-chain, HMS storage prelaunch. Listing docs and live transparency." />
   <link rel="canonical" href="https://hackme.tech/coins.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://hackme.tech/coins.html" />
+  <meta property="og:title" content="HackMe Ecosystem Coins — HMC · SUP · HMS" />
+  <meta property="og:description" content="Official multi-coin registry: HMC · SUP · HMS. Tokenomics, transparency, paper Exchange D0." />
+  <meta property="og:image" content="https://hackme.tech/assets/og-share-1200x630.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="HackMe Ecosystem Coins" />
+  <meta name="twitter:description" content="Official multi-coin registry: HMC · SUP · HMS." />
+  <meta name="twitter:image" content="https://hackme.tech/assets/og-share-1200x630.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20260916more3" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20261015site1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="/assets/favicon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
 </head>
 <body>
   <div class="bg-glow bg-glow-a" aria-hidden="true"></div>
@@ -25,25 +37,46 @@
   </header>
 
   <main class="container">
-    <section class="hero glass hero-small">
-      <p class="kicker">Ecosystem · Multi-asset</p>
-      <h1>HackMe coin registry</h1>
-      <p class="hero-copy">
-        One network, several tickers: <strong>HMC</strong> (primary chain), <strong>SUP</strong> (support, on-chain),
-        <strong>HMS</strong> (storage prelaunch), and planned lanes. Each asset has its own tokenomics page and listing pack.
-      </p>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="./coin-hmc.html">HMC</a>
-        <a class="btn btn-secondary" href="./coin-sup.html">SUP</a>
-        <a class="btn btn-secondary" href="./coin-hms.html">HMS</a>
-        <a class="btn btn-secondary" href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">Exchange D0</a>
-        <a class="btn btn-secondary" href="./token-transparency.html">Transparency</a>
-        <a class="btn btn-secondary" href="./listing.html">CEX listing</a>
+    <section class="hero glass hero-small coin-hero-banner coin-hero-banner--registry" aria-label="HackMe coin registry">
+      <div class="coin-detail-hero">
+        <div>
+          <p class="kicker">Ecosystem · Multi-asset</p>
+          <h1>HackMe coin registry</h1>
+          <p class="hero-copy">
+            One network, several tickers: <strong>HMC</strong> (primary chain), <strong>SUP</strong> (support, on-chain),
+            <strong>HMS</strong> (storage prelaunch), and planned lanes. Each asset has its own tokenomics page and listing pack.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="./coin-hmc.html">HMC</a>
+            <a class="btn btn-secondary" href="./coin-sup.html">SUP</a>
+            <a class="btn btn-secondary" href="./coin-hms.html">HMS</a>
+            <a class="btn btn-secondary" href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">Paper Exchange D0</a>
+            <a class="btn btn-secondary" href="./token-transparency.html">Transparency</a>
+            <a class="btn btn-secondary" href="./listing.html">CEX listing</a>
+          </div>
+          <div id="coins-live-stats" class="pill-row" style="margin-top:1rem"></div>
+        </div>
+        <div class="coin-hero-mark coin-hero-mark--brand">
+          <img src="./assets/logo-hex.png" alt="HackMe Network" width="116" height="116" />
+        </div>
       </div>
-      <div id="coins-live-stats" class="pill-row" style="margin-top:1rem"></div>
     </section>
 
-    <section id="hms" class="panel glass coins-hms-banner">
+    <section id="hmc" class="panel glass coins-lane-banner coins-lane-banner--hmc">
+      <div>
+        <p class="kicker">Primary · Live</p>
+        <h2>HackMe Coin (HMC)</h2>
+        <p class="subtle" style="margin:0;max-width:62ch;line-height:1.6">
+          Useful-PoW settlement rail — mining, transfers, B2B audit escrow.
+          <a href="./coin-hmc.html">Full HMC page →</a>
+        </p>
+      </div>
+      <div class="coin-hero-mark coin-hero-mark--brand">
+        <img src="./assets/logo-hex.png" alt="HMC" width="96" height="96" />
+      </div>
+    </section>
+
+    <section id="hms" class="panel glass coins-lane-banner coins-lane-banner--hms">
       <div>
         <p class="kicker" style="color:#6ee7b7">Prelaunch · Storage lane</p>
         <h2>HackMe Storage (HMS)</h2>
@@ -52,18 +85,23 @@
           <a href="./coin-hms.html">Prelaunch brief →</a>
         </p>
       </div>
-      <img src="./assets/coin-hms.svg" alt="HMS" width="96" height="96" style="justify-self:center" />
+      <div class="coin-hero-mark">
+        <img src="./assets/coin-hms.svg" alt="HMS" width="96" height="96" />
+      </div>
     </section>
 
-    <section class="panel glass coins-sup-banner">
+    <section id="sup" class="panel glass coins-lane-banner coins-lane-banner--sup">
       <div>
+        <p class="kicker" style="color:#c4b5fd">Companion · On-chain live</p>
         <h2>HackMe Support (SUP)</h2>
         <p class="subtle" style="margin:0;max-width:62ch;line-height:1.6">
           Companion coin — on-chain mint live, CEX after HMC lists. Quality-gated pool accrual only.
           <a href="./coin-sup.html">Full SUP page →</a>
         </p>
       </div>
-      <img src="./assets/coin-sup.svg" alt="SUP" width="96" height="96" style="justify-self:center" />
+      <div class="coin-hero-mark">
+        <img src="./assets/coin-sup.svg" alt="SUP" width="96" height="96" />
+      </div>
     </section>
 
     <section class="panel glass">
@@ -81,7 +119,7 @@
       <div class="grid grid-3">
         <article class="card glass">
           <h3>Paper Exchange (D0)</h3>
-          <p>Live spot desk + pool oracle. Public: <a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a> · local node tab <code>#exchange</code> embeds the same SPA.</p>
+          <p>Paper soft-launch spot desk + pool oracle. Public: <a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a> · local node tab <code>#exchange</code> embeds the same SPA.</p>
           <a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">Open desk →</a>
         </article>
         <article class="card glass">
@@ -104,8 +142,8 @@
     <div class="footer-nav"></div>
   </footer>
 
-  <script src="./assets/site-shell.js?v=20260916more3"></script>
-  <script src="./assets/app.js?v=20260914dev1"></script>
-  <script src="./assets/coins-page.js?v=20260616coins"></script>
+  <script src="./assets/site-shell.js?v=20261015site1"></script>
+  <script src="./assets/app.js?v=20261015site1"></script>
+  <script src="./assets/coins-page.js?v=20261015site1"></script>
 </body>
 </html>

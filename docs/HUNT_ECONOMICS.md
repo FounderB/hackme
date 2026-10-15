@@ -60,11 +60,13 @@ crash_bonus = min(0.01 × bounty_pool_hmc, 0.05 HMC)
 
 ## Packages (initial)
 
-| Tier | Budget HMC | Shards (target) | Exec/shard | Overnight local | Wall | Min / shard | Notes |
-|------|------------|-----------------|------------|-----------------|------|-------------|-------|
-| **Hunt Lite** | **20** | **1200** | **32** | **20k iter · 1h** | 6–24h | **≥ 0.002** | MVP — catalog + inventory |
-| **Hunt Standard** | **60** | **4000** | **128** | **200k iter · 8h** | 1–3d | **≥ 0.003** | + template harness after Accept |
+| Tier | Budget HMC | Shards (target) | Iter/shard (pool) | Overnight local | Wall | Min / shard | Notes |
+|------|------------|-----------------|-------------------|-----------------|------|-------------|-------|
+| **Hunt Lite** | **20** | **1200** | **48** | **20k iter · 1h** | 6–24h | **≥ 0.002** | MVP — catalog + inventory |
+| **Hunt Standard** | **60** | **4000** | **192** | **200k iter · 8h** | 1–3d | **≥ 0.003** | + template harness after Accept |
 | **Hunt Heavy** | **150+** | **12000** | **256** | **500k iter · 12h** | 3d+ | dynamic | Pool-scale depth |
+
+Pool `iterations_per_shard` matches `internal/hunt/depth.go` (v2.8: lite 48 / standard 192 / heavy 256). Coverage fleet depth is also engine wall (`engine_lease_sec` ~60s lite · ~90s standard) — not brochure exec counts alone.
 
 **Minimum campaign budget (Hunt):** **15 HMC** (Lite floor in UI), **50 HMC** (Standard).
 

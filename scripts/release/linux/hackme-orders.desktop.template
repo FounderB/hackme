@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=HackMe Orders
+GenericName=HackMe B2B Orders
+Comment=Local Dig/Hunt campaign node — dashboard Orders (no mining)
+Exec=__INSTALL_DIR__/start_hackme_orders.sh
+TryExec=__INSTALL_DIR__/hackme
+Icon=hackme
+Terminal=false
+Categories=Network;Development;
+Keywords=hackme;fuzz;dig;hunt;orders;b2b;audit;
+StartupNotify=true
+StartupWMClass=hackme
+Path=__INSTALL_DIR__

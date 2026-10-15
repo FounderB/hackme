@@ -1,21 +1,21 @@
-HackMe — public Useful PoW pool miner
-========================================
+HackMe Setup
+============
 
-You are installing the official HackMe node for Windows.
+Official Windows installer for hackme.tech.
 
-What this installer does:
-  • Copies hackme.exe, workerpoh, and pool configuration
-  • Creates hackme.env (local admin token + pool token)
-  • Adds Start menu and desktop shortcuts
-  • Registers install path under HKLM\Software\HackMe Network\HackMe
+On the next page choose how you will use HackMe:
 
-Mining pool: https://hackme.tech/pool/coordinator
+  Miner
+    Join the public Useful PoW pool. GPU/CPU hashing, dashboard Mining tab,
+    pool token preconfigured — one click to start.
 
-After install, open "HackMe Miner" — one click starts detect → pool worker (~2 min to pool row).
-Keep the miner window open while participating in the pool.
-Dashboard GH/s and session follow the coordinator (same as hackme.tech/pool).
+  Orders (B2B)
+    Local node for Dig / Hunt security fuzz campaigns. Dashboard opens on
+    Orders. Includes hackme-fuzzing CLI (wizard + build) in the same folder.
+    No mining worker is started.
 
-For AMD RX 580 / 2048SP rigs, GPU tuning hints are applied automatically.
-Manual overclock: AMD Adrenalin → Performance → Tuning.
+Both profiles install the same core node. You can add the other profile later
+from the Start menu shortcuts.
 
-Support: https://hackme.tech — Telegram links on the website.
+Pool / site: https://hackme.tech
+Support: Telegram links on the website.

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPreviewTemplateNeedsAccept(t *testing.T) {
@@ -105,9 +106,12 @@ int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n) {
 	}
 	// Seed: claim=64, only 3 payload bytes → ASAN heap-buffer-overflow on read.
 	seed := []byte{64, 'A', 'B', 'C'}
-	cmd := exec.Command(res.BinaryPath)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, res.BinaryPath)
 	cmd.Stdin = bytes.NewReader(seed)
-	cmd.Env = append(os.Environ(), "ASAN_OPTIONS=abort_on_error=1:detect_leaks=0")
+	// symbolize=0 — llvm-symbolizer can hang CombinedOutput under load (seen on soak hosts).
+	cmd.Env = append(os.Environ(), "ASAN_OPTIONS=abort_on_error=1:detect_leaks=0:symbolize=0")
 	out, runErr := cmd.CombinedOutput()
 	if runErr == nil {
 		t.Fatalf("expected ASAN crash, got ok output=%q", string(out))

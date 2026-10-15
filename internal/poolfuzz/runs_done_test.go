@@ -140,3 +140,46 @@ func TestCampaignProgressRunsOKExcludesFailed(t *testing.T) {
 		t.Fatalf("runs_ok=%v want 2", prog["runs_ok"])
 	}
 }
+
+func TestCampaignProgressFindingsAreCrashClassOnly(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "prog-findings.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := &Service{DB: db}
+	ctx := context.Background()
+	cid := "campaign-progress-findings-class"
+	if err := svc.RegisterCampaign(ctx, Campaign{
+		ID: cid, CampaignType: "property", Title: "dig progress", Status: "running",
+		BudgetRuns: 4, Config: map[string]any{"pool_distributed": true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Unix()
+	for _, row := range []struct {
+		id, ft string
+	}{
+		{"f-noise-1", "property_violation"},
+		{"f-noise-2", "security_violation"},
+		{"f-crash-1", "native_crash"},
+	} {
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO fuzz_findings (id, campaign_id, finding_type, severity, title, input_sha256, created_at)
+			 VALUES (?,?,?,'high',?,?,?)`,
+			row.id, cid, row.ft, row.id, row.id, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	prog, err := svc.CampaignProgress(ctx, cid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if intFromJSON(prog["findings"]) != 1 {
+		t.Fatalf("findings=%v want 1 crash-class", prog["findings"])
+	}
+	if intFromJSON(prog["findings_total"]) != 3 {
+		t.Fatalf("findings_total=%v want 3", prog["findings_total"])
+	}
+}

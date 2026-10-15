@@ -39,10 +39,11 @@ done
 [[ -d "${SRC}/bin" ]] && cp -a "${SRC}/bin" "${PKG}/opt/hackme/bin"
 [[ -d "${SRC}/lib" ]] && cp -a "${SRC}/lib" "${PKG}/opt/hackme/lib"
 for f in update_hackme_miner.sh update_hackme_os_binaries.sh start_hackme_miner.sh stop_hackme_miner.sh \
-         setup_hackme_miner.sh install_hackme.sh install_menu_entry.sh hackme_desktop_launch.sh \
+         start_hackme_orders.sh setup_hackme_miner.sh install_hackme.sh install_menu_entry.sh hackme_desktop_launch.sh \
          detect_gpu_backend.sh fix_miner_layout.sh \
          RELEASE_QUICKSTART.md README.md \
-         hackme-node.service.template hackme.desktop.template hackme-dashboard.desktop.template; do
+         hackme-node.service.template hackme.desktop.template hackme-dashboard.desktop.template \
+         hackme-orders.desktop.template; do
   if [[ -f "${SRC}/${f}" ]]; then
     install -m 0755 "${SRC}/${f}" "${PKG}/opt/hackme/${f}" 2>/dev/null || \
       install -m 0644 "${SRC}/${f}" "${PKG}/opt/hackme/${f}"

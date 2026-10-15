@@ -207,6 +207,7 @@ cp "${ROOT_DIR}/scripts/release/windows/env.public_pool.example" "${WIN_DIR}/env
 cp "${ROOT_DIR}/scripts/release/windows/start_hackme_public_pool.bat" "${WIN_DIR}/start_hackme_public_pool.bat"
 cp "${ROOT_DIR}/scripts/release/windows/setup_hackme_miner.bat" "${WIN_DIR}/setup_hackme_miner.bat"
 cp "${ROOT_DIR}/scripts/release/windows/start_hackme_miner.bat" "${WIN_DIR}/start_hackme_miner.bat"
+cp "${ROOT_DIR}/scripts/release/windows/start_hackme_orders.bat" "${WIN_DIR}/start_hackme_orders.bat"
 cp "${ROOT_DIR}/scripts/release/windows/autostart_pool_worker.bat" "${WIN_DIR}/autostart_pool_worker.bat"
 cp "${ROOT_DIR}/scripts/release/windows/watchdog_pool_worker.bat" "${WIN_DIR}/watchdog_pool_worker.bat"
 cp "${ROOT_DIR}/scripts/release/windows/run_watchdog_hidden.vbs" "${WIN_DIR}/run_watchdog_hidden.vbs"
@@ -220,6 +221,9 @@ cp "${ROOT_DIR}/scripts/release/windows/build_workerpoh_opencl.ps1" "${WIN_DIR}/
 cp "${ROOT_DIR}/scripts/release/windows/patch_opencl_env.bat" "${WIN_DIR}/patch_opencl_env.bat" 2>/dev/null || true
 cp "${ROOT_DIR}/docs/MINER_WINDOWS_ONE_CLICK.md" "${WIN_DIR}/MINER_WINDOWS_ONE_CLICK.md" 2>/dev/null || true
 cp "${ROOT_DIR}/scripts/release/windows/INSTALLER_WELCOME.txt" "${WIN_DIR}/INSTALLER_WELCOME.txt" 2>/dev/null || true
+cp "${ROOT_DIR}/scripts/release/windows/INSTALLER_AFTER.txt" "${WIN_DIR}/INSTALLER_AFTER.txt" 2>/dev/null || true
+cp "${ROOT_DIR}/scripts/release/windows/wizard-side.bmp" "${WIN_DIR}/wizard-side.bmp" 2>/dev/null || true
+cp "${ROOT_DIR}/scripts/release/windows/wizard-small.bmp" "${WIN_DIR}/wizard-small.bmp" 2>/dev/null || true
 cp "${ROOT_DIR}/scripts/release/windows/LICENSE.txt" "${WIN_DIR}/LICENSE.txt" 2>/dev/null || true
 cp "${ROOT_DIR}/scripts/release/windows/hackme.ico" "${WIN_DIR}/hackme.ico"
 cp "${ROOT_DIR}/scripts/release/windows/hackme.png" "${WIN_DIR}/hackme.png"
@@ -231,8 +235,10 @@ cp "${ROOT_DIR}/scripts/release/linux/install_hackme.sh" "${LINUX_DIR}/install_h
 cp "${ROOT_DIR}/scripts/release/linux/setup_hackme_miner.sh" "${LINUX_DIR}/setup_hackme_miner.sh"
 cp "${ROOT_DIR}/scripts/release/linux/start_hackme_miner.sh" "${LINUX_DIR}/start_hackme_miner.sh"
 cp "${ROOT_DIR}/scripts/release/linux/stop_hackme_miner.sh" "${LINUX_DIR}/stop_hackme_miner.sh"
+cp "${ROOT_DIR}/scripts/release/linux/start_hackme_orders.sh" "${LINUX_DIR}/start_hackme_orders.sh"
 cp "${ROOT_DIR}/scripts/release/linux/hackme.desktop.template" "${LINUX_DIR}/hackme.desktop.template"
 cp "${ROOT_DIR}/scripts/release/linux/hackme-dashboard.desktop.template" "${LINUX_DIR}/hackme-dashboard.desktop.template"
+cp "${ROOT_DIR}/scripts/release/linux/hackme-orders.desktop.template" "${LINUX_DIR}/hackme-orders.desktop.template"
 cp "${ROOT_DIR}/scripts/release/linux/install_menu_entry.sh" "${LINUX_DIR}/install_menu_entry.sh"
 mkdir -p "${LINUX_DIR}/icons"
 cp -a "${ROOT_DIR}/scripts/release/linux/icons/." "${LINUX_DIR}/icons/" 2>/dev/null || {
@@ -256,6 +262,7 @@ chmod +x "${LINUX_DIR}/install_hackme.sh"
 chmod +x "${LINUX_DIR}/setup_hackme_miner.sh"
 chmod +x "${LINUX_DIR}/start_hackme_miner.sh"
 chmod +x "${LINUX_DIR}/stop_hackme_miner.sh"
+chmod +x "${LINUX_DIR}/start_hackme_orders.sh"
 chmod +x "${LINUX_DIR}/install_menu_entry.sh"
 chmod +x "${LINUX_DIR}/desktop_mode_up.sh"
 chmod +x "${LINUX_DIR}/desktop_mode_status.sh"
@@ -292,6 +299,26 @@ linux_arch=${LINUX_ARCH}
 cgo_enabled=${CGO_ENABLED}
 EOF
 
+# B2B CLI before zip/installer so Orders profile ships hackme-fuzzing*.exe in-folder.
+if [[ -x "${ROOT_DIR}/scripts/release/build_fuzzing_cli.sh" ]]; then
+  VERSION="${VERSION}" DIST_DIR="${DIST_DIR}" bash "${ROOT_DIR}/scripts/release/build_fuzzing_cli.sh" || \
+    echo "[release] WARN: hackme-fuzzing CLI build failed" >&2
+  if [[ -f "${DIST_DIR}/hackme-fuzzing-${VERSION}-windows-amd64.exe" ]]; then
+    cp -f "${DIST_DIR}/hackme-fuzzing-${VERSION}-windows-amd64.exe" "${WIN_DIR}/hackme-fuzzing.exe"
+  fi
+  if [[ -f "${DIST_DIR}/hackme-fuzzing-build-${VERSION}-windows-amd64.exe" ]]; then
+    cp -f "${DIST_DIR}/hackme-fuzzing-build-${VERSION}-windows-amd64.exe" "${WIN_DIR}/hackme-fuzzing-build.exe"
+  fi
+  if [[ -f "${DIST_DIR}/hackme-fuzzing-${VERSION}-linux-amd64" ]]; then
+    cp -f "${DIST_DIR}/hackme-fuzzing-${VERSION}-linux-amd64" "${LINUX_DIR}/hackme-fuzzing"
+    chmod +x "${LINUX_DIR}/hackme-fuzzing"
+  fi
+  if [[ -f "${DIST_DIR}/hackme-fuzzing-build-${VERSION}-linux-amd64" ]]; then
+    cp -f "${DIST_DIR}/hackme-fuzzing-build-${VERSION}-linux-amd64" "${LINUX_DIR}/hackme-fuzzing-build"
+    chmod +x "${LINUX_DIR}/hackme-fuzzing-build"
+  fi
+fi
+
 (
   cd "${DIST_DIR}"
   zip -r "hackme_${VERSION}_windows.zip" "windows" >/dev/null
@@ -318,6 +345,13 @@ done
   fi
   [[ -f Install-HackMe.ps1 ]] && SUM_FILES+=( "Install-HackMe.ps1" )
   [[ -f HackMe-Install.cmd ]] && SUM_FILES+=( "HackMe-Install.cmd" )
+  for f in \
+    "hackme-fuzzing-${VERSION}-linux-amd64" \
+    "hackme-fuzzing-${VERSION}-windows-amd64.exe" \
+    "hackme-fuzzing-build-${VERSION}-linux-amd64" \
+    "hackme-fuzzing-build-${VERSION}-windows-amd64.exe"; do
+    [[ -f "$f" ]] && SUM_FILES+=( "$f" )
+  done
   if [[ -f "HackMe-Setup-${VERSION}.exe" ]]; then
     : # already logged
   else
@@ -405,10 +439,6 @@ jq -nc \
 
 bash "${ROOT_DIR}/scripts/release/verify_artifacts.sh" "${DIST_DIR}"
 bash "${ROOT_DIR}/scripts/release/smoke_artifacts.sh" "${DIST_DIR}"
-if [[ -x "${ROOT_DIR}/scripts/release/build_fuzzing_cli.sh" ]]; then
-  VERSION="${VERSION}" DIST_DIR="${DIST_DIR}" bash "${ROOT_DIR}/scripts/release/build_fuzzing_cli.sh" || \
-    echo "[release] WARN: hackme-fuzzing CLI build failed" >&2
-fi
 
 # L1 update channel: latest.json (site CDN + GitHub release asset)
 VERSION="${VERSION}" bash "${ROOT_DIR}/scripts/release/generate_latest_json.sh" "${DIST_DIR}" || \
@@ -423,7 +453,7 @@ echo "[release] artifacts:"
 echo "  ${DIST_DIR}/hackme_${VERSION}_windows.zip"
 echo "  ${DIST_DIR}/hackme_${VERSION}_windows_setup.zip  (flat zip — advanced)"
 if [[ -f "${DIST_DIR}/HackMe-Setup-${VERSION}.exe" ]]; then
-  echo "  ${DIST_DIR}/HackMe-Setup-${VERSION}.exe  (installer — recommended for miners)"
+  echo "  ${DIST_DIR}/HackMe-Setup-${VERSION}.exe  (installer — Miner | Orders profiles)"
 fi
 echo "  ${DIST_DIR}/hackme_${VERSION}_linux.tar.gz"
 echo "  ${DIST_DIR}/SHA256SUMS.txt"

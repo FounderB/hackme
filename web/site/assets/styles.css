@@ -1227,6 +1227,200 @@ h4 { font-size: 1.02rem; }
   .coins-sup-banner,
   .coins-hms-banner { grid-template-columns: 1fr; }
 }
+
+/* Coin detail pages: photo inside the glass rectangle */
+.coin-hero-banner {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  min-height: 15.5rem;
+  padding: 1.85rem 1.75rem;
+  background-color: #070b10;
+  background-size: cover;
+  background-position: center right;
+  background-repeat: no-repeat;
+  border-color: rgba(77, 228, 255, 0.28);
+}
+.coin-hero-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(105deg,
+      rgba(5, 9, 14, 0.94) 0%,
+      rgba(5, 9, 14, 0.82) 42%,
+      rgba(5, 9, 14, 0.42) 68%,
+      rgba(5, 9, 14, 0.22) 100%);
+}
+.coin-hero-banner > * { position: relative; z-index: 1; }
+.coin-hero-banner--hms {
+  border-color: rgba(52, 211, 153, 0.42);
+  background-image: url("./hms-hero-vault.jpg");
+}
+.coin-hero-banner--hms::before {
+  background:
+    linear-gradient(105deg,
+      rgba(4, 14, 12, 0.94) 0%,
+      rgba(5, 12, 14, 0.82) 44%,
+      rgba(5, 10, 14, 0.4) 72%,
+      rgba(5, 10, 14, 0.2) 100%);
+}
+.coin-hero-banner--hmc {
+  border-color: rgba(77, 228, 255, 0.4);
+  background-image: url("./hmc-hero-mine.jpg");
+}
+.coin-hero-banner--registry {
+  border-color: rgba(77, 228, 255, 0.35);
+  background-image: url("./og-share-1200x630.jpg");
+}
+.coin-hero-banner--sup {
+  border-color: rgba(168, 85, 247, 0.42);
+  background-image: url("./sup-hero-support.jpg");
+}
+/* Registry lane strips (coins.html) — same photo language as coin detail heroes */
+.coins-lane-banner {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 1.5rem;
+  min-height: 8.5rem;
+  background-color: #070b10;
+  background-size: cover;
+  background-position: center right;
+  background-repeat: no-repeat;
+}
+.coins-lane-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(105deg,
+      rgba(5, 9, 14, 0.92) 0%,
+      rgba(5, 9, 14, 0.78) 48%,
+      rgba(5, 9, 14, 0.35) 100%);
+}
+.coins-lane-banner > * { position: relative; z-index: 1; }
+.coins-lane-banner .coin-hero-mark {
+  width: 5.75rem;
+  height: 5.75rem;
+  border-radius: 1.2rem;
+}
+.coins-lane-banner--hmc {
+  border-color: rgba(77, 228, 255, 0.38);
+  background-image: url("./hmc-hero-mine.jpg");
+}
+.coins-lane-banner--hms {
+  border-color: rgba(52, 211, 153, 0.4);
+  background-image: url("./hms-hero-vault.jpg");
+}
+.coins-lane-banner--hms::before {
+  background:
+    linear-gradient(105deg,
+      rgba(4, 14, 12, 0.92) 0%,
+      rgba(5, 12, 14, 0.78) 48%,
+      rgba(5, 10, 14, 0.32) 100%);
+}
+.coins-lane-banner--sup {
+  border-color: rgba(168, 85, 247, 0.4);
+  background-image: url("./sup-hero-support.jpg");
+}
+.coins-lane-banner--sup::before {
+  background:
+    linear-gradient(105deg,
+      rgba(8, 5, 16, 0.92) 0%,
+      rgba(8, 6, 18, 0.78) 48%,
+      rgba(6, 8, 16, 0.32) 100%);
+}
+@media (max-width: 720px) {
+  .coins-lane-banner { grid-template-columns: 1fr; }
+  .coins-lane-banner .coin-hero-mark { justify-self: start; }
+}
+.coin-hero-banner--sup::before {
+  background:
+    linear-gradient(105deg,
+      rgba(8, 5, 16, 0.94) 0%,
+      rgba(8, 6, 18, 0.82) 44%,
+      rgba(6, 8, 16, 0.4) 72%,
+      rgba(6, 8, 16, 0.2) 100%);
+}
+.coin-hero-banner--sup .coin-hero-mark {
+  border-color: rgba(168, 85, 247, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 12px 36px rgba(0, 0, 0, 0.45),
+    0 0 28px rgba(99, 102, 241, 0.28);
+}
+.coin-hero-banner .coin-detail-hero {
+  gap: 1.25rem 1.75rem;
+}
+.coin-hero-banner .hero-copy {
+  max-width: 38rem;
+  color: rgba(210, 228, 245, 0.9);
+}
+.coin-hero-banner .hero-copy strong { color: #f4fbff; }
+.coin-hero-mark {
+  justify-self: end;
+  align-self: center;
+  width: 7.25rem;
+  height: 7.25rem;
+  border-radius: 1.45rem;
+  overflow: hidden;
+  border: 1px solid rgba(77, 228, 255, 0.35);
+  background: rgba(6, 10, 16, 0.72);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 12px 36px rgba(0, 0, 0, 0.45),
+    0 0 28px rgba(77, 228, 255, 0.18);
+  backdrop-filter: blur(6px);
+}
+.coin-hero-banner--hms .coin-hero-mark {
+  border-color: rgba(52, 211, 153, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 12px 36px rgba(0, 0, 0, 0.45),
+    0 0 28px rgba(52, 211, 153, 0.22);
+}
+.coin-hero-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.coin-hero-mark--brand {
+  background: rgba(4, 8, 12, 0.55);
+  padding: 0.45rem;
+  box-sizing: border-box;
+}
+.coin-hero-mark--brand img {
+  object-fit: contain;
+  filter: drop-shadow(0 0 14px rgba(77, 228, 255, 0.35));
+}
+@media (max-width: 720px) {
+  .coin-hero-banner {
+    min-height: 0;
+    background-position: 70% center;
+  }
+  .coin-hero-banner::before {
+    background:
+      linear-gradient(180deg,
+        rgba(5, 9, 14, 0.92) 0%,
+        rgba(5, 9, 14, 0.78) 58%,
+        rgba(5, 9, 14, 0.55) 100%);
+  }
+  .coin-hero-mark {
+    width: 5.5rem;
+    height: 5.5rem;
+    justify-self: start;
+  }
+}
 /* —— Site hub (index) + unified nav —— */
 .nav a[aria-current="page"] {
   color: var(--text);
@@ -1814,7 +2008,11 @@ h4 { font-size: 1.02rem; }
   grid-template-columns: 1fr auto;
   align-items: center;
 }
-.coin-detail-hero img { width: 96px; height: 96px; }
+.coin-detail-hero > img { width: 96px; height: 96px; }
+.coin-hero-banner .coin-detail-hero .coin-hero-mark img {
+  width: 100%;
+  height: 100%;
+}
 .roadmap-milestone {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -1924,7 +2122,8 @@ h4 { font-size: 1.02rem; }
   .eco-link-grid { grid-template-columns: 1fr; }
   .table-scroll-hint { display: block; }
   .coin-detail-hero { grid-template-columns: 1fr; text-align: left; }
-  .coin-detail-hero img { justify-self: start; width: 72px; height: 72px; }
+  .coin-detail-hero > img { justify-self: start; width: 72px; height: 72px; }
+  .coin-hero-banner .coin-hero-mark { justify-self: start; }
 }
 
 @media (max-width: 980px) {

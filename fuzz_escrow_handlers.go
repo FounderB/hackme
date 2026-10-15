@@ -246,5 +246,16 @@ func (a *app) handleFuzzEscrowGet(w http.ResponseWriter, r *http.Request, campai
 		writeAPIError(w, http.StatusInternalServerError, "load_failed", err.Error(), nil)
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "escrow": row})
+	out := map[string]any{"ok": true, "escrow": row}
+	if a.db != nil {
+		var summaryJSON string
+		if err := a.db.QueryRowContext(r.Context(),
+			`SELECT summary_json FROM fuzz_campaigns WHERE id=?`, campaignID).Scan(&summaryJSON); err == nil {
+			poolRuns := intFromAny(parseMapJSON(summaryJSON)["runs_done"])
+			if poolRuns > 0 {
+				out["pool_runs_done"] = poolRuns
+			}
+		}
+	}
+	writeJSON(w, out)
 }

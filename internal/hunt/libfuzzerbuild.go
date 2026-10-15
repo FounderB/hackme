@@ -44,6 +44,16 @@ func LibFuzzerImportCorpusDir(repoRoot, targetID string) string {
 	return filepath.Join(repoRoot, ".cache", "hunt-lf-import", id+"-corpus")
 }
 
+// isSubprocessStubLibFuzzerBin reports whether bin was built from stdin_subprocess_libfuzzer.c
+// (generic stub). Those are not in-process target fuzzers — "hits" are harness noise.
+func isSubprocessStubLibFuzzerBin(binPath string) bool {
+	raw, err := os.ReadFile(binPath)
+	if err != nil || len(raw) == 0 {
+		return false
+	}
+	return bytes.Contains(raw, []byte("stdin_subprocess_libfuzzer.c"))
+}
+
 // DedicatedLibFuzzerHarness returns a target-specific libFuzzer harness if present.
 func DedicatedLibFuzzerHarness(repoRoot, targetID string) string {
 	if repoRoot == "" {
@@ -88,14 +98,19 @@ func BuildLibFuzzerImport(ctx context.Context, repoRoot, targetID string) (binPa
 	if err != nil {
 		return "", "", err
 	}
+	harness := DedicatedLibFuzzerHarness(repoRoot, targetID)
 	if st, err := os.Stat(binPath); err == nil && st.Mode().IsRegular() && st.Size() > 0 {
-		if DedicatedLibFuzzerHarness(repoRoot, targetID) != "" {
+		// Dedicated harness: never reuse a cached stdin_subprocess stub under the same name.
+		if harness != "" && !isSubprocessStubLibFuzzerBin(binPath) {
 			return binPath, "", nil
 		}
-		stdinBin, _, err := fuzzupstream.BuildTarget(ctx, repoRoot, t)
-		return binPath, stdinBin, err
+		if harness == "" {
+			stdinBin, _, err := fuzzupstream.BuildTarget(ctx, repoRoot, t)
+			return binPath, stdinBin, err
+		}
+		// fall through → rebuild dedicated over stub cache
 	}
-	if harness := DedicatedLibFuzzerHarness(repoRoot, targetID); harness != "" {
+	if harness != "" {
 		if _, _, err := fuzzupstream.BuildTarget(ctx, repoRoot, t); err != nil {
 			return "", "", err
 		}

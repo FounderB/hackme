@@ -78,8 +78,10 @@ render_desktop() {
 
 TPL_MAIN="${PAYLOAD_DIR}/hackme.desktop.template"
 TPL_DASH="${PAYLOAD_DIR}/hackme-dashboard.desktop.template"
+TPL_ORDERS="${PAYLOAD_DIR}/hackme-orders.desktop.template"
 [[ -f "$TPL_MAIN" ]] || TPL_MAIN="${HERE}/hackme.desktop.template"
 [[ -f "$TPL_DASH" ]] || TPL_DASH="${HERE}/hackme-dashboard.desktop.template"
+[[ -f "$TPL_ORDERS" ]] || TPL_ORDERS="${HERE}/hackme-orders.desktop.template"
 
 # Desktop launcher (XDG user state) is preferred for apt + menu clicks.
 if [[ -x "${INSTALL_DIR}/hackme_desktop_launch.sh" ]]; then
@@ -106,6 +108,11 @@ else
   render_desktop "$TPL_DASH" "${APP_DIR}/hackme-dashboard.desktop"
 fi
 
+# B2B Orders profile (Dig/Hunt local node — no mining worker).
+if [[ -x "${INSTALL_DIR}/start_hackme_orders.sh" && -f "$TPL_ORDERS" ]]; then
+  render_desktop "$TPL_ORDERS" "${APP_DIR}/hackme-orders.desktop"
+fi
+
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$APP_DIR" >/dev/null 2>&1 || true
 fi
@@ -113,5 +120,5 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
   gtk-update-icon-cache -f "$ICON_BASE" >/dev/null 2>&1 || true
 fi
 
-echo "[menu] installed: ${APP_DIR}/hackme.desktop (+ dashboard)"
+echo "[menu] installed: ${APP_DIR}/hackme.desktop (+ dashboard${TPL_ORDERS:+, orders})"
 echo "[menu] icons: ${ICON_BASE}/*/apps/hackme.png"

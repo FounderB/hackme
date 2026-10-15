@@ -1,4 +1,4 @@
-; HackMe Windows installer (Inno Setup 6+).
+; HackMe Windows installer (Inno Setup 6+) — Miner | Orders (B2B) profiles.
 ; Build: VERSION=x.y.z bash scripts/release/make_release_bundle.sh && bash scripts/release/windows/build_installer.sh x.y.z
 
 #ifndef MyAppVersion
@@ -29,7 +29,6 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}/downloads.html
-; Per-user install — no UAC prompt on double-click (common cause of "nothing happens").
 DefaultDirName={localappdata}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=no
@@ -40,40 +39,58 @@ OutputDir=..\..\..\dist\release_{#MyAppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
-WizardSizePercent=120,105
-ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\{#MyAppExeName}
-UninstallDisplayName={#MyAppName} Miner {#MyAppVersion}
+WizardSizePercent=125,110
+WizardImageFile=wizard-side.bmp
+WizardSmallImageFile=wizard-small.bmp
+WizardImageStretch=yes
 SetupIconFile={#MyAppIconFile}
+UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayName={#MyAppName} {#MyAppVersion}
 LicenseFile=LICENSE.txt
 InfoBeforeFile=INSTALLER_WELCOME.txt
 InfoAfterFile=INSTALLER_AFTER.txt
 MinVersion=10.0
+ArchitecturesInstallIn64BitMode=x64compatible
 VersionInfoVersion=1.0.0.0
 VersionInfoProductVersion=1.0.0.0
 VersionInfoCompany={#MyAppPublisher}
-VersionInfoDescription={#MyAppName} public pool miner installer
+VersionInfoDescription={#MyAppName} Miner & B2B Orders installer
 VersionInfoProductName={#MyAppName}
-; Modern look (teal accent where supported by IS 6.7+)
+
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
-english.WelcomeLabel2=Install the official HackMe pool miner for hackme.tech.%n%nPool access is preconfigured — no manual token hunt.%n%nOn the next pages you can confirm GPU settings and shortcuts.
+english.WelcomeLabel2=Welcome to HackMe Setup.%n%nChoose Miner (public pool) or Orders (B2B Dig/Hunt) on the next pages. Pool access for miners is preconfigured — no manual token hunt.
+english.FinishedLabel=Setup finished. Use the Start menu shortcuts for your selected profile.
+english.ProfilePageTitle=How will you use HackMe?
+english.ProfilePageSubtitle=One installer — two products. You can open the other profile later from the Start menu.
+english.RbMiner=Miner — public Useful PoW pool
+english.RbMinerHint=GPU/CPU hashing · Mining dashboard · pool token included · watchdog
+english.RbOrders=Orders — B2B Dig / Hunt campaigns
+english.RbOrdersHint=Local node · Orders dashboard · hackme-fuzzing CLI · no mining worker
 english.GpuPageTitle=GPU && mining backend
-english.GpuPageSubtitle=We detected your graphics hardware. Choose how workerpoh should run (you can change later in hackme.env).
+english.GpuPageSubtitle=Detected graphics hardware. Choose how workerpoh should run (change later in hackme.env).
 english.GpuDetected=Detected:
 english.GpuTip=Tip:
 english.RbAuto=Auto (recommended — detects CUDA / OpenCL / CPU)
-english.RbCuda=NVIDIA CUDA (GeForce / RTX — auto OpenCL fallback if CUDA cannot init)
-english.CudaMissingNote=workerpoh-cuda.exe is not in this Windows installer.%n%nNVIDIA on Windows will use OpenCL (workerpoh-opencl.exe) with fair-pool batch tuning.%nLinux tarball and HackMe OS ISO include workerpoh-cuda with CUDA→OpenCL auto-fallback (rc11j).%n%nFor maximum GH/s on NVIDIA: prefer HackMe OS live USB or Linux bundle.%n%nRepair env: repair_fair_env.bat in the install folder.
+english.RbCuda=NVIDIA CUDA (GeForce / RTX — OpenCL fallback if CUDA cannot init)
+english.CudaMissingNote=workerpoh-cuda.exe is not in this Windows installer.%n%nNVIDIA on Windows will use OpenCL (workerpoh-opencl.exe).%nLinux tarball and HackMe OS ISO include workerpoh-cuda.%n%nRepair env: repair_fair_env.bat in the install folder.
 english.RbOpenCL=AMD OpenCL (Radeon — RX 580, etc.)
 english.RbCpu=CPU only (no GPU — low hashrate)
+english.TaskLaunchMiner=Start HackMe Miner when setup finishes
+english.TaskLaunchOrders=Start HackMe Orders when setup finishes
+english.TaskToolchains=Install Dig toolchains (Zig / TinyGo / Node / Rust) — recommended for Orders
+english.GroupAfter=After install
+english.GroupStartup=Startup
+english.GroupDev=B2B / Dig toolchains
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce
-Name: "launchminer"; Description: "Start HackMe Miner when setup finishes"; GroupDescription: "After install"; Flags: checkedonce
-Name: "autostart"; Description: "Run HackMe node when Windows starts (optional)"; GroupDescription: "Startup"; Flags: unchecked
+Name: "launchminer"; Description: "{cm:TaskLaunchMiner}"; GroupDescription: "{cm:GroupAfter}"; Flags: checkedonce
+Name: "launchorders"; Description: "{cm:TaskLaunchOrders}"; GroupDescription: "{cm:GroupAfter}"; Flags: unchecked
+Name: "autostart"; Description: "Run HackMe Miner when Windows starts (optional)"; GroupDescription: "{cm:GroupStartup}"; Flags: unchecked
+Name: "toolchains"; Description: "{cm:TaskToolchains}"; GroupDescription: "{cm:GroupDev}"; Flags: unchecked
 
 [Files]
 Source: "..\..\..\dist\release_{#MyAppVersion}\windows\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -92,6 +109,7 @@ Source: "..\..\..\dist\release_{#MyAppVersion}\windows\update_hackme_miner.ps1";
 Source: "..\..\..\dist\release_{#MyAppVersion}\windows\update_hackme_miner.bat"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\..\..\dist\release_{#MyAppVersion}\windows\setup_hackme_miner.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\..\dist\release_{#MyAppVersion}\windows\start_hackme_miner.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\..\dist\release_{#MyAppVersion}\windows\start_hackme_orders.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\..\dist\release_{#MyAppVersion}\windows\autostart_pool_worker.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\..\dist\release_{#MyAppVersion}\windows\watchdog_pool_worker.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\..\dist\release_{#MyAppVersion}\windows\run_watchdog_hidden.vbs"; DestDir: "{app}"; Flags: ignoreversion
@@ -105,6 +123,10 @@ Source: "..\..\..\dist\release_{#MyAppVersion}\windows\env.public_pool.example";
 Source: "..\..\..\dist\release_{#MyAppVersion}\windows\MINER_WINDOWS_ONE_CLICK.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\..\..\dist\release_{#MyAppVersion}\windows\RELEASE_QUICKSTART.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\..\..\dist\release_{#MyAppVersion}\windows\README.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\..\..\dist\release_{#MyAppVersion}\windows\install_from_code_toolchains.bat"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\..\..\dist\release_{#MyAppVersion}\windows\install_from_code_toolchains.ps1"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\..\..\dist\release_{#MyAppVersion}\windows\hackme-fuzzing.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\..\..\dist\release_{#MyAppVersion}\windows\hackme-fuzzing-build.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "Install-HackMe.ps1"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "HackMe-Install.cmd"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "detect_gpu.ps1"; Flags: dontcopy
@@ -112,33 +134,42 @@ Source: "detect_gpu.ps1"; Flags: dontcopy
 [Dirs]
 Name: "{app}\logs"; Permissions: users-modify
 Name: "{app}\data"; Permissions: users-modify
+Name: "{app}\logs\orders"; Permissions: users-modify
 
 [Icons]
 Name: "{group}\{#MyAppName} Miner"; Filename: "{app}\start_hackme_miner.bat"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "Public pool miner — hackme.tech"
-Name: "{group}\{#MyAppName} Dashboard"; Filename: "http://127.0.0.1:8080/#mining"; IconFilename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName} Orders"; Filename: "{app}\start_hackme_orders.bat"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "B2B Dig/Hunt orders — local node"
+Name: "{group}\{#MyAppName} Dashboard"; Filename: "http://127.0.0.1:8080/"; IconFilename: "{app}\{#MyAppExeName}"
 Name: "{group}\Configure miner"; Filename: "{app}\setup_hackme_miner.bat"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"
 Name: "{group}\Check for updates"; Filename: "{app}\update_hackme_miner.bat"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "Fetch latest.json and update HackMe (keeps hackme.env)"
 Name: "{group}\Repair miner env"; Filename: "{app}\repair_fair_env.bat"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "Refresh hackme.env (fair pool settings)"
-Name: "{group}\Repair miner env"; Filename: "{app}\repair_fair_env.bat"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "Refresh hackme.env (fair pool settings)"
 Name: "{group}\Readme — first steps"; Filename: "{app}\MINER_WINDOWS_ONE_CLICK.md"; IconFilename: "{app}\{#MyAppExeName}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName} Miner"; Filename: "{app}\start_hackme_miner.bat"; Tasks: desktopicon; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"
+Name: "{autodesktop}\{#MyAppName} Miner"; Filename: "{app}\start_hackme_miner.bat"; Tasks: desktopicon; Check: IsMinerProfile; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"
+Name: "{autodesktop}\{#MyAppName} Orders"; Filename: "{app}\start_hackme_orders.bat"; Tasks: desktopicon; Check: IsOrdersProfile; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"
 
 [Registry]
 Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "InstallProfile"; ValueData: "{code:GetInstallProfile}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "GpuBackend"; ValueData: "{code:GetGpuBackendChoice}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "HackMeNode"; ValueData: """{app}\hackme_autostart_boot.bat"""; Flags: uninsdeletevalue; Tasks: autostart
 
 [Run]
-Filename: "{app}\start_hackme_miner.bat"; Description: "Launch {#MyAppName} Miner"; Flags: nowait postinstall skipifsilent; Tasks: launchminer
+Filename: "{app}\start_hackme_miner.bat"; Description: "Launch {#MyAppName} Miner"; Flags: nowait postinstall skipifsilent; Tasks: launchminer; Check: IsMinerProfile
+Filename: "{app}\start_hackme_orders.bat"; Description: "Launch {#MyAppName} Orders"; Flags: nowait postinstall skipifsilent; Tasks: launchorders; Check: IsOrdersProfile
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\logs"
+Type: filesandordirs; Name: "{app}\toolchains"
 Type: dirifempty; Name: "{app}"
 
 [Code]
 var
+  ProfilePage: TWizardPage;
+  RbMiner, RbOrders: TNewRadioButton;
+  LblMinerHint, LblOrdersHint, LblProfileNote: TNewStaticText;
+  InstallProfile: String;
   GpuPage: TWizardPage;
   LblDetected, LblTip: TLabel;
   RbAuto, RbCuda, RbOpenCL, RbCpu: TRadioButton;
@@ -148,6 +179,21 @@ var
 function GetGpuBackendChoice(Param: String): String;
 begin
   Result := GpuBackendChoice;
+end;
+
+function GetInstallProfile(Param: String): String;
+begin
+  Result := InstallProfile;
+end;
+
+function IsMinerProfile: Boolean;
+begin
+  Result := (InstallProfile = 'miner');
+end;
+
+function IsOrdersProfile: Boolean;
+begin
+  Result := (InstallProfile = 'orders');
 end;
 
 function BoolStr(Ok: Boolean): String;
@@ -195,7 +241,7 @@ begin
   if Tip <> '' then
     GpuTip := Tip
   else if GpuSummaryLooksNvidia(GpuSummary) then
-    GpuTip := 'NVIDIA on Windows: OpenCL ~9 GH/s. HackMe OS / Linux: CUDA ~60+ GH/s (workerpoh-cuda.exe not in this Windows build).'
+    GpuTip := 'NVIDIA on Windows: OpenCL path. HackMe OS / Linux: CUDA for max GH/s.'
   else
     GpuTip := 'Pick Auto, NVIDIA CUDA, AMD OpenCL, or CPU-only below.';
 end;
@@ -232,9 +278,99 @@ begin
     LblTip.Caption := ExpandConstant('{cm:GpuTip}') + ' ' + GpuTip;
 end;
 
-procedure InitializeWizard;
+procedure SyncProfileChoice;
 begin
+  if Assigned(RbOrders) and RbOrders.Checked then
+    InstallProfile := 'orders'
+  else
+    InstallProfile := 'miner';
+end;
+
+procedure ProfileRadioClick(Sender: TObject);
+begin
+  SyncProfileChoice;
+end;
+
+procedure ApplyProfileTaskDefaults;
+begin
+  SyncProfileChoice;
+  if IsOrdersProfile then
+  begin
+    WizardSelectTasks('launchorders,toolchains,!launchminer,!autostart');
+  end
+  else
+  begin
+    WizardSelectTasks('launchminer,!launchorders');
+  end;
+end;
+
+procedure InitializeWizard;
+var
+  TopY: Integer;
+begin
+  InstallProfile := 'miner';
   GpuBackendChoice := 'auto';
+
+  ProfilePage := CreateCustomPage(wpWelcome,
+    ExpandConstant('{cm:ProfilePageTitle}'),
+    ExpandConstant('{cm:ProfilePageSubtitle}'));
+
+  TopY := 8;
+  RbMiner := TNewRadioButton.Create(ProfilePage);
+  RbMiner.Parent := ProfilePage.Surface;
+  RbMiner.Left := 0;
+  RbMiner.Top := TopY;
+  RbMiner.Width := ProfilePage.SurfaceWidth;
+  RbMiner.Height := 22;
+  RbMiner.Caption := ExpandConstant('{cm:RbMiner}');
+  RbMiner.Checked := True;
+  RbMiner.OnClick := @ProfileRadioClick;
+  RbMiner.Font.Style := [fsBold];
+
+  LblMinerHint := TNewStaticText.Create(ProfilePage);
+  LblMinerHint.Parent := ProfilePage.Surface;
+  LblMinerHint.Left := 20;
+  LblMinerHint.Top := TopY + 24;
+  LblMinerHint.Width := ProfilePage.SurfaceWidth - 24;
+  LblMinerHint.Height := 36;
+  LblMinerHint.AutoSize := False;
+  LblMinerHint.WordWrap := True;
+  LblMinerHint.Caption := ExpandConstant('{cm:RbMinerHint}');
+  LblMinerHint.Font.Color := clGray;
+
+  TopY := TopY + 72;
+  RbOrders := TNewRadioButton.Create(ProfilePage);
+  RbOrders.Parent := ProfilePage.Surface;
+  RbOrders.Left := 0;
+  RbOrders.Top := TopY;
+  RbOrders.Width := ProfilePage.SurfaceWidth;
+  RbOrders.Height := 22;
+  RbOrders.Caption := ExpandConstant('{cm:RbOrders}');
+  RbOrders.OnClick := @ProfileRadioClick;
+  RbOrders.Font.Style := [fsBold];
+
+  LblOrdersHint := TNewStaticText.Create(ProfilePage);
+  LblOrdersHint.Parent := ProfilePage.Surface;
+  LblOrdersHint.Left := 20;
+  LblOrdersHint.Top := TopY + 24;
+  LblOrdersHint.Width := ProfilePage.SurfaceWidth - 24;
+  LblOrdersHint.Height := 48;
+  LblOrdersHint.AutoSize := False;
+  LblOrdersHint.WordWrap := True;
+  LblOrdersHint.Caption := ExpandConstant('{cm:RbOrdersHint}');
+  LblOrdersHint.Font.Color := clGray;
+
+  LblProfileNote := TNewStaticText.Create(ProfilePage);
+  LblProfileNote.Parent := ProfilePage.Surface;
+  LblProfileNote.Left := 0;
+  LblProfileNote.Top := TopY + 88;
+  LblProfileNote.Width := ProfilePage.SurfaceWidth;
+  LblProfileNote.Height := 48;
+  LblProfileNote.AutoSize := False;
+  LblProfileNote.WordWrap := True;
+  LblProfileNote.Caption := 'Both profiles share one install folder. Start menu always includes Miner and Orders shortcuts.';
+  LblProfileNote.Font.Color := clGray;
+
   GpuPage := CreateCustomPage(wpSelectTasks, ExpandConstant('{cm:GpuPageTitle}'), ExpandConstant('{cm:GpuPageSubtitle}'));
 
   LblDetected := TLabel.Create(GpuPage);
@@ -287,9 +423,21 @@ begin
   GpuDetectDone := False;
 end;
 
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+  if Assigned(GpuPage) and (PageID = GpuPage.ID) then
+    Result := IsOrdersProfile;
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
+  if Assigned(ProfilePage) and (CurPageID = ProfilePage.ID) then
+  begin
+    SyncProfileChoice;
+    ApplyProfileTaskDefaults;
+  end;
   if Assigned(GpuPage) and (CurPageID = GpuPage.ID) then
   begin
     if RbCuda.Checked then GpuBackendChoice := 'cuda'
@@ -325,28 +473,42 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
+    SyncProfileChoice;
     AppDir := ExpandConstant('{app}');
-    PsDetect := AppDir + '\detect_gpu.ps1';
-    PsWrite := AppDir + '\write_hackme_env.ps1';
-    if FileExists(PsDetect) then
+
+    if IsMinerProfile then
     begin
-      Cmd := '-NoProfile -ExecutionPolicy Bypass -File "' + PsDetect + '" -OutFile "' + AppDir + '\gpu_detect.json"';
-      Exec('powershell.exe', Cmd, AppDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      PsDetect := AppDir + '\detect_gpu.ps1';
+      PsWrite := AppDir + '\write_hackme_env.ps1';
+      if FileExists(PsDetect) then
+      begin
+        Cmd := '-NoProfile -ExecutionPolicy Bypass -File "' + PsDetect + '" -OutFile "' + AppDir + '\gpu_detect.json"';
+        Exec('powershell.exe', Cmd, AppDir, SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      end;
+      ShowCudaNote := (not FileExists(AppDir + '\workerpoh-cuda.exe')) and
+        (GpuSummaryLooksNvidia(GpuSummary) or (GpuBackendChoice = 'cuda'));
+      if ShowCudaNote then
+        MsgBox(ExpandConstant('{cm:CudaMissingNote}'), mbInformation, MB_OK);
+      if FileExists(PsWrite) then
+      begin
+        Cmd := '-NoProfile -ExecutionPolicy Bypass -File "' + PsWrite + '" -InstallDir "' + AppDir + '" -GpuBackend ' + GpuBackendChoice + ' -NonInteractive';
+        if not Exec('powershell.exe', Cmd, AppDir, SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+          MsgBox('HackMe: could not write hackme.env. Run Configure miner from the Start menu.', mbError, MB_OK);
+      end
+      else
+      begin
+        Cmd := '/c set HACKME_SETUP_NONINTERACTIVE=1&& set HACKME_GPU_BACKEND_CHOICE=' + GpuBackendChoice + '&& call "' + AppDir + '\setup_hackme_miner.bat"';
+        Exec(ExpandConstant('{cmd}'), Cmd, AppDir, SW_SHOW, ewWaitUntilTerminated, ResultCode);
+      end;
     end;
-    ShowCudaNote := (not FileExists(AppDir + '\workerpoh-cuda.exe')) and
-      (GpuSummaryLooksNvidia(GpuSummary) or (GpuBackendChoice = 'cuda'));
-    if ShowCudaNote then
-      MsgBox(ExpandConstant('{cm:CudaMissingNote}'), mbInformation, MB_OK);
-    if FileExists(PsWrite) then
+
+    if WizardIsTaskSelected('toolchains') then
     begin
-      Cmd := '-NoProfile -ExecutionPolicy Bypass -File "' + PsWrite + '" -InstallDir "' + AppDir + '" -GpuBackend ' + GpuBackendChoice + ' -NonInteractive';
-      if not Exec('powershell.exe', Cmd, AppDir, SW_SHOW, ewWaitUntilTerminated, ResultCode) then
-        MsgBox('HackMe: could not write hackme.env. Run Configure miner from the Start menu.', mbError, MB_OK);
-    end
-    else
-    begin
-      Cmd := '/c set HACKME_SETUP_NONINTERACTIVE=1&& set HACKME_GPU_BACKEND_CHOICE=' + GpuBackendChoice + '&& call "' + AppDir + '\setup_hackme_miner.bat"';
-      Exec(ExpandConstant('{cmd}'), Cmd, AppDir, SW_SHOW, ewWaitUntilTerminated, ResultCode);
+      if FileExists(AppDir + '\install_from_code_toolchains.ps1') then
+      begin
+        Cmd := '-NoProfile -ExecutionPolicy Bypass -File "' + AppDir + '\install_from_code_toolchains.ps1" -AppDir "' + AppDir + '"';
+        Exec('powershell.exe', Cmd, AppDir, SW_SHOW, ewWaitUntilTerminated, ResultCode);
+      end;
     end;
   end;
 end;

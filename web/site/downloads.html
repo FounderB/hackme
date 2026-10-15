@@ -5,12 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HackMe Downloads · 0.1.0-rc17.3</title>
   <meta name="description" content="HackMe 0.1.0-rc17.3 LIVE — Win/Linux/deb/ISO with SHA256SUMS. Verify SHA256." />
+  <link rel="canonical" href="https://hackme.tech/downloads.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://hackme.tech/downloads.html" />
+  <meta property="og:title" content="HackMe Downloads · 0.1.0-rc17.3" />
+  <meta property="og:description" content="Installers LIVE — Win/Linux/deb/ISO. Verify SHA256SUMS before install." />
+  <meta property="og:image" content="https://hackme.tech/assets/og-share-1200x630.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="HackMe Downloads · 0.1.0-rc17.3" />
+  <meta name="twitter:description" content="Installers LIVE — Win/Linux/deb/ISO. Verify SHA256SUMS before install." />
+  <meta name="twitter:image" content="https://hackme.tech/assets/og-share-1200x630.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20260916more3" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20261015site1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="/assets/favicon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
   <style>
     .dl-pick {
       display: grid;
@@ -151,17 +164,17 @@
       <div class="dl-pick">
         <article class="card glass">
           <h3>Windows</h3>
-          <p class="subtle">One-click Setup. Watchdog keeps the worker running.</p>
+          <p class="subtle">Setup wizard: <strong>Miner</strong> (public pool) or <strong>Orders</strong> (B2B Dig/Hunt). Watchdog for Miner.</p>
           <a id="download-win" class="btn btn-primary btn-block" href="#">Download Setup (.exe)</a>
           <a id="download-win-zip" class="btn btn-secondary btn-block" href="#">Portable ZIP</a>
         </article>
         <article class="card glass">
           <h3>Linux</h3>
-          <p class="subtle">Tarball includes pool token. Apt/.deb needs one extra step → <a href="#pool-token">#pool-token</a>.</p>
+          <p class="subtle">Tarball includes pool token + Orders launcher. Apt/.deb needs one extra step → <a href="#pool-token">#pool-token</a>.</p>
           <a id="download-linux" class="btn btn-primary btn-block" href="#">Download Linux Bundle</a>
           <a id="download-linux-deb" class="btn btn-secondary btn-block" href="#">Download .deb</a>
-          <p class="subtle" style="font-size:0.82rem">Tar: <code>cd linux &amp;&amp; bash start_hackme_miner.sh</code><br>
-            Deb: <code>sudo apt install ./hackme-node_*.deb</code> · apt repo → <a href="#apt">#apt</a></p>
+          <p class="subtle" style="font-size:0.82rem">Miner: <code>cd linux &amp;&amp; bash start_hackme_miner.sh</code><br>
+            Orders: <code>bash start_hackme_orders.sh</code> · Deb: <code>sudo apt install ./hackme-node_*.deb</code> · <a href="#apt">#apt</a></p>
         </article>
         <article class="card glass" id="hackme-os">
           <h3>HackMe OS</h3>
@@ -174,9 +187,9 @@
 
       <div class="dl-strip">
         <strong style="color:#6effad;letter-spacing:0.06em;font-size:0.72rem;text-transform:uppercase">After install</strong>
-        <span class="subtle">Windows: Start → <em>HackMe Miner</em></span>
-        <span class="subtle">Linux tar: <code>bash start_hackme_miner.sh</code></span>
-        <span class="subtle">Linux apt: Apps → <em>HackMe</em> · <a href="#pool-token">pool token</a></span>
+        <span class="subtle">Windows: Start → <em>HackMe Miner</em> or <em>HackMe Orders</em></span>
+        <span class="subtle">Linux tar: <code>start_hackme_miner.sh</code> / <code>start_hackme_orders.sh</code></span>
+        <span class="subtle">Linux apt: Apps → <em>HackMe</em> · Orders menu · <a href="#pool-token">pool token</a></span>
         <span class="subtle">Update: <code>update_hackme_miner.bat</code> / <code>bash update_hackme_miner.sh</code></span>
       </div>
     </section>
@@ -259,13 +272,13 @@ bash /opt/hackme/hackme_desktop_launch.sh
       <div class="panel-head">
         <p class="kicker" style="color:#00d1ff">B2B · Local node</p>
         <h2>Orders stay on your PC</h2>
-        <p class="subtle">Run the same node as miners. Dashboard <code>http://127.0.0.1:8080</code> → Wallet → Market. Exchange tab <code>#exchange</code> embeds <a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a> (open the public desk directly if you are not running a local node). Pool only executes work.</p>
+        <p class="subtle">Prefer the <strong>Orders</strong> profile (Win Setup → Orders, or Linux <code>start_hackme_orders.sh</code>) — local node + <code>#orders</code>, no mining worker. Same binaries as Miner. Exchange tab embeds <a href="https://exchange.hackme.tech/" target="_blank" rel="noreferrer">exchange.hackme.tech</a>. Pool only executes work.</p>
       </div>
       <ol class="check-list" style="margin-top:0.85rem">
-        <li>Install Windows / Linux / apt / ISO above and start the node on <code>127.0.0.1:8080</code>.</li>
-        <li>Open dashboard → <strong>Wallet</strong>: orders need <strong>local spendable HMC</strong> (not only on-chain display). Fresh install: genesis is enough; follower desktops must fund the local wallet row.</li>
-        <li>Open dashboard → <strong>Developer token</strong> → <strong>Issue</strong> (or CLI <code>register --save</code> when self-register is on).</li>
-        <li>Create Dig in <strong>#orders</strong>, or CLI: <code>hackme-fuzzing wizard --pack secrets --package audit</code> · Hunt: <code>bash scripts/ops/install_hunt_engines.sh --desktop</code> then <code>hackme-fuzzing hunt create …</code>.</li>
+        <li>Install above → start <em>HackMe Orders</em> (or Miner, then open <code>#orders</code>) on <code>127.0.0.1:8080</code>.</li>
+        <li>Dashboard → <strong>Wallet</strong>: orders need <strong>local spendable HMC</strong> (not only on-chain display). Fresh install: genesis is enough; follower desktops must fund the local wallet row.</li>
+        <li>Dashboard → <strong>Developer token</strong> → <strong>Issue</strong> (or CLI <code>./hackme-fuzzing register --save</code> — ships in the Orders folder / Linux tar).</li>
+        <li>Create Dig in <strong>#orders</strong>, or CLI: <code>./hackme-fuzzing wizard --pack secrets --package audit</code> · Hunt: engines auto-install on Linux update; or <code>bash install_hunt_engines.sh --desktop</code> then <code>./hackme-fuzzing hunt create …</code>.</li>
         <li>Use gate/report URLs on <code>http://127.0.0.1:8080</code> (campaign data stays on your PC).</li>
       </ol>
       <p class="dl-muted-links subtle">
@@ -343,7 +356,7 @@ chmod +x hackme-fuzzing-*
     <div class="footer-nav"></div>
   </footer>
 
-  <script src="./assets/site-shell.js?v=20260916more3"></script>
-  <script src="./assets/app.js?v=20260914dev1"></script>
+  <script src="./assets/site-shell.js?v=20261015site1"></script>
+  <script src="./assets/app.js?v=20261015site1"></script>
 </body>
 </html>
