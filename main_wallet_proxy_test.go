@@ -37,6 +37,7 @@ func newWalletTestApp(t *testing.T) (*app, *sql.DB) {
 		chain:  ch,
 		miner:  chain.NewMiner(0.01, nil, nil, chain.InternalTaskProvider{}),
 		db:     db,
+		signer: signer,
 		rlHits: make(map[string]rateSlot),
 		rlBan:  make(map[string]int64),
 	}, db

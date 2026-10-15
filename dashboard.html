@@ -3012,7 +3012,7 @@
 							<div class="max-w-3xl">
 								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">Useful-PoW market</p>
 								<h2 class="orders-hero-title">Security audits &amp; orders</h2>
-								<p id="orders-panel-subtitle" class="text-[12px] text-gray-400 mt-1 max-w-2xl leading-relaxed">Pick Dig or Hunt → Start. Desktop Orders auto-funds ~100 HMC spendable and syncs the admin token — no console. Debits <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">Orders spendable</a> · reports in <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz</a>.</p>
+								<p id="orders-panel-subtitle" class="text-[12px] text-gray-400 mt-1 max-w-2xl leading-relaxed">Send on-chain HMC to your Orders address → <strong class="text-white/85">Fund Orders</strong> → Dig/Hunt Start. Spendable is prepaid escrow (not free genesis). Debits <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">Orders spendable</a> · reports in <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz</a>.</p>
 							</div>
 							<button type="button" id="btn-orders-refresh" class="btn-order-ghost shrink-0">Refresh</button>
 						</div>
@@ -3023,7 +3023,7 @@
 						</div>
 					</div>
 					<div id="orders-market-banner" class="orders-banner info">
-						<strong class="text-neon">Ready when token syncs</strong> — on desktop Orders the admin token syncs automatically. Then open Dig or Hunt and press Start.
+						<strong class="text-neon">Fund then Start</strong> — sync desktop token, send on-chain HMC to the Orders address, press <strong>Fund Orders</strong>, then Dig/Hunt.
 					</div>
 					<div id="orders-wallet-gate" class="hidden rounded-lg border border-warn/35 bg-warn/5 p-3 text-[11px] text-warn/95 leading-snug"></div>
 					<div id="orders-balance-strip" class="orders-balance-strip hidden">
@@ -3032,6 +3032,17 @@
 						<span id="orders-onchain-hmc" class="text-gray-500 font-mono text-[10px]"></span>
 						<span id="orders-balance-alignment" class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded border border-white/10 text-gray-400"></span>
 						<a href="#" class="text-neon/90 underline text-[10px] ml-auto" data-goto-tab="wallet">Wallet breakdown →</a>
+					</div>
+					<div id="orders-fund-panel" class="rounded-lg border border-neon/25 bg-black/30 p-3 space-y-2">
+						<p class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Fund Orders · on-chain → spendable</p>
+						<p class="text-[11px] text-gray-400 leading-snug">Address <code id="orders-fund-address" class="text-neon/90 break-all">—</code> — send HMC here from miner/CEX, then fund.</p>
+						<div class="flex flex-wrap items-end gap-2">
+							<label class="text-[10px] text-gray-500">Amount HMC
+								<input id="orders-fund-amount" type="number" min="15" step="1" value="20" class="ml-1 w-24 rounded border border-white/15 bg-black/50 px-2 py-1 text-white font-mono text-[12px]" />
+							</label>
+							<button type="button" id="btn-orders-fund" class="btn-order-primary">Fund Orders</button>
+						</div>
+						<p id="orders-fund-msg" class="text-[11px] text-gray-400 font-mono min-h-[1.25rem]"></p>
 					</div>
 					<div id="orders-security-audit" class="hidden order-product-card dig-card" data-orders-section="dig">
 						<p class="card-kicker text-neon">Dig · recommended</p>
@@ -5464,7 +5475,7 @@
 					banner.textContent = 'Local ledger is ahead of canonical — sync before large order escrows.';
 				} else if (align === 'canonical_ahead') {
 					banner.classList.remove('hidden');
-					banner.textContent = 'To pay Dig/Hunt use «Orders spendable» (' + fmt(orders, 2) + ' HMC) — not the on-chain number. Orders profile auto-funds local spendable on first start.';
+					banner.textContent = 'To pay Dig/Hunt use «Orders spendable» (' + fmt(orders, 2) + ' HMC) — not the on-chain number. Use Fund Orders to lock on-chain HMC into spendable.';
 				} else {
 					banner.classList.add('hidden');
 					banner.textContent = '';
@@ -5645,7 +5656,67 @@
 				badge.textContent = lab.text;
 				badge.className = 'text-[9px] uppercase tracking-wider px-2 py-0.5 rounded border ' + lab.cls;
 			}
+			const addrEl = $('orders-fund-address');
+			if (addrEl) {
+				const addr = walletKnownAddress();
+				addrEl.textContent = addr.startsWith('HMC-') ? addr : '—';
+			}
 			try { refreshHuntSpendableHint(); } catch (_) {}
+		}
+		async function submitOrdersFund() {
+			const msg = $('orders-fund-msg');
+			const btn = $('btn-orders-fund');
+			await ensureDesktopAdminToken(true);
+			if (!adminTokenCurrent()) {
+				if (msg) msg.textContent = 'Auth missing — wait for desktop token sync.';
+				return;
+			}
+			const amount = Number(($('orders-fund-amount') && $('orders-fund-amount').value) || 0);
+			if (!(amount >= 15)) {
+				if (msg) msg.textContent = 'Minimum fund is 15 HMC (Hunt Lite floor).';
+				return;
+			}
+			if (btn) btn.disabled = true;
+			if (msg) msg.textContent = 'Submitting on-chain fund transfer…';
+			try {
+				const r = await fetch('/api/orders/fund', {
+					method: 'POST',
+					headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+					body: JSON.stringify({ amount_hmc: amount })
+				});
+				const j = await r.json().catch(() => ({}));
+				if (r.status === 402 || (j && j.code === 'insufficient_on_chain')) {
+					if (msg) msg.textContent = (j && j.error) ? j.error : 'Insufficient on-chain HMC — send coins to the Orders address first.';
+					return;
+				}
+				if (j && j.code === 'fund_pending_confirm' && j.tx_hash) {
+					if (msg) msg.textContent = 'Tx ' + j.tx_hash.slice(0, 16) + '… pending inclusion — confirming…';
+					const c = await fetch('/api/orders/fund/confirm', {
+						method: 'POST',
+						headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders()),
+						body: JSON.stringify({ tx_hash: j.tx_hash, amount_hmc: amount })
+					});
+					const cj = await c.json().catch(() => ({}));
+					if (!c.ok || !cj.ok) {
+						if (msg) msg.textContent = (cj && cj.error) ? cj.error : ('Confirm failed HTTP ' + c.status + ' — retry Fund/confirm later');
+						return;
+					}
+					if (msg) msg.textContent = 'Funded ' + fmt(Number((cj.funded && cj.funded.amount_hmc) || amount), 4) + ' HMC spendable.';
+					await refreshWallet(true);
+					return;
+				}
+				if (!r.ok || !j.ok) {
+					if (msg) msg.textContent = (j && j.error) ? j.error : ('Fund failed HTTP ' + r.status);
+					return;
+				}
+				if (msg) msg.textContent = 'Funded ' + fmt(Number((j.funded && j.funded.amount_hmc) || amount), 4) + ' HMC spendable.';
+				await refreshWallet(true);
+			} catch (e) {
+				if (msg) msg.textContent = String(e && e.message ? e.message : e);
+			} finally {
+				if (btn) btn.disabled = false;
+				try { refreshHuntSpendableHint(); } catch (_) {}
+			}
 		}
 		function paintWalletShellInstant() {
 			restoreWalletSnapshotCache();
@@ -14791,7 +14862,7 @@
 			const tok = !!(developerTokenCurrent() || adminTokenCurrent());
 			el.textContent = 'Spendable: ' + fmt(spend, 2) + ' HMC · need ~' + need + ' for ' + pkg
 				+ (tok ? ' · auth OK' : ' · waiting for desktop token sync')
-				+ (spend + 0.0001 >= need ? ' · ready to Start' : ' · restart Orders once to auto-fund ~100 HMC');
+				+ (spend + 0.0001 >= need ? ' · ready to Start' : ' · Fund Orders from on-chain first');
 			el.classList.toggle('text-warn', spend + 0.0001 < need || !tok);
 			el.classList.toggle('text-matrix', spend + 0.0001 >= need && tok);
 		}
@@ -14810,7 +14881,7 @@
 			const need = pkg === 'hunt_heavy' ? 150 : (pkg === 'hunt_standard' ? 60 : 20);
 			const spend = Number(walletSnapshot.ordersSpendableHMC || 0);
 			if (spend + 0.0001 < need) {
-				if (msg) msg.textContent = 'Not enough Orders spendable (' + fmt(spend, 2) + ' HMC). Restart HackMe Orders once — starter ~100 HMC is credited automatically. On-chain balance cannot pay Hunt.';
+				if (msg) msg.textContent = 'Not enough Orders spendable (' + fmt(spend, 2) + ' HMC). Send on-chain HMC to the Orders address, then click Fund Orders (min 15 HMC).';
 				return;
 			}
 			const title = String(($('hunt-title') && $('hunt-title').value) || '').trim() || ('hunt-' + Date.now());
@@ -16364,6 +16435,7 @@
 				if ($('chain-limit')) $('chain-limit').addEventListener('change', () => { void refreshChainList(); });
 				if ($('btn-open-explorer-chain')) $('btn-open-explorer-chain').addEventListener('click', () => { window.location.href = '/explorer'; });
 				if ($('btn-orders-refresh')) $('btn-orders-refresh').addEventListener('click', () => { void refreshOrdersList(); });
+				if ($('btn-orders-fund')) $('btn-orders-fund').addEventListener('click', () => { void submitOrdersFund(); });
 				if ($('btn-orders-toggle-advanced')) $('btn-orders-toggle-advanced').addEventListener('click', () => {
 					ordersAdvanced = !ordersAdvanced;
 					const wrap = $('orders-advanced-wrap');

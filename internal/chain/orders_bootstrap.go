@@ -11,11 +11,11 @@ import (
 
 const metaOrdersStarterFunded = "orders_starter_funded_v1"
 
-// DefaultOrdersStarterHMC is credited once to the primary wallet for B2B Orders desktops
-// so Dig/Hunt escrow works without understanding on-chain vs local ledgers.
-const DefaultOrdersStarterHMC = 100.0
+// DefaultOrdersStarterHMC is 0 for production honesty — customers Fund Orders from on-chain HMC.
+// Set HACKME_ORDERS_STARTER_HMC>0 only for local demos.
+const DefaultOrdersStarterHMC = 0.0
 
-// OrdersStarterHMCFromEnv returns starter budget (HMC). 0 disables bootstrap credit.
+// OrdersStarterHMCFromEnv returns starter budget (HMC). Empty/invalid → 0 (disabled).
 func OrdersStarterHMCFromEnv() float64 {
 	v := strings.TrimSpace(os.Getenv("HACKME_ORDERS_STARTER_HMC"))
 	if v == "" {

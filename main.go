@@ -568,6 +568,8 @@ func main() {
 	mux.HandleFunc("/api/fuzz/marketplace", a.handleFuzzMarketplace)
 	mux.HandleFunc("/api/fuzz/housekeeping", a.handleFuzzHousekeeping)
 	mux.HandleFunc("/api/fuzz/artifacts/cleanup", a.handleFuzzArtifactsCleanup)
+	mux.HandleFunc("/api/orders/fund", a.handleOrdersFundAPI)
+	mux.HandleFunc("/api/orders/fund/", a.handleOrdersFundAPI)
 	mux.HandleFunc("/api/tx/send", a.handleTransferSend)
 	mux.HandleFunc("/api/sup/economics", a.handleSUPEconomics)
 	mux.HandleFunc("/api/sup/genesis", a.handleSUPGenesisInit)
