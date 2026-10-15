@@ -180,7 +180,8 @@ func CampaignConfig(ctx context.Context, repoRoot string, req CreateRequest) (ma
 			return nil, "", err
 		}
 	} else if _, err := MergeLibFuzzerSeedCorpus(cfg, repoRoot, targetID); err != nil {
-		return nil, "", fmt.Errorf("hunt: libfuzzer seed import: %w", err)
+		// Optional on desktop Orders (empty cache / Windows path allowlist). Pool workers carry seeds.
+		cfg["libfuzzer_seed_note"] = err.Error()
 	}
 	// Pool Standard/Heavy: ~90s LF walls (was MaxEngineLeaseSec=300 — over-long + AFL soft_skip storms).
 	if pool {

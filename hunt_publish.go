@@ -10,6 +10,29 @@ import (
 	"hackme/internal/poolsync"
 )
 
+func huntCatalogSource(cfg map[string]any) bool {
+	if cfg == nil {
+		return false
+	}
+	src := strings.ToLower(strings.TrimSpace(toString(cfg["hunt_source"])))
+	if src == "catalog" || src == "" {
+		// Inventory always sets hunt_source_rel; catalog pool uses upstream_target_id only.
+		if strings.TrimSpace(toString(cfg["hunt_source_rel"])) != "" {
+			return false
+		}
+		return strings.TrimSpace(toString(cfg["upstream_target_id"])) != ""
+	}
+	return false
+}
+
+func isClangRequiredErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "clang required")
+}
+
 func (a *app) publishHuntHarnessForConfig(ctx context.Context, cfg map[string]any) error {
 	if cfg == nil || !poolfuzz.IsHuntCampaign(cfg) {
 		return nil
@@ -30,6 +53,14 @@ func (a *app) publishHuntHarnessForConfig(ctx context.Context, cfg map[string]an
 		}
 		bin, err := hunt.EnsureHarnessBinary(ctx, root, targetID, hash)
 		if err != nil {
+			// Desktop Orders (esp. Windows) often lack clang — catalog pool campaigns
+			// still open escrow; fleet miners rebuild from upstream_target_id.
+			if huntCatalogSource(cfg) && isClangRequiredErr(err) {
+				cfg["harness_build_deferred"] = true
+				cfg["harness_fetch_path"] = hunt.HarnessFetchURL(hash)
+				cfg["harness_publish_note"] = "local clang missing — harness build deferred to pool miners"
+				return nil
+			}
 			return err
 		}
 		cachePath = bin

@@ -1,12 +1,16 @@
 package fuzzupstream
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+//go:embed oss_cve_targets.json
+var embeddedOSSCVETargetsJSON []byte
 
 // Manifest is upstream/oss_cve_targets.json.
 type Manifest struct {
@@ -155,6 +159,8 @@ type HuntReport struct {
 }
 
 // LoadManifest reads upstream/oss_cve_targets.json from repo root.
+// Desktop/Orders installs often lack the upstream/ tree — fall back to the
+// embedded catalog so Catalog Hunt works from a portable zip/Setup.
 func LoadManifest(repoRoot string) (*Manifest, error) {
 	if repoRoot == "" {
 		repoRoot = "."
@@ -162,7 +168,10 @@ func LoadManifest(repoRoot string) (*Manifest, error) {
 	p := filepath.Join(repoRoot, "upstream", "oss_cve_targets.json")
 	b, err := os.ReadFile(p)
 	if err != nil {
-		return nil, err
+		if len(embeddedOSSCVETargetsJSON) == 0 {
+			return nil, err
+		}
+		b = embeddedOSSCVETargetsJSON
 	}
 	var m Manifest
 	if err := json.Unmarshal(b, &m); err != nil {

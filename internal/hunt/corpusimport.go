@@ -44,6 +44,10 @@ func LoadLibFuzzerSeedFiles(dir string, maxSeeds int) ([][]byte, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
+		// Missing seed cache is normal on fresh Orders installs — not an error.
+		if _, stErr := os.Stat(filepath.Clean(dir)); stErr != nil && os.IsNotExist(stErr) {
+			return nil, nil
+		}
 		// Fall back: allowlisted absolute dir outside repo root (tests/tmp).
 		safeDir, aerr := allowlistedAbs(dir)
 		if aerr != nil {

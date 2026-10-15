@@ -63,6 +63,7 @@ if not exist "%ENV_FILE%" (
     echo HACKME_DESKTOP_GPU_POOL=0
     echo HACKME_DATA_DIR=!DATA_DIR!
     echo HACKME_WORKING_DIR=!APP_DIR!
+    echo HACKME_REPO_ROOT=!APP_DIR!
     echo HACKME_PUBLIC_AUTHORITY_BASE=https://hackme.tech
     echo HACKME_CANONICAL_CHAIN_URL=https://hackme.tech
   ) > "%ENV_FILE%"
@@ -87,8 +88,10 @@ if "!HACKME_ADMIN_TOKEN!"=="" (
 rem Ensure Orders isolation even if env file is from an older install
 if "!HACKME_DATA_DIR!"=="" set "HACKME_DATA_DIR=%DATA_DIR%"
 if "!HACKME_WORKING_DIR!"=="" set "HACKME_WORKING_DIR=%APP_DIR%"
+if "!HACKME_REPO_ROOT!"=="" set "HACKME_REPO_ROOT=%APP_DIR%"
 if "!HACKME_BIND_ADDR!"=="" set "HACKME_BIND_ADDR=127.0.0.1:8080"
 set "DESKTOP_PROFILE=orders"
+set "HACKME_REPO_ROOT=%APP_DIR%"
 set "WORKER_AUTOSTART=0"
 set "HACKME_WORKER_WATCHDOG=0"
 set "HACKME_DESKTOP_GPU_POOL=0"

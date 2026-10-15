@@ -208,6 +208,14 @@ cp "${ROOT_DIR}/scripts/release/windows/start_hackme_public_pool.bat" "${WIN_DIR
 cp "${ROOT_DIR}/scripts/release/windows/setup_hackme_miner.bat" "${WIN_DIR}/setup_hackme_miner.bat"
 cp "${ROOT_DIR}/scripts/release/windows/start_hackme_miner.bat" "${WIN_DIR}/start_hackme_miner.bat"
 cp "${ROOT_DIR}/scripts/release/windows/start_hackme_orders.bat" "${WIN_DIR}/start_hackme_orders.bat"
+# Catalog Hunt needs upstream/oss_cve_targets.json next to the binary (HACKME_REPO_ROOT).
+mkdir -p "${WIN_DIR}/upstream"
+if [[ -f "${ROOT_DIR}/upstream/oss_cve_targets.json" ]]; then
+  cp -f "${ROOT_DIR}/upstream/oss_cve_targets.json" "${WIN_DIR}/upstream/oss_cve_targets.json"
+fi
+if [[ -f "${ROOT_DIR}/upstream/pins.json" ]]; then
+  cp -f "${ROOT_DIR}/upstream/pins.json" "${WIN_DIR}/upstream/pins.json"
+fi
 cp "${ROOT_DIR}/scripts/release/windows/autostart_pool_worker.bat" "${WIN_DIR}/autostart_pool_worker.bat"
 cp "${ROOT_DIR}/scripts/release/windows/watchdog_pool_worker.bat" "${WIN_DIR}/watchdog_pool_worker.bat"
 cp "${ROOT_DIR}/scripts/release/windows/run_watchdog_hidden.vbs" "${WIN_DIR}/run_watchdog_hidden.vbs"

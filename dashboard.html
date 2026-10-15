@@ -3012,7 +3012,7 @@
 							<div class="max-w-3xl">
 								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">Useful-PoW market</p>
 								<h2 class="orders-hero-title">Security audits &amp; orders</h2>
-								<p id="orders-panel-subtitle" class="text-[12px] text-gray-400 mt-1 max-w-2xl leading-relaxed">Place Dig (WASM smoke / deep) or Hunt (native ASAN) with escrow + attested report. Not an OSS-Fuzz/CVE warranty. Debits <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">Wallet</a> · reports in <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz</a>.</p>
+								<p id="orders-panel-subtitle" class="text-[12px] text-gray-400 mt-1 max-w-2xl leading-relaxed">Pick Dig or Hunt → Start. Desktop Orders auto-funds ~100 HMC spendable and syncs the admin token — no console. Debits <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">Orders spendable</a> · reports in <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz</a>.</p>
 							</div>
 							<button type="button" id="btn-orders-refresh" class="btn-order-ghost shrink-0">Refresh</button>
 						</div>
@@ -3023,7 +3023,7 @@
 						</div>
 					</div>
 					<div id="orders-market-banner" class="orders-banner info">
-						<strong class="text-neon">Read-only</strong> — click <strong>Sync token</strong> (desktop) or save <strong>admin token</strong> to run Dig / Hunt. Developer token alone is for PoH <code class="text-neon/70">/api/tasks</code> only.
+						<strong class="text-neon">Ready when token syncs</strong> — on desktop Orders the admin token syncs automatically. Then open Dig or Hunt and press Start.
 					</div>
 					<div id="orders-wallet-gate" class="hidden rounded-lg border border-warn/35 bg-warn/5 p-3 text-[11px] text-warn/95 leading-snug"></div>
 					<div id="orders-balance-strip" class="orders-balance-strip hidden">
@@ -3141,8 +3141,8 @@
 						<div class="order-form-grid cols-4">
 							<div class="order-field"><label for="hunt-mode">Mode</label>
 								<select id="hunt-mode">
-									<option value="catalog" selected>Catalog OSS target</option>
-									<option value="inventory">Customer repo / inventory</option>
+									<option value="catalog" selected>Catalog OSS (easiest)</option>
+									<option value="inventory">My repo / inventory</option>
 								</select>
 							</div>
 							<div class="order-field"><label for="hunt-package">Package</label>
@@ -3192,6 +3192,7 @@
 							<p id="hunt-scope-escrow" class="text-gray-600 font-mono text-[9px]">50/50 escrow · ~half to miners per verified shard · bounty only on coordinator-replayed ASAN crash + repro.</p>
 							<p id="hunt-scope-clean" class="text-gray-600 font-mono text-[9px]">CLEAN = budget exhausted · not a security guarantee.</p>
 						</div>
+						<p id="hunt-spendable-hint" class="text-[11px] text-gray-400 mb-2 font-mono">Orders spendable: — · Issue developer token in the header, then Start.</p>
 						<div class="order-cta-row">
 							<button type="button" id="btn-hunt-run" class="btn-order-primary hunt">Start Hunt campaign</button>
 							<button type="button" id="btn-hunt-goto-fuzz" class="btn-order-ghost">Open fuzz tab</button>
@@ -3727,15 +3728,15 @@
 									<p class="wallet-bd-sub">Settled mining payouts + transfers (canonical)</p>
 								</div>
 								<div class="wallet-bd-box secondary" id="wallet-bd-pending-box">
-									<p class="wallet-bd-label">Pool · pending settlement</p>
+									<p class="wallet-bd-label">Your wallet · pending settlement</p>
 									<p id="wallet-bd-pending" class="wallet-bd-value">0 HMC</p>
-									<p id="wallet-bd-settle-sub" class="wallet-bd-sub">checking settlement…</p>
+									<p id="wallet-bd-settle-sub" class="wallet-bd-sub">this PC worker only · not fleet total</p>
 								</div>
 							</div>
 							<div class="wallet-bd-orders" id="wallet-bd-orders-row">
-								<span class="wallet-bd-label">Orders escrow</span>
+								<span class="wallet-bd-label">Orders spendable (pay Dig/Hunt)</span>
 								<span id="wallet-bd-orders" class="wallet-bd-value">0 HMC</span>
-								<span class="wallet-bd-sub">market audits only · not mining</span>
+								<span class="wallet-bd-sub">local escrow budget · not the same as on-chain</span>
 							</div>
 						</div>
 						<div id="wallet-sup-breakdown" class="wallet-detail-sup-only hidden max-w-xl mx-auto mb-4 text-left">
@@ -5215,6 +5216,7 @@
 		let pollTimer = null;
 		const POLL_INTERVAL_MS = 12000;
 		const POLL_INTERVAL_WALLET_MS = 6000;
+		const POLL_INTERVAL_ORDERS_MS = 8000;
 		const POLL_INTERVAL_HIDDEN_MS = 60000;
 		const EXCHANGE_PRICE_INTERVAL_MS = 3000;
 		const EXCHANGE_PRICE_INTERVAL_HIDDEN_MS = 20000;
@@ -5361,14 +5363,14 @@
 			const s = latestWorkerSettlementSnap || {};
 			const thr = Number(s.min_settle_hmc || 0);
 			const ready = !!s.threshold_ready;
-			const parts = [];
+			const parts = ['your worker only'];
 			if (thr > 0) parts.push('min ' + fmt(thr, 4) + ' HMC · ' + (ready ? 'ready' : 'pending'));
 			if (s.next_daily_sweep_unix > 0) parts.push('next sweep ' + fmtUnix(s.next_daily_sweep_unix));
 			if (Number(s.wallet_settled_hmc) > 0.000001) {
 				parts.push('lifetime settled ' + fmt(Number(s.wallet_settled_hmc), 4));
 			}
 			if (s.last_force_unix > 0) parts.push('last sweep ' + fmtUnix(s.last_force_unix));
-			el.textContent = parts.length ? parts.join(' · ') : 'No pending pool accrual';
+			el.textContent = parts.length ? parts.join(' · ') : 'No pending accrual for this wallet';
 		}
 		function renderWalletSupBreakdown() {
 			const root = $('wallet-sup-breakdown');
@@ -5447,7 +5449,7 @@
 			if (badge) {
 				if (unpaid > 0.000001) {
 					badge.classList.remove('hidden');
-					badge.textContent = '+' + fmt(unpaid, 6) + ' HMC from pool · settles to on-chain automatically';
+					badge.textContent = '+' + fmt(unpaid, 6) + ' HMC pending for this wallet · settles on-chain when threshold is met';
 				} else {
 					badge.classList.add('hidden');
 					badge.textContent = '';
@@ -5462,7 +5464,7 @@
 					banner.textContent = 'Local ledger is ahead of canonical — sync before large order escrows.';
 				} else if (align === 'canonical_ahead') {
 					banner.classList.remove('hidden');
-					banner.textContent = 'On-chain balance is higher than local orders ledger (≈' + fmt(orders, 0) + ' HMC for market). Mining payouts are on-chain; orders use a separate escrow bucket.';
+					banner.textContent = 'To pay Dig/Hunt use «Orders spendable» (' + fmt(orders, 2) + ' HMC) — not the on-chain number. Orders profile auto-funds local spendable on first start.';
 				} else {
 					banner.classList.add('hidden');
 					banner.textContent = '';
@@ -5628,19 +5630,14 @@
 		function renderOrdersBalanceStrip() {
 			const strip = $('orders-balance-strip');
 			if (!strip) return;
-			const st = latestStatus || {};
-			if (!st.has_genesis) {
-				strip.classList.add('hidden');
-				return;
-			}
 			strip.classList.remove('hidden');
 			const orders = Number(walletSnapshot.ordersSpendableHMC || 0);
 			const onChain = Number(walletSnapshot.onChainHMC || 0);
 			if ($('orders-spendable-hmc')) $('orders-spendable-hmc').textContent = fmt(orders, 6) + ' HMC spendable';
 			if ($('orders-onchain-hmc')) {
 				$('orders-onchain-hmc').textContent = onChain > 0.000001
-					? ('on-chain ' + fmt(onChain, 6) + ' · accrual +' + fmt(walletUnpaidHmc(), 4))
-					: ('mining accrual +' + fmt(walletUnpaidHmc(), 4));
+					? ('on-chain ' + fmt(onChain, 6) + ' (display) · your pending +' + fmt(walletUnpaidHmc(), 4))
+					: ('your pending +' + fmt(walletUnpaidHmc(), 4));
 			}
 			const badge = $('orders-balance-alignment');
 			if (badge) {
@@ -5648,6 +5645,7 @@
 				badge.textContent = lab.text;
 				badge.className = 'text-[9px] uppercase tracking-wider px-2 py-0.5 rounded border ' + lab.cls;
 			}
+			try { refreshHuntSpendableHint(); } catch (_) {}
 		}
 		function paintWalletShellInstant() {
 			restoreWalletSnapshotCache();
@@ -5696,6 +5694,7 @@
 				if (document.hidden) return POLL_INTERVAL_HIDDEN_MS;
 			} catch (_) {}
 			if (currentTab === 'wallet') return POLL_INTERVAL_WALLET_MS;
+			if (currentTab === 'orders') return POLL_INTERVAL_ORDERS_MS;
 			return POLL_INTERVAL_MS;
 		}
 
@@ -14783,17 +14782,37 @@
 			}
 		}
 
+		function refreshHuntSpendableHint() {
+			const el = $('hunt-spendable-hint');
+			if (!el) return;
+			const spend = Number(walletSnapshot.ordersSpendableHMC || 0);
+			const pkg = String(($('hunt-package') && $('hunt-package').value) || 'hunt_lite');
+			const need = pkg === 'hunt_heavy' ? 150 : (pkg === 'hunt_standard' ? 60 : 20);
+			const tok = !!(developerTokenCurrent() || adminTokenCurrent());
+			el.textContent = 'Spendable: ' + fmt(spend, 2) + ' HMC · need ~' + need + ' for ' + pkg
+				+ (tok ? ' · auth OK' : ' · waiting for desktop token sync')
+				+ (spend + 0.0001 >= need ? ' · ready to Start' : ' · restart Orders once to auto-fund ~100 HMC');
+			el.classList.toggle('text-warn', spend + 0.0001 < need || !tok);
+			el.classList.toggle('text-matrix', spend + 0.0001 >= need && tok);
+		}
 		async function submitHuntCampaign() {
 			const msg = $('hunt-run-msg');
 			const box = $('hunt-run-result');
 			await ensureDesktopAdminToken(true);
 			updateOrdersMarketUIMode();
+			refreshHuntSpendableHint();
 			if (!canCreatePaidAudits()) {
-				if (msg) msg.textContent = 'Admin token required for Hunt escrow — click Sync token (desktop) or Save admin.';
+				if (msg) msg.textContent = 'Auth missing — wait for desktop token sync, or click Sync token in the header.';
 				return;
 			}
 			const mode = String(($('hunt-mode') && $('hunt-mode').value) || 'catalog');
 			const pkg = String(($('hunt-package') && $('hunt-package').value) || 'hunt_lite');
+			const need = pkg === 'hunt_heavy' ? 150 : (pkg === 'hunt_standard' ? 60 : 20);
+			const spend = Number(walletSnapshot.ordersSpendableHMC || 0);
+			if (spend + 0.0001 < need) {
+				if (msg) msg.textContent = 'Not enough Orders spendable (' + fmt(spend, 2) + ' HMC). Restart HackMe Orders once — starter ~100 HMC is credited automatically. On-chain balance cannot pay Hunt.';
+				return;
+			}
 			const title = String(($('hunt-title') && $('hunt-title').value) || '').trim() || ('hunt-' + Date.now());
 			const poolDist = !$('hunt-pool-distributed') || $('hunt-pool-distributed').checked;
 			const budgetRaw = ($('hunt-budget-hmc') && $('hunt-budget-hmc').value) || '';
@@ -14809,7 +14828,7 @@
 			if (mode === 'catalog') {
 				const targetID = String(($('hunt-target-id') && $('hunt-target-id').value) || '').trim();
 				if (!targetID) {
-					if (msg) msg.textContent = 'Pick a catalog target.';
+					if (msg) msg.textContent = 'Pick a catalog target (Mode = Catalog OSS target).';
 					return;
 				}
 				body.target_id = targetID;
@@ -16191,9 +16210,10 @@
 						ok: true,
 						last_signed_miner_address: String(s.last_signed_miner_address || ''),
 						accrual_source: String(s.accrual_source || ''),
-						wallet_unpaid_hmc: Number(s.wallet_unpaid_hmc || s.total_unpaid_hmc || 0),
-						wallet_accrued_sup: Number(s.wallet_accrued_sup || s.total_accrued_sup || 0),
-						wallet_unpaid_sup: Number(s.wallet_unpaid_sup || s.total_unpaid_sup || 0),
+						// Never fall back to fleet total_unpaid — that desyncs every wallet to pool aggregate.
+						wallet_unpaid_hmc: Number(s.wallet_unpaid_hmc || 0),
+						wallet_accrued_sup: Number(s.wallet_accrued_sup || 0),
+						wallet_unpaid_sup: Number(s.wallet_unpaid_sup || 0),
 						wallet_settled_hmc: Number(s.wallet_settled_hmc || 0),
 						min_settle_hmc: Number(s.min_settle_hmc || 0),
 						threshold_ready: !!s.threshold_ready,
@@ -16201,10 +16221,11 @@
 						last_settle_unix: lastSettleUnix,
 						next_daily_sweep_unix: Number(s.next_daily_sweep_unix || 0),
 						sup_policy: s.sup_policy || null,
-						sup_settlement_note: String(s.sup_settlement_note || '')
+						sup_settlement_note: String(s.sup_settlement_note || ''),
+						wallet_unpaid_scope: String(s.wallet_unpaid_scope || 'desktop_worker')
 					};
 					if (isWalletCoinHMC(walletSelectedCoin())) {
-						const unpaidHmc = Number(s.wallet_unpaid_hmc ?? s.total_unpaid_hmc);
+						const unpaidHmc = Number(s.wallet_unpaid_hmc || 0);
 						if ($('wallet-unpaid-hmc') && Number.isFinite(unpaidHmc)) {
 							$('wallet-unpaid-hmc').textContent = fmt(unpaidHmc, 6) + ' HMC';
 						}
@@ -16246,8 +16267,9 @@
 			if (uiPollingPaused || pollInFlight) return;
 			pollInFlight = true;
 			pollSeq += 1;
-			const wantWallet = currentTab === 'wallet' || currentTab === 'overview';
+			const wantWallet = currentTab === 'wallet' || currentTab === 'overview' || currentTab === 'orders';
 			const wantWalletCore = wantWallet;
+			// Orders tab: skip heavy pool/fleet refresh — keeps Dig/Hunt UI snappy and avoids wallet/fleet desync.
 			const wantPoolStats = currentTab === 'ecosystem' || currentTab === 'mining' || currentTab === 'overview' || currentTab === 'analytics';
 			try {
 				const jobs = [
@@ -16257,7 +16279,7 @@
 					jobs.push(refreshWorkStats());
 				}
 				const desktop = !!(latestStatus && latestStatus.desktop_mode);
-				if (wantPoolStats || desktop) {
+				if (wantPoolStats || (desktop && currentTab !== 'orders')) {
 					jobs.push(typeof refreshWorkerStatus === 'function' ? refreshWorkerStatus() : Promise.resolve());
 				}
 				if (wantWalletCore && !txTrackActive) {
@@ -16317,6 +16339,10 @@
 			try {
 				initDashboardWhatsNew();
 				await syncDesktopAdminTokenFromNode();
+				try { await ensureDesktopAdminToken(true); } catch (_) {}
+				try { if (typeof refreshWallet === 'function') await refreshWallet(false); } catch (_) {}
+				try { if (typeof loadHuntTargets === 'function') void loadHuntTargets(); } catch (_) {}
+				try { refreshHuntSpendableHint(); } catch (_) {}
 				ordersPohAdvancedOpen = loadProToolsOpenPref();
 				syncProToolsPanelVisibility();
 				markTechnicalNotranslate(document);

@@ -648,7 +648,9 @@ func (a *app) handleWorkerSettlement(w http.ResponseWriter, r *http.Request) {
 		"settlement_scan_eta_sec":               scanEtaSec,
 		"settlement_scan_interval_sec":          settlementScanSec,
 		"workers_breakdown":                     workerBreakdown,
-		"threshold_ready":                       totalUnpaid >= minSettleHMC,
+		// Fleet ready = ops view. Wallet ready = this PC worker only (UI must not show fleet total).
+		"threshold_ready":                       walletUnpaid >= minSettleHMC,
+		"fleet_threshold_ready":                 totalUnpaid >= minSettleHMC,
 		"coordinator_workers_breakdown_omitted": coordOmittedBreakdown,
 		"on_chain_payout_note":                  "UI threshold is not a bank transfer. On-chain payout runs on the VPS/chain host via settle_worker_payouts.sh (ADMIN_TOKEN + CHAIN_BASE + COORD_URL + WORKER_PAYOUT_MAP). Coordinators that omit workers{} require the updated script (synthetic single-map row) or coordinator upgrade.",
 		"updated_unix":                          nowUnix,

@@ -423,6 +423,16 @@ func main() {
 	if err := ch.MirrorWalletRowFromAccounts(context.Background()); err != nil {
 		log.Printf("wallet mirror row: %v", err)
 	}
+	if chain.DesktopOrdersProfileEnabled() {
+		starter := chain.OrdersStarterHMCFromEnv()
+		if credited, err := ch.BootstrapOrdersSpendable(context.Background(), nodeID, starter); err != nil {
+			log.Printf("orders bootstrap: %v", err)
+		} else if credited > 0 {
+			log.Printf("orders bootstrap: credited %.4f HMC to local spendable wallet (Dig/Hunt escrow)", credited)
+		} else {
+			log.Printf("orders bootstrap: local spendable wallet ready (starter=%.0f HMC)", starter)
+		}
+	}
 	log.Printf("Task WASM artifact root: %s (env HACKME_TASK_ARTIFACT_DIR)", chain.DefaultArtifactRoot())
 	tasksDir := filepath.Join(".", "tasks")
 	taskProv := chain.NewStoreTaskProvider(ch, chain.NewFileTaskProvider(tasksDir, chain.InternalTaskProvider{}))

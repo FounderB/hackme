@@ -58,7 +58,14 @@ func (a *app) handleHuntTargets(w http.ResponseWriter, r *http.Request) {
 	root := a.repoRoot()
 	targets, err := hunt.ListCatalogTargets(root, 0)
 	if err != nil {
-		writeAPIError(w, http.StatusInternalServerError, "targets_failed", err.Error(), nil)
+		// Soft-fail: Orders UI must still load; empty catalog is recoverable.
+		writeJSON(w, map[string]any{
+			"ok":      true,
+			"targets": []any{},
+			"count":   0,
+			"warning": "targets_unavailable",
+			"detail":  err.Error(),
+		})
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "targets": targets, "count": len(targets)})
@@ -230,14 +237,25 @@ func (a *app) handleHuntCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg = marshalMapJSON(cfgMap)
 		_, _ = a.db.ExecContext(r.Context(), `UPDATE fuzz_campaigns SET config_json=? WHERE id=?`, cfg, id)
-		if syncErr := a.syncHuntHarnessToCoordinator(r.Context(), cfgMap); syncErr != nil {
-			a.rollbackNewCampaignEscrow(r.Context(), id)
-			writeAPIError(w, http.StatusBadGateway, "harness_pool_sync_failed", syncErr.Error(), map[string]any{
-				"harness_hash": cfgMap["harness_hash"],
-			})
-			return
+		deferred := false
+		if v, ok := cfgMap["harness_build_deferred"].(bool); ok && v {
+			deferred = true
 		}
-		a.syncCorpusNamespaceToCoordinator(r.Context(), cfgMap)
+		if !deferred {
+			if syncErr := a.syncHuntHarnessToCoordinator(r.Context(), cfgMap); syncErr != nil {
+				a.rollbackNewCampaignEscrow(r.Context(), id)
+				writeAPIError(w, http.StatusBadGateway, "harness_pool_sync_failed", syncErr.Error(), map[string]any{
+					"harness_hash": cfgMap["harness_hash"],
+				})
+				return
+			}
+			a.syncCorpusNamespaceToCoordinator(r.Context(), cfgMap)
+		} else {
+			resp["harness_build_deferred"] = true
+			if note := strings.TrimSpace(toString(cfgMap["harness_publish_note"])); note != "" {
+				resp["harness_publish_note"] = note
+			}
+		}
 		resp["pool_distributed"] = true
 		resp["harness_fetch_path"] = cfgMap["harness_fetch_path"]
 		fc := fuzzAutoCampaign{ID: id, BudgetRuns: shards, BudgetSeconds: 86400, ConfigJSON: cfg, OwnerRef: ownerRef}
