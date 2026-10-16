@@ -106,33 +106,44 @@ func (a *app) fetchCoordinatorMarketplaceItems(ctx context.Context) ([]map[strin
 }
 
 func (a *app) fetchCoordinatorPoolCampaignProgress(ctx context.Context, campaignID string) (coordinatorPoolCampaign, bool) {
+	c, ok, _ := a.fetchCoordinatorPoolCampaignProgressErr(ctx, campaignID)
+	return c, ok
+}
+
+// fetchCoordinatorPoolCampaignProgressErr distinguishes "not on pool yet" (ok=false, err=nil)
+// from transport/auth/decode failures (err != nil) so customer gates can fail-closed.
+func (a *app) fetchCoordinatorPoolCampaignProgressErr(ctx context.Context, campaignID string) (coordinatorPoolCampaign, bool, error) {
 	base := strings.TrimRight(strings.TrimSpace(a.coordinatorBaseURL()), "/")
 	if base == "" || campaignID == "" {
-		return coordinatorPoolCampaign{}, false
+		return coordinatorPoolCampaign{}, false, nil
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, base+"/api/fuzz/pool/campaigns/progress?id="+url.QueryEscape(campaignID), nil)
 	if err != nil {
-		return coordinatorPoolCampaign{}, false
+		return coordinatorPoolCampaign{}, false, err
 	}
 	if tok := coordinatorAdminToken(); tok != "" {
 		req.Header.Set("X-Hackme-Admin-Token", tok)
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return coordinatorPoolCampaign{}, false
+		return coordinatorPoolCampaign{}, false, err
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return coordinatorPoolCampaign{}, false, nil
+	}
 	if res.StatusCode != http.StatusOK {
-		return coordinatorPoolCampaign{}, false
+		b, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		return coordinatorPoolCampaign{}, false, fmt.Errorf("coordinator progress HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(b)))
 	}
 	var payload coordinatorPoolCampaign
 	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
-		return coordinatorPoolCampaign{}, false
+		return coordinatorPoolCampaign{}, false, err
 	}
 	payload.ID = campaignID
-	return payload, true
+	return payload, true, nil
 }
 
 func (a *app) fetchCoordinatorFleetCapacity(ctx context.Context) (map[string]any, error) {
@@ -314,7 +325,10 @@ func (a *app) syncPoolCampaignProgressFromCoordinator(ctx context.Context, campa
 // campaign row. When closeEscrow is false, escrow is not finalized (used from
 // tryCloseFuzzEscrowForStatus to avoid sync→close recursion).
 func (a *app) applyPoolCampaignProgressFromCoordinator(ctx context.Context, campaignID string, closeEscrow bool) error {
-	rc, ok := a.fetchCoordinatorPoolCampaignProgress(ctx, campaignID)
+	rc, ok, fetchErr := a.fetchCoordinatorPoolCampaignProgressErr(ctx, campaignID)
+	if fetchErr != nil {
+		return fetchErr
+	}
 	if !ok {
 		return nil
 	}
@@ -394,5 +408,143 @@ func (a *app) applyPoolCampaignProgressFromCoordinator(ctx context.Context, camp
 		// refuses finalize when the settle pull fails (report #12).
 		a.tryCloseFuzzEscrowForStatus(ctx, campaignID, nextStatus)
 	}
+	// Best-effort row mirror so customer report.findings[] is not empty when
+	// coordinator already recorded crash-class findings.
+	if rc.FindingsTotal > 0 || rc.Findings > 0 {
+		_, _ = a.pullPoolFindingsFromCoordinator(ctx, campaignID, 100)
+	}
 	return nil
+}
+
+type coordinatorFindingMirrorPayload struct {
+	OK       bool `json:"ok"`
+	Findings []struct {
+		ID          string `json:"id"`
+		CampaignID  string `json:"campaign_id"`
+		FindingType string `json:"finding_type"`
+		Severity    string `json:"severity"`
+		Title       string `json:"title"`
+		InputSHA256 string `json:"input_sha256"`
+		ReproCmd    string `json:"repro_cmd"`
+		DetailJSON  string `json:"detail_json"`
+		CreatedAt   int64  `json:"created_at"`
+	} `json:"findings"`
+}
+
+// pullPoolFindingsFromCoordinator mirrors coordinator fuzz_findings into the local
+// Orders DB so buildFuzzReport can show rows (not only synced counts).
+func (a *app) pullPoolFindingsFromCoordinator(ctx context.Context, campaignID string, limit int) (int, error) {
+	base := strings.TrimRight(strings.TrimSpace(a.coordinatorBaseURL()), "/")
+	if base == "" || campaignID == "" {
+		return 0, nil
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	var localCount int
+	_ = a.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM fuzz_findings WHERE campaign_id=?`, campaignID).Scan(&localCount)
+
+	reqCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	defer cancel()
+	u := fmt.Sprintf("%s/api/fuzz/pool/campaigns/findings?id=%s&limit=%d", base, url.QueryEscape(campaignID), limit)
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, u, nil)
+	if err != nil {
+		return 0, err
+	}
+	tok := coordinatorAdminToken()
+	if tok == "" {
+		return 0, fmt.Errorf("coordinator admin token required for findings mirror")
+	}
+	req.Header.Set("X-Hackme-Admin-Token", tok)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return 0, nil
+	}
+	if res.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		return 0, fmt.Errorf("coordinator findings HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(b)))
+	}
+	var payload coordinatorFindingMirrorPayload
+	if err := json.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(&payload); err != nil {
+		return 0, err
+	}
+	inserted := 0
+	now := time.Now().Unix()
+	for _, it := range payload.Findings {
+		id := strings.TrimSpace(it.ID)
+		if id == "" {
+			continue
+		}
+		ftype := strings.TrimSpace(strings.ToLower(it.FindingType))
+		if ftype == "" {
+			ftype = "interesting_input"
+		}
+		sev := normalizeFindingSeverity(it.Severity)
+		if !allowedFindingSeverity(sev) {
+			sev = "info"
+		}
+		title := sanitizeFindingText(it.Title, 512)
+		repro := sanitizeFindingText(it.ReproCmd, 4096)
+		inputSHA := strings.TrimSpace(strings.ToLower(it.InputSHA256))
+		detail := strings.TrimSpace(it.DetailJSON)
+		if len(detail) > 64<<10 {
+			detail = detail[:64<<10]
+		}
+		if detail == "" {
+			detail = "{}"
+		}
+		created := it.CreatedAt
+		if created <= 0 {
+			created = now
+		}
+		// Skip natural duplicates already present under a different id.
+		var existsNatural int
+		_ = a.db.QueryRowContext(ctx,
+			`SELECT 1 FROM fuzz_findings
+			 WHERE campaign_id=? AND finding_type=? AND input_sha256=? AND title=?
+			 LIMIT 1`,
+			campaignID, ftype, inputSHA, title).Scan(&existsNatural)
+		if existsNatural == 1 {
+			continue
+		}
+		res, err := a.db.ExecContext(ctx,
+			`INSERT OR IGNORE INTO fuzz_findings
+			 (id, campaign_id, finding_type, severity, title, input_sha256, artifact_path, repro_cmd, detail_json, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?)`,
+			id, campaignID, ftype, sev, title, inputSHA, repro, detail, created)
+		if err != nil {
+			continue
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			inserted++
+			if inputSHA != "" {
+				_, _ = a.db.ExecContext(ctx,
+					`INSERT INTO fuzz_corpus (campaign_id, input_sha256, first_seen_at, last_seen_at, hits, last_finding_id, artifact_path)
+					 VALUES (?, ?, ?, ?, 1, ?, '')
+					 ON CONFLICT(campaign_id, input_sha256) DO UPDATE SET
+					   last_seen_at=excluded.last_seen_at,
+					   hits=fuzz_corpus.hits+1,
+					   last_finding_id=excluded.last_finding_id`,
+					campaignID, inputSHA, created, created, id)
+			}
+		}
+	}
+	if inserted > 0 {
+		var summaryJSON string
+		if err := a.db.QueryRowContext(ctx, `SELECT summary_json FROM fuzz_campaigns WHERE id=?`, campaignID).Scan(&summaryJSON); err == nil {
+			sum := parseMapJSON(summaryJSON)
+			sum["pool_findings_mirrored"] = localCount + inserted
+			sum["pool_findings_mirror_at"] = now
+			sum["pool_findings_mirror_inserted"] = inserted
+			_, _ = a.db.ExecContext(ctx, `UPDATE fuzz_campaigns SET summary_json=? WHERE id=?`, marshalMapJSON(sum), campaignID)
+		}
+	}
+	return inserted, nil
 }

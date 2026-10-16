@@ -195,6 +195,42 @@ func allowedFindingSeverity(v string) bool {
 	}
 }
 
+// sanitizeFindingText strips controls and caps length for ingest/mirror fields
+// (artifact_path / repro_cmd / title) to reduce CSV formula injection & junk.
+func sanitizeFindingText(v string, max int) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.Grow(len(v))
+	for _, r := range v {
+		if r < 32 && r != '\t' {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	out := b.String()
+	if max > 0 && len(out) > max {
+		out = out[:max]
+	}
+	return out
+}
+
+// csvSafeCell prefixes spreadsheet formula triggers so Excel/Sheets won't execute.
+func csvSafeCell(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return v
+	}
+	switch v[0] {
+	case '=', '+', '-', '@':
+		return "'" + v
+	default:
+		return v
+	}
+}
+
 func normalizeFindingSeverity(v string) string {
 	v = strings.TrimSpace(strings.ToLower(v))
 	if v == "med" {
@@ -1931,8 +1967,10 @@ func (a *app) handleFuzzCampaignIngestFindings(w http.ResponseWriter, r *http.Re
 			sev = "info"
 		}
 		id := cleanFuzzID(it.ID, "finding")
-		title := strings.TrimSpace(it.Title)
+		title := sanitizeFindingText(it.Title, 512)
 		inputSHA := strings.TrimSpace(strings.ToLower(it.InputSHA256))
+		artifact := sanitizeFindingText(it.Artifact, 1024)
+		repro := sanitizeFindingText(it.ReproCmd, 4096)
 		var existsNatural int
 		if err := tx.QueryRowContext(r.Context(),
 			`SELECT 1 FROM fuzz_findings
@@ -1947,7 +1985,7 @@ func (a *app) handleFuzzCampaignIngestFindings(w http.ResponseWriter, r *http.Re
 			 (id, campaign_id, finding_type, severity, title, input_sha256, artifact_path, repro_cmd, detail_json, created_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			id, campaignID, ftype, sev, title, inputSHA,
-			strings.TrimSpace(it.Artifact), strings.TrimSpace(it.ReproCmd), marshalMapJSON(it.Detail), now); err != nil {
+			artifact, repro, marshalMapJSON(it.Detail), now); err != nil {
 			// Continue on duplicate IDs to keep ingestion resilient.
 			if sqliteErrKind(err) == "unique" {
 				dupID++
@@ -1969,7 +2007,7 @@ func (a *app) handleFuzzCampaignIngestFindings(w http.ResponseWriter, r *http.Re
 				   hits=fuzz_corpus.hits+1,
 				   last_finding_id=excluded.last_finding_id,
 				   artifact_path=excluded.artifact_path`,
-				campaignID, inputSHA, now, now, id, strings.TrimSpace(it.Artifact))
+				campaignID, inputSHA, now, now, id, artifact)
 		}
 		inserted++
 	}
@@ -2137,10 +2175,20 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 	if err != nil {
 		return nil, err
 	}
+	poolSyncErr := ""
+	poolFindingsPullErr := ""
+	poolFindingsPulled := 0
 	// Pool campaigns: pull live runs_done / unique_crashes before verdict so we never
 	// claim "clean" from a stale local summary while the coordinator already finished work.
 	if poolDistributedCampaign(c.Config) {
-		_ = a.syncPoolCampaignProgressFromCoordinator(ctx, campaignID)
+		if err := a.syncPoolCampaignProgressFromCoordinator(ctx, campaignID); err != nil {
+			poolSyncErr = err.Error()
+		}
+		if n, err := a.pullPoolFindingsFromCoordinator(ctx, campaignID, limit); err == nil {
+			poolFindingsPulled = n
+		} else {
+			poolFindingsPullErr = err.Error()
+		}
 		if c2, err2 := a.getFuzzCampaign(ctx, campaignID); err2 == nil {
 			c = c2
 		}
@@ -2267,6 +2315,14 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 			fmt.Sprintf("Pool reported %d crash-class finding(s); local mirror pending settle/sync — do not treat as clean.", poolFindingHint),
 		}, recommendations...)
 	}
+	// Fail-closed: if we could not refresh coordinator progress/findings, never claim clean
+	// when the campaign already has local runs (stale mirror risk).
+	if poolDist && poolSyncErr != "" && verdict == "clean" && runsDone > 0 {
+		verdict = "sync_failed"
+		recommendations = append([]string{
+			"Coordinator progress/findings sync failed — gate fail-closed until pool status is reachable.",
+		}, recommendations...)
+	}
 	if verdict == "clean" && runsDone <= 0 {
 		st := strings.ToLower(strings.TrimSpace(c.Status))
 		switch st {
@@ -2345,6 +2401,9 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 	} else if verdict == "warn_pool_findings" {
 		gatePass = false
 		gateReasons = []string{"pool findings reported but not mirrored locally — gate fail-closed"}
+	} else if verdict == "sync_failed" {
+		gatePass = false
+		gateReasons = []string{"coordinator sync failed — gate fail-closed"}
 	}
 	verdictCard := buildVerdictCard(runsDone, crashCount, crashCrit, gatePass, moneySpent)
 	fingerprint := buildTargetFingerprint(c.Config)
@@ -2362,12 +2421,21 @@ func (a *app) buildFuzzReport(ctx context.Context, campaignID string, limit int)
 		"full_campaign_findings": fullFindingsTotal,
 		"history_truncated":      fullFindingsTotal > len(findings),
 	}
+	poolSyncMeta := map[string]any{
+		"pool_distributed":       poolDist,
+		"findings_pulled":        poolFindingsPulled,
+		"coordinator_sync_error": poolSyncErr,
+		"coordinator_sync_ok":    poolSyncErr == "",
+		"findings_mirror_error":  poolFindingsPullErr,
+		"findings_mirror_ok":     poolFindingsPullErr == "",
+	}
 	return map[string]any{
 		"ok":                 true,
 		"report_version":     "fuzz_report_v2",
 		"fuzz_engine":        engineMeta,
 		"generated_at_unix":  time.Now().Unix(),
 		"campaign":           c,
+		"pool_sync":          poolSyncMeta,
 		"evidence_window":    evidenceWindow,
 		"assurance_note":     assuranceNote,
 		"human_summary":      humanSummary,
@@ -2606,7 +2674,7 @@ func (a *app) handleFuzzCampaignReportCSV(w http.ResponseWriter, r *http.Request
 	_ = cw.Write([]string{})
 	_ = cw.Write([]string{"top_issues", "id", "severity", "finding_type", "title", "impact", "repro_cmd", "artifact_path", "input_sha256", "repro_ready"})
 	for _, it := range topIssues {
-		_ = cw.Write([]string{"top_issues", it.ID, it.Severity, it.FindingType, it.Title, it.Impact, it.ReproCmd, it.Artifact, it.InputSHA256, toString(it.Repro.Ready)})
+		_ = cw.Write([]string{"top_issues", it.ID, it.Severity, it.FindingType, csvSafeCell(it.Title), csvSafeCell(it.Impact), csvSafeCell(it.ReproCmd), csvSafeCell(it.Artifact), it.InputSHA256, toString(it.Repro.Ready)})
 	}
 	if noise, ok := report["coverage_noise"].([]fuzzProductTopIssue); ok && len(noise) > 0 {
 		_ = cw.Write([]string{})

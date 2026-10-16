@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -361,6 +362,46 @@ func TestFuzzReportHonesty_PoolFindingsHintNotClean(t *testing.T) {
 	gate, _ := r["gate"].(map[string]any)
 	if gate["pass"] != false {
 		t.Fatalf("gate must fail-closed when pool findings pending: %+v", gate)
+	}
+}
+
+func TestSanitizeFindingTextAndCSVSafe(t *testing.T) {
+	if got := sanitizeFindingText("ok\x00cmd", 32); strings.Contains(got, "\x00") {
+		t.Fatalf("control not stripped: %q", got)
+	}
+	if got := csvSafeCell("=cmd|'/c calc'!A1"); !strings.HasPrefix(got, "'") {
+		t.Fatalf("csv formula not escaped: %q", got)
+	}
+	if got := csvSafeCell("normal"); got != "normal" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestFuzzReportHonesty_SyncFailedNotClean(t *testing.T) {
+	a, db := newWalletTestApp(t)
+	const token = "sync-fail-token"
+	camp := "camp-pool-sync-fail"
+	seedCustomerFuzzCampaignWithConfig(t, a, db, camp, token,
+		map[string]any{"pool_distributed": true, "depth_tier": "bytes_corpus"}, 16, "running")
+	_, err := db.ExecContext(context.Background(),
+		`UPDATE fuzz_campaigns SET summary_json=? WHERE id=?`,
+		`{"runs_done":16,"unique_crashes":0}`, camp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HACKME_POOL_COORDINATOR_URL", "http://127.0.0.1:1")
+	t.Setenv("HACKME_COORDINATOR_ADMIN_TOKEN", "test-admin-token")
+
+	r, err := a.buildFuzzReport(context.Background(), camp, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r["verdict"] != "sync_failed" {
+		t.Fatalf("verdict=%v want sync_failed (meta=%v)", r["verdict"], r["pool_sync"])
+	}
+	gate, _ := r["gate"].(map[string]any)
+	if gate["pass"] != false {
+		t.Fatalf("gate must fail-closed on sync failure: %+v", gate)
 	}
 }
 

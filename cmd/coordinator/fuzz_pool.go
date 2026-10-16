@@ -153,6 +153,46 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		_ = json.NewEncoder(w).Encode(prog)
 	})
 
+	// Admin-only findings mirror for Orders nodes (customer report rows).
+	mux.HandleFunc("/api/fuzz/pool/campaigns/findings", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if adminToken == "" && allowInsecure {
+			// loopback dev
+		} else if adminToken == "" || !coordAdminOK(r, adminToken) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
+			http.Error(w, "admin authentication required", http.StatusUnauthorized)
+			return
+		}
+		id := strings.TrimSpace(r.URL.Query().Get("id"))
+		if id == "" {
+			http.Error(w, "id required", http.StatusBadRequest)
+			return
+		}
+		limit := 100
+		if s := strings.TrimSpace(r.URL.Query().Get("limit")); s != "" {
+			if n, err := strconv.Atoi(s); err == nil && n > 0 && n <= 200 {
+				limit = n
+			}
+		}
+		items, err := pf.ListCampaignFindingsMirror(r.Context(), id, limit)
+		if err == sql.ErrNoRows {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok": true, "campaign_id": id, "findings": items, "count": len(items),
+		})
+	})
+
 	mux.HandleFunc("/api/fuzz/pool/settle/outbox", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
