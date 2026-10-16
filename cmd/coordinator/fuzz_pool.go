@@ -406,7 +406,18 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if _, err := pf.ReclaimExpiredLeases(r.Context(), time.Now().Unix()); err != nil {
+		now := time.Now().Unix()
+		if _, err := pf.ReclaimExpiredLeases(r.Context(), now); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		churn, err := pf.ForceCompleteLeaseChurnItems(r.Context(), now, 100)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		stalled, err := pf.ForceCompleteStalledNearDoneCampaigns(r.Context(), now, 50)
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -414,6 +425,7 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ok": true, "cancelled": n, "stuck_expired_leases": stuck,
 			"missing_harness": missingHarness, "repaired": repaired,
+			"lease_churn_force_done": churn, "stalled_near_done_force_done": stalled,
 		})
 	})
 

@@ -583,6 +583,8 @@ func (s *Service) CancelHuntCampaignsMissingHarness(ctx context.Context, minAgeS
 }
 
 // ReclaimExpiredLeases returns expired leased items to pending (Tick / health fix).
+// Each reclaim bumps attempts so ForceCompleteLeaseChurnItems can break infinite
+// lease→vanish→reclaim loops on the last shard of a near-done campaign.
 func (s *Service) ReclaimExpiredLeases(ctx context.Context, now int64) (int64, error) {
 	if s == nil || s.DB == nil {
 		return 0, nil
@@ -592,7 +594,13 @@ func (s *Service) ReclaimExpiredLeases(ctx context.Context, now int64) (int64, e
 	}
 	res, err := s.DB.ExecContext(ctx,
 		`UPDATE fuzz_work_items
-		 SET status='pending', lease_owner='', lease_until=0, updated_at=?
+		 SET status='pending', lease_owner='', lease_until=0, updated_at=?,
+		     attempts=attempts+1,
+		     last_error=CASE
+		       WHEN trim(COALESCE(last_error,''))='' THEN 'reclaimed_expired_lease'
+		       WHEN last_error='reclaimed_expired_lease' THEN last_error
+		       ELSE last_error
+		     END
 		 WHERE status='leased' AND lease_until > 0 AND lease_until < ?`,
 		now, now)
 	if err != nil {
@@ -659,7 +667,12 @@ func (s *Service) Tick(ctx context.Context) error {
 	if _, err := s.ReclaimExpiredLeases(ctx, now); err != nil {
 		return err
 	}
-	// Every ~12 ticks (~2 min at 10s): cancel zero-progress / all-expired-lease zombies.
+	// Break lease-churn on every tick (cheap; only touches high-attempts / stalled leftovers).
+	if _, err := s.ForceCompleteLeaseChurnItems(ctx, now, 50); err != nil {
+		return err
+	}
+	// Every ~12 ticks (~2 min at 10s): cancel zero-progress / all-expired-lease zombies
+	// and force-complete near-done campaigns stuck on the last shard (31/32 spinner).
 	if s.staleSweepN.Add(1)%12 == 0 {
 		if _, err := s.CancelStuckExpiredLeaseCampaigns(ctx, 3600, 50); err != nil {
 			return err
@@ -668,6 +681,9 @@ func (s *Service) Tick(ctx context.Context) error {
 			return err
 		}
 		if _, err := s.CancelHuntCampaignsMissingHarness(ctx, 900, 50); err != nil {
+			return err
+		}
+		if _, err := s.ForceCompleteStalledNearDoneCampaigns(ctx, now, 30); err != nil {
 			return err
 		}
 	}

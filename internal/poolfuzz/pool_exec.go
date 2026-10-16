@@ -55,9 +55,17 @@ func leaseSecondsForConfig(cfg map[string]any) int64 {
 		if HuntEngineEnabled() {
 			engine := hunt.HuntEngineFromConfig(cfg)
 			if hunt.IsCoverageEngine(engine) {
-				sec := int64(hunt.EngineLeaseSecFromConfig(cfg, engine)) + 90
-				if sec < 60 {
-					sec = 60
+				// Claim lease must outlive the engine wall + HTTP/corpus_delta slack.
+				// Was engine+90; 120s walls under a 90s advertised lease still fit in
+				// engine+90=180, but hybrid-unit restarts mid-shard caused reclaim races.
+				// Keep ≥2× wall (min +120s slack) so finalize wins before reclaim.
+				eng := int64(hunt.EngineLeaseSecFromConfig(cfg, engine))
+				sec := eng * 2
+				if alt := eng + 120; alt > sec {
+					sec = alt
+				}
+				if sec < 120 {
+					sec = 120
 				}
 				if sec > 360 {
 					sec = 360
