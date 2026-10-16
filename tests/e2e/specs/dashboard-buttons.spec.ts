@@ -36,11 +36,15 @@ test.describe('Dashboard UI buttons and API wiring', () => {
 
   test('Mining stop button POSTs mining stop', async ({ page }) => {
     await page.click('#tab-bar .tab-btn[data-tab="mining"]');
+    await expect(page.locator('#panel-mining')).toHaveClass(/active/, { timeout: 10_000 });
+    const stopBtn = page.locator('#btn-mining-stop');
+    await expect(stopBtn).toBeVisible({ timeout: 15_000 });
+    await stopBtn.scrollIntoViewIfNeeded();
     const stopReq = page.waitForRequest(
       (r) => r.method() === 'POST' && r.url().includes('/api/mining/stop'),
       { timeout: 15_000 }
     );
-    await page.click('#btn-mining-stop');
+    await stopBtn.click();
     const req = await stopReq;
     expect(req.method()).toBe('POST');
   });
