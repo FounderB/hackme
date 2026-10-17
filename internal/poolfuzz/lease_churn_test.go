@@ -178,3 +178,47 @@ func TestLeaseSecondsForConfigCoverageEngineHas2xWall(t *testing.T) {
 		t.Fatalf("lease_sec=%d want 210", sec)
 	}
 }
+
+func TestForceCompleteLeaseChurnItemsProvenEdgesOK(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "co.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := &Service{DB: db}
+	ctx := context.Background()
+	now := time.Now().Unix()
+	cfg := fuzzengine.NormalizeCampaignConfig(map[string]any{
+		"pool_distributed": true,
+		"check_semantics":  "detector",
+		"wasm_check_hex":   "0061736d0100000001060160017e017f0302010007090105636865636b00000a0601040041010b",
+	}, "property")
+	id := "camp-churn-edges"
+	if err := svc.RegisterCampaign(ctx, Campaign{
+		ID: id, CampaignType: "property", Title: "churn-edges", Status: "running",
+		BudgetRuns: 1, Config: cfg,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = db.ExecContext(ctx,
+		`UPDATE fuzz_work_items SET status='pending', attempts=8, hunt_proven_crashes=0, hunt_proven_edges=4, updated_at=?
+		 WHERE campaign_id=?`,
+		now, id)
+
+	n, err := svc.ForceCompleteLeaseChurnItems(ctx, now, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("force_done=%d want 1", n)
+	}
+	var st string
+	var ok int
+	_ = db.QueryRowContext(ctx,
+		`SELECT status, result_ok FROM fuzz_work_items WHERE campaign_id=? AND last_error='lease_churn_exhausted'`,
+		id).Scan(&st, &ok)
+	if st != "done" || ok != 1 {
+		t.Fatalf("status=%s ok=%d want done/1 (proven edges count as work)", st, ok)
+	}
+}

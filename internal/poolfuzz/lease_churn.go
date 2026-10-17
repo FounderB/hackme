@@ -46,7 +46,8 @@ func stalledNearDoneSec() int64 {
 
 // ForceCompleteLeaseChurnItems marks work items that exceeded reclaim churn as done
 // so budget-based campaigns can finalize. result_ok=1 when Hunt already proved crashes
-// on the shard (honest "work happened"); otherwise result_ok=0 with lease_churn_exhausted.
+// or showmap edges on the shard (honest "work happened"); otherwise result_ok=0 with
+// lease_churn_exhausted.
 func (s *Service) ForceCompleteLeaseChurnItems(ctx context.Context, now int64, limit int) (int, error) {
 	if s == nil || s.DB == nil {
 		return 0, nil
@@ -59,7 +60,7 @@ func (s *Service) ForceCompleteLeaseChurnItems(ctx context.Context, now int64, l
 	}
 	maxAtt := maxLeaseChurnAttempts()
 	rows, err := s.DB.QueryContext(ctx,
-		`SELECT w.id, w.campaign_id, COALESCE(w.hunt_proven_crashes,0), COALESCE(w.status,'')
+		`SELECT w.id, w.campaign_id, COALESCE(w.hunt_proven_crashes,0), COALESCE(w.hunt_proven_edges,0), COALESCE(w.status,'')
 		 FROM fuzz_work_items w
 		 JOIN fuzz_campaigns c ON c.id=w.campaign_id
 		 WHERE c.status IN ('planned','running')
@@ -75,12 +76,13 @@ func (s *Service) ForceCompleteLeaseChurnItems(ctx context.Context, now int64, l
 		itemID  int64
 		campID  string
 		crashes int
+		edges   int
 	}
 	var hits []hit
 	for rows.Next() {
 		var h hit
 		var status string
-		if err := rows.Scan(&h.itemID, &h.campID, &h.crashes, &status); err != nil {
+		if err := rows.Scan(&h.itemID, &h.campID, &h.crashes, &h.edges, &status); err != nil {
 			return 0, err
 		}
 		hits = append(hits, h)
@@ -90,7 +92,8 @@ func (s *Service) ForceCompleteLeaseChurnItems(ctx context.Context, now int64, l
 	}
 	n := 0
 	for _, h := range hits {
-		if err := s.forceCompleteWorkItem(ctx, h.campID, h.itemID, h.crashes > 0, "lease_churn_exhausted", now); err != nil {
+		pass := h.crashes > 0 || h.edges > 0
+		if err := s.forceCompleteWorkItem(ctx, h.campID, h.itemID, pass, "lease_churn_exhausted", now); err != nil {
 			return n, err
 		}
 		n++
@@ -156,7 +159,7 @@ func (s *Service) ForceCompleteStalledNearDoneCampaigns(ctx context.Context, now
 	n := 0
 	for _, c := range camps {
 		itemRows, err := s.DB.QueryContext(ctx,
-			`SELECT id, COALESCE(hunt_proven_crashes,0) FROM fuzz_work_items
+			`SELECT id, COALESCE(hunt_proven_crashes,0), COALESCE(hunt_proven_edges,0) FROM fuzz_work_items
 			 WHERE campaign_id=? AND status IN ('pending','leased','replay_pending')`, c.id)
 		if err != nil {
 			return n, err
@@ -164,11 +167,12 @@ func (s *Service) ForceCompleteStalledNearDoneCampaigns(ctx context.Context, now
 		type leftover struct {
 			id      int64
 			crashes int
+			edges   int
 		}
 		var left []leftover
 		for itemRows.Next() {
 			var L leftover
-			if err := itemRows.Scan(&L.id, &L.crashes); err != nil {
+			if err := itemRows.Scan(&L.id, &L.crashes, &L.edges); err != nil {
 				itemRows.Close()
 				return n, err
 			}
@@ -179,7 +183,8 @@ func (s *Service) ForceCompleteStalledNearDoneCampaigns(ctx context.Context, now
 			return n, err
 		}
 		for _, L := range left {
-			if err := s.forceCompleteWorkItem(ctx, c.id, L.id, L.crashes > 0, "stalled_near_done_force_complete", now); err != nil {
+			pass := L.crashes > 0 || L.edges > 0
+			if err := s.forceCompleteWorkItem(ctx, c.id, L.id, pass, "stalled_near_done_force_complete", now); err != nil {
 				return n, err
 			}
 			n++
