@@ -23,6 +23,7 @@ import (
 	"hackme/internal/chain"
 	"hackme/internal/lanpool"
 	"hackme/internal/netutil"
+	"hackme/internal/poolsync"
 	"hackme/internal/store"
 	"hackme/internal/workerlock"
 )
@@ -1355,11 +1356,14 @@ func coordinatorToken() string {
 	return strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_TOKEN"))
 }
 
+// coordinatorAdminToken is the hub admin secret for privileged pool GETs
+// (campaign progress, findings mirror). Matches poolsync.CoordinatorAdminToken:
+// accepts HACKME_COORDINATOR_ADMIN_TOKEN or HACKME_POOL_COORDINATOR_ADMIN_TOKEN
+// (Orders launchers write the latter from pool.orders.token). Never falls back
+// to the worker-scoped HACKME_POOL_COORDINATOR_TOKEN — that 401s on admin routes
+// and left Orders progress/findings sync silently empty after rc17.3.
 func coordinatorAdminToken() string {
-	if t := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_ADMIN_TOKEN")); t != "" {
-		return t
-	}
-	return coordinatorToken()
+	return poolsync.CoordinatorAdminToken()
 }
 
 func postCoordinatorWorkAdmin(ctx context.Context, base, path string, body []byte) (map[string]any, int, error) {

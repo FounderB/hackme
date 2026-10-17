@@ -29,7 +29,8 @@ BASE_URL="${BASE_URL:-http://127.0.0.1:8080}"
 STATE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hackme"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hackme"
 LOG_DIR="${LOG_DIR:-$STATE_DIR/logs/orders}"
-DATA_DIR="${HACKME_DATA_DIR:-$STATE_DIR/data}"
+# Isolate Orders ledger from miner desktop data (same port 8080 clash otherwise).
+DATA_DIR="${HACKME_DATA_DIR:-$STATE_DIR/data/orders}"
 ENV_FILE="${ENV_FILE:-$CONFIG_DIR/env.orders}"
 PID_FILE="${PID_FILE:-$LOG_DIR/hackme-orders.pid}"
 NODE_LOG="${NODE_LOG:-$LOG_DIR/hackme-orders.log}"
@@ -107,13 +108,15 @@ HACKME_ORDERS_STARTER_HMC=0
 WORKER_AUTOSTART=0
 HACKME_WORKER_WATCHDOG=0
 HACKME_DESKTOP_GPU_POOL=0
-HACKME_FUZZ_SETTLE_PULL=0
+HACKME_FUZZ_SETTLE_PULL=1
 EOF
   fi
 
   repair_pool_coordinator_env
+  repair_orders_settle_pull
   chmod 600 "$ENV_FILE" 2>/dev/null || true
   chmod 700 "$DATA_DIR" 2>/dev/null || true
+  mkdir -p "$DATA_DIR" 2>/dev/null || true
   for f in "${DATA_DIR}/node_ed25519.seed" "${DATA_DIR}/miner_submit_ed25519_seed.hex"; do
     [[ -f "$f" ]] || continue
     chmod 600 "$f" 2>/dev/null || true
@@ -147,6 +150,23 @@ repair_pool_coordinator_env() {
     chmod 600 "${CONFIG_DIR}/pool.orders.token" 2>/dev/null || true
   fi
   echo "[hackme-orders] repaired pool register token from pool.orders.token (not pool.miner.token)"
+}
+
+# Miner scripts seed settle-pull=0; Orders needs pull when admin/publish token is present
+# so escrow can close after progress sync (rc17.3 soft-launch).
+repair_orders_settle_pull() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  if grep -q '^HACKME_POOL_COORDINATOR_ADMIN_TOKEN=.\+' "$ENV_FILE" 2>/dev/null \
+    || grep -q '^HACKME_COORDINATOR_ADMIN_TOKEN=.\+' "$ENV_FILE" 2>/dev/null; then
+    if grep -q '^HACKME_FUZZ_SETTLE_PULL=0$' "$ENV_FILE" 2>/dev/null \
+      || grep -qi '^HACKME_FUZZ_SETTLE_PULL=false$' "$ENV_FILE" 2>/dev/null; then
+      sed -i 's/^HACKME_FUZZ_SETTLE_PULL=.*/HACKME_FUZZ_SETTLE_PULL=1/' "$ENV_FILE"
+      echo "[hackme-orders] enabled HACKME_FUZZ_SETTLE_PULL=1 (Orders admin token present)"
+    elif ! grep -q '^HACKME_FUZZ_SETTLE_PULL=' "$ENV_FILE" 2>/dev/null; then
+      echo 'HACKME_FUZZ_SETTLE_PULL=1' >>"$ENV_FILE"
+      echo "[hackme-orders] set HACKME_FUZZ_SETTLE_PULL=1"
+    fi
+  fi
 }
 
 # Optional Dig from_code toolchains (portable under install or XDG).
