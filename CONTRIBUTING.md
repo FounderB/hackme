@@ -4,6 +4,20 @@ Thanks for your interest in HackMe.
 
 By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
+## Ideas & culture (always — not a task mill)
+
+HackMe is a **living stack** (pool, Dig/Hunt, desk, scanners, coins…). We do **not** publish chore lists or “author quests” for people to grind.
+
+We want **interest**: new systems, rails, and product-fit features — the kind of thinking that shows up in thoughtful GitHub issues (for example ecosystem scanners / new lanes), not “change a button color.”
+
+| Channel | What we want | Bar |
+|--------|----------------|-----|
+| **Issue** | An idea or gap | Problem → why it fits HackMe → rough approach. Cosmetics and drive-by noise may be closed. |
+| **PR** | A contribution | **Complete and product-fit**: builds, focused, matches existing style, ready to review — not homework or half-finished sketches. |
+| **Security** | Real vulnerabilities | **Private only** — see below. Never via public issues/PRs or sprint chats. |
+
+Occasional HMC tips for exceptional accepted work are **gratitude**, not a bounty board of chores. Ongoing security rewards stay on [security-rewards.html](https://hackme.tech/security-rewards.html). Seasonal community sprints (when announced) may highlight the same culture; they do not replace these rules.
+
 ## Before you open a PR
 
 1. Run from the repo root:
@@ -18,6 +32,7 @@ By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 3. Do not commit secrets, databases, or local env files (see `.gitignore` and [docs/SECURITY_REPO.md](docs/SECURITY_REPO.md)).
 4. User-facing strings in **new** UI or public docs should be **English**.
 5. Root `*_test.go` files (e.g. `pool_inference_test.go`) stay next to `package main` — that is normal Go layout, not clutter. Lab one-shots live under `scripts/local/` (gitignored).
+6. Open the PR only when it is **merge-ready** (see **Ideas & culture** above). Prefer an issue first for large or ambiguous ideas.
 
 ## Reporting security issues
 
