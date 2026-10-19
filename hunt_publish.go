@@ -67,6 +67,17 @@ func (a *app) publishHuntHarnessForConfig(ctx context.Context, cfg map[string]an
 	}
 	sourceRel := strings.TrimSpace(toString(cfg["hunt_source_rel"]))
 	if err := hunt.PublishHarnessFile(ctx, a.db, hash, cachePath, sourceRel); err != nil {
+		// Catalog harness_hash is metadata-stable across clang rebuilds. A newer
+		// local .bin can differ byte-for-byte from the first bind and must not
+		// block campaign create (same tolerance as coordinator upload).
+		if huntCatalogSource(cfg) && poolsync.IsHarnessAlreadyBound(err) {
+			if _, gerr := hunt.GetHarnessArtifact(ctx, a.db, hash); gerr == nil {
+				cfg["harness_published"] = true
+				cfg["harness_fetch_path"] = hunt.HarnessFetchURL(hash)
+				cfg["harness_publish_note"] = "local rebuild differed; kept existing harness bind"
+				return nil
+			}
+		}
 		return err
 	}
 	cfg["harness_published"] = true
