@@ -129,7 +129,9 @@ func (s *Service) EnqueueSettleOutbox(ctx context.Context, kind, campaignID, min
 	return id, nil
 }
 
-// ListPendingSettleOutbox returns pending outbox rows oldest-first.
+// ListPendingSettleOutbox returns pending outbox rows with a fair multi-campaign
+// window. A single orphan/foreign campaign must not monopolize the pull batch
+// (FIFO head of 1200 runs used to block every other payer's settle-pull).
 func (s *Service) ListPendingSettleOutbox(ctx context.Context, limit int) ([]SettleOutboxItem, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("poolfuzz: no database")
@@ -138,25 +140,157 @@ func (s *Service) ListPendingSettleOutbox(ctx context.Context, limit int) ([]Set
 	if limit <= 0 || limit > 500 {
 		limit = 64
 	}
-	rows, err := s.DB.QueryContext(ctx,
-		`SELECT id, campaign_id, kind, miner_address, severity, created_at, COALESCE(work_item_id,0)
-		 FROM fuzz_settle_outbox
+	campRows, err := s.DB.QueryContext(ctx,
+		`SELECT campaign_id FROM fuzz_settle_outbox
 		 WHERE status='pending'
-		 ORDER BY CASE kind WHEN 'finalize' THEN 1 ELSE 0 END ASC, id ASC
-		 LIMIT ?`, limit)
+		 GROUP BY campaign_id
+		 ORDER BY MIN(id) ASC
+		 LIMIT 32`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := make([]SettleOutboxItem, 0, limit)
-	for rows.Next() {
-		var it SettleOutboxItem
-		if err := rows.Scan(&it.ID, &it.CampaignID, &it.Kind, &it.MinerAddress, &it.Severity, &it.CreatedAt, &it.WorkItemID); err != nil {
+	camps := make([]string, 0, 32)
+	for campRows.Next() {
+		var cid string
+		if err := campRows.Scan(&cid); err != nil {
+			campRows.Close()
 			return nil, err
 		}
-		out = append(out, it)
+		camps = append(camps, strings.TrimSpace(cid))
 	}
-	return out, rows.Err()
+	if err := campRows.Err(); err != nil {
+		campRows.Close()
+		return nil, err
+	}
+	campRows.Close()
+	if len(camps) == 0 {
+		return nil, nil
+	}
+	perCamp := limit
+	if n := len(camps); n > 1 {
+		perCamp = limit / min(n, 8)
+		if perCamp < 8 {
+			perCamp = 8
+		}
+	}
+	if perCamp > limit {
+		perCamp = limit
+	}
+	raw := make([]SettleOutboxItem, 0, limit)
+	for _, cid := range camps {
+		if cid == "" {
+			continue
+		}
+		rows, qerr := s.DB.QueryContext(ctx,
+			`SELECT id, campaign_id, kind, miner_address, severity, created_at, COALESCE(work_item_id,0)
+			 FROM fuzz_settle_outbox
+			 WHERE status='pending' AND campaign_id=?
+			 ORDER BY CASE kind WHEN 'finalize' THEN 1 ELSE 0 END ASC, id ASC
+			 LIMIT ?`, cid, perCamp)
+		if qerr != nil {
+			return nil, qerr
+		}
+		for rows.Next() {
+			var it SettleOutboxItem
+			if err := rows.Scan(&it.ID, &it.CampaignID, &it.Kind, &it.MinerAddress, &it.Severity, &it.CreatedAt, &it.WorkItemID); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			raw = append(raw, it)
+		}
+		rerr := rows.Err()
+		rows.Close()
+		if rerr != nil {
+			return nil, rerr
+		}
+		if len(raw) >= limit*2 {
+			break
+		}
+	}
+	return fairSettleOutboxWindow(raw, limit), nil
+}
+
+// fairSettleOutboxWindow round-robins pending rows across campaigns so settle-pull
+// on node A can drain its escrows while an undrainable foreign head still exists.
+func fairSettleOutboxWindow(items []SettleOutboxItem, limit int) []SettleOutboxItem {
+	if limit <= 0 || len(items) == 0 {
+		return nil
+	}
+	if len(items) <= limit {
+		return items
+	}
+	type campQ struct {
+		id    string
+		items []SettleOutboxItem
+	}
+	order := make([]string, 0, 16)
+	byCamp := map[string]*campQ{}
+	for _, it := range items {
+		cid := strings.TrimSpace(it.CampaignID)
+		q := byCamp[cid]
+		if q == nil {
+			q = &campQ{id: cid}
+			byCamp[cid] = q
+			order = append(order, cid)
+		}
+		q.items = append(q.items, it)
+	}
+	if len(order) <= 1 {
+		out := items
+		if len(out) > limit {
+			out = out[:limit]
+		}
+		return out
+	}
+	// Cap per campaign so at least ~4 campaigns fit in one window when possible.
+	perCamp := limit / 2
+	if n := len(order); n > 2 {
+		perCamp = limit / min(n, 8)
+	}
+	if perCamp < 8 {
+		perCamp = 8
+	}
+	if perCamp > limit {
+		perCamp = limit
+	}
+	idx := make(map[string]int, len(order))
+	out := make([]SettleOutboxItem, 0, limit)
+	for len(out) < limit {
+		progress := false
+		for _, cid := range order {
+			q := byCamp[cid]
+			taken := idx[cid]
+			if taken >= perCamp || taken >= len(q.items) {
+				continue
+			}
+			out = append(out, q.items[taken])
+			idx[cid] = taken + 1
+			progress = true
+			if len(out) >= limit {
+				break
+			}
+		}
+		if !progress {
+			break
+		}
+	}
+	// If caps left room, fill from global oldest remainder.
+	if len(out) < limit {
+		seen := make(map[int64]bool, len(out))
+		for _, it := range out {
+			seen[it.ID] = true
+		}
+		for _, it := range items {
+			if seen[it.ID] {
+				continue
+			}
+			out = append(out, it)
+			if len(out) >= limit {
+				break
+			}
+		}
+	}
+	return out
 }
 
 // AckSettleOutbox marks outbox rows applied by the origin node.

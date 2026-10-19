@@ -14,7 +14,7 @@ This is not a “bank-like” audit or a legal guarantee.
 | OS user | Any process **on your behalf** on the same machine can call `http://127.0.0.1:8080/...` just like a browser. |
 | "Wallet" | One line **`wallet`** in SQLite (`balance_hmc`) - **accounting within a node**, not a separate hardware/HSM wallet. |
 | Key **Ed25519** (`data/node_ed25519.seed`) | Signing of API responses (for example, orders), access rights to the file are with the OS user. |
-| Dashboard | Static page with `localhost`. The Admin token is **not** embedded in HTML and **not** given to `/api/desktop/local-auth` unless explicitly set to **`HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN=1`** (loopback + desktop mode only). Otherwise, the token is set locally on the client (`sessionStorage`). |
+| Dashboard | Static page with `localhost`. In **desktop mode on loopback**, `GET /api/desktop/local-auth` **returns** `admin_token` so the UI can re-sync after restart. **`HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN=1`** only controls HTML embed (`window.__HACKME_EMBEDDED_ADMIN_TOKEN__`) and the optional UI note — not the JSON endpoint. Rotate `HACKME_ADMIN_TOKEN` on shared machines. |
 
 ---
 

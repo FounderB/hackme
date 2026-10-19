@@ -446,8 +446,10 @@ func (a *app) verifyCanonicalOrdersFundTx(row map[string]any, from string, amoun
 	if amountUnits > 0 && gotAmount != amountUnits {
 		return fmt.Errorf("amount_units mismatch: %d want %d", gotAmount, amountUnits)
 	}
-	if memo != "" && !chain.MemoIsOrdersFund(memo) {
-		return fmt.Errorf("memo must start with %s", chain.OrdersFundMemoPrefix)
+	// Require Orders fund memo always. Empty/missing memo used to pass confirm and
+	// could credit any DevFee transfer of matching amount (audit tip 3415c68 H3).
+	if !chain.MemoIsOrdersFund(memo) {
+		return fmt.Errorf("memo must start with %s (got %q)", chain.OrdersFundMemoPrefix, memo)
 	}
 	return nil
 }

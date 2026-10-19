@@ -175,6 +175,13 @@ func ClassifySanitizerOutput(blob string) (info SanitizerInfo, ok bool) {
 			}, true
 		}
 	}
+	// Integrated LSan under the AddressSanitizer banner (common with detect_leaks=1):
+	// "SUMMARY: AddressSanitizer: N byte(s) leaked …" is hygiene, not CVE-class.
+	if strings.Contains(low, "summary: addresssanitizer") &&
+		(strings.Contains(low, "leaked") || strings.Contains(low, "leak of")) {
+		return SanitizerInfo{Class: "lsan", Subtype: "memory-leak", Raw: "SUMMARY: AddressSanitizer (leak)", Security: false}, true
+	}
+
 	if strings.Contains(low, "summary: addresssanitizer") {
 		sub := "address-sanitizer"
 		if strings.Contains(low, "stack") {

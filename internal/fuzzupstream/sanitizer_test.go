@@ -55,6 +55,22 @@ Direct leak of 32 byte(s) in 1 object(s) allocated from:
 	}
 }
 
+func TestClassifySanitizerIntegratedASANLeakNotCVE(t *testing.T) {
+	// Clang often prints LSan under the AddressSanitizer SUMMARY banner.
+	blob := `
+    #0 0x5 in ParseField xjson.c:567
+    #1 0x6 in ParseObject xjson.c:621
+SUMMARY: AddressSanitizer: 144 byte(s) leaked in 2 allocation(s).
+`
+	info := ClassifySanitizer(blob)
+	if info.Class != "lsan" || info.Security {
+		t.Fatalf("integrated ASAN leak must be lsan/non-security, got %+v", info)
+	}
+	if IsSecuritySanitizer(blob) {
+		t.Fatal("IsSecuritySanitizer must reject ASAN leak summary")
+	}
+}
+
 func TestFormatAndParseHuntTrap(t *testing.T) {
 	sec := FormatHuntTrap(SanitizerInfo{Class: "asan", Subtype: "heap-buffer-overflow", Security: true})
 	if sec != "hunt_crash:heap-buffer-overflow" {

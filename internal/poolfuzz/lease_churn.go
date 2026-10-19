@@ -219,18 +219,23 @@ func (s *Service) forceCompleteWorkItem(ctx context.Context, campaignID string, 
 		return err
 	}
 
+	var cfgJSON string
+	_ = s.DB.QueryRowContext(ctx, `SELECT config_json FROM fuzz_campaigns WHERE id=?`, campaignID).Scan(&cfgJSON)
+	cfg := parseConfigJSON(cfgJSON)
+	// Flush PayRun/PayFinding before campaign Finalize so force-complete does not
+	// strand settle outbox rows (audit tip 3415c68 H2: forceComplete→Finalize sans PayRun).
+	if s.Settler != nil && escrowEnabled(cfg) {
+		if err := s.flushPendingSettles(ctx, campaignID, itemID, cfg); err != nil {
+			return fmt.Errorf("poolfuzz: flush settle after %s: %w", reason, err)
+		}
+	}
 	completed, err := s.recomputeProgress(ctx, campaignID, now)
 	if err != nil {
 		return err
 	}
-	if completed && s.Settler != nil {
-		var cfgJSON string
-		_ = s.DB.QueryRowContext(ctx, `SELECT config_json FROM fuzz_campaigns WHERE id=?`, campaignID).Scan(&cfgJSON)
-		cfg := parseConfigJSON(cfgJSON)
-		if escrowEnabled(cfg) {
-			if _, err := s.Settler.Finalize(ctx, campaignID, 0); err != nil {
-				return fmt.Errorf("poolfuzz: finalize after %s: %w", reason, err)
-			}
+	if completed && s.Settler != nil && escrowEnabled(cfg) {
+		if _, err := s.Settler.Finalize(ctx, campaignID, 0); err != nil {
+			return fmt.Errorf("poolfuzz: finalize after %s: %w", reason, err)
 		}
 	}
 	s.clearEmptyClaimCache()

@@ -239,7 +239,9 @@ func desktopAdminTokenEmbedScript(r *http.Request) string {
 	return `<script>window.__HACKME_EMBEDDED_ADMIN_TOKEN__=` + string(b) + `;</script>`
 }
 
-// handleDesktopLocalAuth exposes HACKME_ADMIN_TOKEN to the dashboard on loopback only (desktop mode).
+// handleDesktopLocalAuth exposes HACKME_ADMIN_TOKEN to the dashboard on loopback
+// only (desktop mode). The JSON always includes admin_token when configured;
+// HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN only gates HTML embed + the exposed flag.
 func handleDesktopLocalAuth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

@@ -139,7 +139,7 @@ func TestOrdersFundConfirmCanonicalTxGetOmitsMemo(t *testing.T) {
 	txHash := "aabbccddaabbccddaabbccddaabbccdd112233445566778899aabbccddeeff"
 	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/tx/") {
-			// Simulates production GET /api/tx/{hash} before memo round-trip fix.
+			// Missing memo must not credit Orders fund (audit: empty memo confirm).
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"tx_hash":      txHash,
 				"status":       "included",
@@ -160,7 +160,7 @@ func TestOrdersFundConfirmCanonicalTxGetOmitsMemo(t *testing.T) {
 	req.Header.Set("X-Hackme-Admin-Token", tok)
 	rec := httptest.NewRecorder()
 	a.handleOrdersFundAPI(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("confirm status=%d body=%s", rec.Code, rec.Body.String())
+	if rec.Code == http.StatusOK {
+		t.Fatalf("empty memo must be rejected, body=%s", rec.Body.String())
 	}
 }

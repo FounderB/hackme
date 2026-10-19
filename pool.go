@@ -1050,6 +1050,10 @@ func walletCanonicalBaseUsable(base string) bool {
 	if base == "" {
 		return false
 	}
+	// Same SSRF floor as coordinator/settle bases (scheme + host, no userinfo).
+	if !netutil.SafeHTTPBaseURL(base) {
+		return false
+	}
 	u, err := neturl.Parse(base)
 	if err != nil {
 		return false
