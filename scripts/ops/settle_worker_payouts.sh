@@ -323,6 +323,28 @@ while IFS= read -r item; do
   fi
 
   already_hmc="$(jq -r --arg wid "$worker_id" '.workers[$wid].settled_hmc // 0' "$STATE_FILE")"
+  # Coordinator payout counters are in-memory: a restart resets payout_hmc while
+  # settlement state keeps a high settled_hmc watermark → delta stays 0 forever.
+  # Rebase watermark down to current accrued (never up) so only NEW work settles;
+  # do not re-pay historical on-chain amounts already recorded in settled_hmc.
+  rebase="$(python3 - "$payout_hmc" "$already_hmc" <<'PY'
+import sys
+p=float(sys.argv[1]); s=float(sys.argv[2])
+# Treat as reset when accrued is clearly below settled (float noise floor 1e-9).
+print("1" if (s - p) > 1e-9 else "0")
+PY
+)"
+  if [[ "$rebase" == "1" ]]; then
+    echo "[settle-workers] rebase ${worker_id}: settled_hmc ${already_hmc} -> ${payout_hmc} (coordinator counter reset)"
+    already_hmc="$payout_hmc"
+    if ! jq --arg wid "$worker_id" --arg settled "$already_hmc" --argjson ts "$(date +%s)" \
+      '(.workers[$wid] = ((.workers[$wid] // {}) + {settled_hmc:($settled|tonumber),rebased_unix:$ts}))' \
+      "$STATE_FILE" >"${STATE_FILE}.tmp"; then
+      echo "[settle-workers] rebase write failed for ${worker_id}" >&2
+      continue
+    fi
+    mv "${STATE_FILE}.tmp" "$STATE_FILE"
+  fi
   delta_hmc="$(python3 - "$payout_hmc" "$already_hmc" <<'PY'
 import sys
 p=float(sys.argv[1]); s=float(sys.argv[2]); d=p-s
