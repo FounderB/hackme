@@ -1,27 +1,41 @@
 {
-  "updated": "2026-10-12T12:00:00Z",
+  "updated": "2026-10-22T17:00:00Z",
   "interval_ms": 6200,
   "pool_poll_ms": 30000,
   "slides": [
     {
       "kind": "release",
       "badge": "CHANNEL",
-      "title": "0.1.0-rc17.3 \u2014 Coverage Hunt engines",
-      "detail": "Linux install/update auto-installs clang + AFL++ + bwrap \u00b7 Dig 40/60 Deep \u00b7 Hunt 50/50",
+      "title": "0.1.0-rc17.4 — Blake3 @ 485k · ISO",
+      "detail": "Update workerpoh before #485000 · soft attempt-pay · HackMe OS ISO + SHA256SUMS-iso",
       "cta": "Downloads",
       "href": "/downloads.html#start",
       "accent": "success",
       "stats": [
-        "rc17.3",
-        "Hunt",
-        "SHA"
+        "rc17.4",
+        "Blake3",
+        "ISO"
+      ]
+    },
+    {
+      "kind": "product",
+      "badge": "POOL",
+      "title": "Soft pool = attempt-pay · shares = stats",
+      "detail": "Verified share_nonces at M/1024 · SHARE_STRICT later after GPU harvest",
+      "cta": "Pool security",
+      "href": "/docs.html",
+      "accent": "neon",
+      "stats": [
+        "soft",
+        "shares",
+        "1024"
       ]
     },
     {
       "kind": "product",
       "badge": "HUNT",
-      "title": "Coverage Hunt live \u2014 libFuzzer fleet \u00b7 AFL++ Deep",
-      "detail": "Engines on desktop now; fleet auto-install in rc17.3 \u00b7 prove/pay on edges",
+      "title": "Coverage Hunt live — libFuzzer fleet · AFL++ Deep",
+      "detail": "Engines on desktop; fleet auto-install in rc17.4 · prove/pay on edges",
       "cta": "Fuzz guide",
       "href": "/fuzz-guide.html",
       "accent": "neon",
@@ -32,24 +46,10 @@
       ]
     },
     {
-      "kind": "release",
-      "badge": "CHANNEL",
-      "title": "0.1.0-rc17 published \u2014 Win/Linux/deb/ISO",
-      "detail": "Superseded by rc17.3 full bundle \u2014 verify SHA256SUMS",
-      "cta": "Downloads",
-      "href": "/downloads.html#start",
-      "accent": "success",
-      "stats": [
-        "rc17",
-        "SHA",
-        "LIVE"
-      ]
-    },
-    {
       "kind": "series",
       "badge": "Hunt",
-      "title": "Hunt Watch 12/12 \u00b7 ~192.5M iter \u00b7 ledger live",
-      "detail": "Hunt Standard ASAN+UBSan \u00b7 43 CLEAN \u00b7 2 CVE_CANDIDATE \u2014 not libFuzzer",
+      "title": "Hunt Watch 12/12 · ~192.5M iter · ledger live",
+      "detail": "Hunt Standard ASAN+UBSan · 43 CLEAN · 2 CVE_CANDIDATE — not libFuzzer",
       "cta": "Open ledger",
       "href": "/reports/hunt-watch-2026sep/",
       "accent": "gold",
@@ -62,8 +62,8 @@
     {
       "kind": "exchange",
       "badge": "D0",
-      "title": "Paper Exchange live \u2014 HMC spot \u00b7 pool oracle",
-      "detail": "exchange.hackme.tech paper soft-launch (D0) \u00b7 local node #exchange embeds the same desk",
+      "title": "Paper Exchange live — HMC spot · pool oracle",
+      "detail": "exchange.hackme.tech paper soft-launch (D0) · local node #exchange embeds the same desk",
       "cta": "Open desk",
       "href": "https://exchange.hackme.tech/",
       "accent": "cyan",
@@ -77,7 +77,7 @@
       "kind": "pool",
       "badge": "Live pool",
       "title": "Official HMC pool",
-      "detail": "Live hashrate \u00b7 miners \u00b7 tip height",
+      "detail": "Live hashrate · miners · tip height",
       "cta": "Mine",
       "href": "/downloads.html#start",
       "accent": "cyan",
@@ -86,8 +86,8 @@
     {
       "kind": "ecosystem",
       "badge": "Coins",
-      "title": "HMC \u00b7 SUP \u00b7 HMS \u2014 multi-asset network",
-      "detail": "Primary useful-PoW \u00b7 support coin \u00b7 storage prelaunch",
+      "title": "HMC · SUP · HMS — multi-asset network",
+      "detail": "Primary useful-PoW · support coin · storage prelaunch",
       "cta": "Registry",
       "href": "/coins.html",
       "accent": "gold",
@@ -100,8 +100,8 @@
     {
       "kind": "win",
       "badge": "Upstream",
-      "title": "cfgpack int64 UBSan \u2192 fixed in days",
-      "detail": "Reported #1 \u00b7 merge b5e7cff \u00b7 real maintainer fix",
+      "title": "cfgpack int64 UBSan → fixed in days",
+      "detail": "Reported #1 · merge b5e7cff · real maintainer fix",
       "cta": "Case",
       "href": "/reports/oss-cve/cases/cfgpack.html",
       "accent": "success",
@@ -113,8 +113,8 @@
     {
       "kind": "series",
       "badge": "Research",
-      "title": "libheif 14/14 CLEAN \u00b7 ~2.57B exec",
-      "detail": "ASAN=0 across the series \u00b7 day reports public",
+      "title": "libheif 14/14 CLEAN · ~2.57B exec",
+      "detail": "ASAN=0 across the series · day reports public",
       "cta": "Day 14",
       "href": "/reports/oss-cve-watch-libheif/day14.html",
       "accent": "gold",
@@ -127,7 +127,7 @@
       "kind": "b2b",
       "badge": "Fuzz",
       "title": "Dig + Hunt on your local node",
-      "detail": "WASM Dig \u00b7 ASAN Hunt \u00b7 report + CI gate",
+      "detail": "WASM Dig · ASAN Hunt · report + CI gate",
       "cta": "Order",
       "href": "/orders.html",
       "accent": "cyan",

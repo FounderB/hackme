@@ -3,16 +3,17 @@
     {
       "id": "2026-10-22-rc17.4-live",
       "date": "2026-10-22",
-      "title": "0.1.0-rc17.4 — Blake3 @ 485k · pseudo-shares · settle SUP/HMC fix",
-      "summary": "Blake3 PoH activates at height 485000 (was 500000). Pool pays verified pseudo-shares (work % M/1024) with soft attempt fallback. Settlement SQLite export no longer rolls back settled_sup (HMC/SUP shared JSON). Expect GH/s to drop ~100–200× after Blake3 — retarget lowers M. Update all workerpoh binaries before tip reaches 485k. RTX 50: CUDA toolkit ≥12.8 for compute_120.",
-      "impact": "Mandatory worker update before #485000. Operators: redeploy coordinator+workersettlectl; confirm settle export-json fail-closed; read miner notices.",
+      "title": "0.1.0-rc17.4 — Blake3 @ 485k · soft attempt-pay · ISO · settle fix",
+      "summary": "Blake3 PoH activates at height 485000 (was 500000). Soft pool mode always attempt-pays; verified share_nonces (M/1024) are stats/rate-check only until SHARE_STRICT (GPU full-batch harvest next). Settlement SQLite export no longer rolls back settled_sup. HackMe OS ISO + SHA256SUMS-iso on GitHub and hackme.tech/dist. Expect GH/s to drop ~100–200× after Blake3 — retarget lowers M. Update workerpoh before tip reaches 485k. RTX 50: CUDA ≥12.8 for compute_120.",
+      "impact": "Mandatory worker update before #485000. Soft share-pay underpay bug fixed (attempt-pay restored). Operators: coordinator on soft attempt-pay; ISO mirror live; read miner notices.",
       "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.4 · Notices: /api/miner/notices",
       "tags": [
         "release",
         "rc17.4",
         "blake3",
         "shares",
-        "settle"
+        "settle",
+        "iso"
       ],
       "status": "published"
     },

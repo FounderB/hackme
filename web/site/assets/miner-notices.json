@@ -13,8 +13,8 @@
     {
       "id": "pseudo-shares-rc174",
       "severity": "info",
-      "title": "Pseudo-shares (verified pool work)",
-      "body": "Public pool now accepts share_nonces: each share is a PoH nonce with work % (M/1024) == 0, verified by the coordinator (not trusted attempts alone). Updated workerpoh harvests shares automatically. Soft mode keeps attempt-pay fallback until SHARE_STRICT=1.",
+      "title": "Pseudo-shares (stats / soft attempt-pay)",
+      "body": "Public pool accepts share_nonces: each share is a PoH nonce with work % (M/1024) == 0, verified by the coordinator. Soft mode (default) always attempt-pays — shares are for stats and share-rate checks only (SHARE_RATE_REJECT off until GPU full-batch harvest). SHARE_STRICT=1 later enables share-pay. Updated workerpoh harvests shares automatically.",
       "cta_label": "Pool docs",
       "cta_href": "/docs.html"
     },
@@ -22,7 +22,7 @@
       "id": "attempt-recheck-h1",
       "severity": "info",
       "title": "Attempt-pay sampled recheck",
-      "body": "When shares are absent, attempt accrual still samples ~1% of found=false submits and rejects missed_found_unreported if the lease prefix contains a valid PoH hit you did not report.",
+      "body": "On the soft attempt-pay path, the coordinator samples ~1% of found=false submits and rejects missed_found_unreported if the lease prefix contains a valid PoH hit you did not report.",
       "cta_label": "Pool security",
       "cta_href": "/docs.html"
     }

@@ -5,7 +5,7 @@
 | Version | Supported |
 |---------|-----------|
 | `0.1.0-rc17.4` | Yes (current runtime + published installers / ISO) |
-| `0.1.0-rc17` | Best effort (superseded by rc17.3) |
+| `0.1.0-rc17`–`rc17.3` | Best effort (superseded by rc17.4) |
 | `0.1.0-rc16` | Best effort |
 | `0.1.0-rc15` | Yes |
 | `0.1.0-rc14x` | Best effort only |

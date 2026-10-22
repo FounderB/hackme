@@ -17,7 +17,7 @@ Hashrate settles on-chain. Security work is escrowed, distributed, and reported 
 
 <br/>
 
-[![Release](https://img.shields.io/badge/release-0.1.0--rc17.3_LIVE-00d1ff?style=for-the-badge)](https://hackme.tech/downloads.html)
+[![Release](https://img.shields.io/badge/release-0.1.0--rc17.4_LIVE-00d1ff?style=for-the-badge)](https://hackme.tech/downloads.html)
 [![Pool](https://img.shields.io/badge/pool-LIVE-39ff14?style=for-the-badge)](https://hackme.tech/pool/coordinator/api/pool/stats)
 [![CI](https://github.com/jokeez/hackme/actions/workflows/ci.yml/badge.svg)](https://github.com/jokeez/hackme/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-7fe7ff?style=for-the-badge)](LICENSE)
@@ -142,7 +142,7 @@ GPU backends: [GPU_MINING_BACKENDS.md](docs/GPU_MINING_BACKENDS.md).
 ```bash
 hackme-fuzzing wizard --pack filter_utf8 --package audit
 hackme-fuzzing hunt … --package hunt_lite   # see docs
-bash scripts/ops/install_hunt_engines.sh --desktop   # clang + AFL++ + bwrap (auto-install on published rc17.3 installers)
+bash scripts/ops/install_hunt_engines.sh --desktop   # clang + AFL++ + bwrap (auto-install on published rc17.4 installers)
 ```
 
 | Dig package | ~HMC | Runs (guide) |

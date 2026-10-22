@@ -1988,7 +1988,7 @@
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div class="min-w-0 flex-1">
 							<p class="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-neon mb-1.5">What&apos;s new · <span id="dashboard-whats-new-ver">0.1.0-rc17.4</span></p>
-							<p id="dashboard-whats-new-body" class="text-gray-200/95"><strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> · pseudo-shares · settle SUP/HMC fix. <strong class="text-warn">Update workerpoh before the gate</strong> — GH/s drops ~100–200× after Blake3 (expected). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.</p>
+							<p id="dashboard-whats-new-body" class="text-gray-200/95"><strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> · soft <strong class="text-white/90">attempt-pay</strong> (shares = stats) · HackMe OS ISO · settle SUP/HMC fix. <strong class="text-warn">Update workerpoh before the gate</strong> — GH/s drops ~100–200× after Blake3 (expected). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.</p>
 						</div>
 						<button type="button" id="dashboard-whats-new-dismiss" class="shrink-0 text-[10px] px-2 py-1 rounded border border-white/15 text-gray-400 hover:text-gray-200 uppercase tracking-wider">Dismiss</button>
 					</div>
@@ -4138,7 +4138,7 @@
 		// Enable JS-driven tab behavior (single active panel view).
 		document.body.classList.add('js-ui');
 		const DASHBOARD_UI_VER = '0.1.0-rc17.4';
-		const DASHBOARD_WHATS_NEW_HTML = '<strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> · pseudo-shares · settle SUP/HMC fix. <strong class="text-warn">Update workerpoh before the gate</strong> — GH/s drops ~100–200× after Blake3 (expected). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.';
+		const DASHBOARD_WHATS_NEW_HTML = '<strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> · soft <strong class="text-white/90">attempt-pay</strong> (shares = stats) · HackMe OS ISO · settle SUP/HMC fix. <strong class="text-warn">Update workerpoh before the gate</strong> — GH/s drops ~100–200× after Blake3 (expected). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.';
 		function updateUIModeBadge() {
 			const el = document.getElementById('hdr-ui-mode');
 			if (!el) return;
