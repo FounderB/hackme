@@ -59,12 +59,17 @@ type workManager struct {
 	attemptRecheckBudget uint64
 	attemptRecheckRolls  uint64
 	attemptRecheckReject uint64
-	// Pseudo-shares: pay verified work % (M/divisor)==0 instead of trusted attempts.
-	shareDivisor     uint64
-	shareStrict      bool
-	shareAccepts     uint64
-	shareRejects     uint64
-	sharePaidSubmits uint64
+	// Pseudo-shares: soft = attempt-pay + share stats/rate; strict = share-pay.
+	shareDivisor         uint64
+	shareStrict          bool
+	shareRateMin         float64
+	shareRateMinExpected float64
+	shareRateReject      bool
+	shareAccepts         uint64
+	shareRejects         uint64
+	sharePaidSubmits     uint64
+	shareRateLowFlags    uint64
+	shareRateLowRejects  uint64
 
 	// PoH tip binding for Blake3 v3 (refreshed from chain /api/metrics).
 	tipHash             string
@@ -214,6 +219,10 @@ type workerPayoutStat struct {
 	LockSeenUnix int64  `json:"-"`
 	LastClientIP string `json:"last_client_ip,omitempty"`
 	Online       bool   `json:"online,omitempty"`
+	// Soft pseudo-share observability (attempt-pay path).
+	ShareExpected float64 `json:"share_expected,omitempty"`
+	ShareAccepted uint64  `json:"share_accepted,omitempty"`
+	ShareRateLow  bool    `json:"share_rate_low,omitempty"`
 }
 
 type workerAbuseState struct {
@@ -456,6 +465,9 @@ func newWorkManagerFromEnv() *workManager {
 		attemptRecheckBudget:     attemptRecheckBudget,
 		shareDivisor:             envShareDivisor(),
 		shareStrict:              envShareStrict(),
+		shareRateMin:             envShareRateMin(),
+		shareRateMinExpected:     envShareRateMinExpected(),
+		shareRateReject:          envShareRateReject(),
 		active:                   make(map[workKey]leaseRecord),
 		worker:                   make(map[string]workerPayoutStat),
 		acceptedResultHashes:     make(map[string]struct{}),
@@ -2273,7 +2285,35 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		m.rejectedSubmits++
 		return false, "shares_required", 0, signerAddr, signerAddr != ""
 	}
-	useShares := shareDiv >= 2 && len(validShares) > 0
+	// Soft: never switch payout to shares (audit: CPU harvest ~6% of lease ⇒
+	// share-pay underpays honest miners ~20%; cheaters omit share_nonces).
+	// Strict: pay by verified shares when any accepted.
+	useShares := m.shareStrict && shareDiv >= 2 && len(validShares) > 0
+
+	// Soft share-rate check: expected = attempts * divisor / M.
+	if shareDiv >= 2 && sm > 0 && !req.Found {
+		ws := m.worker[req.WorkerID]
+		ws.ShareExpected += expectedShares(attemptsPre, rec.TargetMod, shareDiv)
+		ws.ShareAccepted += uint64(len(validShares))
+		if m.shareRateMin > 0 && ws.ShareExpected >= m.shareRateMinExpected {
+			rate := float64(ws.ShareAccepted) / ws.ShareExpected
+			if rate < m.shareRateMin {
+				if !ws.ShareRateLow {
+					m.shareRateLowFlags++
+				}
+				ws.ShareRateLow = true
+				m.worker[req.WorkerID] = ws
+				if m.shareRateReject {
+					m.shareRateLowRejects++
+					m.rejectedSubmits++
+					return false, "share_rate_low", 0, signerAddr, signerAddr != ""
+				}
+			} else {
+				ws.ShareRateLow = false
+			}
+		}
+		m.worker[req.WorkerID] = ws
+	}
 
 	// Sampled missed-found recheck (Wave B / H1): before consuming the lease,
 	// occasionally verify attempt-pay submits did not skip an obvious hit.
@@ -2374,7 +2414,9 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if useShares {
 		m.sharePaidSubmits++
 		payout = float64(len(validShares)) * rewardPerShare(m.baseRewardHMC, shareDiv)
-		// Found block hit is already a share when work%M==0 ⇒ work%shareMod==0; do not double-count found_bonus on top of share math unless no share listed.
+		// Found hit is a share only when M % shareMod == 0 (usual when shareMod = M/divisor).
+		// Money-wise: found nonce is still checked via chainSolve / found path separately —
+		// only add found_bonus when the hit was not listed among accepted shares.
 		if req.Found && !chainSolve.OK && len(validShares) == 0 {
 			payout += m.foundBonus
 		}
@@ -2900,9 +2942,14 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 		"attempt_recheck_rejects":      m.attemptRecheckReject,
 		"share_divisor":                m.shareDivisor,
 		"share_strict":                 m.shareStrict,
+		"share_rate_min":               m.shareRateMin,
+		"share_rate_min_expected":      m.shareRateMinExpected,
+		"share_rate_reject":            m.shareRateReject,
 		"share_accepts":                m.shareAccepts,
 		"share_rejects":                m.shareRejects,
 		"share_paid_submits":           m.sharePaidSubmits,
+		"share_rate_low_flags":         m.shareRateLowFlags,
+		"share_rate_low_rejects":       m.shareRateLowRejects,
 		"now_unix":                     now,
 		"next_nonce":                   m.nextNonce.Load(),
 		"issued_ranges":                m.issuedRanges,

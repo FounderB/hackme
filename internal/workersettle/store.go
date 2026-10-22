@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -524,7 +525,9 @@ func (s *Store) ExportJSONToFile(ctx context.Context, path string) error {
 			if oldSUP > dbSUP {
 				ent["settled_sup"] = oldSUP
 				// Keep SQLite in sync so the next export does not need the JSON crutch.
-				_ = s.SetSettledSUP(ctx, wid, oldSUP, fmt.Sprint(ent["payout_address"]))
+				if err := s.SetSettledSUP(ctx, wid, oldSUP, fmt.Sprint(ent["payout_address"])); err != nil {
+					log.Printf("workersettle: SetSettledSUP(%s) during export merge: %v", wid, err)
+				}
 			}
 			if pend, ok := oldEnt["pending_sup"]; ok && pend != nil {
 				ent["pending_sup"] = pend
