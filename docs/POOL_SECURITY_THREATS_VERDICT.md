@@ -48,7 +48,7 @@ A comparison of “as it happens in classic articles” with **what HackMe actua
 | Serializable TX in the settlement database | **None** (JSON file + curl) |
 | Blocking “pending” on the worker in state until the end of tx | **No** (update after success) |
 | Protection against two processes **on one host** with one `STATE_FILE` | **`flock`** - **yes** (`settle_worker_payouts.sh`) |
-| Protection from two **different** hosts with one payer | **No** - do not run two settlements with one wallet without external coordination |
+| Protection from two **different** hosts with one payer | **Partial** — set `SETTLE_EXPECTED_HOSTNAME` so only the designated host runs settle; still no distributed lock across machines |
 
 ---
 

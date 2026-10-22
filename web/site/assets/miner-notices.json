@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_unix": 1761140000,
+  "updated_unix": 1761150000,
   "notices": [
     {
       "id": "poh-v3-blake3",
@@ -8,6 +8,14 @@
       "title": "PoH v3 Blake3 activation",
       "body": "At chain height 500000 (override HACKME_POH_V3_ACTIVATION_HEIGHT in lab), PoH work becomes Blake3(prev_hash || miner_address || nonce_le) with little-endian uint64 work % M == 0. Pre-activation keeps eval(n)=7n+13. Economics (~30s, 0.01 HMC) unchanged. Update workerpoh before the gate.",
       "cta_label": "Chain spec",
+      "cta_href": "/docs.html"
+    },
+    {
+      "id": "attempt-recheck-h1",
+      "severity": "info",
+      "title": "Attempt-pay sampled recheck",
+      "body": "Public pool attempt accrual (payout_found_only=0) now samples ~1% of found=false submits and rejects missed_found_unreported if the lease prefix contains a valid PoH hit you did not report. Keep mining honestly; found-only mode skips this path.",
+      "cta_label": "Pool security",
       "cta_href": "/docs.html"
     }
   ]

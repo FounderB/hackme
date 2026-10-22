@@ -113,6 +113,18 @@ if [[ ! -r "$STATE_FILE" || ! -w "$STATE_FILE" ]]; then
   exit 1
 fi
 
+# Cross-host single-payer guard (Wave C): only one machine may settle the same
+# payer wallet. Set SETTLE_EXPECTED_HOSTNAME to this host's short hostname
+# (or FQDN). Empty = disabled (local flock still applies on this host).
+if [[ -n "${SETTLE_EXPECTED_HOSTNAME:-}" ]]; then
+  _hn="$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo "")"
+  _hnf="$(hostname -f 2>/dev/null || echo "")"
+  if [[ "$_hn" != "$SETTLE_EXPECTED_HOSTNAME" && "$_hnf" != "$SETTLE_EXPECTED_HOSTNAME" ]]; then
+    echo "[settle-workers] refuse: hostname=${_hn}/${_hnf} != SETTLE_EXPECTED_HOSTNAME=${SETTLE_EXPECTED_HOSTNAME}" >&2
+    exit 1
+  fi
+fi
+
 # Single-writer: avoid two cron/systemd instances racing on nonce + state (see docs/POOL_SECURITY_THREATS_VERDICT.md).
 LOCK_FILE="${STATE_FILE}.flock"
 exec 9>"$LOCK_FILE"
