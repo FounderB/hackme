@@ -14,29 +14,7 @@
         "shares",
         "settle"
       ],
-      "status": "published",
-      "telegram": {
-        "headline": "0.1.0-rc17.4 — Blake3 @ 485k",
-        "lead": "Update miners before height 485000. Pseudo-shares + settle SUP/HMC fix shipped.",
-        "bullets": [
-          "Blake3 gate 485000 (update workerpoh)",
-          "Pseudo-shares verified by coordinator",
-          "Settle: SUP watermark no longer wiped by HMC export",
-          "GH/s cliff after Blake3 is expected"
-        ],
-        "footer": "hackme.tech/downloads.html · not financial advice"
-      },
-      "discord": {
-        "title": "0.1.0-rc17.4 LIVE",
-        "body": "**HackMe 0.1.0-rc17.4**\n\n• Blake3 @ **#485000** — update workers\n• **Pseudo-shares** (verified)\n• Settle SUP/HMC clobber **fixed**\n• Expect GH/s drop after Blake3\n\nhttps://hackme.tech/downloads.html",
-        "ping": "#announcements"
-      },
-      "links": {
-        "downloads": "https://hackme.tech/downloads.html",
-        "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.4",
-        "news": "https://hackme.tech/news.html",
-        "telegram": "https://t.me/hackme_tech"
-      }
+      "status": "published"
     },
     {
       "id": "2026-10-15-rc17.3-live",
@@ -290,22 +268,6 @@
         "fuzzing",
         "libheif",
         "day11"
-      ],
-      "status": "published"
-    },
-    {
-      "id": "2026-08-03-oss-cve-watch-libheif-day10-libfuzzer",
-      "date": "2026-08-03",
-      "title": "OSS CVE Watch · libheif Day 10/14 · 198.55M libFuzzer exec · CLEAN",
-      "summary": "libheif Day 10: 23.6h libFuzzer, 198,550,711 exec at ~2,338/s. Corpus 2975, 7255 coverage edges. ASAN=0 — CLEAN.",
-      "impact": "Cumulative Days 1–10: ~1614.28M exec on persistent HEIF/AVIF corpus.",
-      "action": "Day 10: https://hackme.tech/reports/oss-cve-watch-libheif/day10.html",
-      "tags": [
-        "research",
-        "oss-cve",
-        "fuzzing",
-        "libheif",
-        "day10"
       ],
       "status": "published"
     }
