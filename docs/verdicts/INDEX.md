@@ -23,4 +23,4 @@ Public news feed: https://hackme.tech/news.html · `web/site/assets/news.json`
 
 ## Version policy
 
-Win/Linux runtime + published installers: `scripts/release/CURRENT_VERSION` / `PUBLISHED_ARTIFACT_VER` → **0.1.0-rc17.4** (full bundle cut 2026-09-25). Hunt engine auto-install for fleet installers: **rc17.3**.
+Win/Linux runtime + published installers: `scripts/release/CURRENT_VERSION` → **0.1.0-rc17.4** (full bundle cut 2026-10-22). Hunt engine auto-install for fleet installers: **rc17.3**. Note: published rc17.4 Linux `workerpoh-cuda` / Windows `workerpoh-opencl.exe` may still be Sep-dated until a rebuild with CUDA toolkit ≥12.8 + fresh OpenCL cross-build; use `scripts/ops/build_cuda_worker.sh` locally.

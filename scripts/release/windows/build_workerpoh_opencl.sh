@@ -5,9 +5,20 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 OUT="${1:-${ROOT}/dist/workerpoh-opencl.exe}"
 mkdir -p "$(dirname "$OUT")"
 
-if [[ -s "$OUT" ]]; then
-  echo "[opencl-win] skip build — existing $(ls -lh "$OUT" | awk '{print $5}') $OUT"
+# rc17.4+: refuse Sep-era cached binaries / docker images without share_scan_max.
+opencl_win_fresh() {
+  local f="$1"
+  [[ -s "$f" ]] || return 1
+  grep -a -F -q 'share_scan_max' "$f"
+}
+
+if opencl_win_fresh "$OUT"; then
+  echo "[opencl-win] skip build — fresh $(ls -lh "$OUT" | awk '{print $5}') $OUT"
   exit 0
+fi
+if [[ -s "$OUT" ]]; then
+  echo "[opencl-win] stale $OUT (missing share_scan_max) — rebuilding" >&2
+  rm -f "$OUT"
 fi
 
 build_host_mingw() {
@@ -28,12 +39,9 @@ build_host_mingw() {
 }
 
 build_docker() {
-  if docker image inspect hackme-opencl-mingw >/dev/null 2>&1; then
-    echo "[opencl-win] reuse image hackme-opencl-mingw"
-  else
-    echo "[opencl-win] docker build (mingw + OpenCL headers)"
-    docker build -f "${ROOT}/scripts/release/windows/Dockerfile.opencl-mingw" -t hackme-opencl-mingw "$ROOT"
-  fi
+  # Always rebuild image when we need a fresh binary — cached Sep images lack share_scan_max.
+  echo "[opencl-win] docker build (mingw + OpenCL headers)"
+  docker build -f "${ROOT}/scripts/release/windows/Dockerfile.opencl-mingw" -t hackme-opencl-mingw "$ROOT"
   cid="$(docker create hackme-opencl-mingw)"
   docker cp "${cid}:/out/workerpoh-opencl.exe" "$OUT"
   docker rm -f "${cid}" >/dev/null

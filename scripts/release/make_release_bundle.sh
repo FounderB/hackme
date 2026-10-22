@@ -87,6 +87,24 @@ ship_linux_gpu_worker() {
   return 1
 }
 
+# Fail closed if a GPU/CPU worker is missing rc17.4 markers (stale Sep CUDA / OpenCL bins).
+assert_bin_markers() {
+  local bin="$1"
+  shift
+  local needle
+  if [[ ! -f "$bin" ]]; then
+    echo "[release] ERROR: missing binary $bin" >&2
+    return 1
+  fi
+  for needle in "$@"; do
+    if ! grep -a -F -q -- "$needle" "$bin"; then
+      echo "[release] ERROR: $bin missing required marker '$needle' (stale pre-rc17.4 GPU worker?)" >&2
+      return 1
+    fi
+  done
+  return 0
+}
+
 if [[ "${CGO_ENABLED}" == "1" ]] && (pkg-config --exists OpenCL 2>/dev/null || [[ -f /usr/include/CL/cl.h ]] || [[ -f /tmp/hm-prefix/usr/include/CL/cl.h ]]); then
   echo "[release] building workerpoh-opencl (AMD/Intel/NVIDIA via OpenCL ICD)"
   if [[ -f /tmp/hm-prefix/usr/include/CL/cl.h && ! -f /usr/include/CL/cl.h ]]; then
@@ -112,18 +130,30 @@ ship_linux_gpu_worker workerpoh-opencl || true
 
 if [[ -x "${ROOT_DIR}/scripts/ops/build_cuda_worker.sh" ]]; then
   echo "[release] building workerpoh-cuda (NVIDIA native; Linux only)"
-  if bash "${ROOT_DIR}/scripts/ops/build_cuda_worker.sh" 2>/dev/null; then
-    :
-  else
-    echo "[release] WARN: workerpoh-cuda build skipped (no CUDA toolkit on build host) — using bin/ if present" >&2
+  # Do not swallow stderr — silent failure previously shipped Sep-dated bin/workerpoh-cuda
+  # without Blake3 device kernel / share_scan_max.
+  if ! bash "${ROOT_DIR}/scripts/ops/build_cuda_worker.sh"; then
+    echo "[release] WARN: workerpoh-cuda build failed — will use bin/ only if it passes marker checks" >&2
   fi
 fi
 if ship_linux_gpu_worker workerpoh-cuda; then
   chmod +x "${LINUX_DIR}/workerpoh-cuda"
   ln -sf workerpoh-cuda "${LINUX_DIR}/workerpoh-gpu" 2>/dev/null || true
+  assert_bin_markers "${LINUX_DIR}/workerpoh-cuda" "poh_search_blake3" "share_scan_max" || exit 1
 else
   echo "[release] ERROR: workerpoh-cuda missing — Linux NVIDIA miners need it in the bundle" >&2
+  exit 1
 fi
+# Default + OpenCL workers must honor claim share_scan_max (soft pool payout).
+assert_bin_markers "${LINUX_DIR}/workerpoh" "share_scan_max" || exit 1
+if [[ -x "${LINUX_DIR}/workerpoh-opencl" ]]; then
+  assert_bin_markers "${LINUX_DIR}/workerpoh-opencl" "share_scan_max" || exit 1
+fi
+if [[ -f "${WIN_DIR}/workerpoh-opencl.exe" ]]; then
+  assert_bin_markers "${WIN_DIR}/workerpoh-opencl.exe" "share_scan_max" || exit 1
+fi
+assert_bin_markers "${WIN_DIR}/workerpoh.exe" "share_scan_max" || exit 1
+assert_bin_markers "${LINUX_DIR}/workerpoh" "share_mod" || exit 1
 
 # Bundle NVRTC runtime next to workers (no system CUDA toolkit required on miner hosts).
 echo "[release] bundling CUDA NVRTC libs into linux/lib/"
