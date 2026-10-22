@@ -23,7 +23,7 @@ const (
 	defaultMaxCheckInputBytes = 4096
 	minCheckInputBytes        = 1
 	maxCheckInputBytesCeil    = 4096
-	defaultWasmCheckTimeout   = 350 * time.Millisecond
+	defaultWasmCheckTimeout   = 500 * time.Millisecond
 	defaultCompiledCacheMax   = 256
 	defaultMemoryLimitPages   = 128
 )
@@ -38,7 +38,7 @@ var (
 	checkCompiledLRU []string
 	checkQuarantine  sync.Map // sha256 hex -> reason string (blocked signatures)
 	checkRuntime     wazero.Runtime
-	checkOnce        sync.Once
+	checkRuntimeMu   sync.Mutex
 	checkInstSerial  uint64
 	checkInvokeOnce  sync.Once
 	checkInvokeSem   chan struct{}
@@ -118,13 +118,34 @@ func Policy() PolicySnapshot {
 }
 
 func ensureCheckRuntime() wazero.Runtime {
-	checkOnce.Do(func() {
-		checkRuntime = wazero.NewRuntimeWithConfig(context.Background(),
-			wazero.NewRuntimeConfigInterpreter().
-				WithMemoryLimitPages(maxMemoryLimitPages()).
-				WithCloseOnContextDone(true))
-	})
+	checkRuntimeMu.Lock()
+	defer checkRuntimeMu.Unlock()
+	if checkRuntime != nil {
+		return checkRuntime
+	}
+	checkRuntime = wazero.NewRuntimeWithConfig(context.Background(),
+		wazero.NewRuntimeConfigInterpreter().
+			WithMemoryLimitPages(maxMemoryLimitPages()).
+			WithCloseOnContextDone(true))
 	return checkRuntime
+}
+
+// resetCheckRuntime drops a runtime closed by WithCloseOnContextDone (timeout)
+// and clears compiled modules owned by that runtime.
+func resetCheckRuntime() {
+	checkRuntimeMu.Lock()
+	defer checkRuntimeMu.Unlock()
+	if checkRuntime != nil {
+		_ = checkRuntime.Close(context.Background())
+		checkRuntime = nil
+	}
+	checkCompileMu.Lock()
+	checkCompiled.Range(func(k, _ any) bool {
+		checkCompiled.Delete(k)
+		return true
+	})
+	checkCompiledLRU = nil
+	checkCompileMu.Unlock()
 }
 
 // MaxCheckInputBytes is the platform ceiling for check_bytes / InvokeCheckInput payloads.
@@ -383,7 +404,10 @@ func isClosedCompiledErr(err error) bool {
 	low := strings.ToLower(err.Error())
 	return strings.Contains(low, "must be compiled before instantiation") ||
 		strings.Contains(low, "module has already been closed") ||
-		strings.Contains(low, "closed module")
+		strings.Contains(low, "closed module") ||
+		strings.Contains(low, "module closed") ||
+		strings.Contains(low, "runtime closed") ||
+		(strings.Contains(low, "closed") && strings.Contains(low, "context deadline"))
 }
 
 var errEmptyWasm = errors.New("sandbox: empty wasm")
@@ -409,10 +433,10 @@ func InvokeCheckOutcomeInput(ctx context.Context, wasm []byte, input []byte) (Ch
 	case <-ctx.Done():
 		return CheckOutcome{}, ctx.Err()
 	}
-	return invokeCheckOutcomeInputHeld(ctx, wasm, input)
+	return invokeCheckOutcomeInputHeld(ctx, wasm, input, 1)
 }
 
-func invokeCheckOutcomeInputHeld(ctx context.Context, wasm []byte, input []byte) (CheckOutcome, error) {
+func invokeCheckOutcomeInputHeld(ctx context.Context, wasm []byte, input []byte, retriesLeft int) (CheckOutcome, error) {
 	rt := ensureCheckRuntime()
 	key := compiledKey(wasm)
 	compiled, ok := loadCompiledModule(key)
@@ -430,7 +454,9 @@ func invokeCheckOutcomeInputHeld(ctx context.Context, wasm []byte, input []byte)
 	defer instCancel()
 	mod, err := rt.InstantiateModule(instCtx, compiled, wazero.NewModuleConfig().WithName(fmt.Sprintf("chk-%s-%d", key[:16], id)))
 	if err != nil && isClosedCompiledErr(err) {
+		resetCheckRuntime()
 		dropCompiledModule(key)
+		rt = ensureCheckRuntime()
 		if vErr := ValidateCheckWasm(ctx, wasm); vErr != nil {
 			return CheckOutcome{}, vErr
 		}
@@ -459,9 +485,14 @@ func invokeCheckOutcomeInputHeld(ctx context.Context, wasm []byte, input []byte)
 			return CheckOutcome{}, errors.New("sandbox: check_bytes memory write failed")
 		}
 		callCtx, cancel := context.WithTimeout(ctx, wasmCheckTimeout())
-		defer cancel()
 		res, err := fn.Call(callCtx, uint64(inputMemOff), uint64(len(input)))
+		cancel()
 		if err != nil {
+			if retriesLeft > 0 && isClosedCompiledErr(err) {
+				resetCheckRuntime()
+				// One retry after timeout closed the shared runtime (race/CI flakes).
+				return invokeCheckOutcomeInputHeld(ctx, wasm, input, retriesLeft-1)
+			}
 			return CheckOutcome{}, err
 		}
 		ok := len(res) > 0 && res[0] != 0
