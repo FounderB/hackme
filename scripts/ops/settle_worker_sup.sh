@@ -176,7 +176,15 @@ print("1" if (s - p) > 1e-9 else "0")
 PY
 )"
   if [[ "$rebase" == "1" ]]; then
+    # Same second-reset trap as HMC: stale high anchor vs fresh low payout_sup.
+    need_anchor=0
     if [[ -z "$session_anchor" ]]; then
+      need_anchor=1
+    elif python3 -c "import sys;sys.exit(0 if float(sys.argv[1])+1e-9<float(sys.argv[2]) else 1)" "$payout_sup" "$session_anchor"; then
+      need_anchor=1
+      echo "[settle-sup] session-anchor ${worker_id}: re-anchor ${session_anchor} -> ${payout_sup} (another coordinator reset)"
+    fi
+    if [[ "$need_anchor" == "1" ]]; then
       session_anchor="$payout_sup"
       echo "[settle-sup] session-anchor ${worker_id}: settled_sup ${already_sup} kept; anchor=${session_anchor} (coordinator counter reset)"
       tmp="$(mktemp)"

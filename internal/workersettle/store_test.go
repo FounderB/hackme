@@ -243,3 +243,33 @@ func TestSessionAnchorSUP(t *testing.T) {
 		t.Fatalf("anchor not cleared: %+v", w)
 	}
 }
+
+func TestSessionAnchorHMC(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "s.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx := context.Background()
+	if err := s.ApplySettle(ctx, "w", "HMC-a", "tx1", 5.0, 5.0, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetSessionAnchorHMC(ctx, "w", 0.0, false); err != nil {
+		t.Fatal(err)
+	}
+	w, err := s.GetWorker(ctx, "w")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.SettledHMC != 5.0 || w.SessionAnchorHMC != 0.0 {
+		t.Fatalf("row=%+v", w)
+	}
+	if err := s.SetSessionAnchorHMC(ctx, "w", 1.25, false); err != nil {
+		t.Fatal(err)
+	}
+	w, _ = s.GetWorker(ctx, "w")
+	if w.SessionAnchorHMC != 1.25 || w.SettledHMC != 5.0 {
+		t.Fatalf("re-anchor lost settled: %+v", w)
+	}
+}

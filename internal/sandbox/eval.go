@@ -30,15 +30,6 @@ var (
 
 var errNoEval = errors.New("sandbox: missing eval export")
 
-func ensureLockWasm(ctx context.Context) error {
-	lockMu.Lock()
-	defer lockMu.Unlock()
-	if evalFn != nil && initErr == nil {
-		return nil
-	}
-	return rebuildLockWasm(ctx)
-}
-
 func rebuildLockWasm(ctx context.Context) error {
 	if mod != nil {
 		_ = mod.Close(context.Background())
@@ -90,31 +81,25 @@ func isLockClosedErr(err error) bool {
 }
 
 // Eval runs the embedded lock WASM: eval(nonce) = nonce*7 + 13.
+// Serialized: wazero module instances are not safe for concurrent Call.
 func Eval(ctx context.Context, nonce uint64) (uint64, error) {
-	if err := ensureLockWasm(ctx); err != nil {
-		return 0, err
+	lockMu.Lock()
+	defer lockMu.Unlock()
+	if evalFn == nil || initErr != nil {
+		if err := rebuildLockWasm(ctx); err != nil {
+			return 0, err
+		}
 	}
 	callCtx, cancel := context.WithTimeout(ctx, WasmEvalTimeout)
 	defer cancel()
-	lockMu.Lock()
-	fn := evalFn
-	lockMu.Unlock()
-	if fn == nil {
-		return 0, errNoEval
-	}
-	res, err := fn.Call(callCtx, nonce)
+	res, err := evalFn.Call(callCtx, nonce)
 	if err != nil && isLockClosedErr(err) {
-		lockMu.Lock()
-		_ = rebuildLockWasm(context.Background())
-		fn = evalFn
-		rebuildErr := initErr
-		lockMu.Unlock()
-		if rebuildErr != nil {
+		if err2 := rebuildLockWasm(context.Background()); err2 != nil {
 			return 0, err
 		}
 		callCtx2, cancel2 := context.WithTimeout(ctx, WasmEvalTimeout)
 		defer cancel2()
-		res, err = fn.Call(callCtx2, nonce)
+		res, err = evalFn.Call(callCtx2, nonce)
 	}
 	if err != nil {
 		return 0, err

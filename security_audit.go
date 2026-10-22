@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -213,31 +214,15 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 			payerWallet = strings.TrimSpace(addr)
 		}
 	}
-	useSUP := req.UseSUPDiscount == nil || *req.UseSUPDiscount
+	// SUP loyalty discount stays OFF until treasury can top up escrow for a real
+	// cash cut. Opt-in alone would still burn SUP with no customer benefit and a
+	// lying budget_hmc_cash — so we neither burn nor advertise a discount.
+	useSUP := req.UseSUPDiscount != nil && *req.UseSUPDiscount
 	var supDiscountUsed float64
 	escrowBudgetHMC := budgetHMC
-	cashBudgetHMC := budgetHMC // UX: what loyalty math would charge in HMC
-	if useSUP && payerWallet != "" {
-		nodeAddr := ""
-		if addr, _, err := a.chain.Wallet(r.Context()); err == nil {
-			nodeAddr = strings.TrimSpace(addr)
-		}
-		// C11: refuse unsigned burn of a third-party payer_wallet. Only discount the node wallet.
-		if nodeAddr != "" && strings.EqualFold(payerWallet, nodeAddr) {
-			supSt, err := a.chain.SupAddressState(r.Context(), payerWallet)
-			if err == nil && supSt.BalanceSUP > 0 {
-				cash, supUsed := chain.ApplyAuditSUPDiscount(budgetHMC, supSt.BalanceSUP)
-				if supUsed > 0 {
-					// Keep full escrow for miners (audit: shrinking escrow made
-					// workers fund the loyalty discount). Customer still burns SUP
-					// after escrow opens; cash is reported for UX. True "pay less
-					// HMC" needs an explicit treasury top-up — not miner underpay.
-					cashBudgetHMC = cash
-					escrowBudgetHMC = budgetHMC
-					supDiscountUsed = supUsed
-				}
-			}
-		}
+	cashBudgetHMC := budgetHMC
+	if useSUP {
+		log.Printf("security_audit: use_sup_discount ignored (no treasury top-up); full escrow %.6f HMC", escrowBudgetHMC)
 	}
 	title := strings.TrimSpace(req.Title)
 	if title == "" {

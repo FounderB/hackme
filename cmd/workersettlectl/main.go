@@ -23,6 +23,7 @@ func usage() {
   workersettlectl apply <db> <worker_id> <addr> <tx_hash> <new_settled> [session_anchor|clear]
   workersettlectl set-sup <db> <worker_id> <settled_sup> [payout_address]
   workersettlectl set-sup-anchor <db> <worker_id> <anchor|clear>
+  workersettlectl set-hmc-anchor <db> <worker_id> <anchor|clear>
   workersettlectl set-force <db> <unix_ts>
   workersettlectl export-json <db> [out.json]
   workersettlectl pending-count <db>
@@ -139,6 +140,18 @@ func main() {
 			anchor, err := strconv.ParseFloat(os.Args[4], 64)
 			must(err)
 			must(s.SetSessionAnchorSUP(ctx, os.Args[3], anchor, false))
+		}
+		fmt.Println("ok")
+	case "set-hmc-anchor":
+		need(5)
+		s := mustOpen(os.Args[2])
+		defer s.Close()
+		if strings.EqualFold(os.Args[4], "clear") {
+			must(s.SetSessionAnchorHMC(ctx, os.Args[3], 0, true))
+		} else {
+			anchor, err := strconv.ParseFloat(os.Args[4], 64)
+			must(err)
+			must(s.SetSessionAnchorHMC(ctx, os.Args[3], anchor, false))
 		}
 		fmt.Println("ok")
 	case "set-force":

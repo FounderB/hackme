@@ -503,6 +503,28 @@ ON CONFLICT(worker_id) DO UPDATE SET
 	return err
 }
 
+// SetSessionAnchorHMC sets or clears the HMC session floor after a coordinator counter reset.
+func (s *Store) SetSessionAnchorHMC(ctx context.Context, workerID string, anchor float64, clear bool) error {
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return fmt.Errorf("workersettle: empty worker_id")
+	}
+	if clear {
+		anchor = 0
+	} else if anchor < 0 {
+		return fmt.Errorf("workersettle: negative session_anchor_hmc")
+	}
+	now := time.Now().Unix()
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_hmc, updated_at)
+VALUES (?, 0, 0, ?, ?)
+ON CONFLICT(worker_id) DO UPDATE SET
+  session_anchor_hmc=excluded.session_anchor_hmc,
+  updated_at=excluded.updated_at`,
+		workerID, anchor, now)
+	return err
+}
+
 // SetSessionAnchorSUP sets or clears the SUP session floor after a coordinator counter reset.
 func (s *Store) SetSessionAnchorSUP(ctx context.Context, workerID string, anchor float64, clear bool) error {
 	workerID = strings.TrimSpace(workerID)

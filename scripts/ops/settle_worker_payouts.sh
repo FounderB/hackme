@@ -426,7 +426,16 @@ print("1" if (s - p) > 1e-9 else "0")
 PY
 )"
   if [[ "$rebase" == "1" ]]; then
+    # Second+ coordinator restart: payout is low again but a prior session_anchor
+    # still sits high → re-anchor or miners forever repay the gap (audit).
+    need_anchor=0
     if [[ -z "$session_anchor" ]]; then
+      need_anchor=1
+    elif python3 -c "import sys;sys.exit(0 if float(sys.argv[1])+1e-9<float(sys.argv[2]) else 1)" "$payout_hmc" "$session_anchor"; then
+      need_anchor=1
+      echo "[settle-workers] session-anchor ${worker_id}: re-anchor ${session_anchor} -> ${payout_hmc} (another coordinator reset)"
+    fi
+    if [[ "$need_anchor" == "1" ]]; then
       session_anchor="$payout_hmc"
       echo "[settle-workers] session-anchor ${worker_id}: settled_hmc ${already_hmc} kept; anchor=${session_anchor} (coordinator counter reset)"
       if ! jq --arg wid "$worker_id" --arg anchor "$session_anchor" --argjson ts "$(date +%s)" \
@@ -436,6 +445,9 @@ PY
         continue
       fi
       mv "${STATE_FILE}.tmp" "$STATE_FILE"
+      if settle_sqlite_ready; then
+        "$SETTLECTL" set-hmc-anchor "$STATE_DB" "$worker_id" "$session_anchor" >/dev/null || true
+      fi
     fi
     baseline_hmc="$session_anchor"
   else
