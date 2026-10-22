@@ -14,6 +14,7 @@ A comparison of “as it happens in classic articles” with **what HackMe actua
 - **Cryptographic double-check of the entire range** (recalculation of PoH for each nonce in the batch) **no**. **only** branch **`found=true`** is recalculated and strictly checked: range `found_nonce`, `validFoundNonceV1` (eval % `target_mod`), dedup `found_nonce` / `result_hash`.
 - Spam protection: **rate limit** claim/submit per worker and per IP, **bad strikes → temporary ban** for obviously bad submit reasons (`markSubmitOutcome`: incorrect work_id, signature, replay, incorrect found_nonce, etc.) - not for “slow honest”.
 - Mode **`HACKME_COORDINATOR_PAYOUT_FOUND_ONLY`**: with `found=false` **`paidAttempts=0`** - then payment is only for actually proven hit + bonus. This is the **strongest** answer to fake attempts **without** full verification of each attempt (expensive).
+- **Sampled missed-found recheck** (default **1%** when attempt-pay is on): `HACKME_COORDINATOR_ATTEMPT_RECHECK_PCT` / `_BUDGET` (default budget 4096). Before consuming the lease, the coordinator scans a prefix of the claimed range for a valid PoH hit the worker did not report as `found=true`. Hit → reject `missed_found_unreported` (lazy/fake attempt pay). Not a full nonce-for-nonce proof of work; catches “claim attempts, skip search” when an easy hit sits in the scanned window. Stats: `attempt_recheck_*` on `/api/work/stats`.
 
 **Verdict**
 
@@ -21,8 +22,8 @@ A comparison of “as it happens in classic articles” with **what HackMe actua
 |--------------|-----------------------------------------------|
 | Public pool with **hybrid strict** + signed payload | It's harder to fake **payload** without a key; but **the work itself** is still not recalculated nonce-for-nonce. |
 | **`payout_found_only=1`** | **Almost closes** the “pay for air without a hit” scenario. |
-| Default (`found` can be false, payment for attempts) | **Trust in the number of attempts** within the lease; economic risk - **operator** (limits, found-only, monitoring `total_payout_hmc` vs canon). |
-| “Random 1% batch recheck” in code | **No** - not implemented. |
+| Default (`found` can be false, payment for attempts) | **Trust in the number of attempts** within the lease, plus **sampled missed-found recheck** (default 1%); economic risk still **operator** (limits, found-only, monitoring). |
+| “Random 1% batch recheck” in code | **Yes** — missed-found scan (not full PoW replay). |
 
 ---
 

@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -51,6 +52,13 @@ type workManager struct {
 	baseRewardHMC   float64
 	rewardAuto      bool
 	payoutFoundOnly bool
+	// attemptRecheckPct: 0–100. When >0 and submit is attempt-pay (!Found),
+	// randomly sample this % of submits and scan up to attemptRecheckBudget
+	// nonces in the lease for an unreported valid hit (lazy/fake attempt pay).
+	attemptRecheckPct    int
+	attemptRecheckBudget uint64
+	attemptRecheckRolls  uint64
+	attemptRecheckReject uint64
 
 	// PoH tip binding for Blake3 v3 (refreshed from chain /api/metrics).
 	tipHash             string
@@ -323,6 +331,23 @@ func newWorkManagerFromEnv() *workManager {
 	if v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_COORDINATOR_PAYOUT_FOUND_ONLY"))); v != "" {
 		payoutFoundOnly = v == "1" || v == "true" || v == "yes" || v == "on"
 	}
+	// Default 1% sampled missed-found recheck when attempt-pay is enabled.
+	// Set HACKME_COORDINATOR_ATTEMPT_RECHECK_PCT=0 to disable; 100 for lab soak.
+	attemptRecheckPct := 0
+	if !payoutFoundOnly {
+		attemptRecheckPct = 1
+	}
+	if v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_ATTEMPT_RECHECK_PCT")); v != "" {
+		if x, err := strconv.Atoi(v); err == nil && x >= 0 && x <= 100 {
+			attemptRecheckPct = x
+		}
+	}
+	attemptRecheckBudget := uint64(4096)
+	if v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_ATTEMPT_RECHECK_BUDGET")); v != "" {
+		if x, err := strconv.ParseUint(v, 10, 64); err == nil && x >= 64 && x <= 1<<20 {
+			attemptRecheckBudget = x
+		}
+	}
 	claimPerMin := 120
 	if v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_CLAIM_PER_MIN")); v != "" {
 		if x, err := strconv.Atoi(v); err == nil && x >= 10 {
@@ -419,6 +444,8 @@ func newWorkManagerFromEnv() *workManager {
 		baseRewardHMC:            0.01,
 		rewardAuto:               rewardAuto,
 		payoutFoundOnly:          payoutFoundOnly,
+		attemptRecheckPct:        attemptRecheckPct,
+		attemptRecheckBudget:     attemptRecheckBudget,
 		active:                   make(map[workKey]leaseRecord),
 		worker:                   make(map[string]workerPayoutStat),
 		acceptedResultHashes:     make(map[string]struct{}),
@@ -634,6 +661,29 @@ func validFoundNonceV1(foundNonce, targetMod uint64) bool {
 		return false
 	}
 	return chain.PohEval(foundNonce)%targetMod == 0
+}
+
+// leaseHasUnreportedFound scans up to budget nonces in [base, base+count) for a
+// valid PoH hit the worker should have reported (found=true). Used for sampled
+// attempt-pay anticheat — catches lazy ranges that skip searching.
+func leaseHasUnreportedFound(base, count, mod uint64, formulaVersion int, prevHash, minerAddress string, budget uint64) bool {
+	if count == 0 || mod == 0 || budget == 0 {
+		return false
+	}
+	n := count
+	if n > budget {
+		n = budget
+	}
+	end := base + n
+	if end < base {
+		end = ^uint64(0)
+	}
+	for nonce := base; nonce < end; nonce++ {
+		if validFoundNoncePoH(nonce, mod, formulaVersion, prevHash, minerAddress) {
+			return true
+		}
+	}
+	return false
 }
 
 // validFoundNoncePoH verifies a pool found against the lease-bound formula.
@@ -2179,6 +2229,43 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		}
 	}
 
+	attemptsPre := req.Attempts
+	if attemptsPre == 0 {
+		attemptsPre = req.BatchSize
+	}
+	if attemptsPre > req.BatchSize {
+		attemptsPre = req.BatchSize
+	}
+	attemptsPre = m.clampPaidAttempts(attemptsPre, req.BatchSize)
+	// Sampled missed-found recheck (Wave B / H1): before consuming the lease,
+	// occasionally verify attempt-pay submits did not skip an obvious hit.
+	if !req.Found && !m.payoutFoundOnly && m.attemptRecheckPct > 0 && attemptsPre > 0 {
+		if rand.Intn(100) < m.attemptRecheckPct {
+			m.attemptRecheckRolls++
+			leasePrev := strings.TrimSpace(rec.PrevHash)
+			leaseAddr := strings.TrimSpace(rec.MinerAddress)
+			if leaseAddr == "" {
+				leaseAddr = strings.TrimSpace(signerAddr)
+			}
+			if leaseAddr == "" {
+				leaseAddr = strings.TrimSpace(req.MinerAddress)
+			}
+			fv := rec.FormulaVersion
+			if fv <= 0 {
+				fv = m.resolvedPoHFormulaVersionLocked()
+			}
+			budget := m.attemptRecheckBudget
+			if budget == 0 {
+				budget = 4096
+			}
+			if leaseHasUnreportedFound(req.BaseNonce, attemptsPre, validateMod, fv, leasePrev, leaseAddr, budget) {
+				m.attemptRecheckReject++
+				m.rejectedSubmits++
+				return false, "missed_found_unreported", 0, signerAddr, true
+			}
+		}
+	}
+
 	if ok {
 		delete(m.active, k)
 	}
@@ -2212,14 +2299,7 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if req.Found && !chainSolve.OK {
 		m.recordFoundDedupLocked(req.FoundNonce, resultHashKey, now)
 	}
-	attempts := req.Attempts
-	if attempts == 0 {
-		attempts = req.BatchSize
-	}
-	if attempts > req.BatchSize {
-		attempts = req.BatchSize
-	}
-	attempts = m.clampPaidAttempts(attempts, req.BatchSize)
+	attempts := attemptsPre
 	reportedGH := clampWorkerHashrateGHS(req.HashrateGHS)
 	rawGH := workerHashrateGHSForSubmit(reportedGH, req.BatchSize, issuedAt, now, m.worker[req.WorkerID].LastHashrateGHS)
 	gh := smoothWorkerHashrateGHS(m.worker[req.WorkerID].LastHashrateGHS, rawGH)
@@ -2766,6 +2846,10 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 		"base_reward_hmc":              m.baseRewardHMC,
 		"found_bonus_hmc":              m.foundBonus,
 		"payout_found_only":            m.payoutFoundOnly,
+		"attempt_recheck_pct":          m.attemptRecheckPct,
+		"attempt_recheck_budget":       m.attemptRecheckBudget,
+		"attempt_recheck_rolls":        m.attemptRecheckRolls,
+		"attempt_recheck_rejects":      m.attemptRecheckReject,
 		"now_unix":                     now,
 		"next_nonce":                   m.nextNonce.Load(),
 		"issued_ranges":                m.issuedRanges,

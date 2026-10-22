@@ -92,7 +92,7 @@ Automated smoke: `scripts/tests/security_assertions.sh`, `scripts/tests/redteam_
 
 | ID | Issue | Mitigation |
 |----|--------|------------|
-| H1 | Attempt-based payout trusts reported `attempts` (capped by batch) | `PAYOUT_FOUND_ONLY=1` for public pools |
+| H1 | Attempt-based payout trusts reported `attempts` (capped by batch) | `PAYOUT_FOUND_ONLY=1` **or** sampled missed-found recheck (`ATTEMPT_RECHECK_PCT`, default 1%) + hybrid strict |
 | H2 | Hybrid signer optional | `HYBRID_SIGNER_STRICT=1` |
 | H3 | Cheap `found=true` via `PohEval(n)=n*7+13` | Found-only payout + monitoring |
 | H4 | Coordinator state in RAM (restart clears dedup) | Treat restart as accrual reset; reconcile settlement state |
