@@ -210,6 +210,67 @@ func TestExpectedShares(t *testing.T) {
 	}
 }
 
+func TestSoftShareScanAttempts(t *testing.T) {
+	if softShareScanAttempts(4_194_304, false) != shareHarvestScanCap {
+		t.Fatalf("soft must cap to %d", shareHarvestScanCap)
+	}
+	if softShareScanAttempts(4_194_304, true) != 4_194_304 {
+		t.Fatal("strict uses full lease")
+	}
+	if softShareScanAttempts(1000, false) != 1000 {
+		t.Fatal("under cap unchanged")
+	}
+}
+
+func TestSoftShareExpectedUsesScanCap(t *testing.T) {
+	wm := withTestTip(&workManager{
+		defaultBatch:         4_194_304,
+		maxClaimBatch:        4_194_304,
+		targetMod:            972_000_000,
+		leaseSec:             60,
+		rewardPerM:           1.0,
+		baseRewardHMC:        0.01,
+		shareDivisor:         1024,
+		shareStrict:          false,
+		shareRateMin:         0.30,
+		shareRateMinExpected: 100, // do not flag in this unit test
+		shareRateReject:      false,
+		maxWorkers:           1000,
+		maxActiveLeases:      1000,
+		maxDedupEntries:      1000,
+		active:               make(map[workKey]leaseRecord),
+		worker:               make(map[string]workerPayoutStat),
+		acceptedResultHashes: make(map[string]struct{}),
+		acceptedFoundNonces:  make(map[uint64]struct{}),
+	})
+	base, size, _, mod, _, ok, reason := wm.claim("w-cap", 4_194_304)
+	if !ok {
+		t.Fatalf("claim: %s", reason)
+	}
+	_, reasonSub, _, _, _ := wm.submit(submitWorkRequest{
+		WorkerID:    "w-cap",
+		BaseNonce:   base,
+		BatchSize:   size,
+		WorkID:      buildWorkID("w-cap", base, size),
+		Attempts:    size,
+		Found:       false,
+		HashrateGHS: 50.0,
+		ShareNonces: nil,
+	})
+	if reasonSub != "" {
+		t.Fatalf("submit: %s", reasonSub)
+	}
+	st := wm.worker["w-cap"]
+	want := expectedShares(shareHarvestScanCap, mod, 1024)
+	full := expectedShares(size, mod, 1024)
+	if st.ShareExpected < want*0.99 || st.ShareExpected > want*1.01 {
+		t.Fatalf("expected=%v want capped~%v (full would be %v)", st.ShareExpected, want, full)
+	}
+	if st.ShareExpected > full*0.2 {
+		t.Fatalf("soft expected must be far below full-lease mean")
+	}
+}
+
 func TestRewardPerShare(t *testing.T) {
 	if rewardPerShare(0.01, 1024) <= 0 {
 		t.Fatal("zero")

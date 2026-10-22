@@ -72,6 +72,7 @@ type claimResp struct {
 	ShareDivisor        uint64  `json:"share_divisor,omitempty"`
 	ShareMod            uint64  `json:"share_mod,omitempty"`
 	ShareStrict         bool    `json:"share_strict,omitempty"`
+	ShareScanMax        uint64  `json:"share_scan_max,omitempty"`
 }
 
 type submitReq struct {
@@ -168,11 +169,14 @@ func findHitCPUPoH(base, batch, mod uint64, formulaVersion int, prevHash, minerA
 
 // collectShareNonces finds up to maxShares nonces in [base, base+batch) where work%shareMod==0.
 // Caps scan budget so GPU leases stay cheap on host (pseudo-share harvest).
-func collectShareNonces(base, batch, shareMod uint64, formulaVersion int, prevHash, minerAddr string, maxShares int, foundNonce uint64, found bool) []uint64 {
+// maxScan from claim share_scan_max (0 → default 256K, must match coordinator soft expected).
+func collectShareNonces(base, batch, shareMod uint64, formulaVersion int, prevHash, minerAddr string, maxShares int, foundNonce uint64, found bool, maxScan uint64) []uint64 {
 	if shareMod == 0 || batch == 0 || maxShares <= 0 {
 		return nil
 	}
-	const maxScan = uint64(256 * 1024)
+	if maxScan == 0 {
+		maxScan = uint64(256 * 1024)
+	}
 	scan := batch
 	if scan > maxScan {
 		scan = maxScan
@@ -1024,7 +1028,7 @@ func main() {
 			HashrateGHS: ghs,
 		}
 		if cr.ShareMod > 0 {
-			out.ShareNonces = collectShareNonces(cr.BaseNonce, cr.BatchSize, cr.ShareMod, fv, cr.PrevHash, minerForPoH, 64, foundNonce, found)
+			out.ShareNonces = collectShareNonces(cr.BaseNonce, cr.BatchSize, cr.ShareMod, fv, cr.PrevHash, minerForPoH, 64, foundNonce, found, cr.ShareScanMax)
 		}
 		if strings.TrimSpace(cr.OrderTaskID) != "" {
 			out.OrderTaskID = strings.TrimSpace(cr.OrderTaskID)

@@ -448,7 +448,9 @@ func (s *Service) burnSUPTx(ctx context.Context, from string, amountUnits uint64
 
 const AuditSUPDiscountMaxFraction = 0.15
 
-// ApplyAuditSUPDiscount reduces HMC escrow budget by up to 15% when payer holds enough on-chain SUP.
+// ApplyAuditSUPDiscount computes a loyalty cash/SUP split (up to 15% of budget).
+// Callers must NOT shrink miner escrow to cashHMC — that made workers fund the discount.
+// Prefer full-budget escrow + SUP burn; true "pay less HMC" needs an explicit treasury top-up.
 func ApplyAuditSUPDiscount(budgetHMC, payerSUPBalance float64) (cashHMC, supUsed float64) {
 	if budgetHMC <= 0 || payerSUPBalance <= 0 {
 		return budgetHMC, 0

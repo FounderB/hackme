@@ -26,6 +26,7 @@ type WorkerRow struct {
 	SettledHMC       float64
 	SettledSUP       float64
 	SessionAnchorHMC float64 // 0 = unset
+	SessionAnchorSUP float64 // 0 = unset (coordinator SUP counter reset)
 	PayoutAddress    string
 	LastTxHash       string
 	LastSettleUnix   int64
@@ -92,6 +93,7 @@ CREATE TABLE IF NOT EXISTS settle_workers (
   settled_hmc REAL NOT NULL DEFAULT 0,
   settled_sup REAL NOT NULL DEFAULT 0,
   session_anchor_hmc REAL NOT NULL DEFAULT 0,
+  session_anchor_sup REAL NOT NULL DEFAULT 0,
   payout_address TEXT NOT NULL DEFAULT '',
   last_tx_hash TEXT NOT NULL DEFAULT '',
   last_settle_unix INTEGER NOT NULL DEFAULT 0,
@@ -112,7 +114,12 @@ CREATE TABLE IF NOT EXISTS settle_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_settle_outbox_status ON settle_outbox(status, id);
 `)
-	return err
+	if err != nil {
+		return err
+	}
+	// Idempotent column add for DBs created before session_anchor_sup.
+	_, _ = s.db.Exec(`ALTER TABLE settle_workers ADD COLUMN session_anchor_sup REAL NOT NULL DEFAULT 0`)
+	return nil
 }
 
 // MigrateFromJSON imports a legacy worker_settlement_state.json once.
@@ -145,6 +152,7 @@ func (s *Store) MigrateFromJSON(ctx context.Context, jsonPath string) (bool, err
 			SettledHMC       float64         `json:"settled_hmc"`
 			SettledSUP       float64         `json:"settled_sup"`
 			SessionAnchorHMC float64         `json:"session_anchor_hmc"`
+			SessionAnchorSUP float64         `json:"session_anchor_sup"`
 			PayoutAddress    string          `json:"payout_address"`
 			LastTxHash       string          `json:"last_tx_hash"`
 			LastSettleUnix   int64           `json:"last_settle_unix"`
@@ -173,18 +181,19 @@ func (s *Store) MigrateFromJSON(ctx context.Context, jsonPath string) (bool, err
 			pend = string(e.PendingSettle)
 		}
 		_, err := tx.ExecContext(ctx, `
-INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, last_tx_hash, last_settle_unix, pending_json, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_hmc, session_anchor_sup, payout_address, last_tx_hash, last_settle_unix, pending_json, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(worker_id) DO UPDATE SET
   settled_hmc=excluded.settled_hmc,
   settled_sup=excluded.settled_sup,
   session_anchor_hmc=excluded.session_anchor_hmc,
+  session_anchor_sup=excluded.session_anchor_sup,
   payout_address=excluded.payout_address,
   last_tx_hash=excluded.last_tx_hash,
   last_settle_unix=excluded.last_settle_unix,
   pending_json=excluded.pending_json,
   updated_at=excluded.updated_at`,
-			wid, e.SettledHMC, e.SettledSUP, e.SessionAnchorHMC, strings.TrimSpace(e.PayoutAddress),
+			wid, e.SettledHMC, e.SettledSUP, e.SessionAnchorHMC, e.SessionAnchorSUP, strings.TrimSpace(e.PayoutAddress),
 			strings.TrimSpace(e.LastTxHash), e.LastSettleUnix, pend, now)
 		if err != nil {
 			return false, err
@@ -208,9 +217,9 @@ func (s *Store) GetWorker(ctx context.Context, workerID string) (WorkerRow, erro
 		return r, fmt.Errorf("workersettle: empty worker_id")
 	}
 	err := s.db.QueryRowContext(ctx, `
-SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, last_tx_hash, last_settle_unix, pending_json
+SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, session_anchor_sup, payout_address, last_tx_hash, last_settle_unix, pending_json
   FROM settle_workers WHERE worker_id=?`, workerID).Scan(
-		&r.WorkerID, &r.SettledHMC, &r.SettledSUP, &r.SessionAnchorHMC, &r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON)
+		&r.WorkerID, &r.SettledHMC, &r.SettledSUP, &r.SessionAnchorHMC, &r.SessionAnchorSUP, &r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON)
 	if err == sql.ErrNoRows {
 		r.WorkerID = workerID
 		return r, nil
@@ -307,13 +316,45 @@ UPDATE settle_outbox SET tx_hash=?
 	return err
 }
 
-// ClearPending drops pending intent without advancing settled (failed send).
+// ClearPending drops pending intent without advancing settled (failed send)
+// and abandons any pending outbox rows for the worker (audit 5d).
 func (s *Store) ClearPending(ctx context.Context, workerID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	workerID = strings.TrimSpace(workerID)
-	_, err := s.db.ExecContext(ctx, `
+	if workerID == "" {
+		return fmt.Errorf("workersettle: empty worker_id")
+	}
+	now := time.Now().Unix()
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
+		}
+	}()
+	if _, err := conn.ExecContext(ctx, `
 UPDATE settle_workers SET pending_json='', updated_at=? WHERE worker_id=?`,
-		time.Now().Unix(), workerID)
-	return err
+		now, workerID); err != nil {
+		return err
+	}
+	if _, err := conn.ExecContext(ctx, `
+UPDATE settle_outbox SET status='abandoned', applied_at=?
+ WHERE worker_id=? AND status='pending'`, now, workerID); err != nil {
+		return err
+	}
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
 
 // ApplySettle advances settled watermark, clears pending, marks outbox applied.
@@ -400,7 +441,7 @@ func (s *Store) ExportJSON(ctx context.Context) ([]byte, error) {
 func (s *Store) exportWorkers(ctx context.Context) (map[string]any, Meta, error) {
 	var meta Meta
 	rows, err := s.db.QueryContext(ctx, `
-SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, last_tx_hash, last_settle_unix, pending_json
+SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, session_anchor_sup, payout_address, last_tx_hash, last_settle_unix, pending_json
   FROM settle_workers`)
 	if err != nil {
 		return nil, meta, err
@@ -409,7 +450,7 @@ SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, 
 	workers := map[string]any{}
 	for rows.Next() {
 		var r WorkerRow
-		if err := rows.Scan(&r.WorkerID, &r.SettledHMC, &r.SettledSUP, &r.SessionAnchorHMC, &r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON); err != nil {
+		if err := rows.Scan(&r.WorkerID, &r.SettledHMC, &r.SettledSUP, &r.SessionAnchorHMC, &r.SessionAnchorSUP, &r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON); err != nil {
 			return nil, meta, err
 		}
 		ent := map[string]any{
@@ -421,6 +462,9 @@ SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, 
 		}
 		if r.SessionAnchorHMC > 0 {
 			ent["session_anchor_hmc"] = r.SessionAnchorHMC
+		}
+		if r.SessionAnchorSUP > 0 {
+			ent["session_anchor_sup"] = r.SessionAnchorSUP
 		}
 		if strings.TrimSpace(r.PendingJSON) != "" {
 			var pend any
@@ -456,6 +500,28 @@ ON CONFLICT(worker_id) DO UPDATE SET
   payout_address=CASE WHEN excluded.payout_address != '' THEN excluded.payout_address ELSE settle_workers.payout_address END,
   updated_at=excluded.updated_at`,
 		workerID, settledSUP, strings.TrimSpace(payoutAddr), now)
+	return err
+}
+
+// SetSessionAnchorSUP sets or clears the SUP session floor after a coordinator counter reset.
+func (s *Store) SetSessionAnchorSUP(ctx context.Context, workerID string, anchor float64, clear bool) error {
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return fmt.Errorf("workersettle: empty worker_id")
+	}
+	if clear {
+		anchor = 0
+	} else if anchor < 0 {
+		return fmt.Errorf("workersettle: negative session_anchor_sup")
+	}
+	now := time.Now().Unix()
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_sup, updated_at)
+VALUES (?, 0, 0, ?, ?)
+ON CONFLICT(worker_id) DO UPDATE SET
+  session_anchor_sup=excluded.session_anchor_sup,
+  updated_at=excluded.updated_at`,
+		workerID, anchor, now)
 	return err
 }
 
@@ -531,6 +597,12 @@ func (s *Store) ExportJSONToFile(ctx context.Context, path string) error {
 			}
 			if pend, ok := oldEnt["pending_sup"]; ok && pend != nil {
 				ent["pending_sup"] = pend
+			}
+			// Keep SUP session anchor from JSON when SQLite has none (or keep max).
+			oldAnchor := anyFloat(oldEnt["session_anchor_sup"])
+			dbAnchor := anyFloat(ent["session_anchor_sup"])
+			if oldAnchor > dbAnchor {
+				ent["session_anchor_sup"] = oldAnchor
 			}
 		}
 		workers[wid] = ent

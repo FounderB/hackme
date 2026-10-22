@@ -17,13 +17,24 @@ import (
 const (
 	defaultShareDivisor = uint64(1024)
 	maxSharesPerSubmit  = 64
+	// shareHarvestScanCap must match workerpoh collectShareNonces maxScan until
+	// GPU full-batch harvest ships. Soft share-rate expected uses this cap so
+	// honest CPU miners are not flagged share_rate_low (~0.06 vs threshold 0.30).
+	shareHarvestScanCap = uint64(256 * 1024)
 	// defaultShareRateMin: after enough expected shares, accepted/expected below this
-	// flags share_rate_low. Target for full-batch GPU harvest is ~0.30; CPU harvest
-	// currently scans only a prefix (~6% of batch) so ops should keep
-	// HACKME_COORDINATOR_SHARE_RATE_REJECT off (or lower the min) until GPU shares.
+	// flags share_rate_low. With soft scan-cap, honest rate ≈ 1.0; cheaters who omit
+	// share_nonces stay near 0. Keep SHARE_RATE_REJECT off until GPU harvest if unsure.
 	defaultShareRateMin         = 0.30
 	defaultShareRateMinExpected = 8.0
 )
+
+// softShareScanAttempts caps soft-mode expected shares to the worker harvest window.
+func softShareScanAttempts(attempts uint64, shareStrict bool) uint64 {
+	if shareStrict || attempts <= shareHarvestScanCap {
+		return attempts
+	}
+	return shareHarvestScanCap
+}
 
 func envShareDivisor() uint64 {
 	v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_SHARE_DIVISOR"))

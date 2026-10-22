@@ -2290,10 +2290,12 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	// Strict: pay by verified shares when any accepted.
 	useShares := m.shareStrict && shareDiv >= 2 && len(validShares) > 0
 
-	// Soft share-rate check: expected = attempts * divisor / M.
+	// Soft share-rate check: expected = scanned * divisor / M.
+	// Soft scanned is capped to shareHarvestScanCap (worker CPU harvest window).
 	if shareDiv >= 2 && sm > 0 && !req.Found {
 		ws := m.worker[req.WorkerID]
-		ws.ShareExpected += expectedShares(attemptsPre, rec.TargetMod, shareDiv)
+		scanned := softShareScanAttempts(attemptsPre, m.shareStrict)
+		ws.ShareExpected += expectedShares(scanned, rec.TargetMod, shareDiv)
 		ws.ShareAccepted += uint64(len(validShares))
 		if m.shareRateMin > 0 && ws.ShareExpected >= m.shareRateMinExpected {
 			rate := float64(ws.ShareAccepted) / ws.ShareExpected
@@ -3320,6 +3322,12 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 			resp["share_divisor"] = wm.shareDivisor
 			resp["share_mod"] = smOut
 			resp["share_strict"] = wm.shareStrict
+			// Advertise harvest window so workers stay aligned with soft expectedShares.
+			scanMax := shareHarvestScanCap
+			if wm.shareStrict {
+				scanMax = size
+			}
+			resp["share_scan_max"] = scanMax
 		}
 		if mode == "orders" {
 			snap := wm.activeOrderSnapshot()

@@ -37,7 +37,10 @@ func ensure(ctx context.Context) error {
 			return
 		}
 		// Use interpreter backend to avoid executable-mmap requirements on locked-down VPS kernels.
-		rt = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter().WithMemoryLimitPages(128))
+		// WithCloseOnContextDone so WasmEvalTimeout actually aborts a stuck eval.
+		rt = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter().
+			WithMemoryLimitPages(128).
+			WithCloseOnContextDone(true))
 		compiled, err := rt.CompileModule(ctx, raw)
 		if err != nil {
 			initErr = err

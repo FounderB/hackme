@@ -58,6 +58,21 @@ settle_read_settled_sup() {
   jq -r --arg wid "$wid" '.workers[$wid].settled_sup // 0' "$STATE_FILE"
 }
 
+settle_read_session_anchor_sup() {
+  local wid="$1"
+  if settle_sqlite_ready; then
+    local row a
+    if row="$("$SETTLECTL" get-json "$STATE_DB" "$wid" 2>/dev/null)"; then
+      a="$(jq -r '.session_anchor_sup // empty' <<<"$row")"
+      if [[ -n "$a" && "$a" != "0" && "$a" != "0.0" ]]; then
+        echo "$a"
+        return 0
+      fi
+    fi
+  fi
+  jq -r --arg wid "$wid" '.workers[$wid].session_anchor_sup // empty' "$STATE_FILE"
+}
+
 settle_write_settled_sup() {
   local wid="$1" settled="$2" addr="$3"
   if settle_sqlite_ready; then
@@ -67,6 +82,17 @@ settle_write_settled_sup() {
     fi
   fi
   return 0
+}
+
+settle_write_session_anchor_sup() {
+  local wid="$1" anchor="$2"
+  if settle_sqlite_ready; then
+    if [[ -z "$anchor" || "$anchor" == "clear" ]]; then
+      "$SETTLECTL" set-sup-anchor "$STATE_DB" "$wid" clear >/dev/null || true
+    else
+      "$SETTLECTL" set-sup-anchor "$STATE_DB" "$wid" "$anchor" >/dev/null || true
+    fi
+  fi
 }
 
 if [[ -z "$ADMIN_TOKEN" && -r "$ADMIN_SECRET_FILE" ]]; then
@@ -140,7 +166,40 @@ while IFS= read -r item; do
     continue
   fi
   already_sup="$(settle_read_settled_sup "$worker_id")"
-  delta_sup="$(python3 - "$payout_sup" "$already_sup" <<'PY'
+  # Mirror HMC session-anchor: coordinator payout_sup is in-memory and resets on restart.
+  # Never lower settled_sup; pay only session growth above the anchor until accrual catches up.
+  session_anchor="$(settle_read_session_anchor_sup "$worker_id")"
+  rebase="$(python3 - "$payout_sup" "$already_sup" <<'PY'
+import sys
+p=float(sys.argv[1]); s=float(sys.argv[2])
+print("1" if (s - p) > 1e-9 else "0")
+PY
+)"
+  if [[ "$rebase" == "1" ]]; then
+    if [[ -z "$session_anchor" ]]; then
+      session_anchor="$payout_sup"
+      echo "[settle-sup] session-anchor ${worker_id}: settled_sup ${already_sup} kept; anchor=${session_anchor} (coordinator counter reset)"
+      tmp="$(mktemp)"
+      if ! jq --arg wid "$worker_id" --arg anchor "$session_anchor" --argjson ts "$(date +%s)" \
+        '(.workers[$wid] = ((.workers[$wid] // {}) + {session_anchor_sup:($anchor|tonumber),rebased_sup_unix:$ts}))' \
+        "$STATE_FILE" >"$tmp"; then
+        echo "[settle-sup] session-anchor write failed for ${worker_id}" >&2
+        continue
+      fi
+      mv "$tmp" "$STATE_FILE"
+      settle_write_session_anchor_sup "$worker_id" "$session_anchor"
+    fi
+    baseline_sup="$session_anchor"
+  else
+    if [[ -n "$session_anchor" ]]; then
+      tmp="$(mktemp)"
+      jq --arg wid "$worker_id" 'del(.workers[$wid].session_anchor_sup)|del(.workers[$wid].rebased_sup_unix)' "$STATE_FILE" >"$tmp" \
+        && mv "$tmp" "$STATE_FILE" || true
+      settle_write_session_anchor_sup "$worker_id" clear
+    fi
+    baseline_sup="$already_sup"
+  fi
+  delta_sup="$(python3 - "$payout_sup" "$baseline_sup" <<'PY'
 import sys
 p=float(sys.argv[1]); s=float(sys.argv[2]); d=p-s
 print(f"{max(0.0,d):.12f}")
@@ -237,10 +296,23 @@ import sys
 print(f"{float(sys.argv[1])+float(sys.argv[2]):.12f}")
 PY
 )"
+  # Advance session floor to current accrued so the next tick only pays new growth.
+  new_anchor="$payout_sup"
   tmp="$(mktemp)"
-  jq --arg wid "$worker_id" --arg addr "$to_addr" --argjson settled "$new_settled" \
-    '.workers[$wid].settled_sup = $settled | .workers[$wid].payout_address = $addr | del(.workers[$wid].pending_sup)' \
-    "$STATE_FILE" >"$tmp" && mv "$tmp" "$STATE_FILE"
+  if [[ "$rebase" == "1" ]]; then
+    jq --arg wid "$worker_id" --arg addr "$to_addr" --argjson settled "$new_settled" --argjson anchor "$new_anchor" \
+      '.workers[$wid].settled_sup = $settled
+       | .workers[$wid].payout_address = $addr
+       | .workers[$wid].session_anchor_sup = $anchor
+       | del(.workers[$wid].pending_sup)' \
+      "$STATE_FILE" >"$tmp" && mv "$tmp" "$STATE_FILE"
+    settle_write_session_anchor_sup "$worker_id" "$new_anchor"
+  else
+    jq --arg wid "$worker_id" --arg addr "$to_addr" --argjson settled "$new_settled" \
+      '.workers[$wid].settled_sup = $settled | .workers[$wid].payout_address = $addr | del(.workers[$wid].pending_sup) | del(.workers[$wid].session_anchor_sup)' \
+      "$STATE_FILE" >"$tmp" && mv "$tmp" "$STATE_FILE"
+    settle_write_session_anchor_sup "$worker_id" clear
+  fi
   settle_write_settled_sup "$worker_id" "$new_settled" "$to_addr" || exit 1
   settled_any=1
   echo "[settle-sup] minted ${worker_id} -> ${to_addr} delta=${delta_sup} SUP"

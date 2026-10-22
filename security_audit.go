@@ -216,6 +216,7 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 	useSUP := req.UseSUPDiscount == nil || *req.UseSUPDiscount
 	var supDiscountUsed float64
 	escrowBudgetHMC := budgetHMC
+	cashBudgetHMC := budgetHMC // UX: what loyalty math would charge in HMC
 	if useSUP && payerWallet != "" {
 		nodeAddr := ""
 		if addr, _, err := a.chain.Wallet(r.Context()); err == nil {
@@ -227,9 +228,12 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 			if err == nil && supSt.BalanceSUP > 0 {
 				cash, supUsed := chain.ApplyAuditSUPDiscount(budgetHMC, supSt.BalanceSUP)
 				if supUsed > 0 {
-					// Burn only after the campaign escrow exists. A failed order
-					// must not destroy SUP with nothing to show for it.
-					escrowBudgetHMC = cash
+					// Keep full escrow for miners (audit: shrinking escrow made
+					// workers fund the loyalty discount). Customer still burns SUP
+					// after escrow opens; cash is reported for UX. True "pay less
+					// HMC" needs an explicit treasury top-up — not miner underpay.
+					cashBudgetHMC = cash
+					escrowBudgetHMC = budgetHMC
 					supDiscountUsed = supUsed
 				}
 			}
@@ -471,8 +475,9 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 	resp["escrow_split"] = escrowSplit
 	if supDiscountUsed > 0 {
 		resp["sup_discount_used"] = supDiscountUsed
-		resp["budget_hmc_cash"] = escrowBudgetHMC
+		resp["budget_hmc_cash"] = cashBudgetHMC
 		resp["budget_hmc_nominal"] = budgetHMC
+		resp["budget_hmc_escrow"] = escrowBudgetHMC
 	}
 	resp["customer_report_token"] = reportToken
 	resp["customer_report_header"] = "X-Hackme-Report-Token"

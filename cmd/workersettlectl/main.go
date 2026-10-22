@@ -22,6 +22,7 @@ func usage() {
   workersettlectl clear-pending <db> <worker_id>
   workersettlectl apply <db> <worker_id> <addr> <tx_hash> <new_settled> [session_anchor|clear]
   workersettlectl set-sup <db> <worker_id> <settled_sup> [payout_address]
+  workersettlectl set-sup-anchor <db> <worker_id> <anchor|clear>
   workersettlectl set-force <db> <unix_ts>
   workersettlectl export-json <db> [out.json]
   workersettlectl pending-count <db>
@@ -53,8 +54,8 @@ func main() {
 		defer s.Close()
 		w, err := s.GetWorker(ctx, os.Args[3])
 		must(err)
-		fmt.Printf("settled_hmc=%.12f settled_sup=%.12f session_anchor_hmc=%.12f payout_address=%s last_tx_hash=%s pending=%q\n",
-			w.SettledHMC, w.SettledSUP, w.SessionAnchorHMC, w.PayoutAddress, w.LastTxHash, w.PendingJSON)
+		fmt.Printf("settled_hmc=%.12f settled_sup=%.12f session_anchor_hmc=%.12f session_anchor_sup=%.12f payout_address=%s last_tx_hash=%s pending=%q\n",
+			w.SettledHMC, w.SettledSUP, w.SessionAnchorHMC, w.SessionAnchorSUP, w.PayoutAddress, w.LastTxHash, w.PendingJSON)
 	case "get-json":
 		need(4)
 		s := mustOpen(os.Args[2])
@@ -66,6 +67,7 @@ func main() {
 			"settled_hmc":        w.SettledHMC,
 			"settled_sup":        w.SettledSUP,
 			"session_anchor_hmc": w.SessionAnchorHMC,
+			"session_anchor_sup": w.SessionAnchorSUP,
 			"payout_address":     w.PayoutAddress,
 			"last_tx_hash":       w.LastTxHash,
 			"pending_json":       w.PendingJSON,
@@ -126,6 +128,18 @@ func main() {
 			addr = os.Args[5]
 		}
 		must(s.SetSettledSUP(ctx, os.Args[3], sup, addr))
+		fmt.Println("ok")
+	case "set-sup-anchor":
+		need(5)
+		s := mustOpen(os.Args[2])
+		defer s.Close()
+		if strings.EqualFold(os.Args[4], "clear") {
+			must(s.SetSessionAnchorSUP(ctx, os.Args[3], 0, true))
+		} else {
+			anchor, err := strconv.ParseFloat(os.Args[4], 64)
+			must(err)
+			must(s.SetSessionAnchorSUP(ctx, os.Args[3], anchor, false))
+		}
 		fmt.Println("ok")
 	case "set-force":
 		need(4)

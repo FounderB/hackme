@@ -197,11 +197,49 @@ func TestClearPending(t *testing.T) {
 	if _, err := s.SetPending(ctx, "w", "HMC-a", 1.0, 1); err != nil {
 		t.Fatal(err)
 	}
+	n, err := s.CountPendingOutbox(ctx)
+	if err != nil || n != 1 {
+		t.Fatalf("pending outbox=%d err=%v", n, err)
+	}
 	if err := s.ClearPending(ctx, "w"); err != nil {
 		t.Fatal(err)
 	}
 	w, _ := s.GetWorker(ctx, "w")
 	if w.PendingJSON != "" {
 		t.Fatalf("pending still set: %q", w.PendingJSON)
+	}
+	n, err = s.CountPendingOutbox(ctx)
+	if err != nil || n != 0 {
+		t.Fatalf("outbox must be abandoned: pending=%d err=%v", n, err)
+	}
+}
+
+func TestSessionAnchorSUP(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "s.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx := context.Background()
+	if err := s.SetSettledSUP(ctx, "w", 9.0, "HMC-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetSessionAnchorSUP(ctx, "w", 0.5, false); err != nil {
+		t.Fatal(err)
+	}
+	w, err := s.GetWorker(ctx, "w")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.SettledSUP != 9.0 || w.SessionAnchorSUP != 0.5 {
+		t.Fatalf("row=%+v", w)
+	}
+	if err := s.SetSessionAnchorSUP(ctx, "w", 0, true); err != nil {
+		t.Fatal(err)
+	}
+	w, _ = s.GetWorker(ctx, "w")
+	if w.SessionAnchorSUP != 0 {
+		t.Fatalf("anchor not cleared: %+v", w)
 	}
 }
