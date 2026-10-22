@@ -82,6 +82,43 @@ func TestRefreshActiveOrderReadsManifestObject(t *testing.T) {
 	}
 }
 
+// Open tasks without usable wasm must not flip scheduler_mode to orders
+// (otherwise claims advertise task_class=orders with no order_task_id).
+func TestSchedulerModeRequiresClaimableOrderWasm(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/tasks" {
+			http.Error(w, "nope", http.StatusNotFound)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"tasks": []map[string]any{{
+				"id":            "order-no-wasm",
+				"status":        "open",
+				"created_at":    100.0,
+				"reward":        0.05,
+				"manifest_json": map[string]any{"reward_hmc": 0.05},
+			}},
+		})
+	}))
+	defer srv.Close()
+
+	wm := &workManager{
+		ordersPriority:      true,
+		ordersProbeURL:      srv.URL,
+		ordersProbeEverySec: 1,
+		targetMod:           1_000_000,
+	}
+	if mode := wm.schedulerModeNow(); mode != "baseline" {
+		t.Fatalf("mode=%q want baseline when open order lacks wasm", mode)
+	}
+	if wm.lastOrdersActive {
+		t.Fatal("orders_active should be false without claimable snap")
+	}
+	if wm.activeOrder.ID != "" {
+		t.Fatalf("active order id=%q", wm.activeOrder.ID)
+	}
+}
+
 func TestConfigTruthyAttachFlags(t *testing.T) {
 	cfg := map[string]any{"attach_poh_order": true, "create_poh_order": "1"}
 	if !configTruthy(cfg, "attach_poh_order") {

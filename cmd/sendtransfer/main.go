@@ -80,7 +80,8 @@ func main() {
 	} else if t := strings.TrimSpace(os.Getenv("HACKME_ADMIN_TOKEN")); t != "" {
 		req.Header.Set("X-Hackme-Admin-Token", t)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	cli := &http.Client{Timeout: 30 * time.Second}
+	resp, err := cli.Do(req)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "http:", err)
 		os.Exit(1)
@@ -94,7 +95,8 @@ func main() {
 }
 
 func fetchNonce(base, addr string) (uint64, error) {
-	resp, err := http.Get(base + "/api/address/" + addr)
+	cli := &http.Client{Timeout: 15 * time.Second}
+	resp, err := cli.Get(base + "/api/address/" + addr)
 	if err != nil {
 		return 0, err
 	}

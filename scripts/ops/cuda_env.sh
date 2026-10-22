@@ -5,21 +5,29 @@ set -euo pipefail
 
 cuda_find_home() {
   local d
+  # Prefer full toolkit trees (nvcc + NVRTC) over thin .deps/cuda-home stubs
+  # that only symlink headers — RTX 50 needs CUDA ≥12.8 NVRTC for compute_120.
   for d in \
-    "${CUDA_HOME:-}" \
     "${CUDA_PATH:-}" \
-    /usr/local/cuda \
+    /usr/local/cuda-12.8 \
     /usr/local/cuda-13.0 \
     /usr/local/cuda-13 \
-    /usr/local/cuda-12.8 \
+    /usr/local/cuda \
     /usr/local/cuda-12.6 \
     /usr/local/cuda-12.4 \
     /usr/local/cuda-12.2 \
     /usr/local/cuda-12.0 \
     /opt/cuda \
-    /usr/lib/cuda
+    /usr/lib/cuda \
+    "${CUDA_HOME:-}"
   do
     [[ -n "$d" && -f "$d/include/nvrtc.h" ]] || continue
+    # Skip stub prefixes that lack libnvrtc / nvcc when a real toolkit exists.
+    if [[ ! -x "$d/bin/nvcc" && ! -e "$d/lib64/libnvrtc.so" && ! -e "$d/lib/libnvrtc.so" && ! -e "$d/lib/x86_64-linux-gnu/libnvrtc.so" ]]; then
+      if [[ -x /usr/local/cuda-12.8/bin/nvcc || -f /usr/local/cuda-12.8/include/nvrtc.h ]]; then
+        continue
+      fi
+    fi
     printf '%s' "$d"
     return 0
   done

@@ -3769,6 +3769,7 @@ func (a *app) handleTasks(w http.ResponseWriter, r *http.Request) {
 		localTasksOnly := strings.EqualFold(strings.TrimSpace(os.Getenv("HACKME_TASKS_LIST_LOCAL_ONLY")), "1") ||
 			strings.EqualFold(strings.TrimSpace(os.Getenv("HACKME_TASKS_LIST_LOCAL_ONLY")), "true")
 		proxied := false
+		tasksSource := "local"
 		if tasksBase != "" && !localTasksOnly {
 			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, tasksBase+"/api/tasks", nil)
 			if tok := strings.TrimSpace(extractAdminSecret(r)); tok != "" {
@@ -3783,9 +3784,9 @@ func (a *app) handleTasks(w http.ResponseWriter, r *http.Request) {
 							Tasks []chain.OrderTaskRow `json:"tasks"`
 						}
 						if err := json.NewDecoder(resp.Body).Decode(&remote); err == nil {
-							w.Header().Set("X-Hackme-Tasks-Source", "canonical-peer")
 							rows = remote.Tasks
 							proxied = true
+							tasksSource = "canonical-peer"
 							log.Printf("tasks: canonical proxy active base=%s tasks=%d", tasksBase, len(rows))
 						} else {
 							log.Printf("tasks: canonical proxy decode failed base=%s err=%v", tasksBase, err)
@@ -3805,7 +3806,42 @@ func (a *app) handleTasks(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+		} else if a.chain != nil {
+			// Desktop/follower POST /api/tasks escrows locally, but GET previously
+			// returned only the canonical peer list — operators saw "charged but no open
+			// order". Merge local open rows so lab orders remain visible (fleet still
+			// probes HACKME_COORDINATOR_ORDERS_URL / command chain, not this merge).
+			if localRows, err := a.chain.ListOrderTasks(ctx); err == nil {
+				seen := make(map[string]struct{}, len(rows))
+				for _, r := range rows {
+					id := strings.TrimSpace(r.ID)
+					if id != "" {
+						seen[id] = struct{}{}
+					}
+				}
+				merged := 0
+				for _, lr := range localRows {
+					if !strings.EqualFold(strings.TrimSpace(lr.Status), chain.TaskStatusOpen) {
+						continue
+					}
+					id := strings.TrimSpace(lr.ID)
+					if id == "" {
+						continue
+					}
+					if _, ok := seen[id]; ok {
+						continue
+					}
+					rows = append(rows, lr)
+					seen[id] = struct{}{}
+					merged++
+				}
+				if merged > 0 {
+					tasksSource = "canonical-peer+local-open"
+					log.Printf("tasks: merged %d local open into canonical proxy list", merged)
+				}
+			}
 		}
+		w.Header().Set("X-Hackme-Tasks-Source", tasksSource)
 		if rows == nil {
 			rows = []chain.OrderTaskRow{}
 		}

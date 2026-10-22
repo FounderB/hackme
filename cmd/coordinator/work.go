@@ -2527,19 +2527,26 @@ func (m *workManager) schedulerModeNow() string {
 	}
 	m.schedulerMu.Unlock()
 	if needProbe {
-		active := m.probeOrdersActive()
-		mode := "baseline"
-		if active {
-			mode = "orders"
-		}
+		// Cheap open-task probe first; then require a claimable WASM snap so we never
+		// advertise scheduler_mode=orders without order_task_id on claims.
+		openHint := m.probeOrdersActive()
 		m.schedulerMu.Lock()
 		m.probeInFlight = false
 		m.lastOrdersProbeUnix = now
-		m.lastOrdersActive = active
-		if active {
-			_ = m.refreshActiveOrderLocked()
+		active := false
+		if openHint {
+			snap := m.refreshActiveOrderLocked()
+			active = snap.ID != ""
+			if !active {
+				m.activeOrder = activeOrderSnap{}
+			}
 		} else {
 			m.activeOrder = activeOrderSnap{}
+		}
+		m.lastOrdersActive = active
+		mode := "baseline"
+		if active {
+			mode = "orders"
 		}
 		if m.schedulerMode != mode {
 			m.schedulerMode = mode
@@ -2917,6 +2924,9 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 	transitions := m.schedulerTransitions
 	ordersActive := m.lastOrdersActive
 	lastProbe := m.lastOrdersProbeUnix
+	activeOrderID := m.activeOrder.ID
+	activeOrderReward := m.activeOrder.RewardHMC
+	ordersProbeConfigured := strings.TrimSpace(m.ordersProbeURL) != ""
 	m.schedulerMu.Unlock()
 	poolGHStat, onlineStat, _ := m.poolOnlineSummaryUnlocked(poolHashrateStaleSec, now)
 	workersGH := m.poolHashrateFromWorkersUnlocked(now)
@@ -2987,6 +2997,9 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 		"scheduler_transitions":        transitions,
 		"orders_active":                ordersActive,
 		"orders_probe_unix":            lastProbe,
+		"orders_probe_configured":      ordersProbeConfigured,
+		"active_order_task_id":         activeOrderID,
+		"active_order_reward_hmc":      activeOrderReward,
 		"hybrid_signer_enabled":        m.hybridSignerEnabled,
 		"hybrid_signer_strict":         m.hybridSignerStrict,
 		"hybrid_require_found_sig":     m.hybridRequireFoundSig,
