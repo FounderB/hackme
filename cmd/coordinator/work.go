@@ -59,6 +59,12 @@ type workManager struct {
 	attemptRecheckBudget uint64
 	attemptRecheckRolls  uint64
 	attemptRecheckReject uint64
+	// Pseudo-shares: pay verified work % (M/divisor)==0 instead of trusted attempts.
+	shareDivisor     uint64
+	shareStrict      bool
+	shareAccepts     uint64
+	shareRejects     uint64
+	sharePaidSubmits uint64
 
 	// PoH tip binding for Blake3 v3 (refreshed from chain /api/metrics).
 	tipHash             string
@@ -243,6 +249,8 @@ type submitWorkRequest struct {
 	SubmitNonce  uint64  `json:"submit_nonce,omitempty"`
 	OrderTaskID  string  `json:"order_task_id,omitempty"`
 	WasmGatePass bool    `json:"wasm_gate_pass,omitempty"`
+	// ShareNonces: pseudo-shares (PoH work % share_mod == 0) verified by coordinator.
+	ShareNonces []uint64 `json:"share_nonces,omitempty"`
 }
 
 func newWorkManagerFromEnv() *workManager {
@@ -446,6 +454,8 @@ func newWorkManagerFromEnv() *workManager {
 		payoutFoundOnly:          payoutFoundOnly,
 		attemptRecheckPct:        attemptRecheckPct,
 		attemptRecheckBudget:     attemptRecheckBudget,
+		shareDivisor:             envShareDivisor(),
+		shareStrict:              envShareStrict(),
 		active:                   make(map[workKey]leaseRecord),
 		worker:                   make(map[string]workerPayoutStat),
 		acceptedResultHashes:     make(map[string]struct{}),
@@ -2237,9 +2247,37 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		attemptsPre = req.BatchSize
 	}
 	attemptsPre = m.clampPaidAttempts(attemptsPre, req.BatchSize)
+
+	shareDiv := m.shareDivisor
+	sm := shareModFor(rec.TargetMod, shareDiv)
+	leasePrevShare := strings.TrimSpace(rec.PrevHash)
+	leaseAddrShare := strings.TrimSpace(rec.MinerAddress)
+	if leaseAddrShare == "" {
+		leaseAddrShare = strings.TrimSpace(signerAddr)
+	}
+	if leaseAddrShare == "" {
+		leaseAddrShare = strings.TrimSpace(req.MinerAddress)
+	}
+	fvShare := rec.FormulaVersion
+	if fvShare <= 0 {
+		fvShare = m.resolvedPoHFormulaVersionLocked()
+	}
+	var validShares []uint64
+	if sm > 0 && len(req.ShareNonces) > 0 {
+		var rej int
+		validShares, rej = validateShareNonces(req.ShareNonces, req.BaseNonce, req.BatchSize, sm, fvShare, leasePrevShare, leaseAddrShare)
+		m.shareAccepts += uint64(len(validShares))
+		m.shareRejects += uint64(rej)
+	}
+	if shareDiv >= 2 && m.shareStrict && len(validShares) == 0 && !req.Found {
+		m.rejectedSubmits++
+		return false, "shares_required", 0, signerAddr, signerAddr != ""
+	}
+	useShares := shareDiv >= 2 && len(validShares) > 0
+
 	// Sampled missed-found recheck (Wave B / H1): before consuming the lease,
 	// occasionally verify attempt-pay submits did not skip an obvious hit.
-	if !req.Found && !m.payoutFoundOnly && m.attemptRecheckPct > 0 && attemptsPre > 0 {
+	if !useShares && !req.Found && !m.payoutFoundOnly && m.attemptRecheckPct > 0 && attemptsPre > 0 {
 		if rand.Intn(100) < m.attemptRecheckPct {
 			m.attemptRecheckRolls++
 			leasePrev := strings.TrimSpace(rec.PrevHash)
@@ -2332,13 +2370,23 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if m.payoutFoundOnly && !req.Found {
 		paidAttempts = 0
 	}
-	payout := (float64(paidAttempts) / 1_000_000.0) * m.rewardPerM
-	if req.Found && !chainSolve.OK {
-		payout += m.foundBonus
-	}
-	// Order block committed on chain: escrow pays miner_address; coordinator pays only small attempt accrual.
-	if chainSolve.OK {
+	var payout float64
+	if useShares {
+		m.sharePaidSubmits++
+		payout = float64(len(validShares)) * rewardPerShare(m.baseRewardHMC, shareDiv)
+		// Found block hit is already a share when work%M==0 ⇒ work%shareMod==0; do not double-count found_bonus on top of share math unless no share listed.
+		if req.Found && !chainSolve.OK && len(validShares) == 0 {
+			payout += m.foundBonus
+		}
+	} else {
 		payout = (float64(paidAttempts) / 1_000_000.0) * m.rewardPerM
+		if req.Found && !chainSolve.OK {
+			payout += m.foundBonus
+		}
+		// Order block committed on chain: escrow pays miner_address; coordinator pays only small attempt accrual.
+		if chainSolve.OK {
+			payout = (float64(paidAttempts) / 1_000_000.0) * m.rewardPerM
+		}
 	}
 	if payout < 0 {
 		payout = 0
@@ -2850,6 +2898,11 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 		"attempt_recheck_budget":       m.attemptRecheckBudget,
 		"attempt_recheck_rolls":        m.attemptRecheckRolls,
 		"attempt_recheck_rejects":      m.attemptRecheckReject,
+		"share_divisor":                m.shareDivisor,
+		"share_strict":                 m.shareStrict,
+		"share_accepts":                m.shareAccepts,
+		"share_rejects":                m.shareRejects,
+		"share_paid_submits":           m.sharePaidSubmits,
 		"now_unix":                     now,
 		"next_nonce":                   m.nextNonce.Load(),
 		"issued_ranges":                m.issuedRanges,
@@ -3214,6 +3267,12 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 			"poh_formula":           claimFormula,
 			"poh_formula_version":   claimFV,
 			"poh_activation_height": actH,
+		}
+		if wm.shareDivisor >= 2 {
+			smOut := shareModFor(modOut, wm.shareDivisor)
+			resp["share_divisor"] = wm.shareDivisor
+			resp["share_mod"] = smOut
+			resp["share_strict"] = wm.shareStrict
 		}
 		if mode == "orders" {
 			snap := wm.activeOrderSnapshot()

@@ -43,10 +43,11 @@ const (
 // reachable only when V3 is overridden above this height (lab).
 const PoHFormulaV2ActivationHeight uint64 = 2_102_400
 
-// defaultPoHFormulaV3ActivationHeight is Blake3 PoH v3 mainnet gate.
-// Chosen clearly above live tip (~478k at ship time) without wiping genesis.
+// defaultPoHFormulaV3ActivationHeight is Blake3 PoH v3 mainnet gate (rc17.4).
+// Moved earlier than 500k so free algebraic mining ends sooner; fleet must
+// ship Blake3-capable workerpoh before tip reaches this height.
 // Lab override: HACKME_POH_V3_ACTIVATION_HEIGHT=<uint64>.
-const defaultPoHFormulaV3ActivationHeight uint64 = 500_000
+const defaultPoHFormulaV3ActivationHeight uint64 = 485_000
 
 var (
 	pohV3HeightOnce sync.Once

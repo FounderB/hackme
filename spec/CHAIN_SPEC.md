@@ -47,7 +47,7 @@ Any change to header fields after calculation requires a recalculation of `hash`
 
 | Height gate | Kind | Work proof |
 |-------------|------|------------|
-| `< PoHFormulaV3ActivationHeight` (default **500000**; lab: `HACKME_POH_V3_ACTIVATION_HEIGHT`) | `synthetic_poh_v1` | `eval(n)=n*7+13`, accept iff `eval % M == 0` |
+| `< PoHFormulaV3ActivationHeight` (default **485000** as of rc17.4; lab: `HACKME_POH_V3_ACTIVATION_HEIGHT`) | `synthetic_poh_v1` | `eval(n)=n*7+13`, accept iff `eval % M == 0` |
 | `≥ PoHFormulaV3ActivationHeight` | `synthetic_poh_v3` | `work = uint64_le(Blake3(prev_hash_hex_ascii_lower ‖ miner_address_utf8 ‖ nonce_u64_le)[0:8])`, accept iff `work % M == 0` |
 
 Endianness for v3 is **little-endian** for both the nonce bytes and the work uint64 (locked by tests). Block signatures remain the **node** Ed25519 signer; Blake3 binds `miner_address` in the work proof only. Order WASM `check(n)` stays a separate gate after the native PoH condition.

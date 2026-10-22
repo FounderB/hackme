@@ -14,16 +14,17 @@ A comparison of “as it happens in classic articles” with **what HackMe actua
 - **Cryptographic double-check of the entire range** (recalculation of PoH for each nonce in the batch) **no**. **only** branch **`found=true`** is recalculated and strictly checked: range `found_nonce`, `validFoundNonceV1` (eval % `target_mod`), dedup `found_nonce` / `result_hash`.
 - Spam protection: **rate limit** claim/submit per worker and per IP, **bad strikes → temporary ban** for obviously bad submit reasons (`markSubmitOutcome`: incorrect work_id, signature, replay, incorrect found_nonce, etc.) - not for “slow honest”.
 - Mode **`HACKME_COORDINATOR_PAYOUT_FOUND_ONLY`**: with `found=false` **`paidAttempts=0`** - then payment is only for actually proven hit + bonus. This is the **strongest** answer to fake attempts **without** full verification of each attempt (expensive).
-- **Sampled missed-found recheck** (default **1%** when attempt-pay is on): `HACKME_COORDINATOR_ATTEMPT_RECHECK_PCT` / `_BUDGET` (default budget 4096). Before consuming the lease, the coordinator scans a prefix of the claimed range for a valid PoH hit the worker did not report as `found=true`. Hit → reject `missed_found_unreported` (lazy/fake attempt pay). Not a full nonce-for-nonce proof of work; catches “claim attempts, skip search” when an easy hit sits in the scanned window. Stats: `attempt_recheck_*` on `/api/work/stats`.
+- **Pseudo-shares (rc17.4+):** claim returns `share_mod = target_mod / share_divisor` (default divisor **1024**). Submit may include `share_nonces[]`; each nonce is verified with the same PoH check as a block hit but against `share_mod`. Pay ≈ `base_reward / divisor` per accepted share. Soft mode (default): shares preferred when present; attempt-pay remains fallback. Strict: `HACKME_COORDINATOR_SHARE_STRICT=1` rejects submits without shares when `found=false`. Stats: `share_*` on `/api/work/stats`.
+- **Sampled missed-found recheck** (default **1%** when attempt-pay path is used): `HACKME_COORDINATOR_ATTEMPT_RECHECK_PCT` / `_BUDGET`. Skipped when the submit was paid via verified shares.
 
 **Verdict**
 
 | Configuration | Fake attempts to pay “just for attempts” |
 |--------------|-----------------------------------------------|
-| Public pool with **hybrid strict** + signed payload | It's harder to fake **payload** without a key; but **the work itself** is still not recalculated nonce-for-nonce. |
+| Public pool with **hybrid strict** + **pseudo-shares** | Work proofs checked per share (Blake3/v1 eval); preferred path in rc17.4. |
 | **`payout_found_only=1`** | **Almost closes** the “pay for air without a hit” scenario. |
-| Default (`found` can be false, payment for attempts) | **Trust in the number of attempts** within the lease, plus **sampled missed-found recheck** (default 1%); economic risk still **operator** (limits, found-only, monitoring). |
-| “Random 1% batch recheck” in code | **Yes** — missed-found scan (not full PoW replay). |
+| Soft shares + attempt fallback | Attempt path still trusts `attempts` within lease + 1% missed-found recheck. |
+| **`SHARE_STRICT=1`** | No attempt-pay without shares (or found). |
 
 ---
 

@@ -83,6 +83,109 @@ func TestMigrateApplyPendingRoundTrip(t *testing.T) {
 	}
 }
 
+func TestExportJSONPreservesSUPAndRefusesEmptyWipe(t *testing.T) {
+	dir := t.TempDir()
+	jsonPath := filepath.Join(dir, "state.json")
+	raw := []byte(`{
+  "workers": {
+    "w1": {"settled_hmc": 2.0, "settled_sup": 5.5, "pending_sup": {"delta_sup": 0.1}, "payout_address": "HMC-a"},
+    "sup-only": {"settled_sup": 1.0, "payout_address": "HMC-b"}
+  },
+  "meta": {"last_force_unix": 7}
+}`)
+	if err := os.WriteFile(jsonPath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(dir, "s.db")
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx := context.Background()
+	if _, err := s.MigrateFromJSON(ctx, jsonPath); err != nil {
+		t.Fatal(err)
+	}
+	// HMC apply must not wipe settled_sup.
+	if err := s.ApplySettle(ctx, "w1", "HMC-a", "tx1", 3.0, 0, true); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate SUP advancing watermark in JSON only (old bug path), then export merge.
+	bumped := []byte(`{
+  "workers": {
+    "w1": {"settled_hmc": 2.0, "settled_sup": 9.0, "pending_sup": {"delta_sup": 0.2}, "payout_address": "HMC-a"},
+    "sup-only": {"settled_sup": 1.0, "payout_address": "HMC-b"}
+  },
+  "meta": {"last_force_unix": 7}
+}`)
+	if err := os.WriteFile(jsonPath, bumped, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ExportJSONToFile(ctx, jsonPath); err != nil {
+		t.Fatal(err)
+	}
+	out, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(out, &doc); err != nil {
+		t.Fatal(err)
+	}
+	workers := doc["workers"].(map[string]any)
+	w1 := workers["w1"].(map[string]any)
+	if anyFloat(w1["settled_hmc"]) != 3.0 {
+		t.Fatalf("settled_hmc want 3 got %v", w1["settled_hmc"])
+	}
+	if anyFloat(w1["settled_sup"]) != 9.0 {
+		t.Fatalf("settled_sup must keep JSON max 9, got %v", w1["settled_sup"])
+	}
+	if w1["pending_sup"] == nil {
+		t.Fatal("pending_sup must be preserved")
+	}
+	if workers["sup-only"] == nil {
+		t.Fatal("sup-only worker must survive HMC export")
+	}
+	row, _ := s.GetWorker(ctx, "w1")
+	if row.SettledSUP < 9.0 {
+		t.Fatalf("SQLite settled_sup should sync up to 9, got %v", row.SettledSUP)
+	}
+
+	// Empty ledger must not wipe non-empty JSON.
+	s2, err := Open(filepath.Join(dir, "empty.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	emptyJSON := filepath.Join(dir, "empty.json")
+	if err := os.WriteFile(emptyJSON, []byte(`{"workers":{},"meta":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s2.MigrateFromJSON(ctx, emptyJSON); err != nil {
+		t.Fatal(err)
+	}
+	if err := s2.ExportJSONToFile(ctx, jsonPath); err == nil {
+		t.Fatal("expected refuse empty export over non-empty JSON")
+	}
+}
+
+func TestMigrateMissingJSONRefuses(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(filepath.Join(dir, "m.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	_, err = s.MigrateFromJSON(context.Background(), filepath.Join(dir, "nope.json"))
+	if err == nil {
+		t.Fatal("expected error on missing migrate json")
+	}
+	ok, err := s.MigratedFromJSON(context.Background())
+	if err != nil || ok {
+		t.Fatalf("must not mark migrated: ok=%v err=%v", ok, err)
+	}
+}
+
 func TestClearPending(t *testing.T) {
 	dir := t.TempDir()
 	s, err := Open(filepath.Join(dir, "s.db"))

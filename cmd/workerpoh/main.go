@@ -69,6 +69,9 @@ type claimResp struct {
 	PoHFormula          string  `json:"poh_formula,omitempty"`
 	PoHFormulaVersion   int     `json:"poh_formula_version,omitempty"`
 	PoHActivationHeight uint64  `json:"poh_activation_height,omitempty"`
+	ShareDivisor        uint64  `json:"share_divisor,omitempty"`
+	ShareMod            uint64  `json:"share_mod,omitempty"`
+	ShareStrict         bool    `json:"share_strict,omitempty"`
 }
 
 type submitReq struct {
@@ -82,12 +85,13 @@ type submitReq struct {
 	ResultHash  string  `json:"result_hash,omitempty"`
 	HashrateGHS float64 `json:"hashrate_gh_s,omitempty"`
 
-	MinerPubKey  string `json:"miner_pubkey_ed25519,omitempty"`
-	MinerSig     string `json:"miner_sig_ed25519,omitempty"`
-	MinerSigAlg  string `json:"miner_sig_alg,omitempty"`
-	SubmitNonce  uint64 `json:"submit_nonce,omitempty"`
-	OrderTaskID  string `json:"order_task_id,omitempty"`
-	WasmGatePass bool   `json:"wasm_gate_pass,omitempty"`
+	MinerPubKey  string   `json:"miner_pubkey_ed25519,omitempty"`
+	MinerSig     string   `json:"miner_sig_ed25519,omitempty"`
+	MinerSigAlg  string   `json:"miner_sig_alg,omitempty"`
+	SubmitNonce  uint64   `json:"submit_nonce,omitempty"`
+	OrderTaskID  string   `json:"order_task_id,omitempty"`
+	WasmGatePass bool     `json:"wasm_gate_pass,omitempty"`
+	ShareNonces  []uint64 `json:"share_nonces,omitempty"`
 }
 
 func canonicalSubmitBytes(req submitReq) []byte {
@@ -160,6 +164,46 @@ func findHitCPUPoH(base, batch, mod uint64, formulaVersion int, prevHash, minerA
 		}
 	}
 	return false, 0
+}
+
+// collectShareNonces finds up to maxShares nonces in [base, base+batch) where work%shareMod==0.
+// Caps scan budget so GPU leases stay cheap on host (pseudo-share harvest).
+func collectShareNonces(base, batch, shareMod uint64, formulaVersion int, prevHash, minerAddr string, maxShares int, foundNonce uint64, found bool) []uint64 {
+	if shareMod == 0 || batch == 0 || maxShares <= 0 {
+		return nil
+	}
+	const maxScan = uint64(256 * 1024)
+	scan := batch
+	if scan > maxScan {
+		scan = maxScan
+	}
+	out := make([]uint64, 0, maxShares)
+	seen := map[uint64]struct{}{}
+	if found && foundNonce >= base && foundNonce < base+batch {
+		out = append(out, foundNonce)
+		seen[foundNonce] = struct{}{}
+	}
+	end := base + scan
+	if end < base {
+		end = ^uint64(0)
+	}
+	for n := base; n < end && len(out) < maxShares; n++ {
+		if _, ok := seen[n]; ok {
+			continue
+		}
+		var work uint64
+		if formulaVersion >= 3 {
+			work = chain.PohWorkBlake3(prevHash, minerAddr, n)
+		} else {
+			work = chain.PohEval(n)
+		}
+		if work%shareMod != 0 {
+			continue
+		}
+		out = append(out, n)
+		seen[n] = struct{}{}
+	}
+	return out
 }
 
 func isTruthy(v string) bool {
@@ -978,6 +1022,9 @@ func main() {
 			Found:       found,
 			FoundNonce:  foundNonce,
 			HashrateGHS: ghs,
+		}
+		if cr.ShareMod > 0 {
+			out.ShareNonces = collectShareNonces(cr.BaseNonce, cr.BatchSize, cr.ShareMod, fv, cr.PrevHash, minerForPoH, 64, foundNonce, found)
 		}
 		if strings.TrimSpace(cr.OrderTaskID) != "" {
 			out.OrderTaskID = strings.TrimSpace(cr.OrderTaskID)

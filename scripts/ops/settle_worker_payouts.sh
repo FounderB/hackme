@@ -149,8 +149,42 @@ settle_sqlite_ready() {
 
 settle_sqlite_sync_json() {
   if settle_sqlite_ready; then
-    "$SETTLECTL" export-json "$STATE_DB" "$STATE_FILE" >/dev/null
+    # Fail-closed: a silent export miss leaves JSON stale → double-pay (audit 5b).
+    if ! "$SETTLECTL" export-json "$STATE_DB" "$STATE_FILE" >/dev/null; then
+      echo "[settle-workers] FATAL: export-json failed (refusing to continue with stale JSON)" >&2
+      return 1
+    fi
   fi
+  return 0
+}
+
+# Prefer SQLite watermark when ledger is active (audit 5b).
+settle_read_settled_hmc() {
+  local wid="$1"
+  if settle_sqlite_ready; then
+    local row
+    if row="$("$SETTLECTL" get-json "$STATE_DB" "$wid" 2>/dev/null)"; then
+      jq -r '.settled_hmc // 0' <<<"$row"
+      return 0
+    fi
+  fi
+  jq -r --arg wid "$wid" '.workers[$wid].settled_hmc // 0' "$STATE_FILE"
+}
+
+settle_read_session_anchor() {
+  local wid="$1"
+  if settle_sqlite_ready; then
+    local row
+    if row="$("$SETTLECTL" get-json "$STATE_DB" "$wid" 2>/dev/null)"; then
+      local a
+      a="$(jq -r '.session_anchor_hmc // empty' <<<"$row")"
+      if [[ -n "$a" && "$a" != "0" && "$a" != "0.0" ]]; then
+        printf '%s' "$a"
+        return 0
+      fi
+    fi
+  fi
+  jq -r --arg wid "$wid" '.workers[$wid].session_anchor_hmc // empty' "$STATE_FILE"
 }
 
 # Single-writer: avoid two cron/systemd instances racing on nonce + state (see docs/POOL_SECURITY_THREATS_VERDICT.md).
@@ -163,8 +197,14 @@ fi
 
 if settle_sqlite_ready; then
   echo "[settle-workers] sqlite ledger: $STATE_DB (ctl=$SETTLECTL)"
-  "$SETTLECTL" migrate "$STATE_DB" "$STATE_FILE" >/dev/null || true
-  settle_sqlite_sync_json || true
+  # migrate may be noop; missing JSON must fail closed (audit 5c).
+  if ! "$SETTLECTL" migrate "$STATE_DB" "$STATE_FILE" >/dev/null; then
+    echo "[settle-workers] FATAL: migrate failed" >&2
+    exit 1
+  fi
+  if ! settle_sqlite_sync_json; then
+    exit 1
+  fi
 elif [[ -n "$STATE_DB" && "${SETTLE_SQLITE:-1}" != "0" ]]; then
   echo "[settle-workers] WARN: STATE_DB set but workersettlectl missing — JSON-only path (build: go build -o bin/workersettlectl ./cmd/workersettlectl)" >&2
 fi
@@ -370,7 +410,7 @@ while IFS= read -r item; do
     continue
   fi
 
-  already_hmc="$(jq -r --arg wid "$worker_id" '.workers[$wid].settled_hmc // 0' "$STATE_FILE")"
+  already_hmc="$(settle_read_settled_hmc "$worker_id")"
   # Coordinator payout counters are in-memory: a restart resets payout_hmc while
   # settlement state keeps a high settled_hmc watermark → naive delta stays 0 forever.
   #
@@ -378,7 +418,7 @@ while IFS= read -r item; do
   # looked "fresh" against a zeroed watermark). On reset: keep lifetime settled,
   # anchor a session floor at current accrued, and pay only session growth;
   # on success settled_hmc += delta (lifetime watermark only moves up).
-  session_anchor="$(jq -r --arg wid "$worker_id" '.workers[$wid].session_anchor_hmc // empty' "$STATE_FILE")"
+  session_anchor="$(settle_read_session_anchor "$worker_id")"
   rebase="$(python3 - "$payout_hmc" "$already_hmc" <<'PY'
 import sys
 p=float(sys.argv[1]); s=float(sys.argv[2])
@@ -520,7 +560,7 @@ PY
       echo "[settle-workers] ERROR pending intent ${worker_id}: sqlite set-pending failed" >&2
       continue
     fi
-    settle_sqlite_sync_json || true
+    settle_sqlite_sync_json || { echo "[settle-workers] FATAL: export-json after settle failed" >&2; exit 1; }
   else
     tmp="$(mktemp)"
     if ! jq --arg wid "$worker_id" --arg addr "$to_addr" --arg delta "$delta_hmc" --argjson ts "$ts" --argjson nonce "$nonce" \
@@ -569,7 +609,7 @@ PY
       echo "[settle-workers] ERROR settle ${worker_id} -> ${to_addr}: ${resp:-curl_failed}" >&2
       if settle_sqlite_ready; then
         "$SETTLECTL" clear-pending "$STATE_DB" "$worker_id" >/dev/null || true
-        settle_sqlite_sync_json || true
+        settle_sqlite_sync_json || { echo "[settle-workers] FATAL: export-json after settle failed" >&2; exit 1; }
       else
         tmp="$(mktemp)"
         jq --arg wid "$worker_id" 'del(.workers[$wid].pending_settle)' "$STATE_FILE" >"$tmp" && mv "$tmp" "$STATE_FILE"
@@ -581,7 +621,7 @@ PY
   if [[ -n "$tx_hash" ]]; then
     if settle_sqlite_ready; then
       "$SETTLECTL" attach-tx "$STATE_DB" "$worker_id" "$tx_hash" >/dev/null || true
-      settle_sqlite_sync_json || true
+      settle_sqlite_sync_json || { echo "[settle-workers] FATAL: export-json after settle failed" >&2; exit 1; }
     else
       tmp="$(mktemp)"
       jq --arg wid "$worker_id" --arg tx "$tx_hash" \
@@ -620,7 +660,7 @@ PY
         continue
       fi
     fi
-    settle_sqlite_sync_json || true
+    settle_sqlite_sync_json || { echo "[settle-workers] FATAL: export-json after settle failed" >&2; exit 1; }
   else
     tmp="$(mktemp)"
     if [[ "$rebase" == "1" ]]; then
@@ -652,7 +692,7 @@ fi
 if [[ "$force_settle" == "1" && "$settled_any" == "1" ]]; then
   if settle_sqlite_ready; then
     "$SETTLECTL" set-force "$STATE_DB" "$now_unix" >/dev/null || true
-    settle_sqlite_sync_json || true
+    settle_sqlite_sync_json || { echo "[settle-workers] FATAL: export-json after settle failed" >&2; exit 1; }
   else
     tmp="$(mktemp)"
     jq --argjson ts "$now_unix" '.meta.last_force_unix = $ts' "$STATE_FILE" >"$tmp" && mv "$tmp" "$STATE_FILE"

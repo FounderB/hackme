@@ -1905,7 +1905,7 @@
 						<span id="hdr-ui-mode" class="hidden sm:inline text-[9px] px-2 py-0.5 rounded border border-white/20 text-gray-300 uppercase tracking-widest" title="UI rendering mode">ui: full</span>
 						<span class="hidden sm:inline text-[10px] px-2 py-0.5 rounded border border-neon/25 text-neon/90 bg-neon/5">WASM</span>
 						<span id="chain-id-pill" class="tag-pill text-matrix/90 border-matrix/30">hackme-dev-mainnet</span>
-						<span id="hdr-node-version" class="text-[9px] px-2 py-0.5 rounded border border-white/10 text-neon/80 font-mono max-w-[280px] truncate hidden sm:inline-block" title="Node version · commit · build date from /api/status">0.1.0-rc17.3 · …</span>
+						<span id="hdr-node-version" class="text-[9px] px-2 py-0.5 rounded border border-white/10 text-neon/80 font-mono max-w-[280px] truncate hidden sm:inline-block" title="Node version · commit · build date from /api/status">0.1.0-rc17.4 · …</span>
 						<button type="button" id="btn-check-updates" class="inline text-[9px] px-2 py-0.5 rounded border border-neon/30 text-neon/90 hover:bg-neon/10 uppercase tracking-wider" title="Compare to hackme.tech/dist/latest.json">Updates</button>
 						<span id="hdr-update-pill" class="hidden text-[9px] px-2 py-0.5 rounded border border-warn/40 text-warn uppercase tracking-widest" title="Newer release published">update</span>
 					</div>
@@ -1987,8 +1987,8 @@
 				<div id="dashboard-whats-new" class="hidden mb-4 max-w-[1600px] mx-auto rounded-lg border border-neon/30 bg-gradient-to-r from-neon/[0.08] via-matrix/[0.06] to-transparent px-4 py-3.5 text-[11px] leading-relaxed shadow-[0_0_28px_rgba(0,209,255,0.08)]" role="status">
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div class="min-w-0 flex-1">
-							<p class="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-neon mb-1.5">What&apos;s new · <span id="dashboard-whats-new-ver">0.1.0-rc17.3</span></p>
-							<p id="dashboard-whats-new-body" class="text-gray-200/95"><strong class="text-white/90">Coverage Hunt</strong> live — libFuzzer fleet · AFL++ Deep · Dig smoke <strong class="text-neon/90">20/80</strong> · Dig Deep <strong class="text-neon/90">40/60</strong> · Hunt <strong class="text-matrix">50/50</strong>. Channel <code class="text-neon/80">0.1.0-rc17.3</code> — Coverage Hunt engines auto-install on Linux miner install/update.</p>
+							<p class="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-neon mb-1.5">What&apos;s new · <span id="dashboard-whats-new-ver">0.1.0-rc17.4</span></p>
+							<p id="dashboard-whats-new-body" class="text-gray-200/95"><strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> · pseudo-shares · settle SUP/HMC fix. <strong class="text-warn">Update workerpoh before the gate</strong> — GH/s drops ~100–200× after Blake3 (expected). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.</p>
 						</div>
 						<button type="button" id="dashboard-whats-new-dismiss" class="shrink-0 text-[10px] px-2 py-1 rounded border border-white/15 text-gray-400 hover:text-gray-200 uppercase tracking-wider">Dismiss</button>
 					</div>
@@ -2009,7 +2009,7 @@
 							<div class="flex flex-wrap gap-2 text-[10px] font-mono">
 								<span class="px-2 py-1 rounded border border-matrix/35 text-matrix">live pools: <span id="eco-live-count">—</span></span>
 								<span class="px-2 py-1 rounded border border-neon/35 text-neon">Σ hash: <span id="eco-total-hash">—</span></span>
-								<span class="px-2 py-1 rounded border border-warn/30 text-warn" title="Published installer channel">channel · rc17.3</span>
+								<span class="px-2 py-1 rounded border border-warn/30 text-warn" title="Published installer channel">channel · rc17.4</span>
 								<button type="button" id="btn-eco-refresh" class="px-3 py-1.5 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Refresh</button>
 							</div>
 						</div>
@@ -2563,7 +2563,7 @@
 					<div id="mining-fuzz-rc15-banner" class="card card-glow rounded-lg p-4 md:p-5 border-neon/40 bg-gradient-to-r from-neon/12 via-black/45 to-matrix/[0.06]">
 						<div class="flex flex-wrap items-start justify-between gap-3 mb-2">
 							<div class="max-w-3xl">
-								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">B2B fuzz · Coverage Hunt · 0.1.0-rc17.3</p>
+								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">B2B fuzz · Coverage Hunt · 0.1.0-rc17.4</p>
 								<h3 class="font-display text-sm font-semibold text-white tracking-wide">Dig · Hunt · customer campaigns first</h3>
 								<p class="text-[11px] text-gray-400 leading-relaxed mt-1"><strong class="text-neon/90">Dig</strong> = WASM packs (<code class="text-neon/80">wizard</code> · smoke <strong class="text-white/85">20/80</strong> · Deep <strong class="text-white/85">~40 HMC · 40/60</strong>). <strong class="text-matrix">Hunt</strong> = coverage ASAN (<code class="text-matrix/90">libFuzzer</code> fleet · <code class="text-matrix/90">AFL++</code> Deep · escrow <strong class="text-white/85">50/50</strong> · published <code class="text-warn/90">harness_hash</code>). Fleet prioritizes customer work — packs <code class="text-neon/80">secrets</code> · <code class="text-neon/80">filter_utf8</code> · <code class="text-neon/80">script_bounds</code> · <code class="text-neon/80">parser_expat</code>. Hub Deep exec capped; Linux installers auto-run <code class="text-neon/80">install_hunt_engines.sh</code>.</p>
 								<div class="fuzz-sku-pills" aria-label="SKU escrow">
@@ -2573,7 +2573,7 @@
 									<span class="fuzz-sku-pill">LF fleet · AFL++ Deep</span>
 								</div>
 							</div>
-							<span class="tag-pill border-neon/40 text-neon shrink-0">rc17.3</span>
+							<span class="tag-pill border-neon/40 text-neon shrink-0">rc17.4</span>
 						</div>
 						<div class="flex flex-wrap gap-2 mt-2">
 							<button type="button" class="text-[10px] px-3 py-1.5 rounded border border-neon/40 text-neon uppercase tracking-wider hover:bg-neon/10" data-goto-tab="orders">Run B2B audit (#orders)</button>
@@ -4137,8 +4137,8 @@
 		try {
 		// Enable JS-driven tab behavior (single active panel view).
 		document.body.classList.add('js-ui');
-		const DASHBOARD_UI_VER = '0.1.0-rc17.3';
-		const DASHBOARD_WHATS_NEW_HTML = '<strong class="text-white/90">Coverage Hunt</strong> live — libFuzzer fleet · AFL++ Deep · Dig smoke <strong class="text-neon/90">20/80</strong> · Dig Deep <strong class="text-neon/90">40/60</strong> · Hunt <strong class="text-matrix">50/50</strong>. Channel <code class="text-neon/80">0.1.0-rc17.3</code> — Coverage Hunt engines auto-install on Linux miner install/update.';
+		const DASHBOARD_UI_VER = '0.1.0-rc17.4';
+		const DASHBOARD_WHATS_NEW_HTML = '<strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> · pseudo-shares · settle SUP/HMC fix. <strong class="text-warn">Update workerpoh before the gate</strong> — GH/s drops ~100–200× after Blake3 (expected). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.';
 		function updateUIModeBadge() {
 			const el = document.getElementById('hdr-ui-mode');
 			if (!el) return;
@@ -5566,7 +5566,7 @@
 		function initDashboardWhatsNew() {
 			const wrap = $('dashboard-whats-new');
 			if (!wrap) return;
-			const dismissKey = 'hackme_notice_dismiss:dashboard-whats-new-rc17.3';
+			const dismissKey = 'hackme_notice_dismiss:dashboard-whats-new-rc17.4';
 			try {
 				if (localStorage.getItem(dismissKey) === '1') {
 					wrap.classList.add('hidden');

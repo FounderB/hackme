@@ -1,20 +1,28 @@
 {
   "version": 1,
-  "updated_unix": 1761150000,
+  "updated_unix": 1761156000,
   "notices": [
     {
-      "id": "poh-v3-blake3",
+      "id": "poh-v3-blake3-rc174",
+      "severity": "warn",
+      "title": "PoH v3 Blake3 @ height 485000 — update workers NOW",
+      "body": "Blake3 PoH activates at height 485000 (rc17.4; was 500000). Work = Blake3(prev_hash || miner_address || nonce_le) % M == 0. After activation, reported GH/s will drop by ~100–200× vs algebraic v1 (crypto hash vs multiply) and pool M will retarget down — this is expected. Rebuild/redeploy workerpoh (+ CUDA toolkit ≥12.8 on RTX 50). Lab override: HACKME_POH_V3_ACTIVATION_HEIGHT.",
+      "cta_label": "Downloads",
+      "cta_href": "/downloads.html"
+    },
+    {
+      "id": "pseudo-shares-rc174",
       "severity": "info",
-      "title": "PoH v3 Blake3 activation",
-      "body": "At chain height 500000 (override HACKME_POH_V3_ACTIVATION_HEIGHT in lab), PoH work becomes Blake3(prev_hash || miner_address || nonce_le) with little-endian uint64 work % M == 0. Pre-activation keeps eval(n)=7n+13. Economics (~30s, 0.01 HMC) unchanged. Update workerpoh before the gate.",
-      "cta_label": "Chain spec",
+      "title": "Pseudo-shares (verified pool work)",
+      "body": "Public pool now accepts share_nonces: each share is a PoH nonce with work % (M/1024) == 0, verified by the coordinator (not trusted attempts alone). Updated workerpoh harvests shares automatically. Soft mode keeps attempt-pay fallback until SHARE_STRICT=1.",
+      "cta_label": "Pool docs",
       "cta_href": "/docs.html"
     },
     {
       "id": "attempt-recheck-h1",
       "severity": "info",
       "title": "Attempt-pay sampled recheck",
-      "body": "Public pool attempt accrual (payout_found_only=0) now samples ~1% of found=false submits and rejects missed_found_unreported if the lease prefix contains a valid PoH hit you did not report. Keep mining honestly; found-only mode skips this path.",
+      "body": "When shares are absent, attempt accrual still samples ~1% of found=false submits and rejects missed_found_unreported if the lease prefix contains a valid PoH hit you did not report.",
       "cta_label": "Pool security",
       "cta_href": "/docs.html"
     }

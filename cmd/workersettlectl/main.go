@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -15,10 +16,12 @@ func usage() {
 	fmt.Fprintf(os.Stderr, `usage:
   workersettlectl migrate <db> <json>
   workersettlectl get <db> <worker_id>
+  workersettlectl get-json <db> <worker_id>
   workersettlectl set-pending <db> <worker_id> <addr> <delta_hmc> <nonce>
   workersettlectl attach-tx <db> <worker_id> <tx_hash>
   workersettlectl clear-pending <db> <worker_id>
   workersettlectl apply <db> <worker_id> <addr> <tx_hash> <new_settled> [session_anchor|clear]
+  workersettlectl set-sup <db> <worker_id> <settled_sup> [payout_address]
   workersettlectl set-force <db> <unix_ts>
   workersettlectl export-json <db> [out.json]
   workersettlectl pending-count <db>
@@ -50,8 +53,26 @@ func main() {
 		defer s.Close()
 		w, err := s.GetWorker(ctx, os.Args[3])
 		must(err)
-		fmt.Printf("settled_hmc=%.12f session_anchor_hmc=%.12f payout_address=%s last_tx_hash=%s pending=%q\n",
-			w.SettledHMC, w.SessionAnchorHMC, w.PayoutAddress, w.LastTxHash, w.PendingJSON)
+		fmt.Printf("settled_hmc=%.12f settled_sup=%.12f session_anchor_hmc=%.12f payout_address=%s last_tx_hash=%s pending=%q\n",
+			w.SettledHMC, w.SettledSUP, w.SessionAnchorHMC, w.PayoutAddress, w.LastTxHash, w.PendingJSON)
+	case "get-json":
+		need(4)
+		s := mustOpen(os.Args[2])
+		defer s.Close()
+		w, err := s.GetWorker(ctx, os.Args[3])
+		must(err)
+		ent := map[string]any{
+			"worker_id":          w.WorkerID,
+			"settled_hmc":        w.SettledHMC,
+			"settled_sup":        w.SettledSUP,
+			"session_anchor_hmc": w.SessionAnchorHMC,
+			"payout_address":     w.PayoutAddress,
+			"last_tx_hash":       w.LastTxHash,
+			"pending_json":       w.PendingJSON,
+		}
+		b, err := json.Marshal(ent)
+		must(err)
+		fmt.Println(string(b))
 	case "set-pending":
 		need(7)
 		s := mustOpen(os.Args[2])
@@ -94,6 +115,18 @@ func main() {
 		}
 		must(s.ApplySettle(ctx, os.Args[3], os.Args[4], os.Args[5], settled, anchor, clear))
 		fmt.Println("ok")
+	case "set-sup":
+		need(5)
+		s := mustOpen(os.Args[2])
+		defer s.Close()
+		sup, err := strconv.ParseFloat(os.Args[4], 64)
+		must(err)
+		addr := ""
+		if len(os.Args) >= 6 {
+			addr = os.Args[5]
+		}
+		must(s.SetSettledSUP(ctx, os.Args[3], sup, addr))
+		fmt.Println("ok")
 	case "set-force":
 		need(4)
 		s := mustOpen(os.Args[2])
@@ -106,12 +139,12 @@ func main() {
 		need(3)
 		s := mustOpen(os.Args[2])
 		defer s.Close()
-		b, err := s.ExportJSON(ctx)
-		must(err)
 		if len(os.Args) >= 4 {
-			must(os.WriteFile(os.Args[3], append(b, '\n'), 0o600))
+			must(s.ExportJSONToFile(ctx, os.Args[3]))
 			fmt.Println(os.Args[3])
 		} else {
+			b, err := s.ExportJSON(ctx)
+			must(err)
 			fmt.Println(string(b))
 		}
 	case "pending-count":

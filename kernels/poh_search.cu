@@ -138,6 +138,7 @@ __device__ static void blake3_hash_one_chunk(const unsigned char *input, size_t 
 
 // prefix: prev_hash_hex_ascii_lower || miner_address_utf8 (no nonce).
 // Each thread appends nonce as 8-byte little-endian and Blake3-hashes.
+// Shared-memory prefix copy (once per block) keeps occupancy usable on RTX 50.
 extern "C" __global__ void poh_search_blake3(
     unsigned long long base,
     unsigned long long count,
@@ -146,25 +147,39 @@ extern "C" __global__ void poh_search_blake3(
     int prefix_len,
     unsigned long long* out_nonce)
 {
+    __shared__ unsigned char sprefix[960];
+    if (prefix_len < 0 || prefix_len > 960 || mod == 0ULL) {
+        return;
+    }
+    for (int i = (int)threadIdx.x; i < prefix_len; i += (int)blockDim.x) {
+        sprefix[i] = prefix[i];
+    }
+    __syncthreads();
+
     size_t tid = (size_t)blockIdx.x * (size_t)blockDim.x + (size_t)threadIdx.x;
-    if (tid >= (size_t)count || mod == 0ULL || prefix_len < 0 || prefix_len > 960) {
+    if (tid >= (size_t)count) {
         return;
     }
     unsigned long long n = base + (unsigned long long)tid;
-    unsigned char msg[1024];
-    for (int i = 0; i < prefix_len; i++) {
-        msg[i] = prefix[i];
+    // Production tip(64 hex)+HMC-addr(~20)+nonce(8) ≈ 92B. Cap stack to keep occupancy.
+    int plen = prefix_len;
+    if (plen + 8 > 160) {
+        return;
     }
-    msg[prefix_len + 0] = (unsigned char)(n);
-    msg[prefix_len + 1] = (unsigned char)(n >> 8);
-    msg[prefix_len + 2] = (unsigned char)(n >> 16);
-    msg[prefix_len + 3] = (unsigned char)(n >> 24);
-    msg[prefix_len + 4] = (unsigned char)(n >> 32);
-    msg[prefix_len + 5] = (unsigned char)(n >> 40);
-    msg[prefix_len + 6] = (unsigned char)(n >> 48);
-    msg[prefix_len + 7] = (unsigned char)(n >> 56);
+    unsigned char msg[160];
+    for (int i = 0; i < plen; i++) {
+        msg[i] = sprefix[i];
+    }
+    msg[plen + 0] = (unsigned char)(n);
+    msg[plen + 1] = (unsigned char)(n >> 8);
+    msg[plen + 2] = (unsigned char)(n >> 16);
+    msg[plen + 3] = (unsigned char)(n >> 24);
+    msg[plen + 4] = (unsigned char)(n >> 32);
+    msg[plen + 5] = (unsigned char)(n >> 40);
+    msg[plen + 6] = (unsigned char)(n >> 48);
+    msg[plen + 7] = (unsigned char)(n >> 56);
     unsigned char digest[32];
-    blake3_hash_one_chunk(msg, (size_t)prefix_len + 8, digest);
+    blake3_hash_one_chunk(msg, (size_t)plen + 8, digest);
     unsigned long long work =
         (unsigned long long)digest[0] |
         ((unsigned long long)digest[1] << 8) |

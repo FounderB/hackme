@@ -283,8 +283,9 @@ func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (
 	prev := strings.ToLower(strings.TrimSpace(req.PrevHash))
 	addr := strings.TrimSpace(req.MinerAddress)
 	prefix := append([]byte(prev), addr...)
-	if len(prefix) > 960 {
-		return false, 0, fmt.Errorf("gpupoh: blake3 prefix len %d > 960", len(prefix))
+	// Device kernel stack msg[160] = prefix + 8-byte nonce (see poh_search.cu).
+	if len(prefix) > 152 {
+		return false, 0, fmt.Errorf("gpupoh: blake3 prefix len %d > 152 (device stack cap)", len(prefix))
 	}
 	select {
 	case <-ctx.Done():

@@ -132,9 +132,10 @@ func (s *Store) MigrateFromJSON(ctx context.Context, jsonPath string) (bool, err
 	}
 	raw, err := os.ReadFile(jsonPath)
 	if err != nil {
+		// Refuse to mark migrated on a missing path — that previously allowed a later
+		// export-json to wipe a real JSON history with an empty ledger (audit 5c).
 		if os.IsNotExist(err) {
-			_, _ = s.db.ExecContext(ctx, `UPDATE settle_meta SET migrated_from_json=1 WHERE id=1`)
-			return false, nil
+			return false, fmt.Errorf("workersettle: migrate json missing %s (refusing empty migration)", jsonPath)
 		}
 		return false, err
 	}
@@ -341,9 +342,10 @@ func (s *Store) ApplySettle(ctx context.Context, workerID, payoutAddr, txHash st
 	if clearAnchor {
 		anchor = 0
 	}
+	// Never touch settled_sup here — SUP settle owns that watermark (audit 5a).
 	_, err = conn.ExecContext(ctx, `
-INSERT INTO settle_workers (worker_id, settled_hmc, session_anchor_hmc, payout_address, last_tx_hash, last_settle_unix, pending_json, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, '', ?)
+INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, last_tx_hash, last_settle_unix, pending_json, updated_at)
+VALUES (?, ?, 0, ?, ?, ?, ?, '', ?)
 ON CONFLICT(worker_id) DO UPDATE SET
   settled_hmc=excluded.settled_hmc,
   session_anchor_hmc=excluded.session_anchor_hmc,
@@ -384,18 +386,30 @@ func (s *Store) GetMeta(ctx context.Context) (Meta, error) {
 
 // ExportJSON writes a JSON document compatible with settle_worker_payouts.sh / settlement_api.
 func (s *Store) ExportJSON(ctx context.Context) ([]byte, error) {
+	workers, meta, err := s.exportWorkers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return json.MarshalIndent(map[string]any{
+		"workers": workers,
+		"meta":    map[string]any{"last_force_unix": meta.LastForceUnix},
+	}, "", "  ")
+}
+
+func (s *Store) exportWorkers(ctx context.Context) (map[string]any, Meta, error) {
+	var meta Meta
 	rows, err := s.db.QueryContext(ctx, `
 SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, last_tx_hash, last_settle_unix, pending_json
   FROM settle_workers`)
 	if err != nil {
-		return nil, err
+		return nil, meta, err
 	}
 	defer rows.Close()
 	workers := map[string]any{}
 	for rows.Next() {
 		var r WorkerRow
 		if err := rows.Scan(&r.WorkerID, &r.SettledHMC, &r.SettledSUP, &r.SessionAnchorHMC, &r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON); err != nil {
-			return nil, err
+			return nil, meta, err
 		}
 		ent := map[string]any{
 			"settled_hmc":      r.SettledHMC,
@@ -416,16 +430,179 @@ SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, 
 		workers[r.WorkerID] = ent
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, meta, err
 	}
-	meta, err := s.GetMeta(ctx)
+	meta, err = s.GetMeta(ctx)
+	return workers, meta, err
+}
+
+// SetSettledSUP updates the SUP watermark (and optional pending_sup blob via MergeExport).
+// HMC ApplySettle must never clobber this field.
+func (s *Store) SetSettledSUP(ctx context.Context, workerID string, settledSUP float64, payoutAddr string) error {
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return fmt.Errorf("workersettle: empty worker_id")
+	}
+	if settledSUP < 0 {
+		return fmt.Errorf("workersettle: negative settled_sup")
+	}
+	now := time.Now().Unix()
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, payout_address, updated_at)
+VALUES (?, 0, ?, ?, ?)
+ON CONFLICT(worker_id) DO UPDATE SET
+  settled_sup=excluded.settled_sup,
+  payout_address=CASE WHEN excluded.payout_address != '' THEN excluded.payout_address ELSE settle_workers.payout_address END,
+  updated_at=excluded.updated_at`,
+		workerID, settledSUP, strings.TrimSpace(payoutAddr), now)
+	return err
+}
+
+// MigratedFromJSON reports whether MigrateFromJSON completed successfully.
+func (s *Store) MigratedFromJSON(ctx context.Context) (bool, error) {
+	var migrated int
+	err := s.db.QueryRowContext(ctx, `SELECT migrated_from_json FROM settle_meta WHERE id=1`).Scan(&migrated)
+	return migrated != 0, err
+}
+
+// ExportJSONToFile merges SQLite HMC state with any existing JSON so SUP fields
+// (settled_sup, pending_sup) are never rolled back (audit 5a/5b/5c).
+func (s *Store) ExportJSONToFile(ctx context.Context, path string) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fmt.Errorf("workersettle: empty export path")
+	}
+	migrated, err := s.MigratedFromJSON(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return json.MarshalIndent(map[string]any{
+	if !migrated {
+		return fmt.Errorf("workersettle: refuse export before successful migrate (migrated_from_json=0)")
+	}
+
+	workers, meta, err := s.exportWorkers(ctx)
+	if err != nil {
+		return err
+	}
+
+	type oldDoc struct {
+		Workers map[string]json.RawMessage `json:"workers"`
+		Meta    struct {
+			LastForceUnix int64 `json:"last_force_unix"`
+		} `json:"meta"`
+	}
+	var old oldDoc
+	oldWorkers := map[string]map[string]any{}
+	if raw, err := os.ReadFile(path); err == nil && len(raw) > 0 {
+		if json.Unmarshal(raw, &old) == nil {
+			for wid, blob := range old.Workers {
+				var ent map[string]any
+				if json.Unmarshal(blob, &ent) != nil {
+					continue
+				}
+				oldWorkers[wid] = ent
+			}
+			if meta.LastForceUnix == 0 && old.Meta.LastForceUnix > 0 {
+				meta.LastForceUnix = old.Meta.LastForceUnix
+			}
+		}
+	}
+
+	if len(workers) == 0 && len(oldWorkers) > 0 {
+		return fmt.Errorf("workersettle: refuse empty export over non-empty JSON (%d workers) at %s", len(oldWorkers), path)
+	}
+
+	// Merge: never lower settled_sup; preserve pending_sup from JSON; keep JSON-only workers.
+	for wid, rawEnt := range workers {
+		ent, _ := rawEnt.(map[string]any)
+		if ent == nil {
+			ent = map[string]any{}
+		}
+		if oldEnt, ok := oldWorkers[wid]; ok {
+			oldSUP := anyFloat(oldEnt["settled_sup"])
+			dbSUP := anyFloat(ent["settled_sup"])
+			if oldSUP > dbSUP {
+				ent["settled_sup"] = oldSUP
+				// Keep SQLite in sync so the next export does not need the JSON crutch.
+				_ = s.SetSettledSUP(ctx, wid, oldSUP, fmt.Sprint(ent["payout_address"]))
+			}
+			if pend, ok := oldEnt["pending_sup"]; ok && pend != nil {
+				ent["pending_sup"] = pend
+			}
+		}
+		workers[wid] = ent
+	}
+	for wid, oldEnt := range oldWorkers {
+		if _, ok := workers[wid]; ok {
+			continue
+		}
+		// Worker only known to SUP/JSON path — keep so HMC export does not erase them.
+		workers[wid] = oldEnt
+	}
+
+	out, err := json.MarshalIndent(map[string]any{
 		"workers": workers,
 		"meta":    map[string]any{"last_force_unix": meta.LastForceUnix},
 	}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return atomicWriteFile(path, append(out, '\n'), 0o600)
+}
+
+func anyFloat(v any) float64 {
+	switch t := v.(type) {
+	case float64:
+		return t
+	case json.Number:
+		f, _ := t.Float64()
+		return f
+	case string:
+		var f float64
+		_, _ = fmt.Sscanf(t, "%f", &f)
+		return f
+	default:
+		return 0
+	}
+}
+
+func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fmt.Errorf("empty path")
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp.*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpName)
+		}
+	}()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	_ = os.Chmod(tmpName, perm)
+	if err := os.Rename(tmpName, path); err != nil {
+		return err
+	}
+	cleanup = false
+	return nil
 }
 
 // CountPendingOutbox returns pending outbox rows.
