@@ -43,7 +43,7 @@ Hashrate settles on-chain. Security work is escrowed, distributed, and reported 
 | **Mine** | Public HTTP pool · CUDA / OpenCL / CPU · hybrid Ed25519 submits · **HMC** rewards · **SUP** loyalty |
 | **Dig** | Customer WASM packs (Scan / Audit / Deep) · smoke **20/80** · Deep **40/60** · pool workers · deliverable report |
 | **Hunt** | **Coverage-guided** (libFuzzer fleet · AFL++ Deep) · ASAN prove · Lite / Standard / Heavy · **50/50** escrow |
-| **Exchange** | Soft-launch desk at [exchange.hackme.tech](https://exchange.hackme.tech/) — live matching + HMC/SUP custody; USDT BSC watch + manual KYT; no Didit/hot-send |
+| **Exchange** | Soft-launch desk at [exchange.hackme.tech](https://exchange.hackme.tech/) — live matching + HMC/SUP custody; USDT BSC watch + Didit KYT (TM); no USDT hot-send |
 | **Research** | Public ledgers (Hunt Watch, OSS CVE Watch, Bitcoin30) — evidence, not hype |
 
 ```mermaid
@@ -184,7 +184,7 @@ Bootstrap smoke orders prove the rail — they are **not** a paid Lite/Standard 
 |-------|------|--------|
 | **HMC** | PoW + pool settlement | Live |
 | **SUP** | Support accrual while mining | Live |
-| **Exchange** | Soft-launch desk (matching + HMC/SUP custody) | Live (USDT watch/manual KYT; no Didit/hot-send) |
+| **Exchange** | Soft-launch desk (matching + HMC/SUP custody) | Live (USDT watch + Didit KYT TM; `HOT_SEND=0`) |
 | **HMS** | Storage / seal epochs | Preview |
 
 ---
