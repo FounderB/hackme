@@ -2,6 +2,7 @@ package chain
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -33,7 +34,19 @@ func (s *Service) SubmitOrderPoHSolve(ctx context.Context, minerAddress string, 
 		return nil, err
 	}
 	targetMod = ClampPoHTargetMod(chainMod)
-	eval := PohEval(nonce)
+	var tipHash string
+	var maxIdx sql.NullInt64
+	if err := s.db.QueryRowContext(ctx, `SELECT value FROM meta WHERE key = 'tip_hash'`).Scan(&tipHash); err != nil {
+		return nil, err
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT MAX(block_index) FROM blocks`).Scan(&maxIdx); err != nil {
+		return nil, err
+	}
+	if !maxIdx.Valid {
+		return nil, errors.New("chain: empty (genesis required)")
+	}
+	nextIdx := uint64(maxIdx.Int64) + 1
+	eval := PohWorkForIndex(nextIdx, nonce, tipHash, minerAddress)
 	if targetMod == 0 || eval%targetMod != 0 {
 		return nil, errors.New("chain: invalid poh solution for submitted target_mod")
 	}

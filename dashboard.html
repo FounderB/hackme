@@ -2596,7 +2596,7 @@
 								<h2 class="font-display text-sm font-bold tracking-[0.15em] text-white uppercase">PoH · pool worker</h2>
 								<p id="mine-workers-hint" class="text-[10px] text-neon/70 font-mono mt-1">workers: —</p>
 								<p class="text-xs text-gray-500 mt-2 max-w-2xl leading-relaxed">
-									Find <span class="text-matrix">nonce</span> with <span class="text-matrix">eval(n) mod M = 0</span>; reward + claim, then next index until <strong>Stop</strong>. Local WASM sandbox only on command-node leaders.
+									Find <span class="text-matrix">nonce</span> with <span class="text-matrix" id="mining-poh-formula-chip">Blake3(prev‖miner‖nonce) work mod M = 0</span> (pre-activation: eval(n)=7n+13); reward + tip, then next index until <strong>Stop</strong>. Order WASM gate stays separate.
 								</p>
 							</div>
 							<div class="flex flex-wrap gap-2">
@@ -9438,7 +9438,10 @@
 			return String(b.task_id || (b.task && b.task.id) || '').trim();
 		}
 		function blockTaskKindShort(b) {
-			return String((b && b.task_kind) || 'poh').replace(/_v\d+$/i, '').replace(/_/g, ' ');
+			const formula = String((b && (b.poh_formula || b.formula)) || '').trim();
+			if (formula) return formula;
+			// Keep version suffix (v1/v2/v3) — useful for activation debugging.
+			return String((b && b.task_kind) || 'poh').replace(/_/g, ' ');
 		}
 		function fmtRelativeUnix(ts) {
 			const t = Number(ts || 0);

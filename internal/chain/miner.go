@@ -66,11 +66,15 @@ type Miner struct {
 	running  atomic.Bool
 	onSolve  func(ctx context.Context, nonce, v, targetMod uint64) error
 	loadMod  func(context.Context) (uint64, error)
+	loadTip  func(context.Context) (height uint64, tipHash string, err error)
+	minerAddr string
 	tasks    TaskProvider
 
 	rewardHMC float64
 
 	currentMod     atomic.Uint64
+	tipHeight      atomic.Uint64
+	tipHash        atomic.Value // string
 	taskSnap       atomic.Value // TaskSpec
 	attempts       atomic.Uint64
 	lastNonce      atomic.Uint64
@@ -115,6 +119,7 @@ func NewMiner(rewardHMC float64, loadMod func(context.Context) (uint64, error), 
 		rewardHMC:   rewardHMC,
 		throttlePct: DefaultSoftCPUThrottlePct,
 	}
+	m.tipHash.Store("")
 	if ev := strings.TrimSpace(os.Getenv("HACKME_MINER_CPU_PCT")); ev != "" {
 		if x, err := strconv.ParseFloat(ev, 64); err == nil && x > 0 && x <= 100 {
 			m.throttlePct = x
@@ -123,6 +128,41 @@ func NewMiner(rewardHMC float64, loadMod func(context.Context) (uint64, error), 
 	s0, _ := tasks.Snapshot(context.Background())
 	m.taskSnap.Store(s0)
 	return m
+}
+
+// SetPoHTipLoader wires tip hash/height + miner address for Blake3 PoH v3 search.
+// minerAddress must match the address AppendPoHBlock will bind in the work proof.
+func (m *Miner) SetPoHTipLoader(loadTip func(context.Context) (height uint64, tipHash string, err error), minerAddress string) {
+	if m == nil {
+		return
+	}
+	m.loadTip = loadTip
+	m.minerAddr = strings.TrimSpace(minerAddress)
+}
+
+func (m *Miner) refreshTip(ctx context.Context) {
+	if m == nil || m.loadTip == nil {
+		return
+	}
+	h, hash, err := m.loadTip(ctx)
+	if err != nil {
+		return
+	}
+	m.tipHeight.Store(h)
+	m.tipHash.Store(strings.TrimSpace(hash))
+}
+
+func (m *Miner) nextBlockIndex() uint64 {
+	return m.tipHeight.Load() + 1
+}
+
+func (m *Miner) pohWork(nonce uint64) uint64 {
+	idx := m.nextBlockIndex()
+	if ActivePoHTaskKindForIndex(idx) != TaskKindSyntheticPoHV3 {
+		return PohEvalForIndex(idx, nonce)
+	}
+	prev, _ := m.tipHash.Load().(string)
+	return PohWorkBlake3(prev, m.minerAddr, nonce)
 }
 
 // DefaultSoftCPUThrottlePct is the initial soft CPU load target before env/API overrides.
@@ -413,15 +453,29 @@ func (m *Miner) trySolveCommit(ctx context.Context, n, vNative, targetMod uint64
 	if !m.solved.CompareAndSwap(0, 1) {
 		return false // another worker is committing; try next nonce
 	}
-	vw, err := sandbox.Eval(ctx, n)
-	if err != nil || vw != vNative {
-		m.solved.Store(0)
-		if err != nil {
-			m.appendLine("miner: WASM verify err · " + err.Error())
-		} else {
-			m.appendLine("miner: WASM verify mismatch (value)")
+	m.refreshTip(ctx)
+	vw := vNative
+	if ActivePoHTaskKindForIndex(m.nextBlockIndex()) == TaskKindSyntheticPoHV3 {
+		// Blake3 v3: host work must match tip||miner binding (no WASM 7n+13 eval).
+		exp := m.pohWork(n)
+		if exp != vNative || targetMod == 0 || vNative%targetMod != 0 {
+			m.solved.Store(0)
+			m.appendLine("miner: Blake3 verify mismatch")
+			return false
 		}
-		return false
+		vw = exp
+	} else {
+		var err error
+		vw, err = sandbox.Eval(ctx, n)
+		if err != nil || vw != vNative {
+			m.solved.Store(0)
+			if err != nil {
+				m.appendLine("miner: WASM verify err · " + err.Error())
+			} else {
+				m.appendLine("miner: WASM verify mismatch (value)")
+			}
+			return false
+		}
 	}
 	m.lastNonce.Store(n)
 	m.lastEval.Store(vw)
@@ -465,7 +519,10 @@ func (m *Miner) workerLoop(ctx context.Context, next *atomic.Uint64) {
 				}
 			}
 			n := base + i
-			v := PohEval(n)
+			if i%statStride == 0 {
+				m.refreshTip(ctx)
+			}
+			v := m.pohWork(n)
 
 			if (i+1)%statStride == 0 {
 				m.lastNonce.Store(n)
@@ -526,8 +583,9 @@ func (m *Miner) Start(ctx context.Context) {
 		}
 	}
 	m.currentMod.Store(mod)
-	m.appendLine(fmt.Sprintf("miner: target mod %d (retarget every %d blocks · target ~%ds/block)",
-		mod, PoHRetargetWindowBlocks, PoHRetargetTargetSec))
+	m.refreshTip(ctx)
+	m.appendLine(fmt.Sprintf("miner: target mod %d (retarget every %d blocks · target ~%ds/block) · formula %s",
+		mod, PoHRetargetWindowBlocks, PoHRetargetTargetSec, PoHFormulaLabelForIndex(m.nextBlockIndex())))
 	m.updateTaskSnap(ctx)
 
 	ctx, m.cancel = context.WithCancel(ctx)

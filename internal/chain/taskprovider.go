@@ -18,8 +18,10 @@ type TaskKind string
 const (
 	// TaskKindSyntheticPoH is the built-in eval(n)=n*7+13 PoH checked against chain meta poh_target_mod.
 	TaskKindSyntheticPoH TaskKind = "synthetic_poh_v1"
-	// TaskKindSyntheticPoHV2 is the next built-in PoH profile (deterministic mixed arithmetic).
+	// TaskKindSyntheticPoHV2 is the legacy mix64 profile (stub; mainnet uses v3 earlier).
 	TaskKindSyntheticPoHV2 TaskKind = "synthetic_poh_v2"
+	// TaskKindSyntheticPoHV3 is Blake3(prev||miner||nonce) work % M == 0 (PoH Option A).
+	TaskKindSyntheticPoHV3 TaskKind = "synthetic_poh_v3"
 )
 
 // TaskSpec is a portable manifest snapshot (file or internal). Zero RewardHMC means "use miner default".

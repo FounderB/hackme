@@ -12,7 +12,10 @@ type Accelerator interface {
 	Backend() string
 	// Label is a stable UI string, e.g. "GPU #0 [CUDA]".
 	Label() string
+	// Search is v1 algebraic PoH (eval=n*7+13). Prefer SearchPoH for version-aware mining.
 	Search(ctx context.Context, base, count, mod uint64) (found bool, nonce uint64, err error)
+	// SearchPoH searches v1 or Blake3 v3 according to req.FormulaVersion.
+	SearchPoH(ctx context.Context, req SearchRequest) (found bool, nonce uint64, err error)
 	Close() error
 }
 

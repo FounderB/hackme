@@ -200,6 +200,15 @@ func (a *cudaAccel) close() error {
 	return first
 }
 
+func (a *cudaAccel) SearchPoH(ctx context.Context, req SearchRequest) (bool, uint64, error) {
+	if req.FormulaVersion >= 3 {
+		// Device Blake3 kernel lands with poh_search_blake3; until NVRTC wires it,
+		// host Blake3 matches chain.PohWorkBlake3 exactly (correctness > silicon).
+		return Blake3Search(ctx, req.Base, req.Count, req.Mod, req.PrevHash, req.MinerAddress)
+	}
+	return a.Search(ctx, req.Base, req.Count, req.Mod)
+}
+
 func (a *cudaAccel) Search(ctx context.Context, base, count, mod uint64) (found bool, nonce uint64, err error) {
 	if count == 0 || mod == 0 {
 		return false, 0, nil

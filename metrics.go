@@ -94,6 +94,11 @@ type MetricsSnapshot struct {
 	MiningTargetMod        uint64  `json:"mining_target_mod"`
 	MiningTargetModCap     uint64  `json:"mining_target_mod_cap"`
 	MiningTargetModAtCap   bool    `json:"mining_target_mod_at_cap"`
+	PoHFormula             string  `json:"poh_formula"`
+	PoHFormulaVersion      int     `json:"poh_formula_version"`
+	PoHActivationHeight    uint64  `json:"poh_activation_height"`
+	TipHash                string  `json:"tip_hash,omitempty"`
+	TipHeight              uint64  `json:"tip_height,omitempty"`
 	MiningRewardHMC        float64 `json:"mining_reward_hmc"`
 	MiningWorkers          int     `json:"mining_workers"`
 	MiningThrottleTarget   float64 `json:"mining_throttle_target_pct"`

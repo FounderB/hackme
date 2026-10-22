@@ -3,6 +3,7 @@ package block
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -25,11 +26,15 @@ func PoHTask(nonce, eval, mod uint64, orderTaskID, formula string) Task {
 		m["order_task_id"] = orderTaskID
 	}
 	payload, _ := json.Marshal(m)
+	hint := fmt.Sprintf("eval(n)%%%d==0", mod)
+	if strings.Contains(formula, "blake3") {
+		hint = fmt.Sprintf("blake3_work%%%d==0", mod)
+	}
 	return Task{
 		ID:         "task-poh-" + randomID(),
 		Kind:       PoHBlockKind,
 		Payload:    payload,
-		TargetHint: fmt.Sprintf("eval(n)%%%d==0", mod),
+		TargetHint: hint,
 	}
 }
 

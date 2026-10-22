@@ -1,4 +1,6 @@
-// Package gpupoh implements optional GPU batch search for PoH (eval(n)=n*7+13, eval%mod==0).
+// Package gpupoh implements optional GPU batch search for PoH.
+// Pre-activation: eval(n)=n*7+13, eval%mod==0.
+// Post Blake3 v3 activation: Blake3(prev||miner||nonce_le) work%mod==0 (LE uint64).
 //
 // Build tags:
 //

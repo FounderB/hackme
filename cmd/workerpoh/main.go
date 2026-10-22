@@ -51,19 +51,24 @@ import (
 //
 // Or place coordinator admin in .secrets/hackme_coordinator_admin_token (one line) and set only COORD_URL + miner seed.
 //
-// Note: coordinator validates PoH hit as eval_v1(n)=7n+13; eval(n)%target_mod==0.
+// Note: pre-v3 coordinator validates eval_v1(n)=7n+13; post-v3 Blake3(prev||miner||nonce_le).
 
 type claimResp struct {
-	OK             bool    `json:"ok"`
-	Reason         string  `json:"reason,omitempty"`
-	WorkerID       string  `json:"worker_id,omitempty"`
-	BaseNonce      uint64  `json:"base_nonce"`
-	BatchSize      uint64  `json:"batch_size"`
-	WorkID         string  `json:"work_id,omitempty"`
-	TargetMod      uint64  `json:"target_mod,omitempty"`
-	OrderTaskID    string  `json:"order_task_id,omitempty"`
-	WasmCheckHex   string  `json:"wasm_check_hex,omitempty"`
-	OrderRewardHMC float64 `json:"order_reward_hmc,omitempty"`
+	OK                  bool    `json:"ok"`
+	Reason              string  `json:"reason,omitempty"`
+	WorkerID            string  `json:"worker_id,omitempty"`
+	BaseNonce           uint64  `json:"base_nonce"`
+	BatchSize           uint64  `json:"batch_size"`
+	WorkID              string  `json:"work_id,omitempty"`
+	TargetMod           uint64  `json:"target_mod,omitempty"`
+	OrderTaskID         string  `json:"order_task_id,omitempty"`
+	WasmCheckHex        string  `json:"wasm_check_hex,omitempty"`
+	OrderRewardHMC      float64 `json:"order_reward_hmc,omitempty"`
+	PrevHash            string  `json:"prev_hash,omitempty"`
+	MinerAddress        string  `json:"miner_address,omitempty"`
+	PoHFormula          string  `json:"poh_formula,omitempty"`
+	PoHFormulaVersion   int     `json:"poh_formula_version,omitempty"`
+	PoHActivationHeight uint64  `json:"poh_activation_height,omitempty"`
 }
 
 type submitReq struct {
@@ -135,12 +140,22 @@ func loadAndBumpSubmitNonce(path string) (uint64, error) {
 }
 
 func findHitCPU(base, batch, mod uint64) (bool, uint64) {
+	return findHitCPUPoH(base, batch, mod, 1, "", "")
+}
+
+func findHitCPUPoH(base, batch, mod uint64, formulaVersion int, prevHash, minerAddr string) (bool, uint64) {
 	end := base + batch
 	if end < base {
 		end = ^uint64(0)
 	}
 	for n := base; n < end; n++ {
-		if chain.PohEval(n)%mod == 0 {
+		var work uint64
+		if formulaVersion >= 3 {
+			work = chain.PohWorkBlake3(prevHash, minerAddr, n)
+		} else {
+			work = chain.PohEval(n)
+		}
+		if mod > 0 && work%mod == 0 {
 			return true, n
 		}
 	}
@@ -210,6 +225,7 @@ func loadHybridSigningMaterial() (ed25519.PrivateKey, string, string, bool, erro
 type searcher interface {
 	Label() string
 	Search(ctxTimeout time.Duration, base, count, mod uint64) (found bool, nonce uint64, elapsedSec float64, err error)
+	SearchPoH(ctxTimeout time.Duration, req gpupoh.SearchRequest) (found bool, nonce uint64, elapsedSec float64, err error)
 }
 
 type cpuSearcher struct{}
@@ -218,6 +234,21 @@ func (cpuSearcher) Label() string { return "cpu" }
 func (cpuSearcher) Search(ctxTimeout time.Duration, base, count, mod uint64) (bool, uint64, float64, error) {
 	t0 := time.Now()
 	found, nonce := findHitCPU(base, count, mod)
+	return found, nonce, time.Since(t0).Seconds(), nil
+}
+func (cpuSearcher) SearchPoH(ctxTimeout time.Duration, req gpupoh.SearchRequest) (bool, uint64, float64, error) {
+	t0 := time.Now()
+	if req.FormulaVersion >= 3 {
+		ctx := context.Background()
+		if ctxTimeout > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, ctxTimeout)
+			defer cancel()
+		}
+		found, nonce, err := gpupoh.Blake3Search(ctx, req.Base, req.Count, req.Mod, req.PrevHash, req.MinerAddress)
+		return found, nonce, time.Since(t0).Seconds(), err
+	}
+	found, nonce := findHitCPU(req.Base, req.Count, req.Mod)
 	return found, nonce, time.Since(t0).Seconds(), nil
 }
 
@@ -345,19 +376,28 @@ func sleepWorkerBackoff(kind string, backoff *time.Duration) {
 }
 
 func (g gpuSearcher) Search(ctxTimeout time.Duration, base, count, mod uint64) (bool, uint64, float64, error) {
+	return g.SearchPoH(ctxTimeout, gpupoh.SearchRequest{Base: base, Count: count, Mod: mod, FormulaVersion: 1})
+}
+func (g gpuSearcher) SearchPoH(ctxTimeout time.Duration, req gpupoh.SearchRequest) (bool, uint64, float64, error) {
 	t0 := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), ctxTimeout)
-	defer cancel()
-	found, nonce, err := g.acc.Search(ctx, base, count, mod)
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	if ctxTimeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, ctxTimeout)
+		defer cancel()
+	}
+	found, nonce, err := g.acc.SearchPoH(ctx, req)
 	sec := time.Since(t0).Seconds()
-	switch strings.ToLower(strings.TrimSpace(g.acc.Backend())) {
-	case "cuda":
-		if k := gpupoh.LastCUDAKernelSeconds(); k > 0 {
-			sec = k
-		}
-	case "opencl":
-		if k := gpupoh.LastOCLKernelSeconds(); k > 0 {
-			sec = k
+	if req.FormulaVersion < 3 {
+		switch strings.ToLower(strings.TrimSpace(g.acc.Backend())) {
+		case "cuda":
+			if k := gpupoh.LastCUDAKernelSeconds(); k > 0 {
+				sec = k
+			}
+		case "opencl":
+			if k := gpupoh.LastOCLKernelSeconds(); k > 0 {
+				sec = k
+			}
 		}
 	}
 	return found, nonce, sec, err
@@ -843,6 +883,20 @@ func main() {
 		var foundNonce uint64
 		elapsed := 0.0
 		var searched uint64
+		fv := cr.PoHFormulaVersion
+		if fv <= 0 {
+			fv = 1
+		}
+		minerForPoH := strings.TrimSpace(cr.MinerAddress)
+		if minerForPoH == "" {
+			minerForPoH = claimMinerAddr
+		}
+		searchReq := func(base, count uint64) gpupoh.SearchRequest {
+			return gpupoh.SearchRequest{
+				Base: base, Count: count, Mod: cr.TargetMod,
+				FormulaVersion: fv, PrevHash: cr.PrevHash, MinerAddress: minerForPoH,
+			}
+		}
 		// Chunked search: for GPU we keep each call bounded; for CPU this is one pass.
 		if mode == "gpu" {
 			remain := cr.BatchSize
@@ -856,7 +910,7 @@ func main() {
 				if n > remain {
 					n = remain
 				}
-				f, nonce, sec, err := srch.Search(time.Duration(*searchTimeoutMS)*time.Millisecond, cur, n, cr.TargetMod)
+				f, nonce, sec, err := srch.SearchPoH(time.Duration(*searchTimeoutMS)*time.Millisecond, searchReq(cur, n))
 				elapsed += sec
 				searched += n
 				if err != nil {
@@ -865,7 +919,7 @@ func main() {
 					if gputune.ShouldCPUFallback(class) {
 						hotlog.Stderrf("workerpoh: %s", gputune.FormatWorkerGPUEvent(*workerID, workerGPUBackend, class, err))
 					}
-					f2, nonce2 := findHitCPU(cur, n, cr.TargetMod)
+					f2, nonce2 := findHitCPUPoH(cur, n, cr.TargetMod, fv, cr.PrevHash, minerForPoH)
 					if f2 {
 						found, foundNonce = true, nonce2
 						break
@@ -880,7 +934,7 @@ func main() {
 			}
 		} else {
 			var err error
-			found, foundNonce, elapsed, err = srch.Search(0, cr.BaseNonce, cr.BatchSize, cr.TargetMod)
+			found, foundNonce, elapsed, err = srch.SearchPoH(0, searchReq(cr.BaseNonce, cr.BatchSize))
 			_ = err
 			searched = cr.BatchSize
 		}

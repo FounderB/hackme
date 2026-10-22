@@ -234,7 +234,15 @@ func (m *Miner) gpuSearchLoop(ctx context.Context, next *atomic.Uint64, acc gpup
 			mod = DefaultPoHTargetMod
 		}
 		base := next.Add(gpuBatch) - gpuBatch
-		found, n, err := acc.Search(ctx, base, gpuBatch, mod)
+		m.refreshTip(ctx)
+		prev, _ := m.tipHash.Load().(string)
+		idx := m.nextBlockIndex()
+		found, n, err := acc.SearchPoH(ctx, gpupoh.SearchRequest{
+			Base: base, Count: gpuBatch, Mod: mod,
+			FormulaVersion: PoHFormulaVersionForIndex(idx),
+			PrevHash:       prev,
+			MinerAddress:    m.minerAddr,
+		})
 		if err != nil {
 			m.appendLine("miner: GPU batch err · " + acc.Label() + " · " + err.Error())
 			return
@@ -243,9 +251,9 @@ func (m *Miner) gpuSearchLoop(ctx context.Context, next *atomic.Uint64, acc gpup
 		m.gpuDevAttempts[devSlot].Add(gpuBatch)
 		endN := base + gpuBatch - 1
 		m.lastNonce.Store(endN)
-		m.lastEval.Store(PohEval(endN))
+		m.lastEval.Store(m.pohWork(endN))
 		if found {
-			v := PohEval(n)
+			v := m.pohWork(n)
 			m.lastNonce.Store(n)
 			m.lastEval.Store(v)
 			// Chain M can change between batch start and hit (retarget / other worker);

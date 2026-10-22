@@ -138,6 +138,13 @@ func (a *oclAccel) close() error {
 	return nil
 }
 
+func (a *oclAccel) SearchPoH(ctx context.Context, req SearchRequest) (bool, uint64, error) {
+	if req.FormulaVersion >= 3 {
+		return Blake3Search(ctx, req.Base, req.Count, req.Mod, req.PrevHash, req.MinerAddress)
+	}
+	return a.Search(ctx, req.Base, req.Count, req.Mod)
+}
+
 func (a *oclAccel) Search(ctx context.Context, base, count, mod uint64) (found bool, nonce uint64, err error) {
 	if count == 0 || mod == 0 {
 		return false, 0, nil

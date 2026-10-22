@@ -30,7 +30,8 @@ Reports: `reports/tests/security_full_20260828T190633Z/` · `reports/gates/redte
 | Worker payout lock persists across restart and idle prune (report #18) | `worker_payout_lock` in coordinator SQLite |
 | Release lane must not create payout locks; admin unbind recovers (report #27) | `checkReleaseMinerIdentity` + `/api/work/admin/unbind-payout-lock` |
 | Submit worker rate slot charged only after signature / payout-lock (report #28) | `allowSubmitPeer` + `chargeSubmitWorker` |
-| Pool `target_mod` never pins on a multiple of 7 (unsatisfiable `7n+13` gate); persist load sanitizes; stall easing without a prior found (report #29) | `clampTargetMod` / `sanitizePoolTargetMod7n13` / `maybeRetargetPoolMod` |
+| Pool `target_mod` clamps to M bounds only (Blake3 v3: any M solvable); chain still nudges off multiples of 7 for pre-v3 `7n+13`; stall easing without a prior found (report #29) | `clampTargetMod` / `ClampPoHTargetMod` / `maybeRetargetPoolMod` |
+| Blake3 PoH v3: algebraic `7n+13` shortcut rejected post-activation; wrong `miner_address` / stale `prev_hash` / forged eval rejected on validate + pool found | `validatePoHSubmission` / `validFoundNoncePoH` / claim lease binding |
 | SUP self-transfer rejected; applier credits via SQL increment and skips self-credit (report #30 mint) | `ValidateSupTransferShape` / `applyPendingSupTransfers` |
 | Release must not charge claim buckets on forgeable ids | `allowClaimPeer` on `/api/fuzz/work/release` |
 | Claim binds payout lock only after successful lease; failed claim does not squat | `bindClaimPayoutFromPub` after Claim/claim ok |

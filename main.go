@@ -469,6 +469,10 @@ func main() {
 		},
 		taskProv,
 	)
+	miner.SetPoHTipLoader(func(ctx context.Context) (uint64, string, error) {
+		h, hash, err := ch.Tip(ctx)
+		return h, hash, err
+	}, nodeID)
 
 	if st, err := integrator.Open(absDataDir); err != nil {
 		log.Printf("integrator store init: %v", err)
@@ -1186,8 +1190,13 @@ func (a *app) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	defer mcancel()
 
 	s := collector.snapshot()
-	if h, _, err := a.chain.Tip(mctx); err == nil {
+	if h, tipHash, err := a.chain.Tip(mctx); err == nil {
 		s.BlockHeight = h
+		s.TipHeight = h
+		s.TipHash = tipHash
+		s.PoHFormulaVersion = chain.PoHFormulaVersionForIndex(h + 1)
+		s.PoHFormula = chain.PoHFormulaLabelForIndex(h + 1)
+		s.PoHActivationHeight = chain.PoHFormulaV3ActivationHeight()
 	}
 	if ec, err := a.chain.Economics(mctx); err == nil {
 		s.EconMaxSupplyHMC = ec.MaxSupplyHMC
@@ -3765,7 +3774,7 @@ func (a *app) handleTasks(w http.ResponseWriter, r *http.Request) {
 			if tok := strings.TrimSpace(extractAdminSecret(r)); tok != "" {
 				req.Header.Set("X-Hackme-Admin-Token", tok)
 			}
-			cl := &http.Client{Timeout: 12 * time.Second}
+			cl := netutil.HTTPClientNoRedirect(12 * time.Second)
 			if resp, err := cl.Do(req); err == nil && resp != nil {
 				func() {
 					defer resp.Body.Close()
@@ -4031,7 +4040,7 @@ func (a *app) handleTransferSend(w http.ResponseWriter, r *http.Request) {
 			if relayTok := canonicalRelayAdminToken(r); relayTok != "" {
 				req.Header.Set("X-Hackme-Admin-Token", relayTok)
 			}
-			client := &http.Client{Timeout: txTimeout}
+			client := netutil.HTTPClientNoRedirect(txTimeout)
 			if resp, err := client.Do(req); err == nil && resp != nil {
 				defer resp.Body.Close()
 				canonBody, _ = io.ReadAll(resp.Body)

@@ -571,7 +571,7 @@ func (s *Service) AppendPoHBlock(ctx context.Context, minerAddress string, nonce
 		return nil, errors.New("chain: empty (genesis required)")
 	}
 	nextIdx := uint64(maxIdx.Int64) + 1
-	if err := validatePoHSubmission(nextIdx, nonce, eval, targetMod); err != nil {
+	if err := validatePoHSubmission(nextIdx, nonce, eval, targetMod, tipHash, minerAddress); err != nil {
 		return nil, err
 	}
 
@@ -1030,7 +1030,8 @@ type BlockSummary struct {
 	TaskKind      string `json:"task_kind"`
 	TaskID        string `json:"task_id"`
 	HashPrefix    string `json:"hash_prefix"`
-	MinerAddress  string `json:"miner_address,omitempty"`
+	MinerAddress   string `json:"miner_address,omitempty"`
+	PoHFormula    string `json:"poh_formula,omitempty"`
 }
 
 // ListRecentBlockSummaries returns up to `limit` blocks, newest first.
@@ -1069,7 +1070,8 @@ func (s *Service) ListRecentBlockSummaries(ctx context.Context, limit int) ([]Bl
 			TaskKind:      b.Task.Kind,
 			TaskID:        b.Task.ID,
 			HashPrefix:    hp,
-			MinerAddress:  strings.TrimSpace(b.EffectiveMinerAddress()),
+			MinerAddress:   strings.TrimSpace(b.EffectiveMinerAddress()),
+			PoHFormula:    pohFormulaFromBlock(&b),
 		})
 	}
 	return out, rows.Err()
@@ -1099,17 +1101,41 @@ func (s *Service) GetBlockSummaryByIndex(ctx context.Context, index uint64) (Blo
 		TaskKind:      b.Task.Kind,
 		TaskID:        b.Task.ID,
 		HashPrefix:    hp,
-		MinerAddress:  strings.TrimSpace(b.EffectiveMinerAddress()),
+		MinerAddress:   strings.TrimSpace(b.EffectiveMinerAddress()),
+		PoHFormula:    pohFormulaFromBlock(&b),
 	}, true, nil
 }
 
-func validatePoHSubmission(index, nonce, eval, targetMod uint64) error {
+func pohFormulaFromBlock(b *block.Block) string {
+	if b == nil {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b.Task.Payload, &m); err != nil {
+		return PoHFormulaLabelForIndex(b.Index)
+	}
+	if f, ok := m["formula"].(string); ok && strings.TrimSpace(f) != "" {
+		return strings.TrimSpace(f)
+	}
+	return PoHFormulaLabelForIndex(b.Index)
+}
+
+func validatePoHSubmission(index, nonce, eval, targetMod uint64, prevHash, minerAddress string) error {
 	if targetMod < pohRetargetMinMod || targetMod > pohRetargetMaxMod {
 		return fmt.Errorf("chain: target mod out of bounds: %d", targetMod)
 	}
-	exp := PohEvalForIndex(index, nonce)
+	kind := ActivePoHTaskKindForIndex(index)
+	if kind == TaskKindSyntheticPoHV3 {
+		if strings.TrimSpace(prevHash) == "" {
+			return errors.New("chain: prev_hash required for blake3 PoH v3")
+		}
+		if strings.TrimSpace(minerAddress) == "" {
+			return errors.New("chain: miner_address required for blake3 PoH v3")
+		}
+	}
+	exp := PohWorkForIndex(index, nonce, prevHash, minerAddress)
 	if exp != eval {
-		return errors.New("chain: eval does not match active PohEval(index, nonce)")
+		return errors.New("chain: eval does not match active PoH work(index, nonce)")
 	}
 	if eval%targetMod != 0 {
 		return errors.New("chain: eval not divisible by target mod")

@@ -24,6 +24,7 @@ import (
 	"hackme/internal/chain"
 	"hackme/internal/lanpool"
 	"hackme/internal/logsafe"
+	"hackme/internal/netutil"
 	"hackme/internal/poolauth"
 	"hackme/internal/worksubmit"
 )
@@ -50,6 +51,13 @@ type workManager struct {
 	baseRewardHMC   float64
 	rewardAuto      bool
 	payoutFoundOnly bool
+
+	// PoH tip binding for Blake3 v3 (refreshed from chain /api/metrics).
+	tipHash            string
+	tipHeight          uint64
+	pohFormula         string
+	pohFormulaVersion  int
+	pohActivationHeight uint64
 
 	mu sync.Mutex
 
@@ -155,13 +163,17 @@ const (
 )
 
 type leaseRecord struct {
-	WorkerID  string `json:"worker_id"`
-	BaseNonce uint64 `json:"base_nonce"`
-	BatchSize uint64 `json:"batch_size"`
-	IssuedAt  int64  `json:"issued_at"`
-	ExpiresAt int64  `json:"expires_at"`
-	Reissues  uint64 `json:"reissues"`
-	TargetMod uint64 `json:"target_mod"`
+	WorkerID       string `json:"worker_id"`
+	BaseNonce      uint64 `json:"base_nonce"`
+	BatchSize      uint64 `json:"batch_size"`
+	IssuedAt       int64  `json:"issued_at"`
+	ExpiresAt      int64  `json:"expires_at"`
+	Reissues       uint64 `json:"reissues"`
+	TargetMod      uint64 `json:"target_mod"`
+	PrevHash       string `json:"prev_hash,omitempty"`
+	MinerAddress   string `json:"miner_address,omitempty"`
+	FormulaVersion int    `json:"formula_version,omitempty"`
+	TipHeight      uint64 `json:"tip_height,omitempty"`
 }
 
 type workerPayoutStat struct {
@@ -275,9 +287,10 @@ func newWorkManagerFromEnv() *workManager {
 	if mod > maxM {
 		mod = maxM
 	}
-	// Solvability for PohEval=7n+13: never start (or reload) on a multiple of 7.
-	mod = sanitizePoolTargetMod7n13(mod, minM, maxM)
 	targetURL := strings.TrimRight(strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_TARGET_SOURCE_URL")), "/")
+	if targetURL == "" {
+		log.Printf("WARN: HACKME_COORDINATOR_TARGET_SOURCE_URL unset — tip/poh_formula will not refresh; after Blake3 v3 activation found submits may stay on eval_v1 until metrics are wired")
+	}
 	targetEvery := int64(3)
 	if v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_TARGET_REFRESH_SEC")); v != "" {
 		if x, err := strconv.ParseInt(v, 10, 64); err == nil && x >= 1 {
@@ -597,12 +610,12 @@ func (m *workManager) clampTargetMod(u uint64) uint64 {
 	if u > maxM {
 		u = maxM
 	}
-	// Same solvability rule as chain.ClampPoHTargetMod / sanitizePoHTargetMod7n13:
-	// PohEval(n)=7n+13 has no solution when 7|M (report #29).
-	return sanitizePoolTargetMod7n13(u, minM, maxM)
+	// Blake3 v3: any M in bounds is solvable. Pre-v3 algebraic 7n+13 nudge is obsolete
+	// for the pool (chain ClampPoHTargetMod still nudges for mixed-era safety).
+	return u
 }
 
-// sanitizePoolTargetMod7n13 nudges M off multiples of 7 while staying in [minM, maxM].
+// sanitizePoolTargetMod7n13 is retained for tests/compat; pool clamp no longer applies it.
 func sanitizePoolTargetMod7n13(m, minM, maxM uint64) uint64 {
 	if minM > maxM {
 		minM, maxM = maxM, minM
@@ -613,15 +626,6 @@ func sanitizePoolTargetMod7n13(m, minM, maxM uint64) uint64 {
 	if m > maxM {
 		m = maxM
 	}
-	if m%7 != 0 {
-		return m
-	}
-	if m < maxM {
-		return m + 1
-	}
-	if m > minM {
-		return m - 1
-	}
 	return m
 }
 
@@ -629,58 +633,145 @@ func validFoundNonceV1(foundNonce, targetMod uint64) bool {
 	if targetMod == 0 {
 		return false
 	}
-	// Coordinator baseline: v1 PoH eval (7n+13) divisibility check.
-	// This makes payout depend on actually finding a valid hit.
 	return chain.PohEval(foundNonce)%targetMod == 0
 }
 
-// fetchChainMetricsFromNode loads mining_target_mod from the node metrics URL without holding workManager.mu.
-func fetchChainMetricsFromNode(targetURL string) (parsed uint64, baseRewardHMC float64, hasMod, hasBase bool) {
+// validFoundNoncePoH verifies a pool found against the lease-bound formula.
+// v3 requires Blake3(prev_hash || miner_address || nonce_le) work % M == 0.
+func validFoundNoncePoH(foundNonce, targetMod uint64, formulaVersion int, prevHash, minerAddress string) bool {
+	if targetMod == 0 {
+		return false
+	}
+	if formulaVersion >= 3 {
+		if strings.TrimSpace(prevHash) == "" || strings.TrimSpace(minerAddress) == "" {
+			return false
+		}
+		work := chain.PohWorkBlake3(prevHash, minerAddress, foundNonce)
+		return work%targetMod == 0
+	}
+	return validFoundNonceV1(foundNonce, targetMod)
+}
+
+// resolvedPoHFormulaVersionLocked returns the lease/claim formula version.
+// Fail-closed toward Blake3 v3 when activation height is known and tip is at/above it,
+// even if metrics never populated pohFormulaVersion (blocks algebraic found payout bypass).
+func (m *workManager) resolvedPoHFormulaVersionLocked() int {
+	if m == nil {
+		return 1
+	}
+	if m.pohFormulaVersion >= 3 {
+		return m.pohFormulaVersion
+	}
+	act := m.pohActivationHeight
+	if act == 0 {
+		act = chain.PoHFormulaV3ActivationHeight()
+	}
+	if m.tipHeight > 0 {
+		return chain.PoHFormulaVersionForIndex(m.tipHeight + 1)
+	}
+	if m.pohFormulaVersion > 0 {
+		return m.pohFormulaVersion
+	}
+	// No tip yet: if activation is configured at/below a conservative floor, still
+	// prefer v1 for brand-new lab chains. Once tipHeight is known, height gate wins.
+	_ = act
+	return 1
+}
+
+type chainMetricsSnap struct {
+	Mod                 uint64
+	BaseRewardHMC       float64
+	HasMod              bool
+	HasBase             bool
+	TipHash             string
+	TipHeight           uint64
+	PoHFormula          string
+	PoHFormulaVersion   int
+	PoHActivationHeight uint64
+}
+
+func asUint64Any(v any) (uint64, bool) {
+	switch t := v.(type) {
+	case float64:
+		if t > 0 {
+			return uint64(t), true
+		}
+	case json.Number:
+		if x, err := t.Int64(); err == nil && x > 0 {
+			return uint64(x), true
+		}
+	case string:
+		if x, err := strconv.ParseUint(strings.TrimSpace(t), 10, 64); err == nil && x > 0 {
+			return x, true
+		}
+	}
+	return 0, false
+}
+
+// fetchChainMetricsFromNode loads mining_target_mod + PoH tip/formula from the node metrics URL.
+func fetchChainMetricsFromNode(targetURL string) chainMetricsSnap {
+	var out chainMetricsSnap
 	targetURL = strings.TrimRight(strings.TrimSpace(targetURL), "/")
 	if targetURL == "" {
-		return 0, 0, false, false
+		return out
 	}
 	cl := &http.Client{Timeout: 800 * time.Millisecond}
 	resp, err := cl.Get(targetURL + "/api/metrics")
 	if err != nil {
-		return 0, 0, false, false
+		return out
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return 0, 0, false, false
+		return out
 	}
 	var body map[string]any
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
-		return 0, 0, false, false
+		return out
 	}
 	if v, okField := body["mining_target_mod"]; okField {
-		switch t := v.(type) {
-		case float64:
-			if t > 0 {
-				parsed = uint64(t)
-				hasMod = true
-			}
-		case json.Number:
-			if x, err := t.Int64(); err == nil && x > 0 {
-				parsed = uint64(x)
-				hasMod = true
-			}
+		if x, ok := asUint64Any(v); ok {
+			out.Mod = x
+			out.HasMod = true
 		}
 	}
 	if br, ok := body["econ_base_reward_now_hmc"]; ok {
-		hasBase = true
+		out.HasBase = true
 		switch t := br.(type) {
 		case float64:
 			if t >= 0 {
-				baseRewardHMC = t
+				out.BaseRewardHMC = t
 			}
 		case json.Number:
 			if x, err := t.Float64(); err == nil && x >= 0 {
-				baseRewardHMC = x
+				out.BaseRewardHMC = x
 			}
 		}
 	}
-	return parsed, baseRewardHMC, hasMod, hasBase
+	if th, ok := body["tip_hash"].(string); ok {
+		out.TipHash = strings.TrimSpace(th)
+	}
+	if out.TipHash == "" {
+		if th, ok := body["canonical_tip_hash"].(string); ok {
+			out.TipHash = strings.TrimSpace(th)
+		}
+	}
+	if h, ok := asUint64Any(body["block_height"]); ok {
+		out.TipHeight = h
+	} else if h, ok := asUint64Any(body["tip_height"]); ok {
+		out.TipHeight = h
+	} else if h, ok := asUint64Any(body["display_tip_height"]); ok {
+		out.TipHeight = h
+	}
+	if f, ok := body["poh_formula"].(string); ok {
+		out.PoHFormula = strings.TrimSpace(f)
+	}
+	if v, ok := asUint64Any(body["poh_formula_version"]); ok {
+		out.PoHFormulaVersion = int(v)
+	}
+	if v, ok := asUint64Any(body["poh_activation_height"]); ok {
+		out.PoHActivationHeight = v
+	}
+	return out
 }
 
 // prefetchTargetMod refreshes chain target from the node metrics URL. Call without holding m.mu.
@@ -697,19 +788,39 @@ func (m *workManager) prefetchTargetMod(now int64) {
 	rewardAuto := m.rewardAuto
 	m.mu.Unlock()
 
-	parsed, baseReward, hasMod, hasBase := fetchChainMetricsFromNode(targetURL)
+	snap := fetchChainMetricsFromNode(targetURL)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if now-m.targetLastAt < m.targetEvery && !hasMod && !hasBase {
+	if now-m.targetLastAt < m.targetEvery && !snap.HasMod && !snap.HasBase && snap.TipHash == "" {
 		return
 	}
-	if hasMod {
-		m.storeChainPoHMod(parsed)
-		m.applyChainTargetMod(parsed, now)
+	if snap.HasMod {
+		m.storeChainPoHMod(snap.Mod)
+		m.applyChainTargetMod(snap.Mod, now)
 	}
-	if hasBase {
-		m.baseRewardHMC = baseReward
+	if snap.HasBase {
+		m.baseRewardHMC = snap.BaseRewardHMC
+	}
+	if snap.TipHash != "" {
+		m.tipHash = snap.TipHash
+	}
+	if snap.TipHeight > 0 {
+		m.tipHeight = snap.TipHeight
+	}
+	if snap.PoHFormula != "" {
+		m.pohFormula = snap.PoHFormula
+	}
+	if snap.PoHFormulaVersion > 0 {
+		m.pohFormulaVersion = snap.PoHFormulaVersion
+	} else if snap.TipHeight > 0 {
+		m.pohFormulaVersion = chain.PoHFormulaVersionForIndex(snap.TipHeight + 1)
+		m.pohFormula = chain.PoHFormulaLabelForIndex(snap.TipHeight + 1)
+	}
+	if snap.PoHActivationHeight > 0 {
+		m.pohActivationHeight = snap.PoHActivationHeight
+	} else {
+		m.pohActivationHeight = chain.PoHFormulaV3ActivationHeight()
 	}
 	if rewardAuto && m.targetMod > 0 && m.baseRewardHMC > 0 {
 		m.rewardPerM = (m.baseRewardHMC * 1_000_000.0) / float64(m.targetMod)
@@ -1724,6 +1835,13 @@ func (m *workManager) claim(workerID string, batch uint64) (base uint64, size ui
 			return 0, 0, 0, m.targetMod, false, false, "too_many_worker_leases"
 		}
 	}
+	boundAddr := ""
+	if st, okW := m.worker[workerID]; okW {
+		boundAddr = strings.TrimSpace(st.PayoutAddress)
+	}
+	fv := m.resolvedPoHFormulaVersionLocked()
+	prev := strings.TrimSpace(m.tipHash)
+	tipH := m.tipHeight
 	// Reuse expired range of the same batch before purging stale entries.
 	for k, rec := range m.active {
 		if rec.BatchSize != batch {
@@ -1737,6 +1855,10 @@ func (m *workManager) claim(workerID string, batch uint64) (base uint64, size ui
 		rec.ExpiresAt = now + m.leaseSec
 		rec.Reissues++
 		rec.TargetMod = m.targetMod
+		rec.PrevHash = prev
+		rec.MinerAddress = boundAddr
+		rec.FormulaVersion = fv
+		rec.TipHeight = tipH
 		m.active[k] = rec
 		m.reissuedRanges++
 		m.issuedRanges++
@@ -1753,12 +1875,16 @@ func (m *workManager) claim(workerID string, batch uint64) (base uint64, size ui
 	m.nextNonce.Store(next + batch)
 	leaseUntil = now + m.leaseSec
 	m.active[workKey{base: base, batch: batch}] = leaseRecord{
-		WorkerID:  workerID,
-		BaseNonce: base,
-		BatchSize: batch,
-		IssuedAt:  now,
-		ExpiresAt: leaseUntil,
-		TargetMod: m.targetMod,
+		WorkerID:       workerID,
+		BaseNonce:      base,
+		BatchSize:      batch,
+		IssuedAt:       now,
+		ExpiresAt:      leaseUntil,
+		TargetMod:      m.targetMod,
+		PrevHash:       prev,
+		MinerAddress:    boundAddr,
+		FormulaVersion: fv,
+		TipHeight:      tipH,
 	}
 	m.issuedRanges++
 	m.mu.Unlock()
@@ -1861,7 +1987,39 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 			m.rejectedSubmits++
 			return false, "result_hash_required_for_found", 0, "", false
 		}
-		if !validFoundNonceV1(req.FoundNonce, validateMod) {
+		leasePrev := strings.TrimSpace(rec.PrevHash)
+		leaseAddr := strings.TrimSpace(rec.MinerAddress)
+		if leaseAddr == "" {
+			leaseAddr = strings.TrimSpace(signerAddr)
+		}
+		if leaseAddr == "" {
+			leaseAddr = strings.TrimSpace(req.MinerAddress)
+		}
+		fv := rec.FormulaVersion
+		if fv <= 0 {
+			fv = m.resolvedPoHFormulaVersionLocked()
+		}
+		// Tip race: lease bound to prev_hash; if tip moved, reject stale work (v3).
+		if fv >= 3 {
+			curTip := strings.TrimSpace(m.tipHash)
+			if leasePrev == "" {
+				m.rejectedSubmits++
+				return false, "prev_hash_required_for_blake3", 0, "", false
+			}
+			if curTip == "" {
+				m.rejectedSubmits++
+				return false, "tip_hash_unavailable", 0, "", false
+			}
+			if !strings.EqualFold(leasePrev, curTip) {
+				m.rejectedSubmits++
+				return false, "stale_prev_hash", 0, "", false
+			}
+			if leaseAddr == "" {
+				m.rejectedSubmits++
+				return false, "miner_address_required_for_blake3", 0, "", false
+			}
+		}
+		if !validFoundNoncePoH(req.FoundNonce, validateMod, fv, leasePrev, leaseAddr) {
 			m.rejectedSubmits++
 			return false, "found_nonce_invalid_for_target_mod", 0, "", false
 		}
@@ -2094,7 +2252,7 @@ func (m *workManager) probeOrdersActive() bool {
 	if !m.ordersPriority || strings.TrimSpace(m.ordersProbeURL) == "" {
 		return false
 	}
-	cl := &http.Client{Timeout: 1200 * time.Millisecond}
+	cl := netutil.HTTPClientNoRedirect(1200 * time.Millisecond)
 	req, err := http.NewRequest(http.MethodGet, m.ordersProbeURL+"/api/tasks", nil)
 	if err != nil {
 		return false
@@ -2590,6 +2748,11 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 		"signed_submits_accepted":      m.signedAccepts,
 		"signed_submits_rejected":      m.signedRejects,
 		"last_signed_miner_address":    m.lastSignedMiner,
+		"poh_formula":                  m.pohFormula,
+		"poh_formula_version":          m.pohFormulaVersion,
+		"poh_activation_height":        m.pohActivationHeight,
+		"tip_hash":                     m.tipHash,
+		"tip_height":                   m.tipHeight,
 	}
 	out["target_mod_min"] = minStat
 	out["target_mod_max"] = maxStat
@@ -2801,6 +2964,59 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 			return
 		}
 		wm.bindClaimPayoutFromPub(workerID, req.MinerPubKey)
+		// After payout bind, stamp lease with bound miner_address for Blake3 v3.
+		boundMiner := ""
+		wm.mu.Lock()
+		if st, okW := wm.worker[workerID]; okW {
+			boundMiner = strings.TrimSpace(st.PayoutAddress)
+		}
+		if boundMiner == "" {
+			boundMiner = strings.TrimSpace(req.MinerAddress)
+		}
+		if wk := (workKey{base: base, batch: size}); boundMiner != "" {
+			if rec, okL := wm.active[wk]; okL {
+				rec.MinerAddress = boundMiner
+				if rec.PrevHash == "" {
+					rec.PrevHash = strings.TrimSpace(wm.tipHash)
+				}
+				if rec.FormulaVersion <= 0 {
+					rec.FormulaVersion = wm.pohFormulaVersion
+					if rec.FormulaVersion <= 0 && wm.tipHeight > 0 {
+						rec.FormulaVersion = chain.PoHFormulaVersionForIndex(wm.tipHeight + 1)
+					}
+				}
+				wm.active[wk] = rec
+			}
+		}
+		claimPrev := ""
+		claimFV := 1
+		claimFormula := ""
+		if rec, okL := wm.active[workKey{base: base, batch: size}]; okL {
+			claimPrev = rec.PrevHash
+			claimFV = rec.FormulaVersion
+			boundMiner = rec.MinerAddress
+		}
+		if claimPrev == "" {
+			claimPrev = strings.TrimSpace(wm.tipHash)
+		}
+		if claimFV <= 0 {
+			claimFV = wm.pohFormulaVersion
+		}
+		if claimFV <= 0 && wm.tipHeight > 0 {
+			claimFV = chain.PoHFormulaVersionForIndex(wm.tipHeight + 1)
+		}
+		if claimFV <= 0 {
+			claimFV = 1
+		}
+		claimFormula = wm.pohFormula
+		if claimFormula == "" {
+			claimFormula = chain.PoHFormulaLabelForKind(chain.ActivePoHTaskKindForIndex(wm.tipHeight + 1))
+		}
+		actH := wm.pohActivationHeight
+		if actH == 0 {
+			actH = chain.PoHFormulaV3ActivationHeight()
+		}
+		wm.mu.Unlock()
 		if okCharge, reasonCharge := wm.chargeClaimWorker(workerID, now); !okCharge {
 			wm.mu.Lock()
 			delete(wm.active, workKey{base: base, batch: size})
@@ -2823,17 +3039,22 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 		}
 		modOut := mod
 		resp := map[string]any{
-			"ok":               true,
-			"worker_id":        workerID,
-			"base_nonce":       base,
-			"batch_size":       size,
-			"target_mod":       modOut,
-			"lease_expires_at": leaseUntil,
-			"reissued":         reused,
-			"work_id":          buildWorkID(workerID, base, size),
-			"chunk_id":         buildChunkID(base, size, modOut),
-			"scheduler_mode":   mode,
-			"task_class":       taskClass,
+			"ok":                    true,
+			"worker_id":             workerID,
+			"base_nonce":            base,
+			"batch_size":            size,
+			"target_mod":            modOut,
+			"lease_expires_at":      leaseUntil,
+			"reissued":              reused,
+			"work_id":               buildWorkID(workerID, base, size),
+			"chunk_id":              buildChunkID(base, size, modOut),
+			"scheduler_mode":        mode,
+			"task_class":            taskClass,
+			"prev_hash":             claimPrev,
+			"miner_address":         boundMiner,
+			"poh_formula":           claimFormula,
+			"poh_formula_version":   claimFV,
+			"poh_activation_height": actH,
 		}
 		if mode == "orders" {
 			snap := wm.activeOrderSnapshot()

@@ -47,58 +47,43 @@ func report29WM(t *testing.T, mod uint64) *workManager {
 		ipAbuse:                map[string]workerAbuseState{},
 		dropReasonCount:        map[string]uint64{},
 		supMeta:                map[string]workerSupMeta{},
+		pohFormulaVersion:      1,
 	}
 }
 
-func TestReport29ClampSanitizesMod7(t *testing.T) {
-	const bad = 2_100_000 // 7 | 2_100_000 — no solution for 7n+13
+func TestReport29PoolClampKeepsBoundsOnly(t *testing.T) {
+	const bad = 2_100_000 // historically unsolvable for 7n+13; Blake3 accepts any M
 	if bad%7 != 0 {
 		t.Fatal("precondition")
 	}
-	hits := 0
-	for n := uint64(0); n < 2_000_000; n++ {
-		if validFoundNonceV1(n, bad) {
-			hits++
-		}
-	}
-	if hits != 0 {
-		t.Fatalf("7|M must have zero solutions, got %d", hits)
-	}
 	m := report29WM(t, bad)
 	got := m.clampTargetMod(bad)
-	if got == bad || got%7 == 0 {
-		t.Fatalf("pool clampTargetMod must nudge off mod 7, got %d", got)
+	if got != bad {
+		t.Fatalf("pool clampTargetMod should keep in-bounds M (incl. %%7==0), got %d want %d", got, bad)
 	}
 	if chain.ClampPoHTargetMod(bad)%7 == 0 {
-		t.Fatal("chain sanitizer sanity")
+		t.Fatal("chain sanitizer must still nudge off mod 7 for pre-v3 algebraic PoH")
 	}
-	if sanitizePoolTargetMod7n13(bad, 2_000_000, 1_000_000_000)%7 == 0 {
-		t.Fatal("sanitizePoolTargetMod7n13 must clear multiples of 7")
+	if sanitizePoolTargetMod7n13(bad, 2_000_000, 1_000_000_000) != bad {
+		t.Fatal("pool sanitize is bounds-only after Blake3 v3")
 	}
 }
 
-func TestReport29LoadRetargetNeverPinsUnsolvable(t *testing.T) {
+func TestReport29LoadRetargetStaysInBounds(t *testing.T) {
 	m := report29WM(t, 2_000_000)
 	now := int64(1_700_000_000)
 	for i := 0; i < 40; i++ {
 		now += m.poolRetargetMinSec + 1
-		m.maybeRetargetPoolLoadLocked(now, 1.05, 1) // load hint ≈ 2_100_000
+		m.maybeRetargetPoolLoadLocked(now, 1.05, 1)
 	}
-	if m.targetMod%7 == 0 {
-		t.Fatalf("load retarget must not freeze on unsolvable M, got %d", m.targetMod)
-	}
-	// Steady fleet must converge near the sanitized load target (2_100_001), not 2_100_000.
 	if m.targetMod < 2_000_000 || m.targetMod > 2_200_000 {
 		t.Fatalf("unexpected converged M=%d", m.targetMod)
 	}
 }
 
-func TestReport29SanitizedModAcceptsFoundPay(t *testing.T) {
-	m := report29WM(t, 2_100_000)
+func TestReport29FoundPayOnAnyInBoundsMod(t *testing.T) {
+	m := report29WM(t, 2_000_003) // not multiple of 7 — v1 still works
 	m.targetMod = m.clampTargetMod(m.targetMod)
-	if m.targetMod%7 == 0 {
-		t.Fatalf("sanitized M still %%7==0: %d", m.targetMod)
-	}
 	pub, priv, _ := ed25519.GenerateKey(nil)
 	base, size, _, _, _, ok, reason := m.claim("rig-ok", 0)
 	if !ok {
@@ -125,40 +110,38 @@ func TestReport29SanitizedModAcceptsFoundPay(t *testing.T) {
 	req.MinerSig = hex.EncodeToString(ed25519.Sign(priv, canonicalSubmitBytes(req)))
 	accepted, reason2, payout, _, _ := m.submit(req)
 	if !accepted || reason2 != "" || payout < m.foundBonus {
-		t.Fatalf("sanitized M must accept found: ok=%v reason=%s payout=%f", accepted, reason2, payout)
+		t.Fatalf("must accept found: ok=%v reason=%s payout=%f", accepted, reason2, payout)
 	}
 }
 
-func TestReport29PersistLoadSanitizes(t *testing.T) {
-	report29WM(t, 2_100_000) // sets TARGET_MOD_FILE
+func TestReport29PersistLoadBoundsOnly(t *testing.T) {
+	report29WM(t, 2_100_000)
 	path := poolTargetModPersistPath()
 	if err := os.WriteFile(path, []byte("2100000\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	got := loadPersistedPoolTargetMod()
-	if got == 2_100_000 || got%7 == 0 {
-		t.Fatalf("load must sanitize persisted unsolvable M, got %d", got)
+	if got != 2_100_000 {
+		t.Fatalf("load must keep persisted in-bounds M, got %d", got)
 	}
 	persistPoolTargetMod(2_100_000)
 	got2 := loadPersistedPoolTargetMod()
-	if got2%7 == 0 {
-		t.Fatalf("persist+load must stay solvable, got %d", got2)
+	if got2 != 2_100_000 {
+		t.Fatalf("persist+load must keep M, got %d", got2)
 	}
 }
 
 func TestReport29StallEasingWithoutFound(t *testing.T) {
-	m := report29WM(t, 5_000_003) // solvable but high
+	m := report29WM(t, 5_000_003) // high M
 	now := int64(1_700_000_000)
 	m.targetModUpdatedUnix = now
 	m.lastPoolRetargetUnix = now
-	// Before stall window: no move.
 	m.maybeEasePoolModOnStallLocked(now + chain.PoHRetargetTargetSec*3)
 	if m.targetMod != 5_000_003 {
 		t.Fatalf("must not ease before stall window, got %d", m.targetMod)
 	}
-	// After stall window: ease down without any accepted found.
 	m.maybeEasePoolModOnStallLocked(now + chain.PoHRetargetTargetSec*6 + 1)
-	if m.targetMod >= 5_000_003 || m.targetMod%7 == 0 {
-		t.Fatalf("stall easing without found must lower M and stay solvable, got %d", m.targetMod)
+	if m.targetMod >= 5_000_003 {
+		t.Fatalf("stall easing without found must lower M, got %d", m.targetMod)
 	}
 }

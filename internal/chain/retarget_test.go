@@ -1,6 +1,9 @@
 package chain
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestClampPoHTargetModAvoidsMultipleOf7(t *testing.T) {
 	// User-reported stuck M: 82508251 = 7×11786893 — no n satisfies 7n+13≡0 (mod M).
@@ -32,15 +35,32 @@ func TestPohHitExistsNearZeroAfterSanitize(t *testing.T) {
 }
 
 func TestActivePoHTaskKindForIndex(t *testing.T) {
+	ResetPoHFormulaV3ActivationHeightForTest()
+	t.Setenv("HACKME_POH_V3_ACTIVATION_HEIGHT", "9000000") // above v2 stub so v2 is reachable
+	ResetPoHFormulaV3ActivationHeightForTest()
+	defer func() {
+		_ = os.Unsetenv("HACKME_POH_V3_ACTIVATION_HEIGHT")
+		ResetPoHFormulaV3ActivationHeightForTest()
+	}()
 	if got := ActivePoHTaskKindForIndex(PoHFormulaV2ActivationHeight - 1); got != TaskKindSyntheticPoH {
-		t.Fatalf("before activation got=%s", got)
+		t.Fatalf("before v2 activation got=%s", got)
 	}
 	if got := ActivePoHTaskKindForIndex(PoHFormulaV2ActivationHeight); got != TaskKindSyntheticPoHV2 {
-		t.Fatalf("at activation got=%s", got)
+		t.Fatalf("at v2 activation got=%s", got)
+	}
+	if got := ActivePoHTaskKindForIndex(9_000_000); got != TaskKindSyntheticPoHV3 {
+		t.Fatalf("at v3 activation got=%s", got)
 	}
 }
 
 func TestPohEvalForIndexMatchesKind(t *testing.T) {
+	ResetPoHFormulaV3ActivationHeightForTest()
+	t.Setenv("HACKME_POH_V3_ACTIVATION_HEIGHT", "9000000")
+	ResetPoHFormulaV3ActivationHeightForTest()
+	defer func() {
+		_ = os.Unsetenv("HACKME_POH_V3_ACTIVATION_HEIGHT")
+		ResetPoHFormulaV3ActivationHeightForTest()
+	}()
 	n := uint64(123456789)
 	v1 := PohEvalForIndex(PoHFormulaV2ActivationHeight-1, n)
 	v2 := PohEvalForIndex(PoHFormulaV2ActivationHeight, n)

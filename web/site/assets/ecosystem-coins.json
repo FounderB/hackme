@@ -8,7 +8,7 @@
       "name": "HackMe Coin",
       "status": "live",
       "tagline": "Primary useful-PoW chain & official pool settlement",
-      "algorithm": "Useful PoW / PoH (WASM sandbox)",
+      "algorithm": "Hash-bound PoH (Blake3 v3) + WASM order gate",
       "icon": "./assets/logo-hex.png",
       "iconType": "image",
       "listing": "Official pool live · OSS CVE Watch · CEX after summer traction",

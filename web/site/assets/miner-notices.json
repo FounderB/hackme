@@ -1,5 +1,14 @@
 {
   "version": 1,
-  "updated_unix": 1757894400,
-  "notices": []
+  "updated_unix": 1761140000,
+  "notices": [
+    {
+      "id": "poh-v3-blake3",
+      "severity": "info",
+      "title": "PoH v3 Blake3 activation",
+      "body": "At chain height 500000 (override HACKME_POH_V3_ACTIVATION_HEIGHT in lab), PoH work becomes Blake3(prev_hash || miner_address || nonce_le) with little-endian uint64 work % M == 0. Pre-activation keeps eval(n)=7n+13. Economics (~30s, 0.01 HMC) unchanged. Update workerpoh before the gate.",
+      "cta_label": "Chain spec",
+      "cta_href": "/docs.html"
+    }
+  ]
 }

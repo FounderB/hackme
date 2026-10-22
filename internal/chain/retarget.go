@@ -1,6 +1,12 @@
 package chain
 
-import "math"
+import (
+	"math"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+)
 
 // DefaultPoHTargetMod is the initial PoH modulus M after genesis (eval(nonce)%M==0).
 const DefaultPoHTargetMod uint64 = 1_000_000
@@ -32,21 +38,69 @@ const (
 	pohRetargetMaxMod = PoHTargetMaxMod
 )
 
-// PoHFormulaV2ActivationHeight is a deterministic chain-height gate for baseline profile v2.
-// Until this height, baseline remains synthetic_poh_v1 to preserve compatibility.
+// PoHFormulaV2ActivationHeight is a legacy stub gate for synthetic_poh_v2 (mix64).
+// Mainnet activates Blake3 v3 earlier via PoHFormulaV3ActivationHeight; v2 remains
+// reachable only when V3 is overridden above this height (lab).
 const PoHFormulaV2ActivationHeight uint64 = 2_102_400
+
+// defaultPoHFormulaV3ActivationHeight is Blake3 PoH v3 mainnet gate.
+// Chosen clearly above live tip (~478k at ship time) without wiping genesis.
+// Lab override: HACKME_POH_V3_ACTIVATION_HEIGHT=<uint64>.
+const defaultPoHFormulaV3ActivationHeight uint64 = 500_000
+
+var (
+	pohV3HeightOnce sync.Once
+	pohV3Height     uint64
+)
+
+// PoHFormulaV3ActivationHeight returns the height at which Blake3 PoH v3 activates
+// for the next block index (index >= height ⇒ v3).
+func PoHFormulaV3ActivationHeight() uint64 {
+	pohV3HeightOnce.Do(func() {
+		pohV3Height = defaultPoHFormulaV3ActivationHeight
+		if v := strings.TrimSpace(os.Getenv("HACKME_POH_V3_ACTIVATION_HEIGHT")); v != "" {
+			if n, err := strconv.ParseUint(v, 10, 64); err == nil {
+				pohV3Height = n
+			}
+		}
+	})
+	return pohV3Height
+}
+
+// ResetPoHFormulaV3ActivationHeightForTest clears the cached env-resolved height (tests only).
+func ResetPoHFormulaV3ActivationHeightForTest() {
+	pohV3HeightOnce = sync.Once{}
+	pohV3Height = 0
+}
 
 // ActivePoHTaskKindForIndex selects the baseline PoH profile for a target block height.
 func ActivePoHTaskKindForIndex(index uint64) TaskKind {
+	if index >= PoHFormulaV3ActivationHeight() {
+		return TaskKindSyntheticPoHV3
+	}
 	if index >= PoHFormulaV2ActivationHeight {
 		return TaskKindSyntheticPoHV2
 	}
 	return TaskKindSyntheticPoH
 }
 
+// PoHFormulaVersionForIndex returns 1, 2, or 3 for metrics/claim payloads.
+func PoHFormulaVersionForIndex(index uint64) int {
+	switch ActivePoHTaskKindForIndex(index) {
+	case TaskKindSyntheticPoHV3:
+		return 3
+	case TaskKindSyntheticPoHV2:
+		return 2
+	default:
+		return 1
+	}
+}
+
 // PoHFormulaLabelForKind returns a human-readable formula label for block payloads/UI.
 func PoHFormulaLabelForKind(kind TaskKind) string {
 	switch kind {
+	case TaskKindSyntheticPoHV3:
+		return "blake3_v3(prev||miner||nonce_le)%M==0"
 	case TaskKindSyntheticPoHV2:
 		return "eval_v2(n)=mix64(11n+17)"
 	default:
@@ -65,7 +119,7 @@ func PohEval(n uint64) uint64 {
 	return n*7 + 13
 }
 
-// PohEvalV2 is the next baseline profile.
+// PohEvalV2 is the legacy mix64 baseline profile (stub; superseded by Blake3 v3 on mainnet).
 func PohEvalV2(n uint64) uint64 {
 	x := n*11 + 17
 	x ^= x >> 23
@@ -75,18 +129,33 @@ func PohEvalV2(n uint64) uint64 {
 }
 
 // PohEvalByKind evaluates nonce with a specific baseline profile.
+// TaskKindSyntheticPoHV3 requires prev_hash + miner_address — use PohWorkForIndex instead.
 func PohEvalByKind(kind TaskKind, n uint64) uint64 {
 	switch kind {
 	case TaskKindSyntheticPoHV2:
 		return PohEvalV2(n)
+	case TaskKindSyntheticPoHV3:
+		// Cannot evaluate Blake3 without tip binding; callers must use PohWorkForIndex.
+		return 0
 	default:
 		return PohEval(n)
 	}
 }
 
 // PohEvalForIndex evaluates nonce using the baseline profile active at block index.
+// For v3 this returns 0 — use PohWorkForIndex(prev, miner, ...).
 func PohEvalForIndex(index, n uint64) uint64 {
 	return PohEvalByKind(ActivePoHTaskKindForIndex(index), n)
+}
+
+// PohWorkForIndex returns the PoH work value that must satisfy work%M==0 at index.
+func PohWorkForIndex(index, nonce uint64, prevHashHex, minerAddress string) uint64 {
+	switch ActivePoHTaskKindForIndex(index) {
+	case TaskKindSyntheticPoHV3:
+		return PohWorkBlake3(prevHashHex, minerAddress, nonce)
+	default:
+		return PohEvalForIndex(index, nonce)
+	}
 }
 
 // RetargetWindow returns the next modulus after a completed window of blocks.
@@ -168,27 +237,34 @@ func RetargetMicroStep(prevMod uint64, actualSec, targetSec int64) uint64 {
 	return uint64(nextF + 0.5)
 }
 
-// ClampPoHTargetMod keeps a modulus within the allowed PoH retarget bounds and
-// enforces solvability for the built-in eval(n)=7n+13 (uint64 / WASM i64).
-//
-// We need ∃n with (7n+13)≡0 (mod M), i.e. gcd(7,M)|13. Since 7∤13, M must not
-// be divisible by 7; otherwise no nonce satisfies the PoH rule (retarget can
-// otherwise pick such M, e.g. 82508251 = 7×11786893).
+// ClampPoHTargetMod keeps a modulus within the allowed PoH retarget bounds.
+// Pre-v3 (7n+13) also nudges M off multiples of 7 so algebraic PoH stays solvable.
+// Blake3 v3 accepts any M in bounds; the nudge is harmless post-activation and
+// keeps mixed-era nodes from stalling if retarget lands on 7|M before height gate.
 func ClampPoHTargetMod(p uint64) uint64 {
-	if p < pohRetargetMinMod {
-		p = pohRetargetMinMod
-	} else if p > pohRetargetMaxMod {
-		p = pohRetargetMaxMod
-	}
+	p = ClampPoHTargetModBounds(p)
 	return sanitizePoHTargetMod7n13(p)
+}
+
+// ClampPoHTargetModBounds clamps M to [PoHTargetMinMod, PoHTargetMaxMod] only.
+// Pool coordinators use this after Blake3 v3 (7n+13 solvability is obsolete there).
+func ClampPoHTargetModBounds(p uint64) uint64 {
+	if p < pohRetargetMinMod {
+		return pohRetargetMinMod
+	}
+	if p > pohRetargetMaxMod {
+		return pohRetargetMaxMod
+	}
+	return p
 }
 
 // IsPoHTargetModAtCap reports whether M is at the configured upper bound.
 func IsPoHTargetModAtCap(m uint64) bool {
-	return ClampPoHTargetMod(m) >= pohRetargetMaxMod
+	return ClampPoHTargetModBounds(m) >= pohRetargetMaxMod
 }
 
 // sanitizePoHTargetMod7n13 nudges M off multiples of 7 while staying in bounds.
+// Kept for chain meta / pre-v3 algebraic PoH solvability (report #29).
 func sanitizePoHTargetMod7n13(m uint64) uint64 {
 	if m%7 != 0 {
 		return m

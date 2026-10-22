@@ -43,7 +43,16 @@ Any change to header fields after calculation requires a recalculation of `hash`
 
 ## WASM lock and PoH blocks
 
-The miner searches for `nonce` **on the CPU** natively (`n*7+13`) or, when building **`-tags cuda`** and/or **`-tags opencl`** and available devices, **batches on the GPU** (the same `eval`, see `internal/gpupoh`, `kernels/poh_search.cu`) — one worker per GPU, common atomic range counter; **CUDA** is preferred over **OpenCL** if both tags are combined (see `HACKME_FORCE_OPENCL`). The result is the same as WASM `eval`; **before enrollment** the found nonce is checked with one WASM call.
+**PoH formula versions (height-gated, no genesis wipe):**
+
+| Height gate | Kind | Work proof |
+|-------------|------|------------|
+| `< PoHFormulaV3ActivationHeight` (default **500000**; lab: `HACKME_POH_V3_ACTIVATION_HEIGHT`) | `synthetic_poh_v1` | `eval(n)=n*7+13`, accept iff `eval % M == 0` |
+| `≥ PoHFormulaV3ActivationHeight` | `synthetic_poh_v3` | `work = uint64_le(Blake3(prev_hash_hex_ascii_lower ‖ miner_address_utf8 ‖ nonce_u64_le)[0:8])`, accept iff `work % M == 0` |
+
+Endianness for v3 is **little-endian** for both the nonce bytes and the work uint64 (locked by tests). Block signatures remain the **node** Ed25519 signer; Blake3 binds `miner_address` in the work proof only. Order WASM `check(n)` stays a separate gate after the native PoH condition.
+
+The miner searches for `nonce` **on the CPU** (v1 algebraic or v3 Blake3) or, when building **`-tags cuda`** / **`-tags opencl`**, batches on GPU backends (`internal/gpupoh`, `kernels/poh_search.cu` — v1 kernel + Blake3 v3 path). **CUDA** is preferred over **OpenCL** if both tags are combined (see `HACKME_FORCE_OPENCL`). For paid orders, the found nonce is also checked with one WASM `check` call.
 
 After a successful solution, the node writes the **next block** to SQLite: in the header `nonce` = found value, in `task` - `kind: poh_wasm_v1` and JSON-payload with `nonce`, `eval`, `mod`, `formula`; when mining an **order** from table `tasks`, **`order_task_id`** (= `id` order) is added to the payload. `prev_hash` and `hash` (tip) are updated like a normal chain. The reward (**+0.01 HMC** by default or `reward_hmc` of the order/manifest) is credited in the same transaction; The order progress counter in `tasks` is updated atomically with the block.
 
@@ -54,7 +63,7 @@ After a successful solution, the node writes the **next block** to SQLite: in th
 - If there is no key (old databases before this version), the node treats `M` as **1000000** until the first successful write of the PoH block.
 - In the JSON of the PoH block, the field `task.payload.mod` is **equal** to the `M` at which this decision was made (for audit and revalidation).
 - After each accepted PoH block, `poh_target_mod` is written **in the same transaction** as the block insertion. **Difficulty recalculation** is performed only when the height of the new block is a multiple of **5** (blocks 5, 10, 15...): the Unix time difference between the new block and the block with index `height−5` is taken and compared with the target calendar window **5×30 s = 150 s**. Formula: `M_next = M_prev * T_ideal / T_actual` (then clamp): faster than the target → **more** `M` (harder), slower → **smaller** `M`. Between such eras `M` **does not change**. The range `M` is set in `internal/chain/retarget.go`.
-- For built-in `eval(n)=7n+13` the value **M must not be divisible by 7**: otherwise the equation `7n+13≡0 (mod M)` is unsolvable in ℤ. After clamping, the node **shifts** `M` by ±1 if necessary (see `ClampPoHTargetMod`); when reading from the database, the same rule is applied so that “bad” stored values ​​do not block mining.
+- Pre-v3 algebraic `eval(n)=7n+13`: **M must not be divisible by 7** or the equation is unsolvable. Chain `ClampPoHTargetMod` still nudges `M` by ±1 when needed (report #29). After Blake3 v3 activation any in-bounds `M` is solvable; the pool coordinator clamps **bounds only** (no 7-nudge).
 
 ## Orders in the database (`tasks`) and priority
 

@@ -84,7 +84,7 @@ func (s *Service) ImportPoHBlock(ctx context.Context, b *block.Block) error {
 	if payloadMod != chainMod {
 		return fmt.Errorf("chain: import target mod mismatch (chain %d, payload %d)", chainMod, payloadMod)
 	}
-	if err := validatePoHSubmission(b.Index, nonce, eval, chainMod); err != nil {
+	if err := validatePoHSubmission(b.Index, nonce, eval, chainMod, tipHash, b.EffectiveMinerAddress()); err != nil {
 		return err
 	}
 

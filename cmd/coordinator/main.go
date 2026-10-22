@@ -244,8 +244,11 @@ func main() {
 	if token == "" && workerToken == "" && allowInsecure {
 		log.Printf("security warning: HACKME_COORDINATOR_ALLOW_INSECURE=1 — claim/submit/push_work allowed without token on %s (dev only)", addr)
 	}
-	log.Printf("Work coordinator: batch=%d target_mod=%d lease=%ds reward_per_m=%.6f found_bonus=%.6f",
-		wm.defaultBatch, wm.targetMod, wm.leaseSec, wm.rewardPerM, wm.foundBonus)
+	log.Printf("Work coordinator: batch=%d target_mod=%d lease=%ds reward_per_m=%.6f found_bonus=%.6f payout_found_only=%v",
+		wm.defaultBatch, wm.targetMod, wm.leaseSec, wm.rewardPerM, wm.foundBonus, wm.payoutFoundOnly)
+	if !wm.payoutFoundOnly {
+		log.Printf("security note: payout_found_only=0 — attempt accrual trusts client attempts/hashrate (caps+hybrid mitigate; set HACKME_COORDINATOR_PAYOUT_FOUND_ONLY=1 for hit-only)")
+	}
 	log.Printf("Work anti-abuse: claim_per_min=%d submit_per_min=%d bad_strikes_to_ban=%d ban_sec=%d",
 		wm.claimPerMin, wm.submitPerMin, wm.badStrikesToBan, wm.banSec)
 	readTO := envDurationSec("HACKME_COORDINATOR_READ_TIMEOUT_SEC", 60)
