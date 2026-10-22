@@ -129,6 +129,59 @@ func (s *Service) EnqueueSettleOutbox(ctx context.Context, kind, campaignID, min
 	return id, nil
 }
 
+// CountPendingSettleOutbox returns how many pending settle rows exist for campaignID.
+// Close/finalize guards must use this — not the fair ListPending window — or a
+// campaign whose rows sit outside the fair sample can look "empty" and refund early.
+func (s *Service) CountPendingSettleOutbox(ctx context.Context, campaignID string) (int64, error) {
+	if s == nil || s.DB == nil {
+		return 0, fmt.Errorf("poolfuzz: no database")
+	}
+	campaignID = strings.TrimSpace(campaignID)
+	if campaignID == "" {
+		return 0, fmt.Errorf("poolfuzz: campaign_id required")
+	}
+	ensureSettleOutboxSchema(s.DB)
+	var n int64
+	err := s.DB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM fuzz_settle_outbox WHERE status='pending' AND campaign_id=?`,
+		campaignID).Scan(&n)
+	return n, err
+}
+
+// ListPendingSettleOutboxForCampaign returns pending rows for one campaign (oldest-first).
+func (s *Service) ListPendingSettleOutboxForCampaign(ctx context.Context, campaignID string, limit int) ([]SettleOutboxItem, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("poolfuzz: no database")
+	}
+	campaignID = strings.TrimSpace(campaignID)
+	if campaignID == "" {
+		return nil, fmt.Errorf("poolfuzz: campaign_id required")
+	}
+	ensureSettleOutboxSchema(s.DB)
+	if limit <= 0 || limit > 500 {
+		limit = 64
+	}
+	rows, err := s.DB.QueryContext(ctx,
+		`SELECT id, campaign_id, kind, miner_address, severity, created_at, COALESCE(work_item_id,0)
+		 FROM fuzz_settle_outbox
+		 WHERE status='pending' AND campaign_id=?
+		 ORDER BY CASE kind WHEN 'finalize' THEN 1 ELSE 0 END ASC, id ASC
+		 LIMIT ?`, campaignID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]SettleOutboxItem, 0, limit)
+	for rows.Next() {
+		var it SettleOutboxItem
+		if err := rows.Scan(&it.ID, &it.CampaignID, &it.Kind, &it.MinerAddress, &it.Severity, &it.CreatedAt, &it.WorkItemID); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
 // ListPendingSettleOutbox returns pending outbox rows with a fair multi-campaign
 // window. A single orphan/foreign campaign must not monopolize the pull batch
 // (FIFO head of 1200 runs used to block every other payer's settle-pull).

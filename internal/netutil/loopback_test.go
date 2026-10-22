@@ -1,6 +1,12 @@
 package netutil
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
 
 func TestIsLoopbackURL(t *testing.T) {
 	cases := []struct {
@@ -30,6 +36,37 @@ func TestLooksRemoteCoordinatorURL(t *testing.T) {
 	}
 	if !LooksRemoteCoordinatorURL("https://hackme.tech/pool/coordinator") {
 		t.Fatal("public URL should look remote")
+	}
+}
+
+func TestHTTPClientNoRedirectRefusesFollow(t *testing.T) {
+	var sawSecond bool
+	mux := http.NewServeMux()
+	mux.HandleFunc("/hop1", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/hop2", http.StatusFound)
+	})
+	mux.HandleFunc("/hop2", func(w http.ResponseWriter, r *http.Request) {
+		sawSecond = true
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	cli := HTTPClientNoRedirect(5 * time.Second)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/hop1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Hackme-Admin-Token", "secret-should-not-leak")
+	_, err = cli.Do(req)
+	if err == nil {
+		t.Fatal("expected redirect refusal error")
+	}
+	if !strings.Contains(err.Error(), "refusing HTTP redirect") {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if sawSecond {
+		t.Fatal("client must not follow redirect to hop2")
 	}
 }
 

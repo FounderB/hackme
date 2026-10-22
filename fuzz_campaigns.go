@@ -1099,6 +1099,8 @@ func (a *app) drainFuzzSettleBeforeClose(ctx context.Context, campaignID, closeK
 			}
 			return false
 		}
+		// Undrainable foreign head must not authorize close: still require this
+		// campaign's pending count to be zero (exact count API, not fair window).
 		pending, perr := a.fuzzSettleOutboxPendingForCampaign(ctx, campaignID)
 		if perr != nil {
 			log.Printf("fuzz escrow: refuse %s %s: settle pending check: %s",
@@ -1129,22 +1131,18 @@ func (a *app) drainFuzzSettleBeforeClose(ctx context.Context, campaignID, closeK
 }
 
 // fuzzSettleOutboxPendingForCampaign is true when the coordinator still has unpaid
-// settle rows for this campaign (post-drain TOCTOU guard).
+// settle rows for this campaign (post-drain TOCTOU guard). Uses exact COUNT — not
+// the fair multi-campaign pull window — so close cannot miss pending rows.
 func (a *app) fuzzSettleOutboxPendingForCampaign(ctx context.Context, campaignID string) (bool, error) {
 	campaignID = strings.TrimSpace(campaignID)
 	if campaignID == "" || !poolSyncCoordinatorConfigured() {
 		return false, nil
 	}
-	items, err := poolsync.FetchSettleOutbox(ctx, 256)
+	n, err := poolsync.CountPendingSettleOutbox(ctx, campaignID)
 	if err != nil {
 		return false, err
 	}
-	for _, it := range items {
-		if strings.TrimSpace(it.CampaignID) == campaignID {
-			return true, nil
-		}
-	}
-	return false, nil
+	return n > 0, nil
 }
 
 func mergeRuntimeSummary(base map[string]any, req fuzzCampaignRuntimeUpdateRequest, heartbeatAt int64) map[string]any {

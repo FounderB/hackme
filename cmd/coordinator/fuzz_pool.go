@@ -211,7 +211,29 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 				limit = n
 			}
 		}
-		items, err := pf.ListPendingSettleOutbox(r.Context(), limit)
+		campaignID := strings.TrimSpace(r.URL.Query().Get("campaign_id"))
+		countOnly := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("count")), "1") ||
+			strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("count")), "true")
+		if campaignID != "" && countOnly {
+			n, err := pf.CountPendingSettleOutbox(r.Context(), campaignID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "campaign_id": campaignID, "pending": n})
+			return
+		}
+		var (
+			items []poolfuzz.SettleOutboxItem
+			err   error
+		)
+		if campaignID != "" {
+			items, err = pf.ListPendingSettleOutboxForCampaign(r.Context(), campaignID, limit)
+		} else {
+			items, err = pf.ListPendingSettleOutbox(r.Context(), limit)
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

@@ -48,7 +48,8 @@ func (r *RelaySettler) client() *http.Client {
 	if r.HTTPClient != nil {
 		return r.HTTPClient
 	}
-	return &http.Client{Timeout: 12 * time.Second}
+	// Never follow redirects: settle POSTs carry X-Hackme-Admin-Token.
+	return netutil.HTTPClientNoRedirect(12 * time.Second)
 }
 
 func (r *RelaySettler) token() string {

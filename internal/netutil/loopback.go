@@ -2,10 +2,24 @@
 package netutil
 
 import (
+	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
+
+// DenyAdminTokenRedirect refuses to follow redirects for clients that attach
+// X-Hackme-Admin-Token (Go's default client can forward custom headers on 3xx).
+func DenyAdminTokenRedirect(_ *http.Request, _ []*http.Request) error {
+	return fmt.Errorf("netutil: refusing HTTP redirect (admin token)")
+}
+
+// HTTPClientNoRedirect returns an http.Client that never follows redirects.
+func HTTPClientNoRedirect(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout, CheckRedirect: DenyAdminTokenRedirect}
+}
 
 // IsLoopbackHost reports whether host is a loopback name or address.
 func IsLoopbackHost(host string) bool {

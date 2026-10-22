@@ -69,3 +69,46 @@ func TestListPendingSettleOutboxFairAcrossCampaigns(t *testing.T) {
 		t.Fatalf("expected bootstrap-a in fair window, got %v", seen)
 	}
 }
+
+func TestCountPendingSettleOutboxExactNotFairWindow(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "count-outbox.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := &Service{DB: db}
+	ctx := context.Background()
+	for i := 0; i < 200; i++ {
+		if _, err := svc.EnqueueSettleOutbox(ctx, "run", "orphan-head", "HMC-orphan", "", int64(i+1)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := svc.EnqueueSettleOutbox(ctx, "run", "close-me", "HMC-local", "", int64(5000+i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Fair window may omit close-me if monopolized; COUNT must still see it.
+	n, err := svc.CountPendingSettleOutbox(ctx, "close-me")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 3 {
+		t.Fatalf("count=%d want 3", n)
+	}
+	zero, err := svc.CountPendingSettleOutbox(ctx, "never-enqueued")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if zero != 0 {
+		t.Fatalf("empty campaign count=%d", zero)
+	}
+	items, err := svc.ListPendingSettleOutboxForCampaign(ctx, "close-me", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("list len=%d want 3", len(items))
+	}
+}

@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"hackme/internal/netutil"
 )
 
 // RegisterRequest is the coordinator pool campaign upsert body.
@@ -176,7 +178,7 @@ func RegisterOnce(ctx context.Context, coordURL, token string, req RegisterReque
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-Hackme-Admin-Token", token)
-	cl := &http.Client{Timeout: timeoutDuration()}
+	cl := netutil.HTTPClientNoRedirect(timeoutDuration())
 	res, err := cl.Do(httpReq)
 	latency = time.Since(start)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"hackme/internal/netutil"
 	"hackme/internal/poolfuzz"
 )
 
@@ -35,7 +36,7 @@ func (a *app) fetchCoordinatorPoolCampaigns(ctx context.Context) (map[string]coo
 	if err != nil {
 		return nil, err
 	}
-	res, err := http.DefaultClient.Do(req)
+	res, err := netutil.HTTPClientNoRedirect(8 * time.Second).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (a *app) fetchCoordinatorMarketplaceItems(ctx context.Context) ([]map[strin
 	if err != nil {
 		return nil, err
 	}
-	res, err := http.DefaultClient.Do(req)
+	res, err := netutil.HTTPClientNoRedirect(8 * time.Second).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +127,7 @@ func (a *app) fetchCoordinatorPoolCampaignProgressErr(ctx context.Context, campa
 	if tok := coordinatorAdminToken(); tok != "" {
 		req.Header.Set("X-Hackme-Admin-Token", tok)
 	}
-	res, err := http.DefaultClient.Do(req)
+	res, err := netutil.HTTPClientNoRedirect(6 * time.Second).Do(req)
 	if err != nil {
 		return coordinatorPoolCampaign{}, false, err
 	}
@@ -157,7 +158,7 @@ func (a *app) fetchCoordinatorFleetCapacity(ctx context.Context) (map[string]any
 	if err != nil {
 		return nil, err
 	}
-	res, err := http.DefaultClient.Do(req)
+	res, err := netutil.HTTPClientNoRedirect(6 * time.Second).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -459,7 +460,7 @@ func (a *app) pullPoolFindingsFromCoordinator(ctx context.Context, campaignID st
 		return 0, fmt.Errorf("coordinator admin token required for findings mirror")
 	}
 	req.Header.Set("X-Hackme-Admin-Token", tok)
-	res, err := http.DefaultClient.Do(req)
+	res, err := netutil.HTTPClientNoRedirect(12 * time.Second).Do(req)
 	if err != nil {
 		return 0, err
 	}

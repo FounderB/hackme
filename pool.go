@@ -429,8 +429,9 @@ func coordinatorHTTPClient() *http.Client {
 			ExpectContinueTimeout: 1 * time.Second,
 		}
 		coordHTTPClient = &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: tr,
+			Timeout:       30 * time.Second,
+			Transport:     tr,
+			CheckRedirect: netutil.DenyAdminTokenRedirect,
 		}
 	})
 	return coordHTTPClient

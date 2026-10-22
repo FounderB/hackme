@@ -23,6 +23,7 @@ import (
 	"hackme/internal/chain"
 	"hackme/internal/fuzzengine"
 	"hackme/internal/hunt"
+	"hackme/internal/netutil"
 	"hackme/internal/poolfuzz"
 	"hackme/internal/sandbox"
 )
@@ -279,7 +280,7 @@ func Run(ctx context.Context, cfg Config, st *Stats) error {
 		cfg.LogPrefix = "workerfuzz"
 	}
 	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = &http.Client{Timeout: HTTPTimeoutFromEnv()}
+		cfg.HTTPClient = netutil.HTTPClientNoRedirect(HTTPTimeoutFromEnv())
 	}
 	base := strings.TrimRight(cfg.CoordURL, "/")
 	if base == "" || cfg.Token == "" || cfg.WorkerID == "" {

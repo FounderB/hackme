@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"hackme/internal/netutil"
 	"hackme/internal/sandbox"
 )
 
@@ -93,7 +94,7 @@ func (m *workManager) liveChainPoHModFromNode() uint64 {
 	if base == "" {
 		return 0
 	}
-	cl := &http.Client{Timeout: 2 * time.Second}
+	cl := netutil.HTTPClientNoRedirect(2 * time.Second)
 	req, err := http.NewRequest(http.MethodGet, base+"/api/metrics", nil)
 	if err != nil {
 		return 0
@@ -171,7 +172,7 @@ func (m *workManager) liveCanonicalTipHeightFromNode() (uint64, bool) {
 	if base == "" {
 		return 0, false
 	}
-	cl := &http.Client{Timeout: 2 * time.Second}
+	cl := netutil.HTTPClientNoRedirect(2 * time.Second)
 	tok := m.ordersAdminToken()
 
 	fetch := func(path string) (uint64, bool) {
@@ -272,7 +273,7 @@ func (m *workManager) refreshActiveOrderLocked() activeOrderSnap {
 	if m.activeOrder.ID != "" && now-m.activeOrder.FetchedAt < m.ordersProbeEverySec {
 		return m.activeOrder
 	}
-	cl := &http.Client{Timeout: 3 * time.Second}
+	cl := netutil.HTTPClientNoRedirect(3 * time.Second)
 	req, err := http.NewRequest(http.MethodGet, m.ordersProbeURL+"/api/tasks", nil)
 	if err != nil {
 		return activeOrderSnap{}
@@ -387,7 +388,7 @@ func (m *workManager) relayOrderSolve(minerAddress string, foundNonce, targetMod
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Hackme-Admin-Token", tok)
-	cl := &http.Client{Timeout: 15 * time.Second}
+	cl := netutil.HTTPClientNoRedirect(15 * time.Second)
 	resp, err := cl.Do(req)
 	if err != nil {
 		out.Reason = "relay_http_error"
@@ -614,7 +615,7 @@ func (m *workManager) attachPoHOrderFromFuzzConfig(campaignID string, cfg map[st
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Hackme-Admin-Token", tok)
-	cl := &http.Client{Timeout: 20 * time.Second}
+	cl := netutil.HTTPClientNoRedirect(20 * time.Second)
 	resp, err := cl.Do(req)
 	if err != nil {
 		out["reason"] = "http_error"

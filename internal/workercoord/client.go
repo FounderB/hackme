@@ -70,6 +70,9 @@ func NewHTTPClient(timeout time.Duration) *http.Client {
 	}
 	return &http.Client{
 		Timeout: timeout,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return fmt.Errorf("workercoord: refusing HTTP redirect (admin token)")
+		},
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{

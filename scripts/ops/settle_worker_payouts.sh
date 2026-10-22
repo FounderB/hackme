@@ -324,28 +324,41 @@ while IFS= read -r item; do
 
   already_hmc="$(jq -r --arg wid "$worker_id" '.workers[$wid].settled_hmc // 0' "$STATE_FILE")"
   # Coordinator payout counters are in-memory: a restart resets payout_hmc while
-  # settlement state keeps a high settled_hmc watermark → delta stays 0 forever.
-  # Rebase watermark down to current accrued (never up) so only NEW work settles;
-  # do not re-pay historical on-chain amounts already recorded in settled_hmc.
+  # settlement state keeps a high settled_hmc watermark → naive delta stays 0 forever.
+  #
+  # NEVER lower settled_hmc (that opened a double-pay window if accrual later
+  # looked "fresh" against a zeroed watermark). On reset: keep lifetime settled,
+  # anchor a session floor at current accrued, and pay only session growth;
+  # on success settled_hmc += delta (lifetime watermark only moves up).
+  session_anchor="$(jq -r --arg wid "$worker_id" '.workers[$wid].session_anchor_hmc // empty' "$STATE_FILE")"
   rebase="$(python3 - "$payout_hmc" "$already_hmc" <<'PY'
 import sys
 p=float(sys.argv[1]); s=float(sys.argv[2])
-# Treat as reset when accrued is clearly below settled (float noise floor 1e-9).
 print("1" if (s - p) > 1e-9 else "0")
 PY
 )"
   if [[ "$rebase" == "1" ]]; then
-    echo "[settle-workers] rebase ${worker_id}: settled_hmc ${already_hmc} -> ${payout_hmc} (coordinator counter reset)"
-    already_hmc="$payout_hmc"
-    if ! jq --arg wid "$worker_id" --arg settled "$already_hmc" --argjson ts "$(date +%s)" \
-      '(.workers[$wid] = ((.workers[$wid] // {}) + {settled_hmc:($settled|tonumber),rebased_unix:$ts}))' \
-      "$STATE_FILE" >"${STATE_FILE}.tmp"; then
-      echo "[settle-workers] rebase write failed for ${worker_id}" >&2
-      continue
+    if [[ -z "$session_anchor" ]]; then
+      session_anchor="$payout_hmc"
+      echo "[settle-workers] session-anchor ${worker_id}: settled_hmc ${already_hmc} kept; anchor=${session_anchor} (coordinator counter reset)"
+      if ! jq --arg wid "$worker_id" --arg anchor "$session_anchor" --argjson ts "$(date +%s)" \
+        '(.workers[$wid] = ((.workers[$wid] // {}) + {session_anchor_hmc:($anchor|tonumber),rebased_unix:$ts}))' \
+        "$STATE_FILE" >"${STATE_FILE}.tmp"; then
+        echo "[settle-workers] session-anchor write failed for ${worker_id}" >&2
+        continue
+      fi
+      mv "${STATE_FILE}.tmp" "$STATE_FILE"
     fi
-    mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    baseline_hmc="$session_anchor"
+  else
+    # Accrual caught up / normal path — drop stale session anchor if present.
+    if [[ -n "$session_anchor" ]]; then
+      jq --arg wid "$worker_id" 'del(.workers[$wid].session_anchor_hmc)' "$STATE_FILE" >"${STATE_FILE}.tmp" \
+        && mv "${STATE_FILE}.tmp" "$STATE_FILE" || true
+    fi
+    baseline_hmc="$already_hmc"
   fi
-  delta_hmc="$(python3 - "$payout_hmc" "$already_hmc" <<'PY'
+  delta_hmc="$(python3 - "$payout_hmc" "$baseline_hmc" <<'PY'
 import sys
 p=float(sys.argv[1]); s=float(sys.argv[2]); d=p-s
 if d < 0: d = 0.0
@@ -523,10 +536,20 @@ already=float(sys.argv[1]); delta=float(sys.argv[2])
 print(f"{already + delta:.12f}")
 PY
 )"
+  # Advance session anchor with paid accrual so the next delta is only new growth.
+  new_anchor_hmc="$(python3 - "$payout_hmc" <<'PY'
+import sys
+print(f"{float(sys.argv[1]):.12f}")
+PY
+)"
   tmp="$(mktemp)"
-  if ! jq --arg wid "$worker_id" --arg addr "$to_addr" --arg settled "$new_settled_hmc" --arg tx "$tx_hash" --argjson ts "$ts" \
-    '(.workers[$wid] = ((.workers[$wid] // {}) + {settled_hmc:($settled|tonumber),payout_address:$addr,last_tx_hash:$tx,last_settle_unix:$ts}))
-     | del(.workers[$wid].pending_settle)' \
+  if [[ "$rebase" == "1" ]]; then
+    jq_expr='(.workers[$wid] = ((.workers[$wid] // {}) + {settled_hmc:($settled|tonumber),session_anchor_hmc:($anchor|tonumber),payout_address:$addr,last_tx_hash:$tx,last_settle_unix:$ts})) | del(.workers[$wid].pending_settle)'
+  else
+    jq_expr='(.workers[$wid] = ((.workers[$wid] // {}) + {settled_hmc:($settled|tonumber),payout_address:$addr,last_tx_hash:$tx,last_settle_unix:$ts})) | del(.workers[$wid].pending_settle) | del(.workers[$wid].session_anchor_hmc)'
+  fi
+  if ! jq --arg wid "$worker_id" --arg addr "$to_addr" --arg settled "$new_settled_hmc" --arg anchor "$new_anchor_hmc" --arg tx "$tx_hash" --argjson ts "$ts" \
+    "$jq_expr" \
     "$STATE_FILE" >"$tmp"; then
     rm -f "$tmp"
     echo "[settle-workers] ERROR state update ${worker_id}: jq failed" >&2

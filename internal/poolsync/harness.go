@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"hackme/internal/netutil"
 )
 
 // UploadHuntHarness POSTs a published harness blob to the coordinator pool API.
@@ -50,7 +52,7 @@ func uploadHuntHarnessOctet(ctx context.Context, coordURL, token, hash string, d
 		req.Header.Set("X-Hackme-Source-Rel", sourceRel)
 	}
 	req.Header.Set("X-Hackme-Admin-Token", token)
-	res, err := http.DefaultClient.Do(req)
+	res, err := netutil.HTTPClientNoRedirect(timeoutDuration()).Do(req)
 	if err != nil {
 		return err
 	}
@@ -79,7 +81,7 @@ func uploadHuntHarnessJSON(ctx context.Context, coordURL, token, hash string, da
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Hackme-Admin-Token", token)
-	res, err := http.DefaultClient.Do(req)
+	res, err := netutil.HTTPClientNoRedirect(timeoutDuration()).Do(req)
 	if err != nil {
 		return err
 	}
@@ -116,7 +118,7 @@ func CoordinatorHarnessAvailable(ctx context.Context, coordURL, token, hash stri
 	if token != "" {
 		req.Header.Set("X-Hackme-Admin-Token", token)
 	}
-	res, err := http.DefaultClient.Do(req)
+	res, err := netutil.HTTPClientNoRedirect(timeoutDuration()).Do(req)
 	if err != nil {
 		return false
 	}
