@@ -64,6 +64,7 @@ bash scripts/ops/apply_desktop_gpu_pool.sh
 | `HACKME_CUDA_ARCH` | Force NVRTC arch, e.g. `compute_120` or `sm_120` |
 | `HACKME_CUDA_VERBOSE` | `1` — log per-device init and arch |
 | `HACKME_CUDA_BLOCK_THREADS` | Block size (default 256) |
+| `HACKME_CUDA_BLAKE3_HOST` | `1` — force host Blake3Search (skip device `poh_search_blake3`) |
 | `HACKME_FORCE_OPENCL` | `1` — skip CUDA even if built |
 | `CUDA_HOME` | Toolkit root if not auto-detected |
 
@@ -86,6 +87,17 @@ nvidia-smi
 # Worker log should show: GPU #0 [CUDA compute_120] …
 ```
 
+## PoH formula kernels
+
+| Formula | Kernel | Status |
+|---------|--------|--------|
+| v1 `eval(n)=7n+13` | `poh_search` | Device NVRTC (production) |
+| v3 Blake3(prev‖miner‖nonce_le) | `poh_search_blake3` | Device NVRTC when loaded; host `Blake3Search` fallback on load/launch error or `HACKME_CUDA_BLAKE3_HOST=1` |
+
+Both kernels live in `internal/gpupoh/poh_search.cu` (mirrored under `kernels/`). Device Blake3 uses the same message layout as `chain.PohWorkBlake3` / `gpupoh.Blake3Search` (ASCII-lower tip hex ‖ miner UTF-8 ‖ nonce u64 LE → LE uint64 of digest[0:8]). Host path is the correctness lock; set `HACKME_CUDA_BLAKE3_HOST=1` to force it for A/B checks.
+
+Mainnet Blake3 activation: height **500000** (`PoHFormulaV3ActivationHeight`). Until tip crosses that gate, workers still search v1 on device.
+
 ## vs OpenCL
 
 | | CUDA | OpenCL |
@@ -94,6 +106,7 @@ nvidia-smi
 | AMD / Intel | OpenCL (`workerpoh-opencl`) | See [GPU_MINING_BACKENDS.md](GPU_MINING_BACKENDS.md) |
 | Build | `nvrtc.h`, CGO | `libOpenCL` |
 | MSK CPU worker | Use CPU build | — |
+| Blake3 v3 | Device `poh_search_blake3` + host fallback | Host Blake3Search (OpenCL device Blake3 not wired) |
 
 Remote CPU workers: **do not** deploy the CUDA binary; use `go build -o workerpoh ./cmd/workerpoh` (no tags).
 
@@ -106,3 +119,5 @@ Remote CPU workers: **do not** deploy the CUDA binary; use `go build -o workerpo
 **OpenCL label on RTX 5060 Ti** — CUDA build failed; run `build_cuda_worker.sh` and check compile log.
 
 **Low GH/s with CUDA** — set `HACKME_CUDA_VERBOSE=1`, confirm `compute_120` (not `compute_60`).
+
+**Blake3 GH/s collapses after height 500000** — confirm worker binary was rebuilt with `-tags cuda` after Blake3 kernel wiring; check logs for `cuda blake3 search` vs host fallback; A/B with `HACKME_CUDA_BLAKE3_HOST=1`.

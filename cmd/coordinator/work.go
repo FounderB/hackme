@@ -900,13 +900,20 @@ func (m *workManager) applyChainTargetMod(parsed uint64, now int64) {
 	}
 }
 
+// maxWorkerHashrateGHS caps reported/wall GH/s used for billing EMA and pool retarget.
+// Real single GPUs calibrate ~140–150 GH/s; multi-GPU workers can approach ~500.
+// 512 is the coordinator safety ceiling in the 500/512 family shared with
+// dashboard clampRigHashrateGHS (500) and workerpoh measure/submit caps (500):
+// UI/worker stay at 500 for display honesty; coordinator allows a small headroom
+// so legitimate peaks are not silently clipped below billing truth.
+const maxWorkerHashrateGHS = 512
+
 func clampWorkerHashrateGHS(ghs float64) float64 {
 	if ghs <= 0 || math.IsNaN(ghs) || math.IsInf(ghs, 0) {
 		return 0
 	}
-	const maxGH = 128
-	if ghs > maxGH {
-		return maxGH
+	if ghs > maxWorkerHashrateGHS {
+		return maxWorkerHashrateGHS
 	}
 	return ghs
 }

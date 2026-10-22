@@ -25,10 +25,11 @@ var pohCuSource string
 const blockThreads = 256
 
 type pohPTXEntry struct {
-	ptx   string
-	kname string
-	arch  string
-	err   error
+	ptx     string
+	kname   string
+	knameB3 string
+	arch    string
+	err     error
 }
 
 var pohPTXByArch sync.Map // arch string -> *pohPTXEntry
@@ -40,7 +41,7 @@ func cudaDivUp(x, y int) int {
 	return (x + y - 1) / y
 }
 
-func compilePTXForArchChain(chain []string) (ptx string, kname, usedArch string, err error) {
+func compilePTXForArchChain(chain []string) (ptx string, kname, knameB3, usedArch string, err error) {
 	if len(chain) == 0 {
 		chain = nvrtcArchChain(0, 0)
 	}
@@ -49,33 +50,36 @@ func compilePTXForArchChain(chain []string) (ptx string, kname, usedArch string,
 		if v, ok := pohPTXByArch.Load(arch); ok {
 			e := v.(*pohPTXEntry)
 			if e.err == nil && e.ptx != "" {
-				return e.ptx, e.kname, e.arch, nil
+				return e.ptx, e.kname, e.knameB3, e.arch, nil
 			}
 			lastErr = e.err
 			continue
 		}
-		ptxB, kn, e := compilePTXOnce(arch)
-		entry := &pohPTXEntry{ptx: ptxB, kname: kn, arch: arch, err: e}
+		ptxB, kn, knB3, e := compilePTXOnce(arch)
+		entry := &pohPTXEntry{ptx: ptxB, kname: kn, knameB3: knB3, arch: arch, err: e}
 		pohPTXByArch.Store(arch, entry)
 		if e == nil && ptxB != "" {
-			return ptxB, kn, arch, nil
+			return ptxB, kn, knB3, arch, nil
 		}
 		lastErr = e
 	}
 	if lastErr != nil {
-		return "", "", "", lastErr
+		return "", "", "", "", lastErr
 	}
-	return "", "", "", fmt.Errorf("gpupoh: nvrtc compile failed for all arch targets %v", chain)
+	return "", "", "", "", fmt.Errorf("gpupoh: nvrtc compile failed for all arch targets %v", chain)
 }
 
-func compilePTXOnce(arch string) (ptx string, kname string, err error) {
+func compilePTXOnce(arch string) (ptx string, kname, knameB3 string, err error) {
 	prog, e := nvrtc.CreateProgram(pohCuSource, "poh_search.cu")
 	if e != nil {
-		return "", "", errors.Wrap(e, "gpupoh: nvrtc CreateProgram")
+		return "", "", "", errors.Wrap(e, "gpupoh: nvrtc CreateProgram")
 	}
 	defer func() { _ = prog.Destroy() }()
 	if e := prog.AddNameExpression("poh_search"); e != nil {
-		return "", "", errors.Wrap(e, "gpupoh: AddNameExpression")
+		return "", "", "", errors.Wrap(e, "gpupoh: AddNameExpression poh_search")
+	}
+	if e := prog.AddNameExpression("poh_search_blake3"); e != nil {
+		return "", "", "", errors.Wrap(e, "gpupoh: AddNameExpression poh_search_blake3")
 	}
 	flag := arch
 	if !strings.HasPrefix(flag, "compute_") && !strings.HasPrefix(flag, "sm_") {
@@ -88,30 +92,38 @@ func compilePTXOnce(arch string) (ptx string, kname string, err error) {
 	}
 	if e := prog.Compile(opts...); e != nil {
 		log, _ := prog.GetLog()
-		return "", "", fmt.Errorf("gpupoh: nvrtc Compile(%s): %w (log: %s)", flag, e, strings.TrimSpace(log))
+		return "", "", "", fmt.Errorf("gpupoh: nvrtc Compile(%s): %w (log: %s)", flag, e, strings.TrimSpace(log))
 	}
 	ptxStr, e := prog.GetPTX()
 	if e != nil {
-		return "", "", errors.Wrap(e, "gpupoh: GetPTX")
+		return "", "", "", errors.Wrap(e, "gpupoh: GetPTX")
 	}
 	kn, e := prog.GetLoweredName("poh_search")
 	if e != nil {
-		return "", "", errors.Wrap(e, "gpupoh: GetLoweredName")
+		return "", "", "", errors.Wrap(e, "gpupoh: GetLoweredName poh_search")
 	}
-	return ptxStr, kn, nil
+	knB3, e := prog.GetLoweredName("poh_search_blake3")
+	if e != nil {
+		return "", "", "", errors.Wrap(e, "gpupoh: GetLoweredName poh_search_blake3")
+	}
+	return ptxStr, kn, knB3, nil
 }
 
 type cudaAccel struct {
-	devID   int
-	devName string
-	arch    string
-	ctx     cu.CUContext
-	mod     cu.Module
-	kernel  cu.Function
-	dOut    cu.DevicePtr
-	blockSz int
-	haveCtx bool
-	haveMod bool
+	devID    int
+	devName  string
+	arch     string
+	ctx      cu.CUContext
+	mod      cu.Module
+	kernel   cu.Function
+	kernelB3 cu.Function
+	dOut     cu.DevicePtr
+	dPrefix  cu.DevicePtr
+	prefixN  int64
+	blockSz  int
+	haveCtx  bool
+	haveMod  bool
+	haveB3   bool
 }
 
 func newCUDAAccelerator(devID int) (Accelerator, error) {
@@ -119,7 +131,7 @@ func newCUDAAccelerator(devID int) (Accelerator, error) {
 	if err != nil {
 		return nil, err
 	}
-	ptx, kname, usedArch, err := compilePTXForArchChain(chain)
+	ptx, kname, knameB3, usedArch, err := compilePTXForArchChain(chain)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +156,12 @@ func newCUDAAccelerator(devID int) (Accelerator, error) {
 	if err != nil {
 		_ = mod.Unload()
 		_ = ctx.Destroy()
-		return nil, errors.Wrap(err, "gpupoh: Function")
+		return nil, errors.Wrap(err, "gpupoh: Function poh_search")
+	}
+	fnB3, errB3 := mod.Function(knameB3)
+	haveB3 := errB3 == nil
+	if !haveB3 && os.Getenv("HACKME_CUDA_VERBOSE") == "1" {
+		hotlog.VerboseStderrf("gpupoh: blake3 kernel unavailable (%v); host Blake3Search fallback", errB3)
 	}
 	dOut, err := cu.MemAlloc(8)
 	if err != nil {
@@ -153,16 +170,18 @@ func newCUDAAccelerator(devID int) (Accelerator, error) {
 		return nil, errors.Wrap(err, "gpupoh: MemAlloc")
 	}
 	return &cudaAccel{
-		devID:   devID,
-		devName: name,
-		arch:    usedArch,
-		ctx:     ctx,
-		mod:     mod,
-		kernel:  fn,
-		dOut:    dOut,
-		blockSz: envCUDABlockThreads(),
-		haveCtx: true,
-		haveMod: true,
+		devID:    devID,
+		devName:  name,
+		arch:     usedArch,
+		ctx:      ctx,
+		mod:      mod,
+		kernel:   fn,
+		kernelB3: fnB3,
+		dOut:     dOut,
+		blockSz:  envCUDABlockThreads(),
+		haveCtx:  true,
+		haveMod:  true,
+		haveB3:   haveB3,
 	}, nil
 }
 
@@ -179,6 +198,13 @@ func (a *cudaAccel) Close() error { return a.close() }
 
 func (a *cudaAccel) close() error {
 	var first error
+	if a.dPrefix != 0 {
+		if err := cu.MemFree(a.dPrefix); err != nil && first == nil {
+			first = err
+		}
+		a.dPrefix = 0
+		a.prefixN = 0
+	}
 	if a.dOut != 0 {
 		if err := cu.MemFree(a.dOut); err != nil && first == nil {
 			first = err
@@ -202,11 +228,136 @@ func (a *cudaAccel) close() error {
 
 func (a *cudaAccel) SearchPoH(ctx context.Context, req SearchRequest) (bool, uint64, error) {
 	if req.FormulaVersion >= 3 {
-		// Device Blake3 kernel lands with poh_search_blake3; until NVRTC wires it,
-		// host Blake3 matches chain.PohWorkBlake3 exactly (correctness > silicon).
+		if a.haveB3 && os.Getenv("HACKME_CUDA_BLAKE3_HOST") != "1" {
+			found, nonce, err := a.searchBlake3Device(ctx, req)
+			if err == nil {
+				return found, nonce, nil
+			}
+			if os.Getenv("HACKME_CUDA_VERBOSE") == "1" {
+				hotlog.VerboseStderrf("gpupoh: cuda blake3 device error, host fallback: %v", err)
+			}
+		}
+		// Host path matches chain.PohWorkBlake3 exactly (correctness lock + NVRTC escape hatch).
 		return Blake3Search(ctx, req.Base, req.Count, req.Mod, req.PrevHash, req.MinerAddress)
 	}
 	return a.Search(ctx, req.Base, req.Count, req.Mod)
+}
+
+func (a *cudaAccel) ensurePrefix(n int) error {
+	if n <= 0 {
+		return nil
+	}
+	need := int64(n)
+	if a.dPrefix != 0 && a.prefixN >= need {
+		return nil
+	}
+	if a.dPrefix != 0 {
+		if err := cu.MemFree(a.dPrefix); err != nil {
+			return errors.Wrap(err, "gpupoh: MemFree prefix")
+		}
+		a.dPrefix = 0
+		a.prefixN = 0
+	}
+	cap := need
+	if cap < 256 {
+		cap = 256
+	}
+	ptr, err := cu.MemAlloc(int64(cap))
+	if err != nil {
+		return errors.Wrap(err, "gpupoh: MemAlloc prefix")
+	}
+	a.dPrefix = ptr
+	a.prefixN = cap
+	return nil
+}
+
+func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (bool, uint64, error) {
+	count := req.Count
+	mod := req.Mod
+	if count == 0 || mod == 0 {
+		return false, 0, nil
+	}
+	if count > maxBatch {
+		count = maxBatch
+	}
+	prev := strings.ToLower(strings.TrimSpace(req.PrevHash))
+	addr := strings.TrimSpace(req.MinerAddress)
+	prefix := append([]byte(prev), addr...)
+	if len(prefix) > 960 {
+		return false, 0, fmt.Errorf("gpupoh: blake3 prefix len %d > 960", len(prefix))
+	}
+	select {
+	case <-ctx.Done():
+		return false, 0, ctx.Err()
+	default:
+	}
+	if a.haveCtx {
+		if err := a.ctx.Lock(); err != nil {
+			return false, 0, errors.Wrap(err, "gpupoh: ctx.Lock")
+		}
+		defer func() { _ = a.ctx.Unlock() }()
+	}
+	t0 := time.Now()
+
+	bt := a.blockSz
+	if bt < 32 {
+		bt = blockThreads
+	}
+
+	maxU := ^uint64(0)
+	if err := cu.MemcpyHtoD(a.dOut, unsafe.Pointer(&maxU), 8); err != nil {
+		return false, 0, errors.Wrap(err, "gpupoh: MemcpyHtoD init")
+	}
+	if err := a.ensurePrefix(len(prefix)); err != nil {
+		return false, 0, err
+	}
+	if len(prefix) > 0 {
+		if err := cu.MemcpyHtoD(a.dPrefix, unsafe.Pointer(&prefix[0]), int64(len(prefix))); err != nil {
+			return false, 0, errors.Wrap(err, "gpupoh: MemcpyHtoD prefix")
+		}
+	}
+
+	b := req.Base
+	c := count
+	m := mod
+	plen := int32(len(prefix))
+	dptr := a.dOut
+	pptr := a.dPrefix
+	args := []unsafe.Pointer{
+		unsafe.Pointer(&b),
+		unsafe.Pointer(&c),
+		unsafe.Pointer(&m),
+		unsafe.Pointer(&pptr),
+		unsafe.Pointer(&plen),
+		unsafe.Pointer(&dptr),
+	}
+
+	grid := cudaDivUp(int(count), bt)
+	if grid < 1 {
+		grid = 1
+	}
+
+	if err := a.kernelB3.Launch(grid, 1, 1, bt, 1, 1, 0, cu.Stream{}, args); err != nil {
+		return false, 0, errors.Wrap(err, "gpupoh: Launch poh_search_blake3")
+	}
+	if err := cu.Synchronize(); err != nil {
+		return false, 0, errors.Wrap(err, "gpupoh: Synchronize blake3")
+	}
+	kernelSec := time.Since(t0).Seconds()
+	recordCUDAKernelDuration(kernelSec)
+	if os.Getenv("HACKME_CUDA_VERBOSE") == "1" {
+		ghs := float64(count) / kernelSec / 1e9
+		hotlog.VerboseStderrf("gpupoh: cuda blake3 search count=%d elapsed=%s ~%.2f GH/s", count, time.Duration(kernelSec*float64(time.Second)).Round(time.Millisecond), ghs)
+	}
+
+	var out uint64
+	if err := cu.MemcpyDtoH(unsafe.Pointer(&out), a.dOut, 8); err != nil {
+		return false, 0, errors.Wrap(err, "gpupoh: MemcpyDtoH blake3")
+	}
+	if out == maxU {
+		return false, 0, nil
+	}
+	return true, out, nil
 }
 
 func (a *cudaAccel) Search(ctx context.Context, base, count, mod uint64) (found bool, nonce uint64, err error) {

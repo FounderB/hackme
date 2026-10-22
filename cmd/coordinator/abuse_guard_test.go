@@ -140,7 +140,7 @@ func TestPersistentPermabanSurvivesReload(t *testing.T) {
 }
 
 func newAbuseTestWM() *workManager {
-	return &workManager{
+	return withTestTip(&workManager{
 		defaultBatch:         1 << 22,
 		maxClaimBatch:        1 << 24,
 		targetMod:            1_000_003,
@@ -156,7 +156,7 @@ func newAbuseTestWM() *workManager {
 		ipAbuse:              make(map[string]workerAbuseState),
 		acceptedFoundNonces:  make(map[uint64]struct{}),
 		acceptedResultHashes: make(map[string]struct{}),
-	}
+	})
 }
 
 func TestAttemptsInflationCappedToDefaultBatch(t *testing.T) {

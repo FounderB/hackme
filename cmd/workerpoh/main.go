@@ -459,13 +459,18 @@ func pickSearcher(preferredBackend string, preferredDevice int, disableGPU bool)
 	return cpuSearcher{}, func() {}, "cpu"
 }
 
+// workerMeasureHashrateCapGHS is the worker-side report/measure ceiling (500).
+// Coordinator clampWorkerHashrateGHS allows 512 so billing/retarget is not clipped
+// below real multi-GPU peaks; keep this at 500 for honest per-worker telemetry.
+const workerMeasureHashrateCapGHS = 500.0
+
 func rawHashrateGHS(batch uint64, elapsedSec float64) float64 {
 	if batch == 0 || elapsedSec <= 0 {
 		return 0
 	}
 	ghs := float64(batch) / elapsedSec / 1e9
-	if ghs > 500 {
-		return 500
+	if ghs > workerMeasureHashrateCapGHS {
+		return workerMeasureHashrateCapGHS
 	}
 	return ghs
 }
@@ -477,8 +482,8 @@ func measureWorkerHashrateGHS(batch uint64, elapsedSec float64) float64 {
 	}
 	elapsedSec = effectiveSearchSeconds(elapsedSec)
 	ghs := float64(batch) / elapsedSec / 1e9
-	if ghs > 500 {
-		return 500
+	if ghs > workerMeasureHashrateCapGHS {
+		return workerMeasureHashrateCapGHS
 	}
 	if ghs < 1e-9 {
 		return 0
@@ -607,7 +612,7 @@ func calibrateGPUHashrateGHS(srch searcher, batch, mod uint64) float64 {
 			continue
 		}
 		g := rawHashrateGHS(batch, sec)
-		if g >= 0.01 && g <= 500 {
+		if g >= 0.01 && g <= workerMeasureHashrateCapGHS {
 			sum += g
 			n++
 		}
@@ -687,25 +692,25 @@ func submitHashrateGHS(batch uint64, searchSec float64, mode string) float64 {
 		if floor > 0 && ghs > 0 && ghs < floor {
 			ghs = floor
 		}
-		if ghs > 500 {
-			return 500
+		if ghs > workerMeasureHashrateCapGHS {
+			return workerMeasureHashrateCapGHS
 		}
 		return ghs
 	}
 	if declared <= 0 {
-		if ghs > 500 {
-			return 500
+		if ghs > workerMeasureHashrateCapGHS {
+			return workerMeasureHashrateCapGHS
 		}
 		return ghs
 	}
 	if ghs > 0 {
-		if ghs > 500 {
-			return 500
+		if ghs > workerMeasureHashrateCapGHS {
+			return workerMeasureHashrateCapGHS
 		}
 		return ghs
 	}
-	if declared > 500 {
-		return 500
+	if declared > workerMeasureHashrateCapGHS {
+		return workerMeasureHashrateCapGHS
 	}
 	return declared
 }

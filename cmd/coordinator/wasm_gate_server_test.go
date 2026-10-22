@@ -27,7 +27,7 @@ func mustOrderWasmHex(t *testing.T) string {
 }
 
 func TestWasmGateServerRejectsFabricatedPass(t *testing.T) {
-	wm := &workManager{
+	wm := withTestTip(&workManager{
 		defaultBatch:         1000,
 		targetMod:            997,
 		leaseSec:             30,
@@ -38,7 +38,7 @@ func TestWasmGateServerRejectsFabricatedPass(t *testing.T) {
 		worker:               make(map[string]workerPayoutStat),
 		acceptedResultHashes: make(map[string]struct{}),
 		acceptedFoundNonces:  make(map[uint64]struct{}),
-	}
+	})
 	wm.schedulerMu.Lock()
 	wm.activeOrder = activeOrderSnap{
 		ID:        "order-wasm-gate-rt",

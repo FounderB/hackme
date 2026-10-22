@@ -1,6 +1,44 @@
 package main
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
+
+func TestClampWorkerHashrateGHSAllowsRealGPUClass(t *testing.T) {
+	// Real RTX-class OpenCL/CUDA calibrations land ~140–150 GH/s; the old 128 cap
+	// silently clipped billing/retarget. Ceiling is 512 (500/512 family).
+	cases := []struct {
+		in, want float64
+	}{
+		{0, 0},
+		{-1, 0},
+		{math.NaN(), 0},
+		{math.Inf(1), 0},
+		{1.5, 1.5},
+		{128, 128},
+		{149.5, 149.5},
+		{500, 500},
+		{512, 512},
+		{513, 512},
+		{1000, 512},
+	}
+	for _, tc := range cases {
+		got := clampWorkerHashrateGHS(tc.in)
+		if math.IsNaN(tc.want) {
+			if !math.IsNaN(got) {
+				t.Fatalf("in=%v got %v want NaN", tc.in, got)
+			}
+			continue
+		}
+		if got != tc.want {
+			t.Fatalf("in=%v got %v want %v", tc.in, got, tc.want)
+		}
+	}
+	if maxWorkerHashrateGHS != 512 {
+		t.Fatalf("maxWorkerHashrateGHS=%v want 512", maxWorkerHashrateGHS)
+	}
+}
 
 func TestEffectiveWorkerHashrateGHSUsesPeakWhenEMACollapsed(t *testing.T) {
 	st := workerPayoutStat{LastHashrateGHS: 0.002, PeakHashrateGHS: 36.4}

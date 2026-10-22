@@ -14,7 +14,7 @@ func report29WM(t *testing.T, mod uint64) *workManager {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HACKME_COORDINATOR_TARGET_MOD_FILE", filepath.Join(dir, "coordinator_target_mod.txt"))
-	return &workManager{
+	return withTestTip(&workManager{
 		hybridSignerEnabled:    true,
 		hybridSignerStrict:     true,
 		hybridRequireFoundSig:  true,
@@ -48,7 +48,7 @@ func report29WM(t *testing.T, mod uint64) *workManager {
 		dropReasonCount:        map[string]uint64{},
 		supMeta:                map[string]workerSupMeta{},
 		pohFormulaVersion:      1,
-	}
+	})
 }
 
 func TestReport29PoolClampKeepsBoundsOnly(t *testing.T) {

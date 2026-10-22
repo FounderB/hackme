@@ -7157,6 +7157,8 @@
 			if (g < 1) return g.toFixed(2);
 			return fmt(g, 1);
 		}
+		// Display/UI cap (500) — coordinator billing clamp is 512 (500/512 family).
+		// Real single GPUs ~140–150 GH/s; multi-GPU workers can approach ~500.
 		function clampRigHashrateGHS(gh) {
 			const v = Number(gh || 0);
 			if (!(v > 0) || !Number.isFinite(v)) return 0;

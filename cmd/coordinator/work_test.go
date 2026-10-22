@@ -62,7 +62,7 @@ func TestWorkManagerReissuesExpiredRange(t *testing.T) {
 }
 
 func TestWorkManagerSubmitPayout(t *testing.T) {
-	wm := &workManager{
+	wm := withTestTip(&workManager{
 		defaultBatch:         1000,
 		targetMod:            997,
 		leaseSec:             30,
@@ -75,7 +75,7 @@ func TestWorkManagerSubmitPayout(t *testing.T) {
 		worker:               make(map[string]workerPayoutStat),
 		acceptedResultHashes: make(map[string]struct{}),
 		acceptedFoundNonces:  make(map[uint64]struct{}),
-	}
+	})
 	base, size, _, _, _, okClaim, reasonClaim := wm.claim("w1", 1000)
 	if !okClaim || reasonClaim != "" {
 		t.Fatalf("claim failed: ok=%v reason=%q", okClaim, reasonClaim)
@@ -148,7 +148,7 @@ func TestWorkManagerRejectsWorkIDMismatch(t *testing.T) {
 }
 
 func TestWorkManagerDedupResultHash(t *testing.T) {
-	wm := &workManager{
+	wm := withTestTip(&workManager{
 		defaultBatch:         1000,
 		targetMod:            997,
 		leaseSec:             30,
@@ -161,7 +161,7 @@ func TestWorkManagerDedupResultHash(t *testing.T) {
 		worker:               make(map[string]workerPayoutStat),
 		acceptedResultHashes: make(map[string]struct{}),
 		acceptedFoundNonces:  make(map[uint64]struct{}),
-	}
+	})
 	base1, size1, _, _, _, okClaim1, reasonClaim1 := wm.claim("w1", 1000)
 	if !okClaim1 || reasonClaim1 != "" {
 		t.Fatalf("first claim failed: ok=%v reason=%q", okClaim1, reasonClaim1)
@@ -278,7 +278,7 @@ func TestWorkManagerRejectsFoundNonceOutOfRange(t *testing.T) {
 }
 
 func TestWorkManagerRejectsDuplicateFoundNonce(t *testing.T) {
-	wm := &workManager{
+	wm := withTestTip(&workManager{
 		defaultBatch:         1000,
 		targetMod:            997,
 		leaseSec:             30,
@@ -289,7 +289,7 @@ func TestWorkManagerRejectsDuplicateFoundNonce(t *testing.T) {
 		worker:               make(map[string]workerPayoutStat),
 		acceptedResultHashes: make(map[string]struct{}),
 		acceptedFoundNonces:  make(map[uint64]struct{}),
-	}
+	})
 	base1, size1, _, _, _, okClaim1, reasonClaim1 := wm.claim("w1", 1000)
 	if !okClaim1 || reasonClaim1 != "" {
 		t.Fatalf("first claim failed: ok=%v reason=%q", okClaim1, reasonClaim1)
