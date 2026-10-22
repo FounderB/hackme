@@ -774,6 +774,55 @@ func fetchChainMetricsFromNode(targetURL string) chainMetricsSnap {
 	return out
 }
 
+// mergeTipFromStatus fills tip_hash/height from GET /api/status when /api/metrics
+// on older nodes omits them (pre-Blake3 node builds).
+func mergeTipFromStatus(base string, out *chainMetricsSnap) {
+	if out == nil || strings.TrimSpace(out.TipHash) != "" {
+		return
+	}
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	if base == "" {
+		return
+	}
+	cl := &http.Client{Timeout: 800 * time.Millisecond}
+	req, err := http.NewRequest(http.MethodGet, base+"/api/status", nil)
+	if err != nil {
+		return
+	}
+	resp, err := cl.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
+	var body map[string]any
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
+		return
+	}
+	if th, ok := body["tip_hash"].(string); ok {
+		out.TipHash = strings.TrimSpace(th)
+	}
+	if out.TipHeight == 0 {
+		if h, ok := asUint64Any(body["tip_height"]); ok {
+			out.TipHeight = h
+		} else if h, ok := asUint64Any(body["block_height"]); ok {
+			out.TipHeight = h
+		}
+	}
+	if out.PoHFormula == "" {
+		if f, ok := body["poh_formula"].(string); ok {
+			out.PoHFormula = strings.TrimSpace(f)
+		}
+	}
+	if out.PoHFormulaVersion == 0 {
+		if v, ok := asUint64Any(body["poh_formula_version"]); ok {
+			out.PoHFormulaVersion = int(v)
+		}
+	}
+}
+
 // prefetchTargetMod refreshes chain target from the node metrics URL. Call without holding m.mu.
 func (m *workManager) prefetchTargetMod(now int64) {
 	if strings.TrimSpace(m.targetURL) == "" {
@@ -789,6 +838,7 @@ func (m *workManager) prefetchTargetMod(now int64) {
 	m.mu.Unlock()
 
 	snap := fetchChainMetricsFromNode(targetURL)
+	mergeTipFromStatus(targetURL, &snap)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -1999,16 +2049,19 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		if fv <= 0 {
 			fv = m.resolvedPoHFormulaVersionLocked()
 		}
+		curTip := strings.TrimSpace(m.tipHash)
+		// Fail-closed: never accept found without a live tip hash. Without tip,
+		// formula version cannot be proven and Blake3 cannot be checked — algebraic
+		// found would otherwise keep paying after v3 activation (audit residual High).
+		if curTip == "" {
+			m.rejectedSubmits++
+			return false, "tip_hash_unavailable", 0, "", false
+		}
 		// Tip race: lease bound to prev_hash; if tip moved, reject stale work (v3).
 		if fv >= 3 {
-			curTip := strings.TrimSpace(m.tipHash)
 			if leasePrev == "" {
 				m.rejectedSubmits++
 				return false, "prev_hash_required_for_blake3", 0, "", false
-			}
-			if curTip == "" {
-				m.rejectedSubmits++
-				return false, "tip_hash_unavailable", 0, "", false
 			}
 			if !strings.EqualFold(leasePrev, curTip) {
 				m.rejectedSubmits++
@@ -3006,6 +3059,9 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 			claimFV = chain.PoHFormulaVersionForIndex(wm.tipHeight + 1)
 		}
 		if claimFV <= 0 {
+			claimFV = wm.resolvedPoHFormulaVersionLocked()
+		}
+		if claimFV <= 0 {
 			claimFV = 1
 		}
 		claimFormula = wm.pohFormula
@@ -3015,6 +3071,18 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 		actH := wm.pohActivationHeight
 		if actH == 0 {
 			actH = chain.PoHFormulaV3ActivationHeight()
+		}
+		// Blake3 leases need a tip; refuse claim rather than hand out empty prev_hash.
+		if claimFV >= 3 && strings.TrimSpace(claimPrev) == "" {
+			delete(wm.active, workKey{base: base, batch: size})
+			wm.mu.Unlock()
+			wm.recordDrop("tip_hash_unavailable")
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"ok": false, "worker_id": workerID, "reason": "tip_hash_unavailable",
+			})
+			return
 		}
 		wm.mu.Unlock()
 		if okCharge, reasonCharge := wm.chargeClaimWorker(workerID, now); !okCharge {

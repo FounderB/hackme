@@ -11814,6 +11814,19 @@
 			const payload = m && typeof m === 'object' ? m : {};
 			const ws = latestWorkStats || {};
 			const wst = latestWorkerStatus || {};
+			const formulaChip = $('mining-poh-formula-chip');
+			if (formulaChip) {
+				const f = String(payload.poh_formula || ws.poh_formula || '').trim();
+				const ver = Number(payload.poh_formula_version || ws.poh_formula_version || 0);
+				const act = Number(payload.poh_activation_height || ws.poh_activation_height || 0);
+				if (f) {
+					formulaChip.textContent = f + (ver ? (' · v' + ver) : '') + (act ? (' · activate@' + act) : '');
+				} else if (ver >= 3) {
+					formulaChip.textContent = 'Blake3(prev‖miner‖nonce) work mod M = 0 · v' + ver;
+				} else if (ver === 1 || ver === 2) {
+					formulaChip.textContent = (ver === 2 ? 'eval_v2 mix64' : 'eval(n)=7n+13') + ' mod M = 0 · v' + ver;
+				}
+			}
 			const netMode = !!(latestStatus && latestStatus.network_mode_active);
 			const leaderLocal = !!(latestStatus && (latestStatus.chain_leader_local_poh || latestStatus.local_solo_allowed));
 			const coordAps = Number(workerDerived.acceptedAttemptsPerSec5s || 0);

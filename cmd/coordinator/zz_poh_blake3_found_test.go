@@ -142,6 +142,34 @@ func TestResolvedPoHFormulaUsesTipHeight(t *testing.T) {
 	}
 }
 
+func TestFoundRejectsWithoutTipHash(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HACKME_COORDINATOR_TARGET_MOD_FILE", filepath.Join(dir, "mod-notip.txt"))
+	mod := uint64(1_000_000)
+	pub, priv, _ := ed25519.GenerateKey(nil)
+	addr := signerAddr(pub)
+	m := report29WM(t, mod)
+	m.tipHash = ""
+	m.tipHeight = 0
+	m.pohFormulaVersion = 0 // would historically fail-open to algebraic v1
+	m.worker["rig-notip"] = workerPayoutStat{PayoutAddress: addr}
+	nonce := uint64(142857) // classic 7n+13 hit for large M
+	m.active[workKey{base: nonce, batch: 1}] = leaseRecord{
+		WorkerID: "rig-notip", BaseNonce: nonce, BatchSize: 1, IssuedAt: 1, ExpiresAt: 1 << 40,
+		TargetMod: mod, MinerAddress: addr, FormulaVersion: 1,
+	}
+	req := submitWorkRequest{
+		WorkerID: "rig-notip", BaseNonce: nonce, BatchSize: 1, Found: true, FoundNonce: nonce,
+		ResultHash: "deadbeef", Attempts: 1, SubmitNonce: 1, HashrateGHS: 1,
+		MinerPubKey: hex.EncodeToString(pub), MinerAddress: addr, MinerSigAlg: "ed25519",
+	}
+	req.MinerSig = hex.EncodeToString(ed25519.Sign(priv, canonicalSubmitBytes(req)))
+	ok, reason, _, _, _ := m.submit(req)
+	if ok || reason != "tip_hash_unavailable" {
+		t.Fatalf("found without tip must fail tip_hash_unavailable, got ok=%v reason=%s", ok, reason)
+	}
+}
+
 func TestBlake3StalePrevHashRejected(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HACKME_COORDINATOR_TARGET_MOD_FILE", filepath.Join(dir, "mod2.txt"))
