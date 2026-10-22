@@ -17,9 +17,9 @@ NAMES=(
   shannon turing hopper knuth mccarthy
   lovelace tesla euclid noether faraday
   ui-west digga fuzzlane rack-neon byte-hop
-  desktop-p3r9kx-w desktop-m2w8qn-w desktop-h7c4vj-w
-  desktop-y1d8qt-w desktop-q8n2kp-w desktop-x4m7vt-w
-  anechka FroZenn
+  desktop-p3r9kx desktop-m2w8qn desktop-h7c4vj
+  desktop-y1d8qt desktop-q8n2kp desktop-x4m7vt
+  anechka FroZenn mira-lynx
 )
 
 echo "=== fleet_profit_soak_test ==="
@@ -27,13 +27,13 @@ local_ok=0
 for n in "${NAMES[@]}"; do
   systemctl --user is-active --quiet "${UNIT_PREFIX}-${n}.service" 2>/dev/null && local_ok=$((local_ok+1))
 done
-(( local_ok == 28 )) && pass "local units $local_ok/28" || fail "local units $local_ok/28"
+(( local_ok == 29 )) && pass "local units $local_ok/29" || fail "local units $local_ok/29"
 
 curl -fsS --max-time 15 -A 'Mozilla/5.0' \
   'https://hackme.tech/pool/coordinator/api/work/stats' -o /tmp/soak-test-stats.json
 python3 - <<'PY' || true
 import json,time,sys
-names="""desktop-a4m2rx desktop-k7v1pd desktop-q9n4ls desktop-t2c8we desktop-z5h6mf shannon turing hopper knuth mccarthy lovelace tesla euclid noether faraday ui-west digga fuzzlane rack-neon byte-hop desktop-p3r9kx-w desktop-m2w8qn-w desktop-h7c4vj-w desktop-y1d8qt-w desktop-q8n2kp-w desktop-x4m7vt-w anechka FroZenn""".split()
+names="""desktop-a4m2rx desktop-k7v1pd desktop-q9n4ls desktop-t2c8we desktop-z5h6mf shannon turing hopper knuth mccarthy lovelace tesla euclid noether faraday ui-west digga fuzzlane rack-neon byte-hop desktop-p3r9kx desktop-m2w8qn desktop-h7c4vj desktop-y1d8qt desktop-q8n2kp desktop-x4m7vt anechka FroZenn mira-lynx""".split()
 d=json.load(open("/tmp/soak-test-stats.json")); w=d.get("workers") or {}; now=time.time()
 ok=0; addrs=set(); pays=0.0
 for n in names:
@@ -47,8 +47,8 @@ open("/tmp/soak-test-summary.json","w").write(json.dumps({"hub":ok,"addrs":len(a
 print(ok,len(addrs),round(pays,6))
 PY
 read -r hub addrs pay <<<"$(python3 -c 'import json;d=json.load(open("/tmp/soak-test-summary.json"));print(d["hub"],d["addrs"],d["pay"])')"
-(( hub == 28 )) && pass "hub online $hub/28" || fail "hub online $hub/28"
-(( addrs == 28 )) && pass "unique payout addrs $addrs" || fail "unique payout addrs $addrs"
+(( hub == 29 )) && pass "hub online $hub/29" || fail "hub online $hub/29"
+(( addrs == 29 )) && pass "unique payout addrs $addrs" || fail "unique payout addrs $addrs"
 
 [[ -x "$ROOT/scripts/ops/fleet_profit_status.sh" ]] && pass "fleet_profit_status.sh executable" || fail "status script"
 [[ -x "$ROOT/scripts/ops/fleet_profit_watchdog.sh" ]] && pass "watchdog executable" || fail "watchdog"
@@ -62,7 +62,7 @@ grep -q 'accrued_hmc=' /tmp/soak-settle-dry.out && pass "settle dry-run ($(grep 
 
 # seeds + wallets
 seed_n=0; for n in "${NAMES[@]}"; do [[ -f "$LOG_DIR/seeds/worker-${n}.seed" ]] && seed_n=$((seed_n+1)); done
-(( seed_n == 28 )) && pass "seeds $seed_n/28" || fail "seeds $seed_n/28"
+(( seed_n == 29 )) && pass "seeds $seed_n/29" || fail "seeds $seed_n/29"
 
 # timers
 for t in hackme-fleet-profit-watchdog.timer hackme-fleet-settle.timer hackme-fleet-metrics.timer; do

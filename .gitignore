@@ -87,6 +87,12 @@ Thumbs.db
 web/site/reports/**/*-wip.html
 web/site/assets/social/
 web/site/assets/*-draft.json
+web/site/assets/reddit-r-HackMeTech-*.png
+web/site/assets/reddit-r-HackMeTech-*.jpg
+web/site/assets/*.bakcheck
+
+# === Local fuzz harness scratch (not catalogued yet) ===
+tasks/sources/fuzz/oss/*_stdin.c
 
 # === Root product-brief drops ===
 /HackMe_Fuzz_*.md

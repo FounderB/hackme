@@ -86,7 +86,7 @@ func TestBlake3CUDADeviceMatchesHost(t *testing.T) {
 		Count:          batch,
 		Mod:            10_007,
 		PrevHash:       prev,
-		MinerAddress:    addr,
+		MinerAddress:   addr,
 		FormulaVersion: 3,
 	})
 	el2 := time.Since(t1)

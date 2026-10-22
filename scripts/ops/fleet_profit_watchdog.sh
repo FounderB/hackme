@@ -25,9 +25,9 @@ NAMES=(
   shannon turing hopper knuth mccarthy
   lovelace tesla euclid noether faraday
   ui-west digga fuzzlane rack-neon byte-hop
-  desktop-p3r9kx-w desktop-m2w8qn-w desktop-h7c4vj-w
-  desktop-y1d8qt-w desktop-q8n2kp-w desktop-x4m7vt-w
-  anechka FroZenn
+  desktop-p3r9kx desktop-m2w8qn desktop-h7c4vj
+  desktop-y1d8qt desktop-q8n2kp desktop-x4m7vt
+  anechka FroZenn mira-lynx
 )
 
 mkdir -p "$LOG_DIR"
