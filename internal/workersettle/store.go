@@ -1,0 +1,436 @@
+// Package workersettle is the HMC worker settlement ledger (SQLite + outbox).
+// It extends the JSON flock model used by scripts/ops/settle_worker_payouts.sh
+// toward transactional pending intents (same spirit as poolfuzz settle_outbox).
+package workersettle
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"hackme/internal/store"
+
+	_ "modernc.org/sqlite"
+)
+
+// WorkerRow is one worker's settlement watermark + optional pending intent.
+type WorkerRow struct {
+	WorkerID         string
+	SettledHMC       float64
+	SettledSUP       float64
+	SessionAnchorHMC float64 // 0 = unset
+	PayoutAddress    string
+	LastTxHash       string
+	LastSettleUnix   int64
+	PendingJSON      string // raw pending_settle object or empty
+}
+
+// Meta holds ledger-wide fields.
+type Meta struct {
+	LastForceUnix int64
+}
+
+// Store is a SQLite-backed settlement ledger.
+type Store struct {
+	db   *sql.DB
+	path string
+	mu   sync.Mutex
+}
+
+// Open opens (or creates) the settlement DB at path.
+func Open(path string) (*Store, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, fmt.Errorf("workersettle: empty path")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil && filepath.Dir(path) != "." {
+		return nil, err
+	}
+	db, err := sql.Open("sqlite", store.SQLiteDSN(path))
+	if err != nil {
+		return nil, err
+	}
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	store.TuneSQLitePool(db, "main")
+	s := &Store{db: db, path: path}
+	if err := s.ensureSchema(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
+// SQLiteDSNPublic is exposed for tests; prefer Open.
+func (s *Store) Close() error {
+	if s == nil || s.db == nil {
+		return nil
+	}
+	return s.db.Close()
+}
+
+func (s *Store) ensureSchema() error {
+	_, err := s.db.Exec(`
+CREATE TABLE IF NOT EXISTS settle_meta (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  last_force_unix INTEGER NOT NULL DEFAULT 0,
+  migrated_from_json INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO settle_meta (id, last_force_unix, migrated_from_json) VALUES (1, 0, 0);
+
+CREATE TABLE IF NOT EXISTS settle_workers (
+  worker_id TEXT PRIMARY KEY,
+  settled_hmc REAL NOT NULL DEFAULT 0,
+  settled_sup REAL NOT NULL DEFAULT 0,
+  session_anchor_hmc REAL NOT NULL DEFAULT 0,
+  payout_address TEXT NOT NULL DEFAULT '',
+  last_tx_hash TEXT NOT NULL DEFAULT '',
+  last_settle_unix INTEGER NOT NULL DEFAULT 0,
+  pending_json TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS settle_outbox (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  worker_id TEXT NOT NULL,
+  payout_address TEXT NOT NULL,
+  delta_hmc REAL NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  tx_hash TEXT NOT NULL DEFAULT '',
+  nonce INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  applied_at INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_settle_outbox_status ON settle_outbox(status, id);
+`)
+	return err
+}
+
+// MigrateFromJSON imports a legacy worker_settlement_state.json once.
+func (s *Store) MigrateFromJSON(ctx context.Context, jsonPath string) (bool, error) {
+	if s == nil || s.db == nil {
+		return false, fmt.Errorf("workersettle: nil store")
+	}
+	jsonPath = strings.TrimSpace(jsonPath)
+	if jsonPath == "" {
+		return false, nil
+	}
+	var migrated int
+	if err := s.db.QueryRowContext(ctx, `SELECT migrated_from_json FROM settle_meta WHERE id=1`).Scan(&migrated); err != nil {
+		return false, err
+	}
+	if migrated != 0 {
+		return false, nil
+	}
+	raw, err := os.ReadFile(jsonPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			_, _ = s.db.ExecContext(ctx, `UPDATE settle_meta SET migrated_from_json=1 WHERE id=1`)
+			return false, nil
+		}
+		return false, err
+	}
+	var st struct {
+		Workers map[string]struct {
+			SettledHMC       float64          `json:"settled_hmc"`
+			SettledSUP       float64          `json:"settled_sup"`
+			SessionAnchorHMC float64          `json:"session_anchor_hmc"`
+			PayoutAddress    string           `json:"payout_address"`
+			LastTxHash       string           `json:"last_tx_hash"`
+			LastSettleUnix   int64            `json:"last_settle_unix"`
+			PendingSettle    json.RawMessage  `json:"pending_settle"`
+		} `json:"workers"`
+		Meta struct {
+			LastForceUnix int64 `json:"last_force_unix"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(raw, &st); err != nil {
+		return false, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := time.Now().Unix()
+	for wid, e := range st.Workers {
+		wid = strings.TrimSpace(wid)
+		if wid == "" {
+			continue
+		}
+		pend := ""
+		if len(e.PendingSettle) > 0 && string(e.PendingSettle) != "null" {
+			pend = string(e.PendingSettle)
+		}
+		_, err := tx.ExecContext(ctx, `
+INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, last_tx_hash, last_settle_unix, pending_json, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(worker_id) DO UPDATE SET
+  settled_hmc=excluded.settled_hmc,
+  settled_sup=excluded.settled_sup,
+  session_anchor_hmc=excluded.session_anchor_hmc,
+  payout_address=excluded.payout_address,
+  last_tx_hash=excluded.last_tx_hash,
+  last_settle_unix=excluded.last_settle_unix,
+  pending_json=excluded.pending_json,
+  updated_at=excluded.updated_at`,
+			wid, e.SettledHMC, e.SettledSUP, e.SessionAnchorHMC, strings.TrimSpace(e.PayoutAddress),
+			strings.TrimSpace(e.LastTxHash), e.LastSettleUnix, pend, now)
+		if err != nil {
+			return false, err
+		}
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE settle_meta SET last_force_unix=?, migrated_from_json=1 WHERE id=1`, st.Meta.LastForceUnix)
+	if err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// GetWorker returns a row or zero values if missing.
+func (s *Store) GetWorker(ctx context.Context, workerID string) (WorkerRow, error) {
+	var r WorkerRow
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return r, fmt.Errorf("workersettle: empty worker_id")
+	}
+	err := s.db.QueryRowContext(ctx, `
+SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, last_tx_hash, last_settle_unix, pending_json
+  FROM settle_workers WHERE worker_id=?`, workerID).Scan(
+		&r.WorkerID, &r.SettledHMC, &r.SettledSUP, &r.SessionAnchorHMC, &r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON)
+	if err == sql.ErrNoRows {
+		r.WorkerID = workerID
+		return r, nil
+	}
+	return r, err
+}
+
+// SetPending records durable pending intent (BEGIN IMMEDIATE) and enqueues outbox.
+func (s *Store) SetPending(ctx context.Context, workerID, payoutAddr string, deltaHMC float64, nonce int64) (outboxID int64, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	workerID = strings.TrimSpace(workerID)
+	payoutAddr = strings.TrimSpace(payoutAddr)
+	if workerID == "" || payoutAddr == "" || deltaHMC <= 0 {
+		return 0, fmt.Errorf("workersettle: invalid pending args")
+	}
+	now := time.Now().Unix()
+	pendObj := map[string]any{
+		"delta_hmc":      deltaHMC,
+		"payout_address": payoutAddr,
+		"started_unix":   now,
+		"nonce":          nonce,
+	}
+	pendRaw, _ := json.Marshal(pendObj)
+
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return 0, err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
+		}
+	}()
+	_, err = conn.ExecContext(ctx, `
+INSERT INTO settle_workers (worker_id, settled_hmc, payout_address, pending_json, updated_at)
+VALUES (?, 0, ?, ?, ?)
+ON CONFLICT(worker_id) DO UPDATE SET
+  payout_address=excluded.payout_address,
+  pending_json=excluded.pending_json,
+  updated_at=excluded.updated_at`, workerID, payoutAddr, string(pendRaw), now)
+	if err != nil {
+		return 0, err
+	}
+	res, err := conn.ExecContext(ctx, `
+INSERT INTO settle_outbox (worker_id, payout_address, delta_hmc, status, nonce, created_at)
+VALUES (?, ?, ?, 'pending', ?, ?)`, workerID, payoutAddr, deltaHMC, nonce, now)
+	if err != nil {
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return 0, err
+	}
+	committed = true
+	return id, nil
+}
+
+// AttachTxHash stamps pending + latest outbox row with tx_hash.
+func (s *Store) AttachTxHash(ctx context.Context, workerID, txHash string) error {
+	workerID = strings.TrimSpace(workerID)
+	txHash = strings.TrimSpace(txHash)
+	if workerID == "" || txHash == "" {
+		return fmt.Errorf("workersettle: empty worker or tx")
+	}
+	row, err := s.GetWorker(ctx, workerID)
+	if err != nil {
+		return err
+	}
+	pend := map[string]any{}
+	if row.PendingJSON != "" {
+		_ = json.Unmarshal([]byte(row.PendingJSON), &pend)
+	}
+	pend["tx_hash"] = txHash
+	raw, _ := json.Marshal(pend)
+	_, err = s.db.ExecContext(ctx, `
+UPDATE settle_workers SET pending_json=?, updated_at=? WHERE worker_id=?`,
+		string(raw), time.Now().Unix(), workerID)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `
+UPDATE settle_outbox SET tx_hash=?
+ WHERE id=(SELECT id FROM settle_outbox WHERE worker_id=? AND status='pending' ORDER BY id DESC LIMIT 1)`,
+		txHash, workerID)
+	return err
+}
+
+// ClearPending drops pending intent without advancing settled (failed send).
+func (s *Store) ClearPending(ctx context.Context, workerID string) error {
+	workerID = strings.TrimSpace(workerID)
+	_, err := s.db.ExecContext(ctx, `
+UPDATE settle_workers SET pending_json='', updated_at=? WHERE worker_id=?`,
+		time.Now().Unix(), workerID)
+	return err
+}
+
+// ApplySettle advances settled watermark, clears pending, marks outbox applied.
+func (s *Store) ApplySettle(ctx context.Context, workerID, payoutAddr, txHash string, newSettled, sessionAnchor float64, clearAnchor bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return fmt.Errorf("workersettle: empty worker_id")
+	}
+	now := time.Now().Unix()
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
+		}
+	}()
+	anchor := sessionAnchor
+	if clearAnchor {
+		anchor = 0
+	}
+	_, err = conn.ExecContext(ctx, `
+INSERT INTO settle_workers (worker_id, settled_hmc, session_anchor_hmc, payout_address, last_tx_hash, last_settle_unix, pending_json, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, '', ?)
+ON CONFLICT(worker_id) DO UPDATE SET
+  settled_hmc=excluded.settled_hmc,
+  session_anchor_hmc=excluded.session_anchor_hmc,
+  payout_address=excluded.payout_address,
+  last_tx_hash=excluded.last_tx_hash,
+  last_settle_unix=excluded.last_settle_unix,
+  pending_json='',
+  updated_at=excluded.updated_at`,
+		workerID, newSettled, anchor, strings.TrimSpace(payoutAddr), strings.TrimSpace(txHash), now, now)
+	if err != nil {
+		return err
+	}
+	_, err = conn.ExecContext(ctx, `
+UPDATE settle_outbox SET status='applied', tx_hash=?, applied_at=?
+ WHERE worker_id=? AND status='pending'`, strings.TrimSpace(txHash), now, workerID)
+	if err != nil {
+		return err
+	}
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return err
+	}
+	committed = true
+	return nil
+}
+
+// SetLastForceUnix updates meta.
+func (s *Store) SetLastForceUnix(ctx context.Context, ts int64) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE settle_meta SET last_force_unix=? WHERE id=1`, ts)
+	return err
+}
+
+// GetMeta returns ledger meta.
+func (s *Store) GetMeta(ctx context.Context) (Meta, error) {
+	var m Meta
+	err := s.db.QueryRowContext(ctx, `SELECT last_force_unix FROM settle_meta WHERE id=1`).Scan(&m.LastForceUnix)
+	return m, err
+}
+
+// ExportJSON writes a JSON document compatible with settle_worker_payouts.sh / settlement_api.
+func (s *Store) ExportJSON(ctx context.Context) ([]byte, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, last_tx_hash, last_settle_unix, pending_json
+  FROM settle_workers`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	workers := map[string]any{}
+	for rows.Next() {
+		var r WorkerRow
+		if err := rows.Scan(&r.WorkerID, &r.SettledHMC, &r.SettledSUP, &r.SessionAnchorHMC, &r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON); err != nil {
+			return nil, err
+		}
+		ent := map[string]any{
+			"settled_hmc":       r.SettledHMC,
+			"settled_sup":       r.SettledSUP,
+			"payout_address":    r.PayoutAddress,
+			"last_tx_hash":      r.LastTxHash,
+			"last_settle_unix":  r.LastSettleUnix,
+		}
+		if r.SessionAnchorHMC > 0 {
+			ent["session_anchor_hmc"] = r.SessionAnchorHMC
+		}
+		if strings.TrimSpace(r.PendingJSON) != "" {
+			var pend any
+			if json.Unmarshal([]byte(r.PendingJSON), &pend) == nil {
+				ent["pending_settle"] = pend
+			}
+		}
+		workers[r.WorkerID] = ent
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	meta, err := s.GetMeta(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return json.MarshalIndent(map[string]any{
+		"workers": workers,
+		"meta":    map[string]any{"last_force_unix": meta.LastForceUnix},
+	}, "", "  ")
+}
+
+// CountPendingOutbox returns pending outbox rows.
+func (s *Store) CountPendingOutbox(ctx context.Context) (int64, error) {
+	var n int64
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM settle_outbox WHERE status='pending'`).Scan(&n)
+	return n, err
+}

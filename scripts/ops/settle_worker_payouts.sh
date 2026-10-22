@@ -45,9 +45,27 @@ DAILY_FORCE_INTERVAL_SEC="${DAILY_FORCE_INTERVAL_SEC:-86400}"
 DAILY_MIN_SETTLE_HMC="${DAILY_MIN_SETTLE_HMC:-0.0001}"
 FORCE_SETTLE_ALL="${FORCE_SETTLE_ALL:-0}"
 STATE_FILE="${STATE_FILE:-data/worker_settlement_state.json}"
+# SQLite ledger (Wave C): default beside JSON. Set SETTLE_SQLITE=0 to disable.
+STATE_DB="${STATE_DB:-${HACKME_WORKER_SETTLEMENT_DB:-}}"
+if [[ -z "$STATE_DB" && "${SETTLE_SQLITE:-1}" != "0" ]]; then
+  if [[ "$STATE_FILE" == *.json ]]; then
+    STATE_DB="${STATE_FILE%.json}.db"
+  else
+    STATE_DB="${STATE_FILE}.db"
+  fi
+fi
 WORKER_PAYOUT_MAP="${WORKER_PAYOUT_MAP:-}"
 # Comma-separated worker_id allowlist (e.g. named fleet only). Empty = all workers.
 SETTLE_WORKER_ALLOWLIST="${SETTLE_WORKER_ALLOWLIST:-${HACKME_SETTLE_WORKER_ALLOWLIST:-}}"
+SETTLECTL="${SETTLECTL:-}"
+if [[ -z "$SETTLECTL" ]]; then
+  for c in "$ROOT_DIR/bin/workersettlectl" "$ROOT_DIR/workersettlectl"; do
+    if [[ -x "$c" ]]; then
+      SETTLECTL="$c"
+      break
+    fi
+  done
+fi
 SETTLE_TX_WAIT_SEC="${SETTLE_TX_WAIT_SEC:-90}"
 SETTLE_SEQUENTIAL="${SETTLE_SEQUENTIAL:-1}"
 SETTLE_PAYOUT_PAUSE_SEC="${SETTLE_PAYOUT_PAUSE_SEC:-10}"
@@ -125,12 +143,30 @@ if [[ -n "${SETTLE_EXPECTED_HOSTNAME:-}" ]]; then
   fi
 fi
 
+settle_sqlite_ready() {
+  [[ -n "$STATE_DB" && "${SETTLE_SQLITE:-1}" != "0" && -n "$SETTLECTL" && -x "$SETTLECTL" ]]
+}
+
+settle_sqlite_sync_json() {
+  if settle_sqlite_ready; then
+    "$SETTLECTL" export-json "$STATE_DB" "$STATE_FILE" >/dev/null
+  fi
+}
+
 # Single-writer: avoid two cron/systemd instances racing on nonce + state (see docs/POOL_SECURITY_THREATS_VERDICT.md).
 LOCK_FILE="${STATE_FILE}.flock"
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
   echo "[settle-workers] skip: another instance holds ${LOCK_FILE}" >&2
   exit 0
+fi
+
+if settle_sqlite_ready; then
+  echo "[settle-workers] sqlite ledger: $STATE_DB (ctl=$SETTLECTL)"
+  "$SETTLECTL" migrate "$STATE_DB" "$STATE_FILE" >/dev/null || true
+  settle_sqlite_sync_json || true
+elif [[ -n "$STATE_DB" && "${SETTLE_SQLITE:-1}" != "0" ]]; then
+  echo "[settle-workers] WARN: STATE_DB set but workersettlectl missing — JSON-only path (build: go build -o bin/workersettlectl ./cmd/workersettlectl)" >&2
 fi
 
 tx_response_ok() {
@@ -479,15 +515,23 @@ PY
   nonce_before="$nonce"
 
   # Durable intent before mint/transfer (cleared on hard failure; retained on ambiguous crash).
-  tmp="$(mktemp)"
-  if ! jq --arg wid "$worker_id" --arg addr "$to_addr" --arg delta "$delta_hmc" --argjson ts "$ts" --argjson nonce "$nonce" \
-    '.workers[$wid].pending_settle = {delta_hmc:($delta|tonumber),payout_address:$addr,started_unix:$ts,nonce:$nonce}' \
-    "$STATE_FILE" >"$tmp"; then
-    rm -f "$tmp"
-    echo "[settle-workers] ERROR pending intent ${worker_id}: jq failed" >&2
-    continue
+  if settle_sqlite_ready; then
+    if ! "$SETTLECTL" set-pending "$STATE_DB" "$worker_id" "$to_addr" "$delta_hmc" "$nonce" >/dev/null; then
+      echo "[settle-workers] ERROR pending intent ${worker_id}: sqlite set-pending failed" >&2
+      continue
+    fi
+    settle_sqlite_sync_json || true
+  else
+    tmp="$(mktemp)"
+    if ! jq --arg wid "$worker_id" --arg addr "$to_addr" --arg delta "$delta_hmc" --argjson ts "$ts" --argjson nonce "$nonce" \
+      '.workers[$wid].pending_settle = {delta_hmc:($delta|tonumber),payout_address:$addr,started_unix:$ts,nonce:$nonce}' \
+      "$STATE_FILE" >"$tmp"; then
+      rm -f "$tmp"
+      echo "[settle-workers] ERROR pending intent ${worker_id}: jq failed" >&2
+      continue
+    fi
+    mv "$tmp" "$STATE_FILE"
   fi
-  mv "$tmp" "$STATE_FILE"
 
   resp=""
   if ! resp="$(send_settlement_tx "$payer_addr" "$to_addr" "$amount_units" "$ts" "$nonce")"; then
@@ -523,17 +567,27 @@ PY
       echo "[settle-workers] WARN ${worker_id}: ambiguous send (nonce ${nonce_before}->${nonce_after}) without verifiable tx_hash — keeping pending_settle, not re-sending next run" >&2
     else
       echo "[settle-workers] ERROR settle ${worker_id} -> ${to_addr}: ${resp:-curl_failed}" >&2
-      tmp="$(mktemp)"
-      jq --arg wid "$worker_id" 'del(.workers[$wid].pending_settle)' "$STATE_FILE" >"$tmp" && mv "$tmp" "$STATE_FILE"
+      if settle_sqlite_ready; then
+        "$SETTLECTL" clear-pending "$STATE_DB" "$worker_id" >/dev/null || true
+        settle_sqlite_sync_json || true
+      else
+        tmp="$(mktemp)"
+        jq --arg wid "$worker_id" 'del(.workers[$wid].pending_settle)' "$STATE_FILE" >"$tmp" && mv "$tmp" "$STATE_FILE"
+      fi
     fi
     continue
   fi
   tx_hash="$(jq -r '.tx_hash // ""' <<<"${resp:-{}}" 2>/dev/null || echo "")"
   if [[ -n "$tx_hash" ]]; then
-    tmp="$(mktemp)"
-    jq --arg wid "$worker_id" --arg tx "$tx_hash" \
-      '.workers[$wid].pending_settle.tx_hash = $tx' \
-      "$STATE_FILE" >"$tmp" && mv "$tmp" "$STATE_FILE"
+    if settle_sqlite_ready; then
+      "$SETTLECTL" attach-tx "$STATE_DB" "$worker_id" "$tx_hash" >/dev/null || true
+      settle_sqlite_sync_json || true
+    else
+      tmp="$(mktemp)"
+      jq --arg wid "$worker_id" --arg tx "$tx_hash" \
+        '.workers[$wid].pending_settle.tx_hash = $tx' \
+        "$STATE_FILE" >"$tmp" && mv "$tmp" "$STATE_FILE"
+    fi
   fi
   if [[ -z "$tx_hash" ]] || ! verify_settlement_tx "$tx_hash"; then
     echo "[settle-workers] ERROR settle ${worker_id}: tx_hash missing or not confirmed on chain (${tx_hash:-empty}) — pending_settle retained" >&2
@@ -554,23 +608,39 @@ import sys
 print(f"{float(sys.argv[1]):.12f}")
 PY
 )"
-  tmp="$(mktemp)"
-  if [[ "$rebase" == "1" ]]; then
-    jq_expr='(.workers[$wid] = ((.workers[$wid] // {}) + {settled_hmc:($settled|tonumber),session_anchor_hmc:($anchor|tonumber),payout_address:$addr,last_tx_hash:$tx,last_settle_unix:$ts})) | del(.workers[$wid].pending_settle)'
+  if settle_sqlite_ready; then
+    if [[ "$rebase" == "1" ]]; then
+      if ! "$SETTLECTL" apply "$STATE_DB" "$worker_id" "$to_addr" "$tx_hash" "$new_settled_hmc" "$new_anchor_hmc" >/dev/null; then
+        echo "[settle-workers] ERROR state update ${worker_id}: sqlite apply failed" >&2
+        continue
+      fi
+    else
+      if ! "$SETTLECTL" apply "$STATE_DB" "$worker_id" "$to_addr" "$tx_hash" "$new_settled_hmc" clear >/dev/null; then
+        echo "[settle-workers] ERROR state update ${worker_id}: sqlite apply failed" >&2
+        continue
+      fi
+    fi
+    settle_sqlite_sync_json || true
   else
-    jq_expr='(.workers[$wid] = ((.workers[$wid] // {}) + {settled_hmc:($settled|tonumber),payout_address:$addr,last_tx_hash:$tx,last_settle_unix:$ts})) | del(.workers[$wid].pending_settle) | del(.workers[$wid].session_anchor_hmc)'
+    tmp="$(mktemp)"
+    if [[ "$rebase" == "1" ]]; then
+      jq_expr='(.workers[$wid] = ((.workers[$wid] // {}) + {settled_hmc:($settled|tonumber),session_anchor_hmc:($anchor|tonumber),payout_address:$addr,last_tx_hash:$tx,last_settle_unix:$ts})) | del(.workers[$wid].pending_settle)'
+    else
+      jq_expr='(.workers[$wid] = ((.workers[$wid] // {}) + {settled_hmc:($settled|tonumber),payout_address:$addr,last_tx_hash:$tx,last_settle_unix:$ts})) | del(.workers[$wid].pending_settle) | del(.workers[$wid].session_anchor_hmc)'
+    fi
+    if ! jq --arg wid "$worker_id" --arg addr "$to_addr" --arg settled "$new_settled_hmc" --arg anchor "$new_anchor_hmc" --arg tx "$tx_hash" --argjson ts "$ts" \
+      "$jq_expr" \
+      "$STATE_FILE" >"$tmp"; then
+      rm -f "$tmp"
+      echo "[settle-workers] ERROR state update ${worker_id}: jq failed" >&2
+      continue
+    fi
+    mv "$tmp" "$STATE_FILE"
   fi
-  if ! jq --arg wid "$worker_id" --arg addr "$to_addr" --arg settled "$new_settled_hmc" --arg anchor "$new_anchor_hmc" --arg tx "$tx_hash" --argjson ts "$ts" \
-    "$jq_expr" \
-    "$STATE_FILE" >"$tmp"; then
-    rm -f "$tmp"
-    echo "[settle-workers] ERROR state update ${worker_id}: jq failed" >&2
-    continue
-  fi
-  mv "$tmp" "$STATE_FILE"
   if [[ "$(id -u)" -eq 0 ]]; then
-    chown hackme:hackme "$STATE_FILE" 2>/dev/null || true
+    chown hackme:hackme "$STATE_FILE" "$STATE_DB" 2>/dev/null || true
     chmod 600 "$STATE_FILE" 2>/dev/null || true
+    chmod 600 "$STATE_DB" 2>/dev/null || true
   fi
 done <<<"$workers_list"
 
@@ -580,8 +650,13 @@ else
   echo "[settle-workers] done: nothing to settle"
 fi
 if [[ "$force_settle" == "1" && "$settled_any" == "1" ]]; then
-  tmp="$(mktemp)"
-  jq --argjson ts "$now_unix" '.meta.last_force_unix = $ts' "$STATE_FILE" >"$tmp" && mv "$tmp" "$STATE_FILE"
+  if settle_sqlite_ready; then
+    "$SETTLECTL" set-force "$STATE_DB" "$now_unix" >/dev/null || true
+    settle_sqlite_sync_json || true
+  else
+    tmp="$(mktemp)"
+    jq --argjson ts "$now_unix" '.meta.last_force_unix = $ts' "$STATE_FILE" >"$tmp" && mv "$tmp" "$STATE_FILE"
+  fi
 elif [[ "$force_settle" == "1" ]]; then
   echo "[settle-workers] force window not advanced (no successful settle this run)" >&2
 fi

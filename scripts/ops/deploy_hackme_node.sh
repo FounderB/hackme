@@ -83,6 +83,9 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
     go build -trimpath -ldflags "-s -w" -o coordinator ./cmd/coordinator
     echo "[deploy-hackme-node] go build minersign (worker hybrid signer helper)"
     go build -trimpath -ldflags "-s -w" -o minersign ./cmd/minersign
+    echo "[deploy-hackme-node] go build workersettlectl (HMC settle SQLite ledger)"
+    mkdir -p bin
+    go build -trimpath -ldflags "-s -w" -o bin/workersettlectl ./cmd/workersettlectl
   fi
 fi
 
@@ -122,6 +125,8 @@ if [[ ! -f "\$d/.env.vps" ]]; then
 fi
 chmod 755 "\$d/hackme-node"
 if [[ -f "\$d/coordinator" ]]; then chmod 755 "\$d/coordinator"; fi
+if [[ -f "\$d/bin/workersettlectl" ]]; then chmod 755 "\$d/bin/workersettlectl"; fi
+if [[ -f "\$d/minersign" ]]; then chmod 755 "\$d/minersign"; fi
 if [[ -f "\$d/scripts/ops/systemd/hackme-node.service" ]]; then
   cp -a "\$d/scripts/ops/systemd/hackme-node.service" /etc/systemd/system/hackme-node.service
   echo "[deploy-hackme-node] installed systemd unit (binary ExecStart, not go run)"

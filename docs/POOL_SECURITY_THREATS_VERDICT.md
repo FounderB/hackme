@@ -45,8 +45,8 @@ A comparison of “as it happens in classic articles” with **what HackMe actua
 
 | Mechanism | Eat? |
 |----------|--------|
-| Serializable TX in the settlement database | **None** (JSON file + curl) |
-| Blocking “pending” on the worker in state until the end of tx | **No** (update after success) |
+| Serializable TX in the settlement database | **Partial (Wave C)** — SQLite ledger `worker_settlement.db` + `settle_outbox` via `workersettlectl` (BEGIN IMMEDIATE pending/apply); JSON mirror kept for API/UI |
+| Blocking “pending” on the worker in state until the end of tx | **Yes** — pending intent before send; cleared only on hard failure; ambiguous nonce keeps pending |
 | Protection against two processes **on one host** with one `STATE_FILE` | **`flock`** - **yes** (`settle_worker_payouts.sh`) |
 | Protection from two **different** hosts with one payer | **Partial** — set `SETTLE_EXPECTED_HOSTNAME` so only the designated host runs settle; still no distributed lock across machines |
 

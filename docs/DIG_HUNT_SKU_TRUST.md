@@ -42,3 +42,10 @@ See [POOL_FUZZ_DISTRIBUTED.md](POOL_FUZZ_DISTRIBUTED.md). Floor soak:
 ## Worker
 
 Dig submit must include `edges_touched` on `wasm_edge_bitmap` once auto-require flips or `REQUIRE=1`. Honest workers already send it.
+
+## Slash / incentives (honest status)
+
+| Lane | Slash / ineligible hooks |
+|------|--------------------------|
+| **HMS storage** | Yes — replica health streak → `slashed=1` → ineligible for seal-epoch payout (`internal/hms/market_health.go`) |
+| **Dig / Hunt** | **No balance slash yet** — money path is attested replay / ASAN / showmap; fake `edges_touched` does not pay. Future Dig slash would mirror HMS streak only after durable attested ACK — not invented here. |

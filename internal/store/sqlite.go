@@ -21,6 +21,11 @@ func sqliteDSN(dbPath string) string {
 	return sqliteDSNWithWALCheckpoint(dbPath, 500)
 }
 
+// SQLiteDSN is the shared WAL DSN for satellite ledgers (worker settlement, etc.).
+func SQLiteDSN(dbPath string) string {
+	return sqliteDSN(dbPath)
+}
+
 // sqliteDSNWithWALCheckpoint is the shared DSN; pages≈2MiB per 500 with 4KiB pages.
 // Fuzz DB uses a lower autocheckpoint to shrink -wal under claim/submit stampede
 // (SQLITE_IOERR_WRITE / extended 522 observed when WAL + freelist balloon).
