@@ -57,7 +57,13 @@ func TestInvokeCheckInputRejectsOversize(t *testing.T) {
 	for i := range huge {
 		huge[i] = 'A'
 	}
-	_, err = InvokeCheckInput(ctx, raw, huge)
+	cl := clampCheckInput(huge)
+	if len(cl) != MaxCheckInputBytes() {
+		t.Fatalf("clamp: got %d want %d", len(cl), MaxCheckInputBytes())
+	}
+	// Invoke on a small prefix — full MaxCheckInputBytes under -race can exceed
+	// wasmCheckTimeout and close the shared runtime (WithCloseOnContextDone).
+	_, err = InvokeCheckInput(ctx, raw, cl[:64])
 	if err != nil {
 		t.Fatal(err)
 	}
