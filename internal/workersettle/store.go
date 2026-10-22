@@ -140,13 +140,13 @@ func (s *Store) MigrateFromJSON(ctx context.Context, jsonPath string) (bool, err
 	}
 	var st struct {
 		Workers map[string]struct {
-			SettledHMC       float64          `json:"settled_hmc"`
-			SettledSUP       float64          `json:"settled_sup"`
-			SessionAnchorHMC float64          `json:"session_anchor_hmc"`
-			PayoutAddress    string           `json:"payout_address"`
-			LastTxHash       string           `json:"last_tx_hash"`
-			LastSettleUnix   int64            `json:"last_settle_unix"`
-			PendingSettle    json.RawMessage  `json:"pending_settle"`
+			SettledHMC       float64         `json:"settled_hmc"`
+			SettledSUP       float64         `json:"settled_sup"`
+			SessionAnchorHMC float64         `json:"session_anchor_hmc"`
+			PayoutAddress    string          `json:"payout_address"`
+			LastTxHash       string          `json:"last_tx_hash"`
+			LastSettleUnix   int64           `json:"last_settle_unix"`
+			PendingSettle    json.RawMessage `json:"pending_settle"`
 		} `json:"workers"`
 		Meta struct {
 			LastForceUnix int64 `json:"last_force_unix"`
@@ -398,11 +398,11 @@ SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, 
 			return nil, err
 		}
 		ent := map[string]any{
-			"settled_hmc":       r.SettledHMC,
-			"settled_sup":       r.SettledSUP,
-			"payout_address":    r.PayoutAddress,
-			"last_tx_hash":      r.LastTxHash,
-			"last_settle_unix":  r.LastSettleUnix,
+			"settled_hmc":      r.SettledHMC,
+			"settled_sup":      r.SettledSUP,
+			"payout_address":   r.PayoutAddress,
+			"last_tx_hash":     r.LastTxHash,
+			"last_settle_unix": r.LastSettleUnix,
 		}
 		if r.SessionAnchorHMC > 0 {
 			ent["session_anchor_hmc"] = r.SessionAnchorHMC
