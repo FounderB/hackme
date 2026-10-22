@@ -30,7 +30,7 @@ func TestBlake3FoundRejectsAlgebraicAndWrongAddr(t *testing.T) {
 		ipAbuse: map[string]workerAbuseState{}, dropReasonCount: map[string]uint64{},
 		supMeta: map[string]workerSupMeta{},
 		tipHash: prev, tipHeight: 500_000, pohFormulaVersion: 3,
-		pohFormula: chain.PoHFormulaLabelForKind(chain.TaskKindSyntheticPoHV3),
+		pohFormula:          chain.PoHFormulaLabelForKind(chain.TaskKindSyntheticPoHV3),
 		pohActivationHeight: 500_000,
 	}
 	m.worker["rig-b3"] = workerPayoutStat{PayoutAddress: addr}

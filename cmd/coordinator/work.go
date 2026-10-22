@@ -53,10 +53,10 @@ type workManager struct {
 	payoutFoundOnly bool
 
 	// PoH tip binding for Blake3 v3 (refreshed from chain /api/metrics).
-	tipHash            string
-	tipHeight          uint64
-	pohFormula         string
-	pohFormulaVersion  int
+	tipHash             string
+	tipHeight           uint64
+	pohFormula          string
+	pohFormulaVersion   int
 	pohActivationHeight uint64
 
 	mu sync.Mutex
@@ -765,7 +765,7 @@ func fetchChainMetricsFromNode(targetURL string) chainMetricsSnap {
 	if f, ok := body["poh_formula"].(string); ok {
 		out.PoHFormula = strings.TrimSpace(f)
 	}
-	if v, ok := asUint64Any(body["poh_formula_version"]); ok {
+	if v, ok := asUint64Any(body["poh_formula_version"]); ok && v > 0 && v <= math.MaxInt32 {
 		out.PoHFormulaVersion = int(v)
 	}
 	if v, ok := asUint64Any(body["poh_activation_height"]); ok {
@@ -817,7 +817,7 @@ func mergeTipFromStatus(base string, out *chainMetricsSnap) {
 		}
 	}
 	if out.PoHFormulaVersion == 0 {
-		if v, ok := asUint64Any(body["poh_formula_version"]); ok {
+		if v, ok := asUint64Any(body["poh_formula_version"]); ok && v > 0 && v <= math.MaxInt32 {
 			out.PoHFormulaVersion = int(v)
 		}
 	}
@@ -1939,7 +1939,7 @@ func (m *workManager) claim(workerID string, batch uint64) (base uint64, size ui
 		ExpiresAt:      leaseUntil,
 		TargetMod:      m.targetMod,
 		PrevHash:       prev,
-		MinerAddress:    boundAddr,
+		MinerAddress:   boundAddr,
 		FormulaVersion: fv,
 		TipHeight:      tipH,
 	}

@@ -1030,7 +1030,7 @@ type BlockSummary struct {
 	TaskKind      string `json:"task_kind"`
 	TaskID        string `json:"task_id"`
 	HashPrefix    string `json:"hash_prefix"`
-	MinerAddress   string `json:"miner_address,omitempty"`
+	MinerAddress  string `json:"miner_address,omitempty"`
 	PoHFormula    string `json:"poh_formula,omitempty"`
 }
 
@@ -1070,7 +1070,7 @@ func (s *Service) ListRecentBlockSummaries(ctx context.Context, limit int) ([]Bl
 			TaskKind:      b.Task.Kind,
 			TaskID:        b.Task.ID,
 			HashPrefix:    hp,
-			MinerAddress:   strings.TrimSpace(b.EffectiveMinerAddress()),
+			MinerAddress:  strings.TrimSpace(b.EffectiveMinerAddress()),
 			PoHFormula:    pohFormulaFromBlock(&b),
 		})
 	}
@@ -1101,7 +1101,7 @@ func (s *Service) GetBlockSummaryByIndex(ctx context.Context, index uint64) (Blo
 		TaskKind:      b.Task.Kind,
 		TaskID:        b.Task.ID,
 		HashPrefix:    hp,
-		MinerAddress:   strings.TrimSpace(b.EffectiveMinerAddress()),
+		MinerAddress:  strings.TrimSpace(b.EffectiveMinerAddress()),
 		PoHFormula:    pohFormulaFromBlock(&b),
 	}, true, nil
 }

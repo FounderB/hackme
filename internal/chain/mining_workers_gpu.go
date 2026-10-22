@@ -241,7 +241,7 @@ func (m *Miner) gpuSearchLoop(ctx context.Context, next *atomic.Uint64, acc gpup
 			Base: base, Count: gpuBatch, Mod: mod,
 			FormulaVersion: PoHFormulaVersionForIndex(idx),
 			PrevHash:       prev,
-			MinerAddress:    m.minerAddr,
+			MinerAddress:   m.minerAddr,
 		})
 		if err != nil {
 			m.appendLine("miner: GPU batch err · " + acc.Label() + " · " + err.Error())

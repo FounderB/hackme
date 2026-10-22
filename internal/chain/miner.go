@@ -58,17 +58,17 @@ const miningLogChanBuffer = 64
 
 // Miner runs parallel native PoH search; WASM verifies the winning nonce only.
 type Miner struct {
-	mu       sync.Mutex
-	lines    []string
-	logSubs  map[chan string]struct{} // broadcast new log lines (SSE)
-	maxLines int
-	cancel   context.CancelFunc
-	running  atomic.Bool
-	onSolve  func(ctx context.Context, nonce, v, targetMod uint64) error
-	loadMod  func(context.Context) (uint64, error)
-	loadTip  func(context.Context) (height uint64, tipHash string, err error)
+	mu        sync.Mutex
+	lines     []string
+	logSubs   map[chan string]struct{} // broadcast new log lines (SSE)
+	maxLines  int
+	cancel    context.CancelFunc
+	running   atomic.Bool
+	onSolve   func(ctx context.Context, nonce, v, targetMod uint64) error
+	loadMod   func(context.Context) (uint64, error)
+	loadTip   func(context.Context) (height uint64, tipHash string, err error)
 	minerAddr string
-	tasks    TaskProvider
+	tasks     TaskProvider
 
 	rewardHMC float64
 
@@ -454,7 +454,7 @@ func (m *Miner) trySolveCommit(ctx context.Context, n, vNative, targetMod uint64
 		return false // another worker is committing; try next nonce
 	}
 	m.refreshTip(ctx)
-	vw := vNative
+	var vw uint64
 	if ActivePoHTaskKindForIndex(m.nextBlockIndex()) == TaskKindSyntheticPoHV3 {
 		// Blake3 v3: host work must match tip||miner binding (no WASM 7n+13 eval).
 		exp := m.pohWork(n)
