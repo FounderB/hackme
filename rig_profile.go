@@ -136,6 +136,9 @@ func collectLocalGPUNames() []string {
 func (a *app) handleRigProfiles(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		if !requireLocalInventoryAuth(w, r) {
+			return
+		}
 		active := strings.TrimSpace(os.Getenv("HACKME_RIG_PROFILE"))
 		writeJSON(w, map[string]any{
 			"profiles":      gputune.ListRigProfiles(),
@@ -151,6 +154,9 @@ func (a *app) handleRigProfiles(w http.ResponseWriter, r *http.Request) {
 func (a *app) handleRigProfilesDetect(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !requireLocalInventoryAuth(w, r) {
 		return
 	}
 	names := collectLocalGPUNames()

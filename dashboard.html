@@ -1974,7 +1974,7 @@
 						<p class="text-[9px] uppercase tracking-[0.28em] text-gray-500 mb-1">Active coin context</p>
 						<div id="coin-context-pills" class="flex flex-wrap gap-2"></div>
 					</div>
-					<p id="coin-context-hint" class="text-[10px] text-gray-500 font-mono ml-auto max-w-xl text-right leading-snug">UI adapts tabs and widgets per coin. HMS backend is preview-only.</p>
+					<p id="coin-context-hint" class="text-[10px] text-gray-500 font-mono ml-auto max-w-xl text-right leading-snug">Tabs adapt per coin · HMS preview.</p>
 				</div>
 				<div id="sync-fork-banner" class="hidden mb-4 max-w-[1600px] mx-auto rounded-lg border border-danger/55 bg-danger/[0.12] px-4 py-3 text-[11px] leading-relaxed text-danger/95 shadow-[0_0_24px_rgba(255,51,85,0.12)]" role="status">
 					<p class="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-danger mb-1">Chain sync blocked</p>
@@ -2005,7 +2005,7 @@
 							<div class="max-w-2xl">
 								<p class="font-display text-[10px] tracking-[0.4em] text-neon uppercase mb-2" id="eco-hero-kicker">HackMe network</p>
 								<h1 class="font-display text-2xl lg:text-3xl font-bold text-white tracking-wide mb-2" id="eco-hero-title">Mining ecosystem</h1>
-								<p class="text-sm text-gray-400 leading-relaxed max-w-xl" id="eco-hero-copy">Mine <strong class="text-white/90">HMC</strong> on the live coordinator pool. Hybrid workers earn PoH + Dig/Hunt when customers open campaigns. SUP and roadmap assets live in <strong class="text-neon/90">Wallet hub</strong>.</p>
+								<p class="text-sm text-gray-400 leading-relaxed max-w-xl" id="eco-hero-copy">Live <strong class="text-white/90">HMC</strong> pool · Dig/Hunt on Workers · assets in <strong class="text-neon/90">Wallet</strong>.</p>
 							</div>
 							<div class="flex flex-wrap gap-2 text-[10px] font-mono">
 								<span class="px-2 py-1 rounded border border-matrix/35 text-matrix">live pools: <span id="eco-live-count">—</span></span>
@@ -2018,17 +2018,17 @@
 							<article class="eco-lane" data-lane="mine">
 								<p class="eco-lane-kicker">Mine</p>
 								<p class="eco-lane-title">Useful PoH · HMC</p>
-								<p class="eco-lane-copy">GPU/CPU hybrid workers · Ed25519 submits · live coordinator tip &amp; difficulty below.</p>
+								<p class="eco-lane-copy">GPU/CPU hybrid · live tip &amp; difficulty below.</p>
 							</article>
 							<article class="eco-lane" data-lane="dig">
 								<p class="eco-lane-kicker">Dig</p>
 								<p class="eco-lane-title">WASM packs · smoke / Deep</p>
-								<p class="eco-lane-copy">Scan · Audit · Deep (~40 HMC · <strong class="text-neon/80">40/60</strong>). Fleet prioritizes customer Dig work.</p>
+								<p class="eco-lane-copy">Scan · Audit · Deep (~40 HMC · <strong class="text-neon/80">40/60</strong>).</p>
 							</article>
 							<article class="eco-lane" data-lane="hunt">
 								<p class="eco-lane-kicker">Hunt</p>
 								<p class="eco-lane-title">Coverage ASAN · 50/50</p>
-								<p class="eco-lane-copy">libFuzzer fleet · AFL++ Deep · published <code class="text-warn/90">harness_hash</code> — not full customer git.</p>
+								<p class="eco-lane-copy">libFuzzer · AFL++ Deep · published <code class="text-warn/90">harness_hash</code>.</p>
 							</article>
 						</div>
 						<div class="eco-hero-actions">
@@ -2071,7 +2071,7 @@
 					<div class="card card-glow rounded-lg p-0 overflow-hidden border-neon/25">
 						<div class="px-4 py-3 border-b border-white/10 flex flex-wrap items-center justify-between gap-2 bg-black/40">
 							<h2 class="font-display text-xs font-semibold tracking-[0.22em] text-gray-300 uppercase">Live mining</h2>
-							<p class="text-[10px] text-gray-500 font-mono">HMC live pool · HMS storage+seal lane · click row → Mining tab</p>
+							<p class="text-[10px] text-gray-500 font-mono">Click row → Workers</p>
 						</div>
 						<div class="eco-table-wrap overflow-x-auto max-h-[min(70vh,640px)] overflow-y-auto">
 							<table class="eco-coins-table" id="ecosystem-coins-table">
@@ -2094,20 +2094,20 @@
 							</table>
 						</div>
 					</div>
-					<p class="text-[10px] text-gray-600 font-mono text-center">HMC live · HMS storage+seal (hub coordinator, Stratum on heavy VPS) · SUP accrual — <button type="button" class="text-neon/80 hover:text-neon underline" data-goto-tab="wallet">Wallet hub</button>.</p>
+					<p class="text-[10px] text-gray-600 font-mono text-center">HMC · HMS · SUP — <button type="button" class="text-neon/80 hover:text-neon underline" data-goto-tab="wallet">Wallet</button></p>
 				</div>
 
 				<!-- OVERVIEW -->
 				<div id="panel-overview" class="tab-panel max-w-[1600px] mx-auto space-y-5">
 					<div id="overview-sup-panel" data-coin-scope="sup-only" class="coin-scope-hidden card card-glow rounded-lg p-5 border-purple-500/30 bg-gradient-to-r from-purple-950/40 to-transparent">
 						<h3 class="font-display text-xs font-semibold tracking-[0.2em] text-purple-300 uppercase mb-2">HackMe Support (SUP)</h3>
-						<p class="text-[11px] text-gray-400 leading-relaxed max-w-2xl">Bonus accrual from <strong class="text-white/90">hybrid-signed HMC pool work</strong> — no separate mining tab. Balances and payout history live in <button type="button" class="text-neon/90 underline" data-goto-tab="wallet">Wallet hub</button>.</p>
+						<p class="text-[11px] text-gray-400 leading-relaxed max-w-2xl">Bonus from hybrid HMC pool work · balances in <button type="button" class="text-neon/90 underline" data-goto-tab="wallet">Wallet</button>.</p>
 					</div>
 					<div id="overview-hms-panel" data-coin-scope="hms-only" class="card card-glow rounded-lg p-5 border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 to-transparent coin-scope-hidden">
 						<div class="flex flex-wrap items-start justify-between gap-3 mb-4">
 							<div>
 								<h3 class="font-display text-xs font-semibold tracking-[0.2em] text-emerald-400 uppercase">HMS storage lane</h3>
-								<p class="text-[11px] text-gray-400 leading-relaxed max-w-2xl mt-1">Encrypted chunks on disk + hourly <strong class="text-white/90">manifest seal</strong> (SHA256 / ASIC). KPIs from HMS coordinator when reachable; disk workers and paid orders run on <strong class="text-white/90">local hackme-node</strong>.</p>
+								<p class="text-[11px] text-gray-400 leading-relaxed max-w-2xl mt-1">Disk chunks + hourly <strong class="text-white/90">manifest seal</strong> · workers on local node.</p>
 							</div>
 							<span class="tag-pill border-emerald-500/40 text-emerald-300">live</span>
 						</div>
@@ -2117,7 +2117,7 @@
 							<div class="rounded border border-white/10 bg-black/35 p-3"><span class="text-gray-500 block text-[9px] uppercase">Seal hashrate</span><span id="hms-mock-seal" class="text-neon text-lg">—</span></div>
 							<div class="rounded border border-white/10 bg-black/35 p-3"><span class="text-gray-500 block text-[9px] uppercase">Last manifest</span><span id="hms-mock-manifest" class="text-gray-200 text-sm break-all">—</span></div>
 						</div>
-						<p class="text-[10px] text-gray-500 mt-3">No seal ⇒ no HMS payout epoch. Disk and ASIC can be different machines; <strong class="text-white/80">combo rig +10%</strong> when both lanes qualify in the same epoch.</p>
+						<p class="text-[10px] text-gray-500 mt-3">No seal ⇒ no payout · <strong class="text-white/80">combo rig +10%</strong> when both lanes qualify.</p>
 					</div>
 					<div id="overview-hmc-stack" data-coin-scope="hmc-only" class="space-y-5 coin-scope-hidden">
 					<div class="card card-glow rounded-lg p-3 border-neon/20">
@@ -2135,8 +2135,7 @@
 						<div class="flex flex-wrap items-start justify-between gap-3">
 							<div class="max-w-3xl space-y-3">
 								<h3 class="font-display text-xs font-semibold tracking-[0.2em] text-matrix uppercase">Useful PoW</h3>
-								<p id="public-miner-readiness-sub" class="text-[11px] text-gray-400 leading-relaxed">Pool and canonical network status. Badges show coordinator reachability and release channel.</p>
-								<p class="text-[11px] text-gray-500 leading-relaxed">Desktop miners join the public pool — payouts do not depend on a local full ledger.</p>
+								<p id="public-miner-readiness-sub" class="text-[11px] text-gray-400 leading-relaxed">Pool · canonical · coordinator · release channel.</p>
 							</div>
 							<button type="button" id="btn-copy-miner-env" class="text-[10px] px-3 py-1.5 rounded border border-neon/35 text-neon hover:bg-neon/10 uppercase tracking-wider shrink-0">Copy env snippet</button>
 						</div>
@@ -2177,7 +2176,7 @@
 						<div class="flex flex-wrap items-center justify-between gap-3">
 							<div>
 								<h3 class="font-display text-xs font-semibold tracking-[0.2em] text-neon uppercase mb-1">Desktop first-run wizard</h3>
-								<p class="text-[10px] text-gray-500 max-w-3xl">Admin token in header. Pool worker mode: use Mining tab to start. Local WASM PoH only on command-node leaders.</p>
+								<p class="text-[10px] text-gray-500 max-w-3xl">Admin token in header · start workers on Mining tab.</p>
 							</div>
 							<span id="desktop-mode-badge" class="text-[10px] px-2 py-1 rounded border border-white/15 text-gray-400 uppercase tracking-wider">desktop mode: checking…</span>
 						</div>
@@ -2282,7 +2281,7 @@
 							<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-2">Deployment</p>
 							<h2 id="deployment-panel-title" class="font-display text-lg lg:text-xl font-bold text-white mb-4 tracking-wide">Genesis</h2>
 							<p id="deployment-panel-lead" class="text-sm text-gray-400 max-w-2xl mb-6 leading-relaxed" title="docs/API.md">
-								Block #0 bootstraps the chain. Pool miners use the Mining tab (worker). Command-node leaders may run local WASM PoH.
+								Block #0 bootstraps the chain · pool miners use Workers.
 							</p>
 							<div class="grid sm:grid-cols-3 gap-4 mb-8">
 								<div class="flex gap-3" id="step-1">
@@ -2524,7 +2523,7 @@
 							<div class="max-w-2xl">
 								<p class="font-display text-[10px] tracking-[0.35em] text-emerald-400 uppercase mb-1">HMS · storage + seal</p>
 								<h3 class="font-display text-sm font-semibold text-white tracking-wide">Storage + seal lane</h3>
-								<p class="text-[11px] text-gray-400 leading-relaxed mt-1">HMS is <strong class="text-white/90">prelaunch</strong> on the public hub. Disk scan / storage worker APIs are <strong class="text-white/90">not</strong> mounted on hackme-node (`/api/hms/storage/*` 404). Local HMS coordinator pilots use a separate process. <span id="hms-lane-backend-hint" class="text-warn">Storage controls disabled until HMS goes live.</span></p>
+								<p class="text-[11px] text-gray-400 leading-relaxed mt-1">Hub <strong class="text-white/90">prelaunch</strong> · storage APIs need local node. <span id="hms-lane-backend-hint" class="text-warn">Controls disabled until live.</span></p>
 							</div>
 							<span class="tag-pill border-emerald-500/40 text-emerald-300">prelaunch</span>
 						</div>
@@ -2547,7 +2546,7 @@
 							<div class="rounded border border-white/10 bg-black/35 p-3 space-y-3">
 								<p class="text-[10px] uppercase tracking-wider text-gray-500">Seal worker (SHA256)</p>
 								<p class="text-[10px] text-gray-400 font-mono">Epoch seal: <span id="hms-preview-epoch">—</span> · manifest: <span id="hms-preview-manifest">pending</span></p>
-								<p class="text-[9px] text-gray-600">Stock Antminer later via Stratum on heavy VPS — no custom firmware required for MVP.</p>
+								<p class="text-[9px] text-gray-600">Stratum ASIC later · no custom firmware for MVP.</p>
 								<button type="button" id="btn-hms-seal-enable" class="text-[10px] px-3 py-1.5 rounded border border-emerald-500/40 text-emerald-300 uppercase tracking-wider opacity-60 cursor-not-allowed" disabled>Enable seal mode</button>
 							</div>
 						</div>
@@ -2563,7 +2562,7 @@
 							<div class="max-w-3xl">
 								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">B2B fuzz · Coverage Hunt · 0.1.0-rc17.4</p>
 								<h3 class="font-display text-sm font-semibold text-white tracking-wide">Dig · Hunt · customer campaigns first</h3>
-								<p class="text-[11px] text-gray-400 leading-relaxed mt-1"><strong class="text-neon/90">Dig</strong> = WASM packs (<code class="text-neon/80">wizard</code> · smoke <strong class="text-white/85">20/80</strong> · Deep <strong class="text-white/85">~40 HMC · 40/60</strong>). <strong class="text-matrix">Hunt</strong> = coverage ASAN (<code class="text-matrix/90">libFuzzer</code> fleet · <code class="text-matrix/90">AFL++</code> Deep · escrow <strong class="text-white/85">50/50</strong> · published <code class="text-warn/90">harness_hash</code>). Fleet prioritizes customer work — packs <code class="text-neon/80">secrets</code> · <code class="text-neon/80">filter_utf8</code> · <code class="text-neon/80">script_bounds</code> · <code class="text-neon/80">parser_expat</code>. Hub Deep exec capped; Linux installers auto-run <code class="text-neon/80">install_hunt_engines.sh</code>.</p>
+								<p class="text-[11px] text-gray-400 leading-relaxed mt-1"><strong class="text-neon/90">Dig</strong> WASM packs · smoke <strong class="text-white/85">20/80</strong> · Deep <strong class="text-white/85">40/60</strong>. <strong class="text-matrix">Hunt</strong> ASAN · <strong class="text-white/85">50/50</strong> escrow. Place orders on <strong class="text-neon/80">#orders</strong>.</p>
 								<div class="fuzz-sku-pills" aria-label="SKU escrow">
 									<span class="fuzz-sku-pill">Dig smoke · 20/80</span>
 									<span class="fuzz-sku-pill">Dig Deep · 40/60</span>
@@ -2594,7 +2593,7 @@
 								<h2 class="font-display text-sm font-bold tracking-[0.15em] text-white uppercase">PoH · pool worker</h2>
 								<p id="mine-workers-hint" class="text-[10px] text-neon/70 font-mono mt-1">workers: —</p>
 								<p class="text-xs text-gray-500 mt-2 max-w-2xl leading-relaxed">
-									Find <span class="text-matrix">nonce</span> with <span class="text-matrix" id="mining-poh-formula-chip">Blake3(prev‖miner‖nonce) work mod M = 0</span> (pre-activation: eval(n)=7n+13); reward + tip, then next index until <strong>Stop</strong>. Order WASM gate stays separate.
+									<span class="text-matrix">nonce</span> · <span class="text-matrix" id="mining-poh-formula-chip">Blake3(prev‖miner‖nonce) work mod M = 0</span> until <strong>Stop</strong>.
 								</p>
 							</div>
 							<div class="flex flex-wrap gap-2">
@@ -2610,7 +2609,7 @@
 								<p class="text-[10px] uppercase tracking-[0.2em] text-neon">Fuzz work · earn HMC</p>
 								<button type="button" id="btn-fuzz-market-refresh" class="text-[9px] px-2 py-1 rounded border border-neon/30 text-neon uppercase tracking-wider">Refresh</button>
 							</div>
-							<p class="text-[10px] text-gray-500 mb-2">Live pool campaigns with escrow — customer Dig/Hunt first. Hybrid <code class="text-neon/80">workerfuzz</code> alongside PoH. Dig: <code class="text-neon/70">hackme-fuzzing wizard --pack filter_utf8 --package audit</code> · Hunt: <code class="text-matrix/80">hackme-fuzzing hunt create …</code>.</p>
+							<p class="text-[10px] text-gray-500 mb-2">Live campaigns · hybrid <code class="text-neon/80">workerfuzz</code> + PoH.</p>
 							<p id="mining-fuzz-fleet-cap" class="text-[10px] font-mono text-neon/70 mb-2 hidden"></p>
 							<div id="mining-fuzz-market-rows" class="text-[10px] font-mono text-gray-400 space-y-0 max-h-56 overflow-y-auto pr-1">Loading…</div>
 						</div>
@@ -14715,8 +14714,8 @@
 			}
 			for (const s of suggestions) {
 				const li = document.createElement('li');
-				const prod = (s.product || 'dig').toUpperCase();
-				li.innerHTML = '<span class="text-cyan-300">' + prod + '</span> · <strong class="text-warn/80">' + (s.pack_id || '') + '</strong> — ' + (s.title || '') + ' <span class="text-gray-600">(' + (s.score || 0) + ')</span><br/><span class="text-gray-600">' + (s.reason || '') + '</span>';
+				const prod = escapeHtml(String(s.product || 'dig').toUpperCase());
+				li.innerHTML = '<span class="text-cyan-300">' + prod + '</span> · <strong class="text-warn/80">' + escapeHtml(String(s.pack_id || '')) + '</strong> — ' + escapeHtml(String(s.title || '')) + ' <span class="text-gray-600">(' + escapeHtml(String(s.score || 0)) + ')</span><br/><span class="text-gray-600">' + escapeHtml(String(s.reason || '')) + '</span>';
 				if (s.wizard_hint) {
 					const hint = document.createElement('span');
 					hint.className = 'block text-gray-500 mt-0.5';

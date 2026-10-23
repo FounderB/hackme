@@ -8,6 +8,7 @@ import (
 
 	"hackme/internal/fuzzengine"
 	"hackme/internal/fuzzupstream"
+	"hackme/internal/hunt"
 )
 
 const ossReproTimeout = 45 * time.Second
@@ -56,10 +57,17 @@ func evalReproOssStdin(upstreamTarget, guardName string, input []byte, repoRoot 
 	if maxInput <= 0 {
 		maxInput = 65536
 	}
-	crash, sanitizer, tail, err := fuzzupstream.RunInput(ctx, binPath, input, maxInput)
+	opts := fuzzupstream.DefaultRunInputOpts()
+	opts.MaxInput = maxInput
+	opts.Runner = hunt.IsolatedHarnessRunner()
+	crash, info, tail, err := fuzzupstream.RunInputDetailed(ctx, binPath, input, opts)
 	if err != nil {
 		res.Note = "oss_upstream run: " + err.Error()
 		return res, false
+	}
+	sanitizer := info.Class
+	if sanitizer == "" {
+		sanitizer = info.Subtype
 	}
 	res.SanitizerTail = tail
 	if crash && fuzzupstream.IsSecuritySanitizer(sanitizer) {

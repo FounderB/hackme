@@ -149,6 +149,9 @@ func main() {
 	workerToken := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_WORKER_TOKEN"))
 	allowInsecure := envBool("HACKME_COORDINATOR_ALLOW_INSECURE", false)
 	requireToken := envBool("HACKME_COORDINATOR_REQUIRE_ADMIN_TOKEN", true)
+	if token != "" && workerToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(workerToken)) == 1 {
+		log.Fatal("security: HACKME_COORDINATOR_ADMIN_TOKEN must differ from HACKME_COORDINATOR_WORKER_TOKEN (worker would elevate to admin)")
+	}
 	if requireToken && token == "" && !allowInsecure {
 		log.Fatal("security: HACKME_COORDINATOR_ADMIN_TOKEN is required (or set HACKME_COORDINATOR_ALLOW_INSECURE=1 for loopback-only dev)")
 	}

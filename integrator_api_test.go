@@ -42,12 +42,15 @@ func TestIntegratorRegisterRotateHTTP(t *testing.T) {
 	integratorStore = st
 	t.Setenv("HACKME_INTEGRATOR_SELF_REGISTER", "1")
 	t.Setenv("HACKME_ADMIN_TOKEN", "")
+	t.Setenv("HACKME_DESKTOP_MODE", "1")
 
 	a := &app{rlHits: make(map[string]rateSlot), rlBan: make(map[string]int64)}
 
 	regBody, _ := json.Marshal(map[string]string{"label": "test"})
 	req := httptest.NewRequest(http.MethodPost, "/api/integrator/register", bytes.NewReader(regBody))
 	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "127.0.0.1:9"
+	req.Host = "127.0.0.1:8080"
 	rec := httptest.NewRecorder()
 	a.handleIntegratorRegister(rec, req)
 	if rec.Code != http.StatusOK {

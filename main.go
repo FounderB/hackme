@@ -5546,6 +5546,9 @@ func p2pLeaderPubkeyAllowlist() map[string]struct{} {
 func (a *app) handleMiningDevices(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		if !requireLocalInventoryAuth(w, r) {
+			return
+		}
 		s := collector.snapshot()
 		ms := a.miner.Stats()
 		devs := make([]map[string]any, 0, len(ms.GPUPoHDevices))

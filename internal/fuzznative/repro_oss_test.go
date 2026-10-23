@@ -13,6 +13,7 @@ func TestEvalReproOssStdinExpatClean(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
 	root, err := repoRootForTest()
 	if err != nil {
 		t.Skip(err)
@@ -34,6 +35,7 @@ func TestEvalReproOssStdinMalformedPortable(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang not installed")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
 	root, err := repoRootForTest()
 	if err != nil {
 		t.Skip(err)

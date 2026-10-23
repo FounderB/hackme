@@ -51,8 +51,13 @@ func (a *app) handleIntegratorRegister(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusForbidden, "self_register_disabled", "integrator self-registration is disabled on this node", nil)
 		return
 	}
-	// Desktop: same Host/Origin gate as /api/tx/send — DNS rebind must not mint developer tokens.
-	if !requireDesktopLoopbackMutating(w, r) {
+	// Desktop: loopback Host/Origin. Public/VPS: admin-only (self-register must not mint
+	// spend tokens that debit the operator wallet without admin).
+	if envBool("HACKME_DESKTOP_MODE", false) {
+		if !requireDesktopLoopbackMutating(w, r) {
+			return
+		}
+	} else if !requireAdminAuthStrict(w, r) {
 		return
 	}
 	if integratorStore == nil {

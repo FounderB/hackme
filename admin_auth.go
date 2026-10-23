@@ -216,6 +216,19 @@ func ensurePoolCoordinatorAdminTokenEnv() {
 	}
 }
 
+// requireLocalInventoryAuth gates host inventory GETs (disks, GPU, rig detect).
+// Admin token or loopback+literal Host — same policy as /api/local/disks.
+func requireLocalInventoryAuth(w http.ResponseWriter, r *http.Request) bool {
+	if adminAuthEnabled() && adminRequestAuthed(r) {
+		return true
+	}
+	if requestFromLoopback(r) && requestHostIsLoopbackLiteral(r) {
+		return true
+	}
+	http.Error(w, "local inventory requires loopback or admin auth", http.StatusForbidden)
+	return false
+}
+
 // requestFromLoopback is true when the TCP peer is the local machine.
 // Uses RemoteAddr + IP.IsLoopback only — never Host (spoofable) or forwarded headers.
 func requestFromLoopback(r *http.Request) bool {

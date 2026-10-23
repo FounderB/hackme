@@ -4,6 +4,7 @@ package integrator
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -121,13 +122,18 @@ func (s *Store) Validate(plainToken string) bool {
 		return false
 	}
 	h := hashToken(plainToken)
+	hb := []byte(h)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, r := range s.data.Records {
 		if r.Revoked {
 			continue
 		}
-		if r.TokenSHA256 == h {
+		got := []byte(strings.TrimSpace(r.TokenSHA256))
+		if len(got) != len(hb) {
+			continue
+		}
+		if subtle.ConstantTimeCompare(got, hb) == 1 {
 			return true
 		}
 	}

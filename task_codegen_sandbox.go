@@ -258,9 +258,11 @@ func isBroadFSRoot(dir string) bool {
 }
 
 func looksLikeToolchainDir(dir string) bool {
+	// Never treat bare PATH ".../bin" (e.g. ~/.local/bin) as a toolchain mount —
+	// that would RO-bind operator scripts/secrets into from_code cages.
 	base := strings.ToLower(filepath.Base(dir))
 	switch base {
-	case "bin", "sbin", "lib", "lib64", "include", "tinygo", "wabt", "nodejs",
+	case "sbin", "lib", "lib64", "include", "tinygo", "wabt", "nodejs",
 		"node", "zig", "rustup", "cargo", "toolchains", ".cargo", ".rustup",
 		".npm-global", "npm-global":
 		return true
@@ -269,7 +271,7 @@ func looksLikeToolchainDir(dir string) bool {
 	for _, tip := range []string{
 		"/rustup", "/.rustup", "/cargo", "/.cargo", "/tinygo", "/wabt",
 		"/nodejs", "/zig", "/npm-global", "/.npm-global", "/llvm", "/clang",
-		"/toolchains",
+		"/toolchains", "/hackme/",
 	} {
 		if strings.Contains(low, tip) {
 			return true

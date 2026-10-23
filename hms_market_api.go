@@ -165,6 +165,18 @@ func (a *app) handleHMSMarketOrdersPath(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	path := strings.TrimPrefix(r.URL.Path, "/api/hms/market/orders/")
+	path = strings.Trim(path, "/")
+	if path == "" || strings.Contains(path, "..") || strings.HasPrefix(path, "/") ||
+		strings.ContainsAny(path, `\:`) {
+		http.Error(w, "invalid order path", http.StatusBadRequest)
+		return
+	}
+	for _, seg := range strings.Split(path, "/") {
+		if seg == "" || seg == "." || seg == ".." {
+			http.Error(w, "invalid order path", http.StatusBadRequest)
+			return
+		}
+	}
 	var body []byte
 	if r.Body != nil && r.Method != http.MethodGet && r.Method != http.MethodHead {
 		r.Body = http.MaxBytesReader(w, r.Body, 16<<20+1024)

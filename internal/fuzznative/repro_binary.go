@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/hunt"
 )
 
 const (
@@ -255,18 +256,24 @@ func inputToU64Arg(input []byte) string {
 func runAsanBinary(ctx context.Context, binPath, u64Arg string) (crash, guardHit bool, tail string) {
 	ctx, cancel := context.WithTimeout(ctx, defaultBinaryTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, binPath, u64Arg)
-	cmd.Env = []string{
+	env := []string{
 		"PATH=/usr/bin:/bin",
 		"ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1:allocator_may_return_null=1:print_summary=1:print_stacktrace=0",
 		"UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=0",
 		"HOME=/tmp",
 	}
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	runErr := cmd.Run()
-	blob := stdout.String() + stderr.String()
+	var out bytes.Buffer
+	runErr := hunt.RunIsolated(ctx, hunt.IsolateOpts{
+		Bin:         binPath,
+		Args:        []string{u64Arg},
+		Env:         env,
+		Wall:        defaultBinaryTimeout,
+		Stdout:      &out,
+		Stderr:      &out,
+		AllowBare:   false,
+		ExtraRoBind: []string{filepath.Dir(binPath)},
+	})
+	blob := out.String()
 	const tailMax = 8192
 	if len(blob) > tailMax {
 		tail = strings.TrimSpace(blob[len(blob)-tailMax:])

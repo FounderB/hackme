@@ -11,6 +11,8 @@ func TestEvalReproAsanBinaryDupInputs(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang not installed")
 	}
+	// CI hosts often deny bwrap RTM_NEWADDR; Dig workers keep STRICT=1 in prod.
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
 	root, err := repoRootForTest()
 	if err != nil {
 		t.Skip(err)
@@ -29,6 +31,7 @@ func TestEvalReproAsanBinaryCleanInput(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang not installed")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
 	root, err := repoRootForTest()
 	if err != nil {
 		t.Skip(err)
