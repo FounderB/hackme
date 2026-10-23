@@ -388,14 +388,33 @@
 @media (max-width: 900px) {
   .dt-detail { display: none; }
   .dt-poolchip { display: none !important; }
-  .dt-bar { gap: 0.5rem; padding: 0.42rem 0.72rem 0.48rem; min-height: 2.8rem; }
+  .dt-dots { display: none !important; }
+  .dt-bar { gap: 0.5rem; padding: 0.42rem 0.72rem 0.48rem; min-height: 2.8rem; height: auto; }
+  .dt-stage { flex: 1 1 auto; min-width: 0; }
+  .dt-slide { gap: 0.4rem; }
+  .dt-badge { max-width: 5.5rem; overflow: hidden; text-overflow: ellipsis; }
+  .dt-title { font-size: 0.82rem; }
 }
 @media (max-width: 560px) {
-  .dt-shell { padding: 0 1rem; }
+  .dt-shell { padding: 0 0.75rem; }
   .dt-live-label { display: none; }
+  .dt-badge { display: none !important; }
+  .dt-rail { display: none !important; }
+  .dt-cta {
+    padding: 0.28rem 0.5rem;
+    font-size: 0.68rem;
+    max-width: 7.2rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .dt-cta span:last-child { display: none; }
-  .dt-title { font-size: 0.8rem; }
+  .dt-copy { flex: 1 1 auto; min-width: 0; }
+  .dt-title {
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
   .dt-scan { display: none; }
+  .dt-live { padding: 0.18rem 0.4rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .dt-aurora,

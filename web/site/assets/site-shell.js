@@ -200,7 +200,7 @@
     ).join("");
   }
 
-  const TICKER_CACHE = "20261023mobile2";
+  const TICKER_CACHE = "20261023mobile3";
 
   function ensureDisclosureTickerStyles() {
     if (document.querySelector('link[data-disclosure-ticker-css="1"]')) return;
