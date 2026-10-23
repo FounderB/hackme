@@ -13,15 +13,24 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  background-color: var(--bg);
+  color-scheme: dark;
+  overflow-x: clip;
+}
 body {
   font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-  background:
+  /* Solid --bg first so overscroll / inner pages never flash UA white. */
+  background-color: var(--bg);
+  background-image:
     radial-gradient(ellipse 100% 70% at 50% -15%, rgba(77, 228, 255, 0.14), transparent 52%),
     radial-gradient(circle at 85% 10%, rgba(110, 255, 173, 0.07), transparent 40%),
-    radial-gradient(circle at top, #0a1024 0%, var(--bg) 48%);
+    radial-gradient(circle at top, #0c1231 0%, var(--bg) 48%);
+  background-attachment: fixed;
   color: var(--text);
   min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
 }
 body::before {
@@ -166,6 +175,42 @@ a { color: inherit; text-decoration: none; }
   width: min(42%, 18rem);
   border-radius: 999px;
   background: rgba(120, 160, 200, 0.16);
+}
+/* Critical mobile ticker (also in disclosure-ticker.css) — must live here so
+   inner pages that load ticker CSS late do not overflow / zoom the viewport. */
+@media (max-width: 1100px) {
+  .disclosure-ticker .dt-chips,
+  .disclosure-ticker-slot .dt-chips { display: none; }
+}
+@media (max-width: 900px) {
+  .disclosure-ticker .dt-detail,
+  .disclosure-ticker-slot .dt-detail { display: none; }
+  .disclosure-ticker .dt-poolchip,
+  .disclosure-ticker-slot .dt-poolchip { display: none !important; }
+  .disclosure-ticker .dt-bar,
+  .disclosure-ticker-slot .dt-bar {
+    gap: 0.5rem;
+    padding: 0.42rem 0.72rem 0.48rem;
+    min-height: 2.8rem;
+    height: auto;
+  }
+}
+@media (max-width: 560px) {
+  .disclosure-ticker .dt-shell,
+  .disclosure-ticker-slot .dt-shell { padding: 0 0.85rem; }
+  .disclosure-ticker .dt-live-label,
+  .disclosure-ticker-slot .dt-live-label { display: none; }
+  .disclosure-ticker .dt-cta span:last-child,
+  .disclosure-ticker-slot .dt-cta span:last-child { display: none; }
+  .disclosure-ticker .dt-title,
+  .disclosure-ticker-slot .dt-title { font-size: 0.78rem; }
+  .disclosure-ticker .dt-scan,
+  .disclosure-ticker-slot .dt-scan { display: none; }
+  .disclosure-ticker,
+  .disclosure-ticker-slot {
+    min-height: 3.4rem;
+    padding: 0.15rem 0 0.5rem;
+  }
 }
 .brand {
   display: inline-flex;

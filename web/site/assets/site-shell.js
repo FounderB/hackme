@@ -200,7 +200,7 @@
     ).join("");
   }
 
-  const TICKER_CACHE = "20260916more3";
+  const TICKER_CACHE = "20261023mobile1";
 
   function ensureDisclosureTickerStyles() {
     if (document.querySelector('link[data-disclosure-ticker-css="1"]')) return;
@@ -208,8 +208,16 @@
     link.rel = "stylesheet";
     link.href = `/assets/disclosure-ticker.css?v=${TICKER_CACHE}`;
     link.dataset.disclosureTickerCss = "1";
-    document.head.appendChild(link);
+    // Insert early in <head> so mobile ticker rules win over FOUC on inner pages.
+    const first = document.head.firstChild;
+    if (first) document.head.insertBefore(link, first);
+    else document.head.appendChild(link);
   }
+  // Paint dark shell immediately even before styles.css finishes (inner pages).
+  try {
+    document.documentElement.style.backgroundColor = "#05070d";
+    document.documentElement.style.colorScheme = "dark";
+  } catch (_) {}
 
   /** Placeholder under topbar — only if page did not ship a static slot. */
   function ensureDisclosureTickerSlot() {
