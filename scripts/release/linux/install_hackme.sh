@@ -107,6 +107,14 @@ fi
 for f in hackme.png hackme.desktop.template hackme-dashboard.desktop.template; do
   [[ -f "${PAYLOAD_DIR}/${f}" ]] && install -m 0644 "${PAYLOAD_DIR}/${f}" "${INSTALL_DIR}/${f}"
 done
+# Public pool worker token (not admin). Required by start_hackme_miner.sh.
+if [[ -f "${PAYLOAD_DIR}/pool.miner.token" ]]; then
+  install -m 0640 "${PAYLOAD_DIR}/pool.miner.token" "${INSTALL_DIR}/pool.miner.token"
+fi
+# Example only — never install a real pool.orders.token from the public bundle.
+if [[ -f "${PAYLOAD_DIR}/pool.orders.token.example" ]]; then
+  install -m 0644 "${PAYLOAD_DIR}/pool.orders.token.example" "${INSTALL_DIR}/pool.orders.token.example"
+fi
 
 if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
   admin=""
@@ -154,13 +162,20 @@ if [[ "${ENABLE_SERVICE}" == "1" ]]; then
   systemctl enable --now hackme-node
 fi
 
-chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}"
+# Immutable install tree: root owns binaries/scripts; service user only data/logs/.env.
+chown -R root:root "${INSTALL_DIR}"
+chmod -R go-w "${INSTALL_DIR}"
+mkdir -p "${INSTALL_DIR}/data" "${INSTALL_DIR}/logs"
+chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}/data" "${INSTALL_DIR}/logs"
+[[ -f "${INSTALL_DIR}/.env" ]] && chown "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}/.env" && chmod 0600 "${INSTALL_DIR}/.env"
+[[ -f "${INSTALL_DIR}/pool.miner.token" ]] && chown root:"${SERVICE_USER}" "${INSTALL_DIR}/pool.miner.token" && chmod 0640 "${INSTALL_DIR}/pool.miner.token"
 
 if [[ -f "${PAYLOAD_DIR}/install_from_code_toolchains.sh" ]]; then
   echo "[install] from_code toolchains (zig, asc, tinygo, wat2wasm, rust)..."
   HACKME_PREFIX="${INSTALL_DIR}" bash "${PAYLOAD_DIR}/install_from_code_toolchains.sh" --system --prefix "${INSTALL_DIR}" || \
     echo "[install] WARN: toolchain install incomplete — see ${INSTALL_DIR}/.env.toolchains" >&2
-  chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}" 2>/dev/null || true
+  # Toolchains under install dir stay root-owned (read-only for service user).
+  chown -R root:root "${INSTALL_DIR}/toolchains" 2>/dev/null || true
 fi
 
 if [[ "${HACKME_SKIP_HUNT_ENGINES:-0}" != "1" ]]; then
@@ -172,7 +187,7 @@ if [[ "${HACKME_SKIP_HUNT_ENGINES:-0}" != "1" ]]; then
     echo "[install] Hunt engines (clang, AFL++, bubblewrap)..."
     HACKME_PREFIX="${INSTALL_DIR}" bash "$eng" --system --prefix "${INSTALL_DIR}" || \
       echo "[install] WARN: Hunt engines incomplete — Hunt soft-skips; Dig unchanged" >&2
-    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}" 2>/dev/null || true
+    chown -R root:root "${INSTALL_DIR}/.cache" 2>/dev/null || true
   fi
 fi
 

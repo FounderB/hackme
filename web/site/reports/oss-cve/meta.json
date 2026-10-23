@@ -4,7 +4,7 @@
   "cve_candidates": [],
   "informational_targets": [],
   "clean_targets": [
-    "frozen"
+    "jsmn"
   ],
   "hold_disclosure": [
     "centijson",
@@ -27,10 +27,11 @@
     "cfgpack",
     "jsonparser",
     "wren",
-    "gpslib"
+    "gpslib",
+    "jes"
   ],
-  "wave": "frozen",
-  "started_at": "2026-10-15T09:26:49Z",
-  "finished_at": "2026-10-15T09:59:13Z",
+  "wave": "jsmn",
+  "started_at": "2026-10-23T08:16:47Z",
+  "finished_at": "2026-10-23T08:36:59Z",
   "publish_allowed": true
 }

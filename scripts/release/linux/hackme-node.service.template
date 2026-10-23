@@ -14,6 +14,16 @@ RestartSec=3
 EnvironmentFile=-__INSTALL_DIR__/.env
 NoNewPrivileges=true
 LimitNOFILE=65535
+# Binaries/scripts are root-owned; only allow writes under data/logs and .env.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=__INSTALL_DIR__/data __INSTALL_DIR__/logs __INSTALL_DIR__/.env
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
 
 [Install]
 WantedBy=multi-user.target

@@ -110,6 +110,13 @@ if not "!HAS_POOL_ADMIN!"=="1" (
     echo HACKME_POOL_COORDINATOR_ADMIN_TOKEN=!ORD_PUB!>> "%ENV_FILE%"
     set "HACKME_POOL_COORDINATOR_ADMIN_TOKEN=!ORD_PUB!"
     echo Repaired pool register token from pool.orders.token
+  ) else (
+    echo.
+    echo NOTE: pool.orders.token is not shipped in public installers.
+    echo Local Dig/Hunt on this PC still work. To publish campaigns to the
+    echo public pool, ask the operator for a scoped Orders publish token and
+    echo save it as:  %APP_DIR%\pool.orders.token
+    echo.
   )
 )
 

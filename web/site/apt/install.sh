@@ -9,7 +9,8 @@
 #   HACKME_APT_BASE            default https://hackme.tech/apt
 #   HACKME_APT_SKIP_INSTALL=1  only keyring + sources.list
 #   HACKME_APT_DEB_URL         force a single .deb URL
-#   HACKME_ORIGIN_IP           default 132.243.112.100 (grey-cloud bypass)
+#   HACKME_ORIGIN_IP           optional operator-only bypass (unset by default —
+#                              never baked into the public script)
 #   HACKME_APT_ALLOW_UNKNOWN_KEY=1  operator override if fingerprint differs
 set -euo pipefail
 
@@ -24,7 +25,9 @@ KEYRING_DST=/usr/share/keyrings/hackme-archive-keyring.gpg
 LIST_DST=/etc/apt/sources.list.d/hackme.list
 EXPECTED_FPR="${HACKME_APT_FPR:-C2779678AA76099672C3ACED5D8F54B6E2FC3742}"
 GH_BASE="${HACKME_GH_RELEASE_BASE:-https://github.com/jokeez/hackme/releases/download}"
-ORIGIN_IP="${HACKME_ORIGIN_IP:-132.243.112.100}"
+# Do not default to a bare origin IP (bypasses Cloudflare). Operators may set
+# HACKME_ORIGIN_IP explicitly for emergency recovery only.
+ORIGIN_IP="${HACKME_ORIGIN_IP:-}"
 SITE="${HACKME_SITE:-https://hackme.tech}"
 
 export DEBIAN_FRONTEND=noninteractive
@@ -173,14 +176,9 @@ install_pool_token_for_user() {
   url=""
   for url in \
     "${SITE}/dist/pool.miner.token" \
-    "${SITE}/dist/release_${VER_TAG}/linux/pool.miner.token" \
-    "https://${ORIGIN_IP}/dist/release_${VER_TAG}/linux/pool.miner.token"; do
+    "${SITE}/dist/release_${VER_TAG}/linux/pool.miner.token"; do
     [[ -n "$url" ]] || continue
-    if [[ "$url" == https://${ORIGIN_IP}/* ]]; then
-      curl -fsSL --connect-timeout 10 --max-time 30 -k -H "Host: hackme.tech" "$url" -o "${cfg}/pool.miner.token.tmp" 2>/dev/null || continue
-    else
-      curl -fsSL --connect-timeout 10 --max-time 30 "$url" -o "${cfg}/pool.miner.token.tmp" 2>/dev/null || continue
-    fi
+    curl -fsSL --connect-timeout 10 --max-time 30 "$url" -o "${cfg}/pool.miner.token.tmp" 2>/dev/null || continue
     tok="$(tr -d '\r\n' <"${cfg}/pool.miner.token.tmp" 2>/dev/null || true)"
     if [[ -n "$tok" && "$tok" != "REPLACE_WITH_POOL_TOKEN" && ${#tok} -ge 16 ]]; then
       mv -f "${cfg}/pool.miner.token.tmp" "${cfg}/pool.miner.token"
