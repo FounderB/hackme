@@ -5,11 +5,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 OUT="${1:-${ROOT}/dist/workerpoh-opencl.exe}"
 mkdir -p "$(dirname "$OUT")"
 
-# rc17.4+: refuse Sep-era cached binaries / docker images without share_scan_max.
+# rc17.4+: refuse Sep-era cached binaries / docker images without share_scan_max + blake3.
 opencl_win_fresh() {
   local f="$1"
   [[ -s "$f" ]] || return 1
-  grep -a -F -q 'share_scan_max' "$f"
+  grep -a -F -q 'share_scan_max' "$f" || return 1
+  # Host Blake3 PoH (zeebo) — OpenCL device blake3 kernel is not required.
+  grep -a -F -q 'blake3' "$f" || return 1
 }
 
 if opencl_win_fresh "$OUT"; then
@@ -17,7 +19,7 @@ if opencl_win_fresh "$OUT"; then
   exit 0
 fi
 if [[ -s "$OUT" ]]; then
-  echo "[opencl-win] stale $OUT (missing share_scan_max) — rebuilding" >&2
+  echo "[opencl-win] stale $OUT (missing share_scan_max/blake3) — rebuilding" >&2
   rm -f "$OUT"
 fi
 
@@ -40,8 +42,13 @@ build_host_mingw() {
 
 build_docker() {
   # Always rebuild image when we need a fresh binary — cached Sep images lack share_scan_max.
+  # --network=host: some CI/desktop Docker DNS setups fail to resolve deb.debian.org inside build.
   echo "[opencl-win] docker build (mingw + OpenCL headers)"
-  docker build -f "${ROOT}/scripts/release/windows/Dockerfile.opencl-mingw" -t hackme-opencl-mingw "$ROOT"
+  local -a net_args=()
+  if docker build --help 2>/dev/null | grep -q -- '--network'; then
+    net_args=(--network=host)
+  fi
+  docker build "${net_args[@]}" -f "${ROOT}/scripts/release/windows/Dockerfile.opencl-mingw" -t hackme-opencl-mingw "$ROOT"
   cid="$(docker create hackme-opencl-mingw)"
   docker cp "${cid}:/out/workerpoh-opencl.exe" "$OUT"
   docker rm -f "${cid}" >/dev/null
@@ -56,6 +63,10 @@ else
   exit 1
 fi
 
+if ! opencl_win_fresh "$OUT"; then
+  echo "[opencl-win] ERROR: $OUT missing required markers share_scan_max and/or blake3" >&2
+  exit 1
+fi
 ls -la "$OUT"
 file "$OUT" || true
-echo "[opencl-win] OK: $OUT"
+echo "[opencl-win] OK: $OUT (share_scan_max + blake3)"

@@ -1,5 +1,7 @@
 # Cross-build workerpoh-opencl.exe for Windows (AMD/Intel/NVIDIA via OpenCL ICD).
-FROM golang:1.26-bookworm
+# Pin a toolchain that satisfies go.mod (go 1.26.10+). Floating golang:1.26-* can lag.
+FROM golang:1.26.10-bookworm
+ENV GOTOOLCHAIN=local
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 \
     opencl-headers ocl-icd-opencl-dev ca-certificates git \
@@ -17,4 +19,5 @@ ENV CXX=x86_64-w64-mingw32-g++
 RUN mkdir -p /usr/x86_64-w64-mingw32/include && cp -r /usr/include/CL /usr/x86_64-w64-mingw32/include/
 RUN x86_64-w64-mingw32-dlltool -d scripts/release/windows/mingw-opencl.def -l libOpenCL.dll.a -D OpenCL.dll \
     && cp libOpenCL.dll.a /usr/x86_64-w64-mingw32/lib/
-RUN go build -tags opencl -trimpath -ldflags "-s -w" -o /out/workerpoh-opencl.exe ./cmd/workerpoh
+RUN mkdir -p /out \
+    && go build -tags opencl -trimpath -ldflags "-s -w" -o /out/workerpoh-opencl.exe ./cmd/workerpoh
