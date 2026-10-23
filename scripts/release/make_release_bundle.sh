@@ -327,22 +327,22 @@ else
   echo "[release] wrote pool.miner.token (${#POOL_MINER_TOKEN} chars) for Windows + Linux miners"
 fi
 
-# B2B Orders: coordinator admin-class token for pool_distributed campaign register (not worker claim token).
-ORDERS_PUBLISH_TOKEN="${HACKME_RELEASE_ORDERS_PUBLISH_TOKEN:-}"
-if [[ -z "${ORDERS_PUBLISH_TOKEN}" && -f "${ROOT_DIR}/.secrets/hackme_coordinator_orders_publish_token" ]]; then
-  ORDERS_PUBLISH_TOKEN="$(tr -d '\r\n' <"${ROOT_DIR}/.secrets/hackme_coordinator_orders_publish_token")"
+# B2B Orders publish token must NEVER ship in public miner/Orders zips.
+# Historical bug: fallback to .secrets/hackme_coordinator_admin_token put the live
+# pool admin credential into GitHub Releases / hackme.tech/dist (rc17.3–rc17.4).
+# Operators paste a per-customer scoped token locally after install; release only
+# ships a placeholder. Do not read admin_token here. Do not write real secrets.
+for _orders_tok in "${WIN_DIR}/pool.orders.token" "${LINUX_DIR}/pool.orders.token"; do
+  rm -f "${_orders_tok}"
+done
+printf '%s\n' "REPLACE_WITH_ORDERS_PUBLISH_TOKEN" >"${WIN_DIR}/pool.orders.token.example"
+printf '%s\n' "REPLACE_WITH_ORDERS_PUBLISH_TOKEN" >"${LINUX_DIR}/pool.orders.token.example"
+echo "[release] SECURITY: omitted pool.orders.token from public bundle (example only)"
+if [[ -n "${HACKME_RELEASE_ORDERS_PUBLISH_TOKEN:-}" ]]; then
+  echo "[release] REFUSING HACKME_RELEASE_ORDERS_PUBLISH_TOKEN in public bundle — unset it" >&2
 fi
-if [[ -z "${ORDERS_PUBLISH_TOKEN}" && -f "${ROOT_DIR}/.secrets/hackme_coordinator_admin_token" ]]; then
-  echo "[release] WARN: pool.orders.token ← .secrets/hackme_coordinator_admin_token (prefer hackme_coordinator_orders_publish_token)" >&2
-  ORDERS_PUBLISH_TOKEN="$(tr -d '\r\n' <"${ROOT_DIR}/.secrets/hackme_coordinator_admin_token")"
-fi
-if [[ -z "${ORDERS_PUBLISH_TOKEN}" ]]; then
-  echo "[release] WARN: no orders publish token — Orders pool_sync will fail until pool.orders.token is present" >&2
-  ORDERS_PUBLISH_TOKEN="REPLACE_WITH_ORDERS_PUBLISH_TOKEN"
-else
-  printf '%s' "${ORDERS_PUBLISH_TOKEN}" >"${WIN_DIR}/pool.orders.token"
-  printf '%s' "${ORDERS_PUBLISH_TOKEN}" >"${LINUX_DIR}/pool.orders.token"
-  echo "[release] wrote pool.orders.token (${#ORDERS_PUBLISH_TOKEN} chars) for Orders Dig/Hunt pool sync"
+if [[ -f "${ROOT_DIR}/.secrets/hackme_coordinator_admin_token" ]] || [[ -f "${ROOT_DIR}/.secrets/hackme_coordinator_orders_publish_token" ]]; then
+  echo "[release] note: local .secrets orders/admin tokens stay on disk; they are NOT copied into dist/" >&2
 fi
 
 cat > "${DIST_DIR}/BUILD_INFO.txt" <<EOF
