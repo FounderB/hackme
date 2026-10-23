@@ -3859,6 +3859,10 @@ func (a *app) handleTasks(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"error": "rate limited", "code": "rate_limited"})
 			return
 		}
+		// Desktop: Host/Origin gate before token auth (DNS rebind → paid orders from node wallet).
+		if !requireDesktopLoopbackMutating(w, r) {
+			return
+		}
 		// B2B/integrator: developer token OR admin (docs + fuzzingclient).
 		// Keep admin-strict on from_code / security-audit / fuzz create.
 		if !requireDeveloperTasksAuth(w, r) {

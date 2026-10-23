@@ -101,6 +101,35 @@ func TestRequireAdminAuthStrictFailClosed(t *testing.T) {
 	}
 }
 
+func TestRequireDesktopLoopbackMutating(t *testing.T) {
+	t.Setenv("HACKME_DESKTOP_MODE", "0")
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/integrator/register", nil)
+	req.RemoteAddr = "203.0.113.9:9"
+	req.Host = "evil.example"
+	if !requireDesktopLoopbackMutating(rec, req) {
+		t.Fatal("non-desktop must no-op")
+	}
+	t.Setenv("HACKME_DESKTOP_MODE", "1")
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/integrator/register", nil)
+	req.RemoteAddr = "127.0.0.1:9"
+	req.Host = "evil.example"
+	if requireDesktopLoopbackMutating(rec, req) {
+		t.Fatal("desktop DNS-rebind Host must be rejected")
+	}
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/tasks", nil)
+	req.RemoteAddr = "127.0.0.1:9"
+	req.Host = "127.0.0.1:8080"
+	if !requireDesktopLoopbackMutating(rec, req) {
+		t.Fatal("loopback Host without Origin must pass for CLI")
+	}
+}
+
 func TestDesktopMutatingOriginOK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8080/api/tx/send", nil)
 	req.Host = "127.0.0.1:8080"

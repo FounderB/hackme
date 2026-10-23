@@ -66,10 +66,6 @@ func (s *Service) ListPublicCampaigns(ctx context.Context, limit int) ([]map[str
 				runsDone = live
 			}
 		}
-		findings := intFromJSON(summary["unique_crashes"])
-		if findings <= 0 {
-			findings = intFromJSON(summary["findings"])
-		}
 		if !IsActivelyDiggable(status, escrowStatus, runsDone, budgetRuns) {
 			continue
 		}
@@ -77,19 +73,28 @@ func (s *Service) ListPublicCampaigns(ctx context.Context, limit int) ([]map[str
 		if v, ok := cfg["budget_hmc"]; ok {
 			budgetHMC = floatFromJSON(v)
 		}
+		// Public marketplace: do not leak customer title / live crash counts while open.
+		publicTitle := strings.TrimSpace(ctype)
+		if publicTitle == "" {
+			publicTitle = "campaign"
+		}
+		if short := strings.TrimSpace(id); len(short) > 8 {
+			publicTitle = publicTitle + " · " + short[:8]
+		} else if short != "" {
+			publicTitle = publicTitle + " · " + short
+		}
+		_ = title // retained for IsMarketplaceCampaign filter only
 		item := map[string]any{
-			"id":             id,
-			"campaign_type":  ctype,
-			"status":         status,
-			"title":          title,
-			"budget_runs":    budgetRuns,
-			"budget_hmc":     budgetHMC,
-			"runs_done":      runsDone,
-			"unique_crashes": findings,
-			"findings":       findings,
-			"pool":           true,
-			"created_at":     createdAt,
-			"completed_at":   completedAt,
+			"id":            id,
+			"campaign_type": ctype,
+			"status":        status,
+			"title":         publicTitle,
+			"budget_runs":   budgetRuns,
+			"budget_hmc":    budgetHMC,
+			"runs_done":     runsDone,
+			"pool":          true,
+			"created_at":    createdAt,
+			"completed_at":  completedAt,
 		}
 		if escrowStatus != "" {
 			item["escrow_status"] = escrowStatus

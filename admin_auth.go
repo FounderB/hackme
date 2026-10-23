@@ -118,6 +118,25 @@ func requestHostIsLoopbackLiteral(r *http.Request) bool {
 	return rh == "127.0.0.1" || rh == "localhost" || rh == "::1"
 }
 
+// requireDesktopLoopbackMutating applies the same Host/Origin DNS-rebind gate used by
+// /api/tx/send (allowLoopbackDesktopDashboardAuth) to other desktop spend surfaces.
+// No-op when HACKME_DESKTOP_MODE is off (public/integrator VPS).
+func requireDesktopLoopbackMutating(w http.ResponseWriter, r *http.Request) bool {
+	if !envBool("HACKME_DESKTOP_MODE", false) {
+		return true
+	}
+	if requestFromLoopback(r) && requestHostIsLoopbackLiteral(r) && desktopMutatingOriginOK(r) {
+		return true
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusForbidden)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"error": "desktop mutating routes require loopback Host and same-origin",
+		"code":  "desktop_origin_required",
+	})
+	return false
+}
+
 // desktopMutatingOriginOK rejects cross-site browser POSTs (CSRF-01).
 // Non-browser clients (no Sec-Fetch-Site / Origin) are allowed when already loopback-authed.
 // When Origin is present, Host must be a loopback literal (DNS-rebind defense for spend paths).

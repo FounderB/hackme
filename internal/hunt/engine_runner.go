@@ -227,7 +227,7 @@ func isLibFuzzerPreflightErr(err error) bool {
 		"clang subprocess libfuzzer",
 		"build target",
 		"manifest",
-		"bwrap required", // STRICT only — userns denials fall back to bare in RunIsolated
+		"bwrap required", // STRICT default — no bare Hunt; miners without bwrap soft-skip
 		"harness artifact",
 		"hunt artifact",
 		"no coverage harness",

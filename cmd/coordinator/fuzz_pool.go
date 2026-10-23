@@ -47,6 +47,11 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		listAt    time.Time
 	)
 	const listCacheTTL = 12 * time.Second
+	const listPublicLimitMax = 100
+	var (
+		listRefreshMu sync.Mutex
+		listRefreshAt = map[string]time.Time{}
+	)
 	mux.HandleFunc("/api/fuzz/pool/campaigns/list", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -58,7 +63,22 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 				limit = n
 			}
 		}
+		if limit > listPublicLimitMax {
+			limit = listPublicLimitMax
+		}
 		force := strings.TrimSpace(r.URL.Query().Get("refresh")) == "1"
+		if force {
+			ip := clientIP(r)
+			listRefreshMu.Lock()
+			last := listRefreshAt[ip]
+			if !last.IsZero() && time.Since(last) < 30*time.Second {
+				listRefreshMu.Unlock()
+				force = false // ignore bust; fall through to cache
+			} else {
+				listRefreshAt[ip] = time.Now()
+				listRefreshMu.Unlock()
+			}
+		}
 		listMu.Lock()
 		if !force && len(listCache) > 0 && time.Since(listAt) < listCacheTTL {
 			cached := cloneCampaignMaps(listCache)
