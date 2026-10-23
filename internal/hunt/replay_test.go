@@ -37,6 +37,8 @@ func TestReplayShardCleanInput(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang required")
 	}
+	// Unit hosts often deny bwrap RTM_NEWADDR; production coordinator keeps STRICT=1.
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
 	root := RepoRoot()
 	hash, err := CatalogHarnessHash(root, "jsmn")
 	if err != nil {
@@ -67,6 +69,7 @@ func TestReplayShardMutatingSegmentDetectsAnchorCrash(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang required")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
 	dir := t.TempDir()
 	root := RepoRoot()
 	campaignID := "replay-mut-camp"
@@ -122,6 +125,7 @@ func TestReplayShardDetectsIntentionalCrash(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang required")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
 	dir := t.TempDir()
 	src := filepath.Join(dir, "fuzz_target.c")
 	body := `int LLVMFuzzerTestOneInput(const unsigned char *d, unsigned long n) {

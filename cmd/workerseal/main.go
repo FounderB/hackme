@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"hackme/internal/hms"
+	"hackme/internal/netutil"
 )
 
 func main() {
@@ -100,7 +101,7 @@ func getJSON(url, token string) (map[string]any, error) {
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := netutil.HTTPClientNoRedirect(30 * time.Second).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +121,7 @@ func postJSON(url, token string, body any, out any) error {
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := netutil.HTTPClientNoRedirect(30 * time.Second).Do(req)
 	if err != nil {
 		return err
 	}

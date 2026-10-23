@@ -94,11 +94,22 @@ func desktopLoopbackAdminOK(r *http.Request) bool {
 }
 
 // requireAdminAuthOrDesktopLoopback accepts a valid admin token OR trusted desktop loopback.
+// When HACKME_ADMIN_TOKEN is unset it never fail-opens for remote clients (audit C-money):
+// only loopback Host + Origin gates pass (beginner solo / desktop).
 func requireAdminAuthOrDesktopLoopback(w http.ResponseWriter, r *http.Request) bool {
-	if adminRequestAuthed(r) {
-		return true
+	expected := adminTokenFromEnv()
+	if expected != "" {
+		if secretsEqualConstantTime(extractAdminSecret(r), expected) {
+			return true
+		}
+		if desktopLoopbackAdminOK(r) {
+			return true
+		}
+		w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-admin"`)
+		http.Error(w, "admin authentication required", http.StatusUnauthorized)
+		return false
 	}
-	if desktopLoopbackAdminOK(r) && adminTokenFromEnv() != "" {
+	if requestFromLoopback(r) && requestHostIsLoopbackLiteral(r) && desktopMutatingOriginOK(r) {
 		return true
 	}
 	return requireAdminAuthStrict(w, r)
@@ -268,6 +279,16 @@ func handleDesktopLocalAuth(w http.ResponseWriter, r *http.Request) {
 	}
 	if !envBool("HACKME_DESKTOP_MODE", false) || !requestFromLoopback(r) || !requestHostIsLoopbackLiteral(r) {
 		http.NotFound(w, r)
+		return
+	}
+	// Same Origin / Sec-Fetch-Site gate as spend paths (CSRF / local page exfil).
+	if !desktopMutatingOriginOK(r) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": "desktop local-auth requires same-origin",
+			"code":  "desktop_origin_required",
+		})
 		return
 	}
 	tok := adminTokenFromEnv()

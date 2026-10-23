@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -91,4 +92,66 @@ func SafeHTTPBaseURL(raw string) bool {
 	default:
 		return false
 	}
+}
+
+// AllowPrivateEgress is true when HACKME_ALLOW_PRIVATE_EGRESS=1 (lab / LAN git pins).
+func AllowPrivateEgress() bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_ALLOW_PRIVATE_EGRESS")))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+// IPUnsafeForEgress reports whether ip is blocked for outbound SSRF-sensitive dials
+// (metadata/link-local always; loopback/private unless allowPrivate).
+func IPUnsafeForEgress(ip net.IP, allowPrivate bool) bool {
+	if ip == nil {
+		return true
+	}
+	if ip.IsUnspecified() || ip.IsMulticast() {
+		return true
+	}
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+	if ip4 := ip.To4(); ip4 != nil {
+		if ip4[0] == 169 && ip4[1] == 254 {
+			return true
+		}
+	}
+	if !allowPrivate {
+		if ip.IsLoopback() || ip.IsPrivate() {
+			return true
+		}
+	}
+	return false
+}
+
+// AssertHostSafeForEgress resolves host and rejects metadata/private/loopback classes
+// unless allowPrivate is set (or HACKME_ALLOW_PRIVATE_EGRESS).
+func AssertHostSafeForEgress(host string, allowPrivate bool) error {
+	host = strings.TrimSpace(strings.Trim(host, "[]"))
+	if host == "" {
+		return fmt.Errorf("empty host")
+	}
+	if !allowPrivate {
+		allowPrivate = AllowPrivateEgress()
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if IPUnsafeForEgress(ip, allowPrivate) {
+			return fmt.Errorf("host is blocked address class")
+		}
+		return nil
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return fmt.Errorf("host dns lookup failed")
+	}
+	if len(ips) == 0 {
+		return fmt.Errorf("host dns returned no addresses")
+	}
+	for _, ip := range ips {
+		if IPUnsafeForEgress(ip, allowPrivate) {
+			return fmt.Errorf("host resolves to blocked address class")
+		}
+	}
+	return nil
 }

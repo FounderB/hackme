@@ -15,6 +15,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"hackme/internal/netutil"
 )
 
 const maxHarnessArtifactBytes = 32 << 20 // 32 MiB
@@ -534,7 +536,8 @@ func fetchHarnessHTTP(ctx context.Context, rawURL string) ([]byte, error) {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
 	}
-	res, err := http.DefaultClient.Do(req)
+	// Never use http.DefaultClient: no timeout + follows redirects (worker bearer leak).
+	res, err := netutil.HTTPClientNoRedirect(45 * time.Second).Do(req)
 	if err != nil {
 		return nil, err
 	}

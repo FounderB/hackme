@@ -33,6 +33,7 @@ import (
 	"hackme/internal/chain"
 	"hackme/internal/integrator"
 	"hackme/internal/lanpool"
+	"hackme/internal/logsafe"
 	"hackme/internal/logsetup"
 	"hackme/internal/netutil"
 	"hackme/internal/nodecrypto"
@@ -166,7 +167,7 @@ const (
 )
 
 func logAdminAction(r *http.Request, action string) {
-	log.Printf("admin action=%s ip=%s ua=%q", action, clientIP(r), strings.TrimSpace(r.UserAgent()))
+	log.Printf("admin action=%s ip=%s ua=%q", logsafe.ID(action), clientIP(r), logsafe.ID(r.UserAgent()))
 }
 
 type rateSlot struct {

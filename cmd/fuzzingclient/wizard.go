@@ -16,6 +16,7 @@ import (
 
 	"hackme/internal/fuzzengine"
 	"hackme/internal/fuzzingcli"
+	"hackme/internal/netutil"
 )
 
 func doWizard(base string, args []string) error {
@@ -457,7 +458,7 @@ func fetchGatePass(base, campaignID, reportTok string) (bool, error) {
 		return false, err
 	}
 	req.Header.Set("X-Hackme-Report-Token", reportTok)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := netutil.HTTPClientNoRedirect(30 * time.Second).Do(req)
 	if err != nil {
 		return false, err
 	}

@@ -1,6 +1,7 @@
 package netutil
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -67,6 +68,33 @@ func TestHTTPClientNoRedirectRefusesFollow(t *testing.T) {
 	}
 	if sawSecond {
 		t.Fatal("client must not follow redirect to hop2")
+	}
+}
+
+func TestIPUnsafeForEgress(t *testing.T) {
+	if !IPUnsafeForEgress(net.ParseIP("127.0.0.1"), false) {
+		t.Fatal("loopback must be unsafe without allowPrivate")
+	}
+	if IPUnsafeForEgress(net.ParseIP("127.0.0.1"), true) {
+		t.Fatal("loopback allowed when allowPrivate")
+	}
+	if !IPUnsafeForEgress(net.ParseIP("169.254.169.254"), true) {
+		t.Fatal("link-local metadata always unsafe")
+	}
+	if !IPUnsafeForEgress(net.ParseIP("10.0.0.1"), false) {
+		t.Fatal("private must be unsafe by default")
+	}
+	if IPUnsafeForEgress(net.ParseIP("8.8.8.8"), false) {
+		t.Fatal("public IP must be safe")
+	}
+}
+
+func TestAssertHostSafeForEgress(t *testing.T) {
+	if err := AssertHostSafeForEgress("127.0.0.1", false); err == nil {
+		t.Fatal("expected loopback reject")
+	}
+	if err := AssertHostSafeForEgress("8.8.8.8", false); err != nil {
+		t.Fatalf("public literal: %v", err)
 	}
 }
 

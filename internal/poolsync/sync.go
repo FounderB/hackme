@@ -115,7 +115,7 @@ func coordHealthOK(base string) bool {
 	if err != nil {
 		return false
 	}
-	res, err := http.DefaultClient.Do(req)
+	res, err := netutil.HTTPClientNoRedirect(800 * time.Millisecond).Do(req)
 	if err != nil {
 		return false
 	}

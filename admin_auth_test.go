@@ -216,6 +216,28 @@ func TestRequireAdminAuthOrDesktopLoopback(t *testing.T) {
 	}
 }
 
+func TestRequireAdminAuthOrDesktopLoopbackUnsetTokenRemote(t *testing.T) {
+	t.Setenv("HACKME_DESKTOP_MODE", "0")
+	t.Setenv("HACKME_ADMIN_TOKEN", "")
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/orders/fund", nil)
+	req.RemoteAddr = "203.0.113.9:9"
+	req.Host = "evil.example"
+	if requireAdminAuthOrDesktopLoopback(rec, req) {
+		t.Fatal("unset admin token must not fail-open for remote clients")
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/orders/fund", nil)
+	req.RemoteAddr = "127.0.0.1:9"
+	req.Host = "127.0.0.1:8080"
+	if !requireAdminAuthOrDesktopLoopback(rec, req) {
+		t.Fatal("loopback beginner solo without token should still pass")
+	}
+}
+
 func TestDesktopAdminTokenEmbedRequiresExposeFlag(t *testing.T) {
 	t.Setenv("HACKME_DESKTOP_MODE", "1")
 	t.Setenv("HACKME_ADMIN_TOKEN", "desktop-secret")

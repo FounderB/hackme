@@ -2,7 +2,7 @@
  * Live OSS disclosure + pool pulse banner — data from disclosure-ticker.json
  */
 (() => {
-  const CACHE = "20261023mobile3";
+  const CACHE = "20261023audit1";
   const JSON_URL = `/assets/disclosure-ticker.json?v=${CACHE}`;
   const CSS_URL = `/assets/disclosure-ticker.css?v=${CACHE}`;
   const POOL_URL = "/pool/coordinator/api/pool/stats";
@@ -45,6 +45,20 @@
     const d = document.createElement("div");
     d.textContent = s == null ? "" : String(s);
     return d.innerHTML;
+  }
+
+  /** Relative site paths or https://hackme.tech only — blocks javascript:/open redirects. */
+  function safeHref(raw) {
+    const s = String(raw == null ? "" : raw).trim();
+    if (!s) return "/reports/oss-cve/";
+    if (s.startsWith("/") && !s.startsWith("//")) return s;
+    try {
+      const u = new URL(s, window.location.origin);
+      if (u.protocol === "https:" && /(^|\.)hackme\.tech$/i.test(u.hostname)) {
+        return u.href;
+      }
+    } catch (_) {}
+    return "/reports/oss-cve/";
   }
 
   function accentOf(slide) {
@@ -114,7 +128,7 @@
           ${detail ? `<span class="dt-detail">${esc(detail)}</span>` : ""}
         </div>
         ${chips ? `<div class="dt-chips">${chips}</div>` : ""}
-        <a class="dt-cta" href="${esc(slide.href || "/reports/oss-cve/")}">${esc(
+        <a class="dt-cta" href="${esc(safeHref(slide.href))}">${esc(
           slide.cta || "Learn more"
         )}<span aria-hidden="true">→</span></a>
       </div>`;

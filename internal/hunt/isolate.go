@@ -20,9 +20,9 @@ type IsolateOpts struct {
 	Dir        string
 	Wall       time.Duration
 	RSSLimitMB int
-	Stdin      io.Reader
-	Stdout     *os.File
-	Stderr     *os.File
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
 	// ExtraBind / ExtraRoBind are additional paths for the bwrap cage (corpus, stdin driver).
 	ExtraBind   []string
 	ExtraRoBind []string
@@ -118,9 +118,9 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	}
 	setProcessGroup(cmd)
 	allowBareFallback := !IsolateStrict() || opts.AllowBare
-	// Bare fallback: bwrap missing/fails to launch, or bwrap's own setup stderr
-	// (RTM_NEWADDR / uid_map). Never unsandbox on harness stderr alone — only
-	// lines prefixed with "bwrap:" count as cage setup failure after Start.
+	// Bare fallback only when bwrap fails to *launch* (Start error). Never after
+	// Wait: a malicious harness can forge "bwrap: … Permission denied" on stderr
+	// to force unsandboxed re-exec (audit 2026-10).
 	if err := cmd.Start(); err != nil {
 		if bwrapCageFailed(err, "") && allowBareFallback {
 			return runBareIsolated(runCtx, opts, env, wall)
@@ -138,9 +138,15 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 		_ = killProcessGroup(cmd)
 		return fmt.Errorf("hunt isolate: wall exceeded (%s)", wall)
 	}
-	if err != nil && bwrapSetupFailed(stderrBuf.String()) {
+	// Cage setup failure after Start (RTM_NEWADDR / uid_map): bare-retry only when
+	// opted in and the harness does not appear to have run (anti-forge: ASAN output
+	// means the target already executed inside the cage — never unsandbox).
+	stderr := stderrBuf.String()
+	if err != nil && bwrapSetupFailed(stderr) && !harnessLikelyRanInCage(stderr) {
 		if allowBareFallback {
-			rewindIsolateStdin(opts.Stdin)
+			if s, ok := opts.Stdin.(io.Seeker); ok {
+				_, _ = s.Seek(0, io.SeekStart)
+			}
 			return runBareIsolated(runCtx, opts, env, wall)
 		}
 		if IsolateStrict() && !opts.AllowBare {
@@ -148,12 +154,6 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 		}
 	}
 	return err
-}
-
-func rewindIsolateStdin(r io.Reader) {
-	if s, ok := r.(io.Seeker); ok {
-		_, _ = s.Seek(0, io.SeekStart)
-	}
 }
 
 func bwrapCageFailed(err error, stderr string) bool {
@@ -187,6 +187,23 @@ func bwrapSetupFailed(stderr string) bool {
 		"operation not permitted", "rtm_newaddr", "loopback", "uid map",
 	} {
 		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+// harnessLikelyRanInCage is true when stderr shows the target already executed
+// (sanitizer / libFuzzer banners). Blocks forged "bwrap:" lines from triggering
+// a bare re-exec after the harness ran inside the cage.
+func harnessLikelyRanInCage(stderr string) bool {
+	msg := strings.ToLower(stderr)
+	for _, needle := range []string{
+		"addresssanitizer", "asan:", "undefinedbehavior", "ubsan",
+		"libfuzzer", "memorysanitizer", "leakSanitizer", "summary:",
+		"==ERROR:", "runtime error:",
+	} {
+		if strings.Contains(msg, strings.ToLower(needle)) {
 			return true
 		}
 	}

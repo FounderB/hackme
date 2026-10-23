@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 )
@@ -38,15 +37,25 @@ func MergeMinimizeCorpus(ctx context.Context, fuzzerBin, corpusDir string) (befo
 
 	runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, fuzzerBin, corpusDir, rawDir, "-merge=1")
-	cmd.Env = append(os.Environ(),
+	var out bytes.Buffer
+	env := []string{
+		"PATH=/usr/bin:/bin",
+		"HOME=/tmp",
 		"ASAN_OPTIONS=detect_leaks=0:halt_on_error=0:allocator_may_return_null=1",
 		"UBSAN_OPTIONS=halt_on_error=0",
-	)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	_ = cmd.Run() // merge may exit non-zero; keep whatever landed in corpusDir
+	}
+	// Same cage as LF session — never bare-exec the untrusted fuzzer for -merge=1.
+	_ = RunIsolated(runCtx, IsolateOpts{
+		Bin:         fuzzerBin,
+		Args:        []string{corpusDir, rawDir, "-merge=1"},
+		Env:         env,
+		Wall:        10 * time.Minute,
+		Stdout:      &out,
+		Stderr:      &out,
+		AllowBare:   false,
+		ExtraBind:   []string{corpusDir, rawDir, parent},
+		ExtraRoBind: []string{filepath.Dir(fuzzerBin)},
+	})
 
 	after, _ = countCorpusFiles(corpusDir)
 	if after == 0 {

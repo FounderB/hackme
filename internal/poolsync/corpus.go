@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"hackme/internal/fuzzengine"
+	"hackme/internal/netutil"
 )
 
 // UploadCorpusNamespace POSTs namespace corpus seeds to the coordinator pool API.
@@ -54,7 +55,8 @@ func UploadCorpusNamespace(ctx context.Context, coordURL, token, namespace strin
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Hackme-Admin-Token", token)
-	res, err := http.DefaultClient.Do(req)
+	// Admin token must never ride DefaultClient redirects (netutil DenyAdminTokenRedirect).
+	res, err := netutil.HTTPClientNoRedirect(timeoutDuration()).Do(req)
 	if err != nil {
 		return err
 	}

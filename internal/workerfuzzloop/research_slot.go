@@ -17,6 +17,7 @@ import (
 
 	"hackme/internal/fuzzengine"
 	"hackme/internal/hunt"
+	"hackme/internal/netutil"
 	"hackme/internal/poolfuzz"
 )
 
@@ -146,7 +147,7 @@ func MaybeRunResearchSlot(ctx context.Context, run ResearchSlotRun) ResearchSlot
 	ns := poolfuzz.ResearchNamespaceForTarget(targetID)
 	cl := run.HTTPClient
 	if cl == nil {
-		cl = http.DefaultClient
+		cl = netutil.HTTPClientNoRedirect(HTTPTimeoutFromEnv())
 	}
 	accepted, findings, upErr := uploadResearchCorpusDelta(ctx, cl, run.CoordURL, run.Token, run.WorkerID, run.MinerAddr,
 		run.Claim.CampaignID, run.Claim.ItemID, ns, deltas, crashes, "libfuzzer", hunt.LibFuzzerVersionHint())

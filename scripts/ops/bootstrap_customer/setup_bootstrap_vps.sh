@@ -17,10 +17,9 @@ chmod 700 "$INSTALL/.secrets" "$INSTALL/data"
 if [[ ! -x "$INSTALL/hackme" ]]; then
   log "download hackme ${VER} linux tarball"
   tmp="/tmp/hackme_${VER}_linux.tar.gz"
-  curl -fL --retry 3 --connect-timeout 20 --max-time 600 \
-    -o "$tmp" "https://hackme.tech/dist/release_${VER}/hackme_${VER}_linux.tar.gz" \
-    || curl -fL -k -H "Host: hackme.tech" -o "$tmp" \
-    "https://132.243.112.100/dist/release_${VER}/hackme_${VER}_linux.tar.gz"
+  # Fail closed: never curl -k (MITM of node binary). Retry primary HTTPS only.
+  curl -fL --retry 5 --retry-delay 2 --connect-timeout 20 --max-time 600 \
+    -o "$tmp" "https://hackme.tech/dist/release_${VER}/hackme_${VER}_linux.tar.gz"
   tar -xzf "$tmp" -C /tmp
   cp -a /tmp/linux/* "$INSTALL/"
   chmod +x "$INSTALL/hackme" "$INSTALL/bin/"* 2>/dev/null || true

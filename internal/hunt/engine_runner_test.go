@@ -112,6 +112,12 @@ func TestBwrapSetupFailedRequiresBwrapPrefix(t *testing.T) {
 	if bwrapSetupFailed("operation not permitted") {
 		t.Fatal("bare permission text without bwrap: must not unsandbox")
 	}
+	if !harnessLikelyRanInCage("bwrap: Permission denied\n==ERROR: AddressSanitizer: heap-buffer-overflow") {
+		t.Fatal("ASAN after forged bwrap line must count as harness ran")
+	}
+	if harnessLikelyRanInCage("bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted") {
+		t.Fatal("pure bwrap setup stderr must not look like harness ran")
+	}
 }
 
 func TestIsLibFuzzerPreflightErrAFLWallShort(t *testing.T) {

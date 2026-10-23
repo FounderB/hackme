@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,6 +13,7 @@ import (
 
 	"hackme/internal/fuzzengine"
 	"hackme/internal/hunt"
+	"hackme/internal/netutil"
 	"hackme/internal/poolfuzz"
 )
 
@@ -126,7 +126,7 @@ func RunHuntEngineShard(ctx context.Context, run ResearchSlotRun, cr ClaimResp) 
 		ns := poolfuzz.ResearchNamespaceForTarget(cr.UpstreamTargetID)
 		cl := run.HTTPClient
 		if cl == nil {
-			cl = http.DefaultClient
+			cl = netutil.HTTPClientNoRedirect(HTTPTimeoutFromEnv())
 		}
 		_, findings, upErr := uploadResearchCorpusDelta(ctx, cl, run.CoordURL, run.Token, run.WorkerID, run.MinerAddr,
 			cr.CampaignID, cr.ItemID, ns, deltas, crashes, out.Engine, out.EngineVersion)

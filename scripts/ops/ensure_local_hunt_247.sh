@@ -61,12 +61,11 @@ WORKERFUZZ_HTTP_TIMEOUT_SEC=30
 HACKME_WORKER_HUNT_TIMEOUT_MS=300000
 HACKME_WORKER_HUNT_SHARDS=1
 # Coverage-guided Hunt (libFuzzer fleet default); audit defaults: no byte soft-fallback.
-# Prefer bwrap (REQUIRE=1). STRICT stays off on desktop so RTM_NEWADDR → bare retry, not soft_skip.
-# Coordinator/hub prove hosts should set HACKME_HUNT_ISOLATE_STRICT=1 separately.
+# Prefer bwrap (REQUIRE=1). STRICT=1: no bare foreign harness when cage fails (soft_skip instead).
 HACKME_HUNT_COVERAGE_ENGINE=1
 HACKME_HUNT_ENGINE_BYTE_FALLBACK=0
 HACKME_HUNT_ISOLATE_REQUIRE=1
-HACKME_HUNT_ISOLATE_STRICT=0
+HACKME_HUNT_ISOLATE_STRICT=1
 HACKME_POOL_SEED_FROM_RESEARCH=0
 # Research slot (LF persist → corpus_delta) for byte Hunt only; soft-skip without clang/LF
 HACKME_WORKER_RESEARCH_SLOT=1

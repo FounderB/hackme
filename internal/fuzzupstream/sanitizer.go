@@ -1,15 +1,22 @@
 package fuzzupstream
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
+
+// HarnessRunner optionally replaces bare exec. Hunt coordinator prove sets this
+// to hunt.RunIsolated so customer harnesses never run unsandboxed on the hub.
+type HarnessRunner func(ctx context.Context, bin string, args []string, env []string, stdin []byte, wall time.Duration) (combinedOut string, err error)
 
 // RunInputOpts configures one ASAN/UBSan/LSan stdin harness execution.
 type RunInputOpts struct {
 	MaxInput    int
 	DetectLeaks bool
+	Runner      HarnessRunner
 }
 
 // SanitizerInfo is a classified sanitizer signal from harness stderr.

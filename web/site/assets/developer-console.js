@@ -445,10 +445,17 @@
   refreshManifestPreview();
   void refreshPoolHint();
 
-  const params = new URLSearchParams(location.search);
-  if (params.get("token")) {
-    Dev.setToken(params.get("token"));
-    if ($("dev-token-input")) $("dev-token-input").value = Dev.getToken();
-    syncTokenInput();
-  }
+  // Never accept ?token= (Referer / history / proxy log leak). Optional one-shot
+  // fragment #token=… is consumed and stripped immediately.
+  try {
+    const hash = (location.hash || "").replace(/^#/, "");
+    const hp = new URLSearchParams(hash);
+    const fragTok = (hp.get("token") || "").trim();
+    if (fragTok) {
+      Dev.setToken(fragTok);
+      if ($("dev-token-input")) $("dev-token-input").value = Dev.getToken();
+      syncTokenInput();
+      history.replaceState({}, "", location.pathname + location.search);
+    }
+  } catch (_) {}
 })();

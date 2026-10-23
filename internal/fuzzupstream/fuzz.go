@@ -58,9 +58,14 @@ func RunInputDetailed(ctx context.Context, binPath string, input []byte, opts Ru
 func runStdinOnce(ctx context.Context, bin string, input []byte, opts RunInputOpts) (crash bool, info SanitizerInfo, tail string, err error) {
 	runCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
+	env := harnessExecEnv(opts)
+	if opts.Runner != nil {
+		out, runErr := opts.Runner(runCtx, bin, nil, env, input, 3*time.Second)
+		return classifyHarnessRun(runCtx, runErr, out)
+	}
 	cmd := exec.CommandContext(runCtx, bin)
 	cmd.Stdin = bytes.NewReader(input)
-	cmd.Env = harnessExecEnv(opts)
+	cmd.Env = env
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -80,9 +85,15 @@ func runLibFuzzerOnce(ctx context.Context, bin string, input []byte, opts RunInp
 	}
 	runCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
+	args := []string{inPath, "-runs=1", "-timeout=2", fmt.Sprintf("-max_len=%d", opts.MaxInput)}
+	env := harnessExecEnv(opts)
+	if opts.Runner != nil {
+		out, runErr := opts.Runner(runCtx, bin, args, env, nil, 3*time.Second)
+		return classifyHarnessRun(runCtx, runErr, out)
+	}
 	// One-shot: feed a single corpus file; never start the interactive fuzz loop.
-	cmd := exec.CommandContext(runCtx, bin, inPath, "-runs=1", "-timeout=2", fmt.Sprintf("-max_len=%d", opts.MaxInput))
-	cmd.Env = harnessExecEnv(opts)
+	cmd := exec.CommandContext(runCtx, bin, args...)
+	cmd.Env = env
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

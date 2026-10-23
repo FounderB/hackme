@@ -31,6 +31,12 @@ func TestValidateGitURLAndRef(t *testing.T) {
 	if _, err := ValidateGitURL("https://evil;rm -rf /"); err == nil {
 		t.Fatal("expected reject")
 	}
+	if _, err := ValidateGitURL("https://127.0.0.1/repo.git"); err == nil {
+		t.Fatal("expected reject loopback SSRF")
+	}
+	if _, err := ValidateGitURL("https://user:pass@github.com/foo/bar.git"); err == nil {
+		t.Fatal("expected reject userinfo")
+	}
 	if _, err := ValidateGitRef("main"); err != nil {
 		t.Fatal(err)
 	}

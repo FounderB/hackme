@@ -183,6 +183,8 @@ func ReplayShard(ctx context.Context, opts ReplayShardOpts) (ReplayShardResult, 
 	if opts.MaxInput > 0 {
 		runOpts.MaxInput = opts.MaxInput
 	}
+	// Coordinator prove: always cage customer harnesses (never bare RunInputDetailed).
+	runOpts.Runner = IsolatedHarnessRunner()
 	for execIdx := 0; execIdx < execPer; execIdx++ {
 		if err := ctx.Err(); err != nil {
 			return out, err

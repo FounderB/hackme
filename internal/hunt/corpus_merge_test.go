@@ -13,6 +13,8 @@ func TestMergeMinimizeCorpusSmoke(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang required")
 	}
+	// CI hosts often deny bwrap RTM_NEWADDR; production hub keeps STRICT=1.
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
 	root := RepoRoot()
 	bin := LibFuzzerImportBinPath(root, "mpack")
 	if st, err := os.Stat(bin); err != nil || st.Size() == 0 {
