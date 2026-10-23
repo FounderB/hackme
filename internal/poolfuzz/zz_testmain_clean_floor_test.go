@@ -22,6 +22,11 @@ func TestMain(m *testing.M) {
 	if os.Getenv("HACKME_HUNT_COVERAGE_ENGINE") == "" {
 		_ = os.Setenv("HACKME_HUNT_COVERAGE_ENGINE", "0")
 	}
+	// Hunt isolate STRICT defaults ON (no bare after cage fail). CI/dev hosts often
+	// lack userns for bwrap uid maps — allow bare fallback like hunt/*_test.go.
+	if os.Getenv("HACKME_HUNT_ISOLATE_STRICT") == "" {
+		_ = os.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
+	}
 	resetCleanEdgesRollForTest()
 	os.Exit(m.Run())
 }
