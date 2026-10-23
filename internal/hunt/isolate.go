@@ -87,6 +87,11 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	}
 	env = scrubIsolateEnv(env)
 
+	// AllowBare is for showmap/unit helpers on trusted local bins — never cage them.
+	if opts.AllowBare {
+		return runBareIsolated(runCtx, opts, env, wall)
+	}
+
 	argv, useBwrap := wrapBubblewrap(opts.Bin, opts.Args, opts.Dir, opts.ExtraBind, opts.ExtraRoBind)
 	if useBwrap && !IsolateRequired() {
 		// Explicit escape (hub/desktop): skip bwrap when userns cages are denied.
