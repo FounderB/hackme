@@ -1,7 +1,6 @@
 package hunt
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -32,7 +31,7 @@ type IsolateOpts struct {
 
 // IsolateRequired reports whether coverage-engine shards should prefer bwrap.
 // Default ON (HACKME_HUNT_ISOLATE_REQUIRE empty/1). Set 0 to skip bwrap entirely.
-// Userns/RTM_NEWADDR failures still fall back to bare unless IsolateStrict().
+// Launch failures may bare-retry only when IsolateStrict is opted out.
 func IsolateRequired() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_HUNT_ISOLATE_REQUIRE")))
 	if v == "" {
@@ -46,16 +45,19 @@ func IsolateRequired() bool {
 	}
 }
 
-// IsolateStrict refuses bare exec when bwrap is missing or the cage fails (userns).
-// Default OFF — fleet hosts often deny RTM_NEWADDR; starving Hunt soft_skips is worse.
-// Set HACKME_HUNT_ISOLATE_STRICT=1 only on locked-down coordinator replay hosts.
+// IsolateStrict refuses bare exec when bwrap is missing or fails to start.
+// Default ON — miners must not fall through to unsandboxed foreign harnesses.
+// Opt out only on locked-down operator hosts: HACKME_HUNT_ISOLATE_STRICT=0.
 func IsolateStrict() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_HUNT_ISOLATE_STRICT")))
-	switch v {
-	case "1", "true", "yes", "on":
+	if v == "" {
 		return true
-	default:
+	}
+	switch v {
+	case "0", "false", "no", "off":
 		return false
+	default:
+		return true
 	}
 }
 
@@ -106,16 +108,18 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	if opts.Stdout != nil {
 		cmd.Stdout = opts.Stdout
 	}
-	var bwrapDiag bytes.Buffer
 	if opts.Stderr != nil {
-		cmd.Stderr = io.MultiWriter(opts.Stderr, &bwrapDiag)
-	} else {
-		cmd.Stderr = &bwrapDiag
+		cmd.Stderr = opts.Stderr
 	}
 	setProcessGroup(cmd)
+	// Bare fallback only if bwrap fails to *launch*. Once started, never unsandbox-retry
+	// (harness stderr must not look like a cage failure and drop the sandbox).
 	if err := cmd.Start(); err != nil {
-		if bwrapCageFailed(err, "") && !IsolateStrict() {
+		if bwrapCageFailed(err, "") && (!IsolateStrict() || opts.AllowBare) {
 			return runBareIsolated(runCtx, opts, env, wall)
+		}
+		if IsolateStrict() && !opts.AllowBare {
+			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT): %v", err)
 		}
 		return err
 	}
@@ -126,13 +130,6 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	if runCtx.Err() == context.DeadlineExceeded {
 		_ = killProcessGroup(cmd)
 		return fmt.Errorf("hunt isolate: wall exceeded (%s)", wall)
-	}
-	if err != nil && bwrapCageFailed(err, bwrapDiag.String()) {
-		if IsolateStrict() && !opts.AllowBare {
-			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT): %v (%s)", err, strings.TrimSpace(bwrapDiag.String()))
-		}
-		// Userns / RTM_NEWADDR / Operation not permitted → bare retry (not soft_skip storm).
-		return runBareIsolated(runCtx, opts, env, wall)
 	}
 	return err
 }

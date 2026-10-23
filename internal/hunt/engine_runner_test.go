@@ -80,16 +80,21 @@ func TestIsolateRequiredDefaultOn(t *testing.T) {
 	}
 }
 
-func TestIsolateStrictDefaultOff(t *testing.T) {
+func TestIsolateStrictDefaultOn(t *testing.T) {
 	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "")
+	if !IsolateStrict() {
+		t.Fatal("default ON")
+	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
 	if IsolateStrict() {
-		t.Fatal("default OFF")
+		t.Fatal("STRICT=0 must opt out")
 	}
 }
 
 func TestBwrapCageFailedRTM(t *testing.T) {
+	// Still classified for Start()-time decisions when STRICT is opted out.
 	if !bwrapCageFailed(fmt.Errorf("exit status 1"), "bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted") {
-		t.Fatal("RTM_NEWADDR must count as cage failure → bare retry")
+		t.Fatal("RTM_NEWADDR must count as cage failure")
 	}
 }
 
