@@ -466,6 +466,7 @@
 			border: 1px solid rgba(255,255,255,0.16);
 			color: #c8d0d8;
 			background: rgba(0,0,0,0.25);
+			transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 		}
 		.quick-btn:hover { background: rgba(0,209,255,0.11); border-color: rgba(0,209,255,0.35); color: #bff6ff; }
 		.quick-btn.active { border-color: rgba(57,255,20,0.45); color: #8eff74; background: rgba(57,255,20,0.1); }
@@ -2124,11 +2125,9 @@
 							<div class="flex flex-wrap items-center gap-2 text-[10px] font-mono">
 								<span class="px-2 py-1 rounded border border-neon/30 text-neon">pool hash: <span id="pool-strip-hash">—</span></span>
 								<span class="px-2 py-1 rounded border border-matrix/30 text-matrix">active miners: <span id="pool-strip-miners">—</span></span>
-								<span class="px-2 py-1 rounded border border-warn/30 text-warn" title="P2P follower peers (optional in worker-only pool mode)">P2P peers: <span id="pool-strip-diff">—</span></span>
-								<span class="px-2 py-1 rounded border border-white/15 text-gray-300">sync lag: <span id="pool-strip-block-age">—</span></span>
 								<span id="pool-strip-source-wrap" class="px-2 py-1 rounded border border-matrix/30 text-matrix">source: <span id="pool-strip-source">—</span></span>
 								<span id="pool-strip-policy-wrap" class="px-2 py-1 rounded border border-white/15 text-gray-300">policy: <span id="pool-strip-policy">—</span></span>
-								<span class="px-2 py-1 rounded border border-neon/25 text-gray-300" title="Canonical tip height minus local SQLite (from /api/status)">canon Δ: <span id="pool-strip-canon-lag">—</span></span>
+								<span class="px-2 py-1 rounded border border-white/15 text-gray-300">block age: <span id="pool-strip-block-age">—</span></span>
 							</div>
 						</div>
 					</div>
@@ -2136,8 +2135,8 @@
 						<div class="flex flex-wrap items-start justify-between gap-3">
 							<div class="max-w-3xl space-y-3">
 								<h3 class="font-display text-xs font-semibold tracking-[0.2em] text-matrix uppercase">Useful PoW</h3>
-								<p id="public-miner-readiness-sub" class="text-[11px] text-gray-400 leading-relaxed">Pool and canonical network status. Badges below show coordinator, canonical base, and optional P2P.</p>
-								<p class="text-[11px] text-gray-500 leading-relaxed">Large canon Δ at block height 0 means local SQLite is still syncing — P2P catches up; pool payouts still work.</p>
+								<p id="public-miner-readiness-sub" class="text-[11px] text-gray-400 leading-relaxed">Pool and canonical network status. Badges show coordinator reachability and release channel.</p>
+								<p class="text-[11px] text-gray-500 leading-relaxed">Desktop miners join the public pool — payouts do not depend on a local full ledger.</p>
 							</div>
 							<button type="button" id="btn-copy-miner-env" class="text-[10px] px-3 py-1.5 rounded border border-neon/35 text-neon hover:bg-neon/10 uppercase tracking-wider shrink-0">Copy env snippet</button>
 						</div>
@@ -2145,7 +2144,6 @@
 							<span id="pm-badge-network" class="px-2 py-1 rounded border border-white/15 text-gray-400">network mode: …</span>
 							<span id="pm-badge-canonical" class="px-2 py-1 rounded border border-white/15 text-gray-400">canonical: …</span>
 							<span id="pm-badge-coordinator" class="px-2 py-1 rounded border border-white/15 text-gray-400">coordinator: …</span>
-							<span id="pm-badge-p2p" class="px-2 py-1 rounded border border-white/15 text-gray-400">p2p sync: …</span>
 							<span id="pm-badge-release" class="px-2 py-1 rounded border border-matrix/30 text-matrix/90">release: …</span>
 							<span id="pm-badge-update" class="hidden px-2 py-1 rounded border border-warn/40 text-warn/90">update: …</span>
 						</div>
@@ -2915,7 +2913,7 @@
 						</div>
 						<details id="p2p-peers-section" class="mt-4 card card-glow rounded-lg p-4 border-white/10 hidden">
 							<summary class="font-display text-[10px] tracking-[0.25em] text-gray-400 uppercase cursor-pointer select-none">Advanced · P2P chain sync (optional)</summary>
-							<p class="text-[10px] text-gray-600 mt-2 mb-2">Not required for pool mining. Use when mirroring the canonical SQLite DB from a follower node.</p>
+							<p class="text-[10px] text-gray-600 mt-2 mb-2">Not required for pool mining. Optional advanced peer sync for command/follower nodes.</p>
 							<div class="flex flex-wrap items-center justify-between gap-2 mb-2">
 								<p id="p2p-peers-headline" class="text-[10px] text-gray-500 font-mono">—</p>
 								<button type="button" id="btn-p2p-peers-refresh" class="text-[10px] px-3 py-1 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Refresh</button>
@@ -2973,6 +2971,7 @@
 						<div class="flex-1 min-w-0 max-w-3xl">
 							<h2 class="font-display text-sm font-bold tracking-[0.15em] text-white uppercase">Hardware tune</h2>
 							<p class="hardware-tune-subtitle text-[11px] mt-1 leading-relaxed"><code class="text-neon/60">GET/POST /api/hardware/tune</code> <span class="text-gray-600">— admin token required for POST</span></p>
+							<p class="text-[10px] text-gray-600 mt-1">Fine-tune after Blake3 activation</p>
 						</div>
 						<button type="button" id="btn-hardware-refresh" class="shrink-0 text-[10px] px-3 py-1.5 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Refresh</button>
 					</div>
@@ -3014,7 +3013,7 @@
 					</div>
 				</div>
 
-				<!-- ORDERS (SQLite tasks) -->
+				<!-- ORDERS (tasks) -->
 				<div id="panel-orders" data-coin-scope="hmc-only" class="tab-panel max-w-[1600px] mx-auto space-y-4">
 					<div class="orders-hero">
 						<div class="flex flex-wrap items-start justify-between gap-3 relative z-[1]">
@@ -3586,28 +3585,22 @@
 					<div class="flex flex-wrap items-end justify-between gap-3">
 						<div>
 							<h2 class="font-display text-sm tracking-[0.22em] text-neon uppercase">Chain</h2>
-							<p class="text-[11px] text-gray-500 mt-1">Live network head · sync vs SQLite · block stream (ops, not audit).</p>
+							<p class="text-[11px] text-gray-500 mt-1">Canonical network head and recent blocks from the pool — not a local ledger viewer.</p>
 						</div>
 						<div class="flex items-center gap-2">
-							<button type="button" id="btn-open-explorer-chain" class="text-[10px] px-3 py-1.5 rounded border border-white/15 text-gray-400 hover:text-neon uppercase tracking-wider">Full explorer</button>
-							<button type="button" id="btn-refresh-chain" class="text-[10px] px-3 py-1.5 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Refresh</button>
+							<button type="button" id="btn-open-explorer-chain" class="text-[10px] px-3 py-1.5 rounded border border-white/15 text-gray-400 hover:text-neon hover:border-neon/40 uppercase tracking-wider transition-colors">Full explorer</button>
+							<button type="button" id="btn-refresh-chain" class="text-[10px] px-3 py-1.5 rounded border border-neon/30 text-neon hover:bg-neon/10 hover:border-neon/50 uppercase tracking-wider transition-colors">Refresh</button>
 						</div>
 					</div>
 					<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 						<div class="card card-glow rounded-xl p-6 lg:col-span-1 border-neon/20">
 							<p class="text-[10px] uppercase tracking-[0.3em] text-gray-500 mb-2">Network height</p>
 							<p id="chain-height-display" class="font-display text-5xl font-bold text-white tabular-nums leading-none">0</p>
-							<p class="text-[10px] text-gray-600 mt-2">Local SQLite: <span id="chain-local-tip-height" class="text-neon/90">—</span></p>
-							<div class="mt-4">
-								<div class="flex justify-between text-[9px] text-gray-500 mb-1"><span>Sync</span><span id="chain-sync-pct-label">—</span></div>
-								<div class="chain-sync-rail"><div id="chain-sync-bar-fill" class="chain-sync-fill" style="width:0%"></div></div>
-							</div>
-							<p id="chain-panel-sync-note" class="text-[9px] text-gray-500 mt-3 leading-snug"></p>
+							<p class="text-[10px] text-gray-500 mt-3 leading-snug">Live tip from the canonical / pool network.</p>
 						</div>
 						<div class="card card-glow rounded-xl p-5 lg:col-span-2 border-white/10">
 							<p class="text-[10px] uppercase tracking-[0.25em] text-gray-500 mb-2">Canonical head</p>
 							<p id="chain-tip-full" class="text-xs sm:text-sm font-mono text-matrix break-all leading-relaxed">—</p>
-							<p class="text-[10px] text-gray-600 mt-2 font-mono">Local tip: <span id="chain-local-tip-hash" class="text-gray-400 break-all">—</span></p>
 							<div class="mt-4 flex flex-wrap gap-2 items-center">
 								<span id="chain-genesis-badge" class="text-[10px] px-2 py-1 rounded border border-warn/40 text-warn uppercase tracking-wider">Genesis: pending</span>
 								<span id="chain-mining-badge" class="text-[10px] px-2 py-1 rounded border border-gray-600 text-gray-500 uppercase tracking-wider">Miner: idle</span>
@@ -3640,10 +3633,11 @@
 									<div class="rounded border border-white/10 bg-black/30 p-2 col-span-2"><p class="text-[9px] text-gray-600 uppercase">Lead miner</p><p id="chain-stat-lead-miner" class="text-matrix truncate mt-1">—</p></div>
 								</div>
 							</div>
-							<details class="card card-glow rounded-lg p-4 border-white/8">
-								<summary class="text-[10px] uppercase tracking-[0.2em] text-gray-500 cursor-pointer select-none">Local SQLite (<span id="chain-local-count">0</span>)</summary>
-								<div id="chain-local-list" class="mt-3 space-y-2 max-h-48 overflow-y-auto text-[10px] font-mono text-gray-500"></div>
-							</details>
+							<div class="card card-glow rounded-lg p-4 border-white/8">
+								<p class="text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2">Explorer</p>
+								<p class="text-[11px] text-gray-500 leading-relaxed">Open the full explorer for address and transaction lookup on the live network.</p>
+								<button type="button" id="btn-open-explorer-chain-side" class="mt-3 text-[10px] px-3 py-1.5 rounded border border-white/15 text-gray-300 hover:text-neon hover:border-neon/40 uppercase tracking-wider transition-colors">Open explorer</button>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -3660,7 +3654,6 @@
 								<select id="reports-source" class="ml-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-gray-300">
 									<option value="auto" selected>auto</option>
 									<option value="canonical">canonical</option>
-									<option value="local">local</option>
 								</select>
 							</label>
 							<label class="text-[10px] text-gray-500">Window
@@ -4742,7 +4735,7 @@
 				let sub = unpaid > 0.000001 ? ('+' + fmt(unpaid, 4) + ' accrual') : 'on-chain';
 				if (align === 'local_ahead' || align === 'canonical_ahead') {
 					sub = (unpaid > 0.000001 ? ('+' + fmt(unpaid, 4) + ' accrual · ') : '')
-						+ 'orders escrow ' + fmt(orders, 0) + ' HMC (local SQLite)';
+						+ 'orders escrow ' + fmt(orders, 0) + ' HMC';
 				}
 				return {
 					main: fmt(onChain > 0 ? onChain : walletSnapshot.balanceHMC, 4),
@@ -6119,7 +6112,7 @@
 						' · filter: ' + walletActivityFilter;
 					if (cu) {
 						srcLine =
-							'Canonical /api/wallet/activity unavailable — local SQLite empty (curl + HTTP tried). Check HACKME_CANONICAL_CHAIN_URL / VPN / TLS. · ' +
+							'Canonical activity unavailable — showing local node data. Check pool / network link. · ' +
 							srcLine;
 					}
 					$('wallet-activity-source').textContent = srcLine;
@@ -8384,19 +8377,18 @@
 					const parts = [];
 					if (cu) {
 						parts.push(
-							'Canonical ' + earnPath.split('?')[0] + ' unavailable — chart from local SQLite. Check canonical URL / TLS / peer returns 200 for same query.'
+							'Canonical earnings unavailable — chart from this node. Check pool connectivity.'
 						);
 					}
 					if (fh && fh.sync_blocked) {
 						parts.push(
-							'P2P sync_blocked (' +
+							'Chain sync needs attention (' +
 								String(fh.sync_blocked_code || '?') +
-								') → ' +
-								String(fh.sync_action || 'reseed') +
+								')' +
 								(fh.lag_blocks != null ? ' · lag ≈ ' + fmtUInt(Number(fh.lag_blocks)) : '')
 						);
 					} else if (fh && fh.sync_needed && Number(fh.lag_blocks || 0) > 0) {
-						parts.push('P2P catch-up: lag ≈ ' + fmtUInt(Number(fh.lag_blocks)) + ' blocks · ' + String(fh.pull_preview_hint || 'see Chain'));
+						parts.push('Pool tip catching up · lag ≈ ' + fmtUInt(Number(fh.lag_blocks)) + ' blocks');
 					}
 					if (!parts.length) {
 						el.textContent = '';
@@ -9126,7 +9118,7 @@
 			}
 			el.classList.remove('hidden');
 			el.innerHTML =
-				'<strong class="text-white">No local genesis</strong> — SQLite has no wallet row for order escrow. <code class="text-neon/80">POST /api/tasks</code> and <code class="text-neon/80">/from_code</code> are disabled here; <strong class="text-matrix">pool worker and Work payout</strong> still work (coordinator pays submit address). Orders on-chain are created from synced nodes. To enable here: <span class="text-neon">Overview → Install genesis</span> (private net) or P2P/bootstrap — <strong class="text-warn">do not</strong> mint a new genesis against a live canonical.';
+				'<strong class="text-white">Orders escrow unavailable</strong> — this pool-miner node has no local wallet for escrow. <code class="text-neon/80">POST /api/tasks</code> and <code class="text-neon/80">/from_code</code> are disabled here; <strong class="text-matrix">pool worker and Work payout</strong> still work (coordinator pays submit address). Orders are created on command/synced nodes. Private net only: <span class="text-neon">Overview → Install genesis</span> — <strong class="text-warn">do not</strong> mint genesis against a live pool.';
 		}
 		function explainOrderSubmitError(msg) {
 			const m = String(msg || '');
@@ -9135,7 +9127,7 @@
 			if (m.includes('admin authentication required') || m.includes('401')) return '401: save developer or admin token in header';
 			if (m.includes('insufficient') || m.includes('402')) return '402: insufficient wallet for escrow (reward_hmc × target_solves)';
 			if (m.includes('genesis required') || m.includes('wallet row missing')) {
-				return 'No local genesis/wallet — POST /api/tasks disabled. Pool worker can still mine; for orders: genesis or P2P-sync with chain + wallet.';
+				return 'Orders escrow needs a command-node wallet — pool worker mining still works.';
 			}
 			if (m.includes('prepaid total too low')) return '400: prepaid too low (reward_hmc × target_solves ≥ 0.05 HMC)';
 			if (m.includes('fairness') || m.includes('reward_hmc must be') || m.includes('difficulty_score')) return '400: fairness guard (increase reward_hmc or lower difficulty)';
@@ -9498,11 +9490,12 @@
 			document.body.removeChild(ta);
 		}
 		function updateChainSyncBar(localH, canonH) {
+			const fill = $('chain-sync-bar-fill');
+			const lbl = $('chain-sync-pct-label');
+			if (!fill && !lbl) return;
 			const lh = Number(localH || 0);
 			const ch = Number(canonH || 0);
 			const pct = ch > 0 ? Math.min(100, Math.round((lh / ch) * 1000) / 10) : 0;
-			const fill = $('chain-sync-bar-fill');
-			const lbl = $('chain-sync-pct-label');
 			if (fill) fill.style.width = pct + '%';
 			if (lbl) lbl.textContent = ch > 0 ? (fmt(pct, 1) + '% · Δ ' + fmtUInt(Math.max(0, ch - lh))) : '—';
 		}
@@ -11415,40 +11408,8 @@
 		}
 
 		function refreshChainHeightDisambiguation() {
-			const st = latestStatus || {};
-			const lh = Number(st.tip_height ?? 0);
-			const gh = Number(st.canonical_tip_height || latestCanonicalChainHeight || 0);
-			const th = String(st.tip_hash || '');
-			if ($('chain-local-tip-height')) {
-				$('chain-local-tip-height').textContent = latestStatus ? fmtUInt(lh) : '—';
-			}
-			if ($('chain-local-tip-hash')) {
-				if (th) {
-					$('chain-local-tip-hash').textContent = th.slice(0, 22) + '…';
-					$('chain-local-tip-hash').title = th;
-				} else {
-					$('chain-local-tip-hash').textContent = '—';
-					$('chain-local-tip-hash').title = '';
-				}
-			}
-			updateChainSyncBar(lh, gh);
-			const note = $('chain-panel-sync-note');
-			if (!note) return;
-			if (gh > 0 && lh >= 0 && lh !== gh) {
-				const syn = latestP2PSync || {};
-				const forkHint = syn.sync_blocked ? (' If sync_blocked (' + String(syn.sync_blocked_code || '?') + '), SQLite needs reseed from leader — see red banner / scripts/ops/follower_bootstrap_from_vps.sh.') : '';
-				note.textContent =
-					'Sync note: public / canonical tip is ' + fmtUInt(gh) + ' but this node SQLite tip is ' + fmtUInt(lh) +
-					' (Δ ' + fmtUInt(Math.abs(gh - lh)) + ').' + (syn.sync_blocked ? forkHint : ' Expected until P2P pull catches up.') +
-					' Explorer reflects local DB height unless wired to canonical.';
-				note.className = 'text-[9px] text-warn/90 mt-2 leading-snug';
-			} else if (gh > 0 && lh === gh) {
-				note.textContent = 'Local DB tip matches reported canonical / public tip.';
-				note.className = 'text-[9px] text-matrix/80 mt-2 leading-snug';
-			} else {
-				note.textContent = '';
-				note.className = 'text-[9px] text-gray-500 mt-2 leading-snug';
-			}
+			/* Desktop pool UI: local tip / sync-bar / SQLite notes removed from #panel-chain. */
+			return;
 		}
 
 		function updateGenesisDeploymentUI(s) {
@@ -11464,11 +11425,10 @@
 			const syncGo = $('btn-deployment-sync-chain');
 			if (title && lead) {
 				if (forkFollower) {
-					title.textContent = 'Network sync (follower)';
+					title.textContent = 'Pool miner (follower)';
 					lead.textContent =
-						'Canonical already has blocks (height ' + fmtUInt(canonH) + '); local SQLite here has no genesis yet. ' +
-						'Do not create a new genesis — that forks. Use P2P / bootstrap / replay until local tip catches up. ' +
-						'Then Chain + Mining (worker).';
+						'Canonical network already has blocks (height ' + fmtUInt(canonH) + '). ' +
+						'Do not create a new genesis — use Mining → Start pool worker. Balance tracks the pool.';
 				} else {
 					title.textContent = 'Genesis';
 					lead.innerHTML =
@@ -11476,14 +11436,14 @@
 				}
 			}
 			if (syncGo) {
-				syncGo.classList.toggle('hidden', !forkFollower);
+				syncGo.classList.add('hidden');
 			}
 			if ($('balance-sub')) {
 				if (!has && forkFollower) {
 					$('balance-sub').textContent =
-						'Local DB has no #0 · canonical height ' + fmtUInt(canonH) + ' — balance/explorer catch up after sync (do not mint new genesis)';
+						'Pool miner · canonical height ' + fmtUInt(canonH) + ' — balance from pool (do not mint genesis)';
 				} else if (!has) {
-					$('balance-sub').textContent = 'No local genesis — new-net command-node only: Install genesis below';
+					$('balance-sub').textContent = 'No genesis — new-net command-node only: Install genesis below';
 				} else if (net) {
 					$('balance-sub').textContent = 'genesis ready · pool/network mode';
 				} else {
@@ -11497,7 +11457,7 @@
 					btn.classList.add('opacity-40', 'cursor-not-allowed');
 					btn.classList.remove('genesis-btn');
 					btn.textContent = 'Skip genesis (follower)';
-					btn.title = 'Canonical network is live. POST /api/genesis here forks. See Chain → P2P / sync.';
+					btn.title = 'Canonical network is live. POST /api/genesis here forks. Use Mining → pool worker.';
 				} else {
 					btn.disabled = has;
 					btn.classList.toggle('opacity-40', has);
@@ -11786,10 +11746,10 @@
 					const delta = nums.canonH > nums.localH ? (nums.canonH - nums.localH) : (nums.localH - nums.canonH);
 					const lagBehind = nums.canonH > nums.localH;
 					sub.textContent = lagBehind
-						? ('Canonical height · local SQLite: ' + fmtUInt(nums.localH) +
-							' (behind by ' + fmtUInt(delta) + ') — P2P / bootstrap, then explorer aligns · Chain')
-						: ('Canonical height ' + fmtUInt(nums.canonH) + ' · local SQLite ' + fmtUInt(nums.localH) +
-							' (ahead by ' + fmtUInt(delta) + ' — check fork / stale canonical snapshot) · Chain');
+						? ('Canonical height · this node: ' + fmtUInt(nums.localH) +
+							' (behind by ' + fmtUInt(delta) + ') — pool tip is authoritative · Chain')
+						: ('Canonical height ' + fmtUInt(nums.canonH) + ' · this node ' + fmtUInt(nums.localH) +
+							' (ahead by ' + fmtUInt(delta) + ' — check stale snapshot) · Chain');
 					sub.className = nums.net
 						? 'text-[10px] text-warn/85 mt-1 font-mono leading-snug'
 						: 'text-[10px] text-neon/80 mt-1 font-mono leading-snug';
@@ -11804,10 +11764,10 @@
 				}
 			} else if (!nums.net) {
 				sub.textContent =
-					'Local SQLite only (demo/fork). Same height as pool: Copy env snippet, network mode, P2P if needed.';
+					'Solo / demo tip. Join the pool: Copy env snippet → network mode.';
 				sub.className = 'text-[10px] text-warn/90 mt-1 font-mono leading-snug';
 			} else {
-				sub.textContent = 'SQLite tip on this node (canonical snapshot unavailable) · click → Chain';
+				sub.textContent = 'Node tip (canonical snapshot unavailable) · click → Chain';
 				sub.className = 'text-[10px] text-gray-600 mt-1 font-mono leading-snug';
 			}
 		}
@@ -12396,7 +12356,7 @@
 					}
 					if ($('kpi-challenge-sub')) {
 						$('kpi-challenge-sub').textContent = soloStrip
-							? 'local PoH / SQLite (no coordinator work stream in solo)'
+							? 'local PoH (no coordinator work stream in solo)'
 							: 'fallback from local APIs (status/wallet/work)';
 					}
 					refreshChainHeightDisambiguation();
@@ -12451,7 +12411,7 @@
 				}
 				if ($('kpi-challenge-sub')) {
 					$('kpi-challenge-sub').textContent = soloCatch
-						? 'local PoH / SQLite; global metrics endpoint unavailable'
+						? 'local PoH; global metrics endpoint unavailable'
 						: ('GLOBAL(VPS) unavailable · last good ' +
 							(lastGlobalMetricsOkUnix > 0 ? (fmtDur(Math.max(0, nowUnix - lastGlobalMetricsOkUnix)) + ' ago') : 'never'));
 				}
@@ -12713,7 +12673,7 @@
 			const canonH = Number(st.canonical_tip_height || latestCanonicalChainHeight || 0);
 			const localH = Number(st.tip_height || 0);
 			if (canonH > 0 && localH < canonH - 10) {
-				lines.push('Chain: local SQLite #' + fmtUInt(localH) + ' vs network #' + fmtUInt(canonH) + ' (normal for follower until P2P sync).');
+				lines.push('Chain: this node #' + fmtUInt(localH) + ' vs network #' + fmtUInt(canonH) + ' (normal for pool miners).');
 			}
 			if (!lines.length) {
 				wrap.classList.add('hidden');
@@ -12736,13 +12696,8 @@
 			}
 		}
 		function updateMiningAdvancedPanels() {
-			const peerData = latestP2PPeers || {};
-			const peers = Array.isArray(peerData.peers) ? peerData.peers : [];
 			const p2pSec = $('p2p-peers-section');
-			if (p2pSec) {
-				if (peers.length > 0) p2pSec.classList.remove('hidden');
-				else p2pSec.classList.add('hidden');
-			}
+			if (p2pSec) p2pSec.classList.add('hidden');
 		}
 
 		function refreshOperatorHealth() {
@@ -12773,26 +12728,9 @@
 			}
 			updateMiningAdvancedPanels();
 		}
-		function updateSyncForkBanner(sync) {
+		function updateSyncForkBanner(_sync) {
 			const wrap = $('sync-fork-banner');
-			const body = $('sync-fork-banner-body');
-			if (!wrap || !body) return;
-			const blocked = !!(sync && sync.sync_blocked);
-			if (!blocked) {
-				wrap.classList.add('hidden');
-				return;
-			}
-			wrap.classList.remove('hidden');
-			const code = String(sync.sync_blocked_code || 'unknown');
-			const lag = fmtUInt(sync.lag_blocks || 0);
-			const action = String(sync.sync_action || 'inspect GET /api/p2p/sync');
-			const localH = fmtUInt(sync.local_height || 0);
-			const peerH = fmtUInt(sync.max_peer_height || 0);
-			body.textContent =
-				'Local SQLite tip height ' + localH + ' diverged from configured peer tip ' + peerH + ' (lag ≈ ' + lag + ' blocks, code ' + code + '). ' +
-				'Linear P2P pull cannot repair this fork. Recommended: ' + action + '. ' +
-				'Restore SQLite from the leader snapshot (scripts/ops/follower_bootstrap_from_vps.sh or scripts/ops/prefinal_public_sync.sh — needs VPS SSH + ADMIN_TOKEN/P2P_TOKEN per scripts/ops/demo_participant_up.sh). ' +
-				'Until then, wallet/pool views may still track canonical APIs while explorer counts reflect only local blocks.';
+			if (wrap) wrap.classList.add('hidden');
 		}
 		async function refreshP2PSyncSnapshot() {
 			try {
@@ -13689,12 +13627,11 @@
 				refreshChainHeightDisambiguation();
 				const lim = Number(($('chain-limit') && $('chain-limit').value) || 30);
 				const canonMeta = $('chain-canon-meta');
-				let canonBlocks = [];
 				try {
 					const rc = await fetch('/api/reports/blocks?limit=' + encodeURIComponent(String(lim)) + '&source=auto', { cache: 'no-store' });
 					if (rc.ok) {
 						const jc = await rc.json();
-						canonBlocks = Array.isArray(jc.blocks) ? jc.blocks : [];
+						const canonBlocks = Array.isArray(jc.blocks) ? jc.blocks : [];
 						const src = String(jc.blocks_source || 'local_ledger');
 						renderChainTimeline(canonBlocks);
 						const sum = summarizeBlockWindow(canonBlocks);
@@ -13708,33 +13645,10 @@
 						if (canonMeta) {
 							const parts = [src === 'canonical_peer' ? 'canonical peer' : src];
 							if (jc.canonical_tip_height != null) parts.push('tip #' + fmtUInt(jc.canonical_tip_height));
-							if (jc.local_tip_height != null) parts.push('local #' + fmtUInt(jc.local_tip_height));
 							canonMeta.textContent = parts.join(' · ');
 						}
 					}
 				} catch (_) {}
-				const r = await fetch('/api/chain?limit=' + encodeURIComponent(String(Math.min(lim, 20))), { cache: 'no-store' });
-				const localList = $('chain-local-list');
-				const localCnt = $('chain-local-count');
-				if (r.ok) {
-					const j = await r.json();
-					const blocks = Array.isArray(j.blocks) ? j.blocks : [];
-					if (localCnt) localCnt.textContent = String(blocks.length);
-					if (localList) {
-						localList.innerHTML = '';
-						if (!blocks.length) {
-							localList.innerHTML = '<p class="text-gray-600">empty</p>';
-						} else {
-							blocks.slice().sort((a, b) => Number(b.index || 0) - Number(a.index || 0)).forEach((b) => {
-								const p = document.createElement('p');
-								p.className = 'truncate';
-								p.textContent = '#' + fmtUInt(b.index || 0) + ' · ' + blockHashDisplay(b).slice(0, 20);
-								p.title = blockHashDisplay(b);
-								localList.appendChild(p);
-							});
-						}
-					}
-				}
 			} catch (_) {}
 		}
 
@@ -13780,7 +13694,7 @@
 				if (!rows.length) {
 					tb.innerHTML =
 						'<tr><td colspan="9" class="px-3 py-3 text-gray-500 text-center text-[11px] leading-relaxed">' +
-						'No orders in local SQLite. POST /api/tasks needs genesis/sync — normal for pool-only followers.' +
+						'No orders on this node. Pool miners mine via Workers; orders need a command-node wallet.' +
 						'</td></tr>';
 					return;
 				}
@@ -16272,12 +16186,12 @@
 					if (!st.has_genesis) {
 						if (netFollowerNoLocal) {
 							$('balance-sub').textContent =
-								'Local DB has no #0 · canonical ≈ height ' + fmtUInt(canonH) + ' — balance catches up after P2P/sync (no new genesis)';
+								'Pool miner · canonical ≈ height ' + fmtUInt(canonH) + ' — balance from pool (no new genesis)';
 						} else if (st.network_mode_active && canonWallet) {
 							$('balance-sub').textContent =
-								'Canonical on-chain balance (local SQLite without genesis — P2P/bootstrap for explorer height)';
+								'Canonical on-chain balance (pool miner — height from network)';
 						} else {
-							$('balance-sub').textContent = 'No local genesis — new-net command-node: Overview → Install genesis';
+							$('balance-sub').textContent = 'No genesis — new-net command-node: Overview → Install genesis';
 						}
 					} else {
 						const src = String(w.wallet_source || 'local_db');
@@ -16463,7 +16377,9 @@
 				if ($('reports-source')) $('reports-source').addEventListener('change', () => { void refreshReportsList(); });
 				if ($('reports-limit')) $('reports-limit').addEventListener('change', () => { void refreshReportsList(); });
 				if ($('chain-limit')) $('chain-limit').addEventListener('change', () => { void refreshChainList(); });
-				if ($('btn-open-explorer-chain')) $('btn-open-explorer-chain').addEventListener('click', () => { window.location.href = '/explorer'; });
+				const openExplorer = () => { window.location.href = '/explorer'; };
+				if ($('btn-open-explorer-chain')) $('btn-open-explorer-chain').addEventListener('click', openExplorer);
+				if ($('btn-open-explorer-chain-side')) $('btn-open-explorer-chain-side').addEventListener('click', openExplorer);
 				if ($('btn-orders-refresh')) $('btn-orders-refresh').addEventListener('click', () => { void refreshOrdersList(); });
 				if ($('btn-orders-fund')) $('btn-orders-fund').addEventListener('click', () => { void submitOrdersFund(); });
 				if ($('btn-orders-toggle-advanced')) $('btn-orders-toggle-advanced').addEventListener('click', () => {
@@ -16702,6 +16618,10 @@
 					} catch (_) {}
 				}
 				switchTab(initTab);
+				window.addEventListener('hashchange', () => {
+					let t = String((location.hash || '').replace(/^#/, '').replace(/\/$/, '') || '');
+					if (allowedTabs.includes(t) && t !== currentTab) switchTab(t);
+				});
 				document.querySelectorAll('[data-goto-tab]').forEach((el) => {
 					el.addEventListener('click', (ev) => {
 						ev.preventDefault();

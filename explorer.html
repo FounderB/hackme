@@ -171,9 +171,7 @@
       <div class="card"><div class="label">Pending TX</div><div id="kpi-txpool" class="value">—</div></div>
       <div class="card"><div class="label">Updated</div><div id="kpi-updated" class="value" style="font-size:16px;color:#b7c3d8;">—</div></div>
     </div>
-    <div id="kpi-secondary-row" style="display:none;margin-top:8px;">
-      <div class="card"><div class="label">Local SQLite ledger (same DB as “Recent blocks”)</div><div id="kpi-local-pair" class="value mono" style="font-size:14px;color:#b7c3d8;">—</div></div>
-    </div>
+    <div id="kpi-secondary-row" style="display:none;margin-top:8px;" aria-hidden="true"></div>
     <div class="toolbar" style="margin-bottom:12px;">
       <span id="kpi-net-state" class="badge">node status: loading</span>
       <span id="kpi-chain-sync" class="badge">chain sync: loading</span>
@@ -181,7 +179,7 @@
       <span id="kpi-data-source" class="badge">data source: loading</span>
       <span id="kpi-pool-strip" class="badge">pool lane: loading</span>
       <span id="kpi-policy-hash" class="badge">policy: loading</span>
-      <span id="kpi-p2p-lag" class="badge" title="P2P peer height vs local SQLite (GET /api/status → network_sync)">P2P lag: n/a</span>
+      <span id="kpi-p2p-lag" class="badge" title="Peer height lag vs this node (GET /api/status → network_sync)" style="display:none;">P2P lag: n/a</span>
       <span id="kpi-release" class="badge">release: …</span>
     </div>
 
@@ -289,13 +287,13 @@
         const useCanonPrimary = netMode && canonOk;
         let primaryH = localTip;
         let primaryHash = localHash;
-        let primaryLabel = 'Local SQLite ledger';
+        let primaryLabel = 'This node ledger';
         if (useCanonPrimary) {
           primaryH = canonTip;
           primaryHash = canonHash;
-          primaryLabel = 'Public canonical chain (HACKME_CANONICAL_CHAIN_URL / peer)';
+          primaryLabel = 'Public canonical chain (pool / peer)';
         } else if (netMode && !canonOk) {
-          primaryLabel = 'Local SQLite (canonical tip unavailable — check canonical URL / network)';
+          primaryLabel = 'Node tip (canonical unavailable — check pool URL / network)';
         }
         $('kpi-height').textContent = String(primaryH || 0);
         $('kpi-tip').textContent = short(primaryHash || '—', 22);
@@ -339,19 +337,16 @@
         if (hCard) hCard.title = pairTitle;
         if (tCard) tCard.title = pairTitle;
         const secRow = $('kpi-secondary-row');
-        const secPair = $('kpi-local-pair');
-        if (useCanonPrimary && (diverged || emptyLocal) && secRow && secPair) {
-          secRow.style.display = 'grid';
-          secPair.textContent = emptyLocal
-            ? ('empty (height 0) — canonical at ' + canonTip)
-            : ('height ' + localTip + ' · head ' + short(localHash, 28));
-        } else if (secRow) {
+        if (secRow) {
           secRow.style.display = 'none';
+          secRow.setAttribute('aria-hidden', 'true');
         }
         if (useCanonPrimary && (emptyLocal || diverged)) {
           explorerBlocksSyncNote = emptyLocal
-            ? ('Recent blocks: local SQLite is empty while canonical height is ' + canonTip + '. Enable P2P + state replay or follower bootstrap — pool mining still works.')
-            : ('Recent blocks: local SQLite height ' + localTip + ' vs canonical ' + canonTip + '. Sync ledger or use public node /explorer.');
+            ? ('Recent blocks: node ledger empty while canonical height is ' + canonTip + '. Pool mining still works; block list prefers canonical when available.')
+            : ('Recent blocks: node height ' + localTip + ' vs canonical ' + canonTip + '. Prefer public /explorer or wait for pool tip.');
+        } else {
+          explorerBlocksSyncNote = '';
         }
         const net = $('kpi-net-state');
         const source = $('kpi-data-source');
@@ -365,13 +360,13 @@
         const minProd = $('kpi-mining-producer');
         if (chainSync) {
           if (useCanonPrimary && emptyLocal) {
-            chainSync.textContent = 'chain sync: local SQLite empty · canonical ' + canonTip;
+            chainSync.textContent = 'chain sync: node empty · canonical ' + canonTip;
             chainSync.className = 'badge warn';
           } else if (useCanonPrimary && canonOk && !diverged) {
-            chainSync.textContent = 'chain sync: aligned (canonical tip matches local height)';
+            chainSync.textContent = 'chain sync: aligned with canonical';
             chainSync.className = 'badge ok';
           } else if (useCanonPrimary && diverged) {
-            chainSync.textContent = 'chain sync: local ledger behind canonical (see secondary row)';
+            chainSync.textContent = 'chain sync: node behind canonical (KPIs show network tip)';
             chainSync.className = 'badge warn';
           } else if (netMode && !canonOk) {
             chainSync.textContent = 'chain sync: canonical tip unavailable';
@@ -395,24 +390,24 @@
         if (source) {
           if (useCanonPrimary) {
             if (emptyLocal) {
-              source.textContent = 'tip view: canonical ' + canonTip + ' · local SQLite empty';
+              source.textContent = 'tip view: canonical ' + canonTip + ' · node empty';
               source.className = 'badge warn';
-              source.title = 'KPIs show public chain. Recent blocks are local DB until P2P/bootstrap sync.';
+              source.title = 'KPIs show public chain. Block list uses canonical/auto when available.';
             } else if (diverged) {
-              source.textContent = 'tip view: canonical · local ledger ' + localTip + ' (see row below)';
+              source.textContent = 'tip view: canonical · node ' + localTip;
               source.className = 'badge warn';
-              source.title = 'Top row shows the public chain tip. Secondary row shows local SQLite; sync to align.';
+              source.title = 'Top row shows the public chain tip.';
             } else {
-              source.textContent = 'tip view: canonical matches local ' + localTip;
+              source.textContent = 'tip view: canonical matches node ' + localTip;
               source.className = 'badge ok';
-              source.title = 'Local and canonical tips are the same height.';
+              source.title = 'Node and canonical tips are the same height.';
             }
           } else {
-            source.textContent = 'tip view: local SQLite · height ' + localTip;
+            source.textContent = 'tip view: this node · height ' + localTip;
             source.className = 'badge ' + (netMode && !canonOk ? 'warn' : 'ok');
             source.title = netMode && !canonOk
-              ? 'Network mode is on but canonical tip could not be read; KPIs show local ledger only.'
-              : 'Height and hash are from this node database.';
+              ? 'Network mode is on but canonical tip could not be read; KPIs show this node only.'
+              : 'Height and hash are from this node.';
           }
         }
         if (policy) {
@@ -425,22 +420,25 @@
         const p2pLagEl = $('kpi-p2p-lag');
         if (p2pLagEl) {
           const ns = s.network_sync || {};
-          const ph = ns.p2p_sync_hint || {};
-          const lag = Number(ph.lag_blocks || 0);
           const p2pOn = !!ns.p2p_enabled;
-          const bg = Number(ns.background_sync_interval_sec || 0);
           if (!p2pOn) {
-            p2pLagEl.textContent = 'P2P lag: (peers off)';
-            p2pLagEl.className = 'badge';
-            p2pLagEl.title = 'Set HACKME_P2P_PEERS to enable follower height hints.';
-          } else if (lag > 0) {
-            p2pLagEl.textContent = 'P2P lag: ' + lag + ' blocks' + (bg > 0 ? ' · auto-sync ' + bg + 's' : '');
-            p2pLagEl.className = 'badge warn';
-            p2pLagEl.title = 'Local SQLite behind healthy P2P peer. Enable state replay + optional HACKME_P2P_BACKGROUND_SYNC_SEC on followers.';
+            p2pLagEl.style.display = 'none';
+            p2pLagEl.textContent = 'peer lag: n/a';
+            p2pLagEl.title = 'Peer sync off — pool mining does not need it.';
           } else {
-            p2pLagEl.textContent = 'P2P lag: aligned' + (bg > 0 ? ' · sync ' + bg + 's' : '');
-            p2pLagEl.className = 'badge ok';
-            p2pLagEl.title = 'Local height matches P2P peer snapshot (or no peer data yet).';
+            const ph = ns.p2p_sync_hint || {};
+            const lag = Number(ph.lag_blocks || 0);
+            const bg = Number(ns.background_sync_interval_sec || 0);
+            p2pLagEl.style.display = '';
+            if (lag > 0) {
+              p2pLagEl.textContent = 'peer lag: ' + lag + ' blocks' + (bg > 0 ? ' · auto-sync ' + bg + 's' : '');
+              p2pLagEl.className = 'badge warn';
+              p2pLagEl.title = 'This node behind a healthy peer. Pool KPIs still use the network tip.';
+            } else {
+              p2pLagEl.textContent = 'peer lag: aligned' + (bg > 0 ? ' · sync ' + bg + 's' : '');
+              p2pLagEl.className = 'badge ok';
+              p2pLagEl.title = 'Node height matches peer snapshot (or no peer data yet).';
+            }
           }
         }
     }

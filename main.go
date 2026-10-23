@@ -2545,7 +2545,13 @@ func (a *app) handleWorkerStart(w http.ResponseWriter, r *http.Request) {
 	a.miner.Stop()
 
 	logDir := filepath.Join(".", "logs")
-	_ = os.MkdirAll(logDir, 0o755)
+	if abs, err := filepath.Abs(logDir); err == nil {
+		logDir = abs
+	}
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		http.Error(w, "worker log dir failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	repoRoot := resolveWorkerRepoRoot(strings.TrimSpace(a.dataDir))
 	// Reap orphans BEFORE truncating the log. Otherwise a crash-surviving workerpoh
 	// keeps the per-worker lock + writes at the old offset (sparse/NUL holes), and
@@ -2554,6 +2560,10 @@ func (a *app) handleWorkerStart(w http.ResponseWriter, r *http.Request) {
 	logPath := filepath.Join(logDir, "worker_participant.log")
 	rotateWorkerParticipantLog(logPath)
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		_ = os.MkdirAll(filepath.Dir(logPath), 0o755)
+		f, err = os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	}
 	if err != nil {
 		http.Error(w, "worker log open failed: "+err.Error(), http.StatusInternalServerError)
 		return
