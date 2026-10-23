@@ -98,6 +98,22 @@ func TestBwrapCageFailedRTM(t *testing.T) {
 	}
 }
 
+func TestBwrapSetupFailedRequiresBwrapPrefix(t *testing.T) {
+	if !bwrapSetupFailed("bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted") {
+		t.Fatal("bwrap-prefixed RTM must count as setup failure")
+	}
+	if !bwrapSetupFailed("bwrap: setting up uid map: Permission denied") {
+		t.Fatal("bwrap-prefixed uid_map must count as setup failure")
+	}
+	// Harness noise must not trigger unsandbox-after-Start.
+	if bwrapSetupFailed("AddressSanitizer: permission denied") {
+		t.Fatal("harness stderr must not count as bwrap setup failure")
+	}
+	if bwrapSetupFailed("operation not permitted") {
+		t.Fatal("bare permission text without bwrap: must not unsandbox")
+	}
+}
+
 func TestIsLibFuzzerPreflightErrAFLWallShort(t *testing.T) {
 	if !isLibFuzzerPreflightErr(errors.New("afl_wall_short:elapsed_ms=6000 want>=45000")) {
 		t.Fatal("afl_wall_short must soft-skip (Deep was lying Ran=true)")

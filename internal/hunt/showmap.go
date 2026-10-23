@@ -99,7 +99,9 @@ func ShowmapCoverageBitmap(ctx context.Context, harness string, input []byte) ([
 		// ASAN instrumented targets need large VA; RLIMIT_AS kills showmap before map write.
 		RSSLimitMB:  0,
 		Stdin:       stdin,
-		AllowBare:   true, // showmap prove must not soft-fail on missing bwrap
+		// Coordinator prove runs STRICT=1: require bwrap (no bare customer harness).
+		// AllowBare stays false so missing/failed cage fails closed under STRICT.
+		AllowBare:   false,
 		ExtraRoBind: []string{harnessDir},
 		ExtraBind:   []string{tmpDir},
 	})

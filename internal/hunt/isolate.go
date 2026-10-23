@@ -1,6 +1,7 @@
 package hunt
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -25,7 +26,8 @@ type IsolateOpts struct {
 	// ExtraBind / ExtraRoBind are additional paths for the bwrap cage (corpus, stdin driver).
 	ExtraBind   []string
 	ExtraRoBind []string
-	// AllowBare when true permits plain exec if bwrap is missing (tests / showmap helpers).
+	// AllowBare permits plain exec only when bwrap is missing or fails to *launch*
+	// (tests / showmap helpers). It never skips an available cage.
 	AllowBare bool
 }
 
@@ -87,11 +89,6 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	}
 	env = scrubIsolateEnv(env)
 
-	// AllowBare is for showmap/unit helpers on trusted local bins — never cage them.
-	if opts.AllowBare {
-		return runBareIsolated(runCtx, opts, env, wall)
-	}
-
 	argv, useBwrap := wrapBubblewrap(opts.Bin, opts.Args, opts.Dir, opts.ExtraBind, opts.ExtraRoBind)
 	if useBwrap && !IsolateRequired() {
 		// Explicit escape (hub/desktop): skip bwrap when userns cages are denied.
@@ -102,7 +99,7 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 		if IsolateStrict() && !opts.AllowBare {
 			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT)")
 		}
-		// Missing bwrap with REQUIRE=1 but not STRICT → bare (fleet usability).
+		// Missing bwrap: AllowBare or non-STRICT → bare; else fail closed.
 		return runBareIsolated(runCtx, opts, env, wall)
 	}
 	cmd := exec.CommandContext(runCtx, argv[0], argv[1:]...)
@@ -113,14 +110,19 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	if opts.Stdout != nil {
 		cmd.Stdout = opts.Stdout
 	}
+	var stderrBuf bytes.Buffer
 	if opts.Stderr != nil {
-		cmd.Stderr = opts.Stderr
+		cmd.Stderr = io.MultiWriter(opts.Stderr, &stderrBuf)
+	} else {
+		cmd.Stderr = &stderrBuf
 	}
 	setProcessGroup(cmd)
-	// Bare fallback only if bwrap fails to *launch*. Once started, never unsandbox-retry
-	// (harness stderr must not look like a cage failure and drop the sandbox).
+	allowBareFallback := !IsolateStrict() || opts.AllowBare
+	// Bare fallback: bwrap missing/fails to launch, or bwrap's own setup stderr
+	// (RTM_NEWADDR / uid_map). Never unsandbox on harness stderr alone — only
+	// lines prefixed with "bwrap:" count as cage setup failure after Start.
 	if err := cmd.Start(); err != nil {
-		if bwrapCageFailed(err, "") && (!IsolateStrict() || opts.AllowBare) {
+		if bwrapCageFailed(err, "") && allowBareFallback {
 			return runBareIsolated(runCtx, opts, env, wall)
 		}
 		if IsolateStrict() && !opts.AllowBare {
@@ -136,11 +138,26 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 		_ = killProcessGroup(cmd)
 		return fmt.Errorf("hunt isolate: wall exceeded (%s)", wall)
 	}
+	if err != nil && bwrapSetupFailed(stderrBuf.String()) {
+		if allowBareFallback {
+			rewindIsolateStdin(opts.Stdin)
+			return runBareIsolated(runCtx, opts, env, wall)
+		}
+		if IsolateStrict() && !opts.AllowBare {
+			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT): %v", err)
+		}
+	}
 	return err
 }
 
+func rewindIsolateStdin(r io.Reader) {
+	if s, ok := r.(io.Seeker); ok {
+		_, _ = s.Seek(0, io.SeekStart)
+	}
+}
+
 func bwrapCageFailed(err error, stderr string) bool {
-	msg := strings.ToLower("")
+	msg := ""
 	if err != nil {
 		msg += err.Error() + " "
 	}
@@ -148,8 +165,26 @@ func bwrapCageFailed(err error, stderr string) bool {
 	msg = strings.ToLower(msg)
 	for _, needle := range []string{
 		"namespace failed", "creating new namespace", "permission denied",
-		"operation not permitted", "rtm_newaddr", "loopback",
+		"operation not permitted", "rtm_newaddr", "loopback", "uid map",
 		"bwrap:",
+	} {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+// bwrapSetupFailed is true only when stderr carries bwrap's own diagnostics.
+// Harness ASAN/"permission denied" must not strip the sandbox after Start.
+func bwrapSetupFailed(stderr string) bool {
+	msg := strings.ToLower(stderr)
+	if !strings.Contains(msg, "bwrap:") {
+		return false
+	}
+	for _, needle := range []string{
+		"namespace failed", "creating new namespace", "permission denied",
+		"operation not permitted", "rtm_newaddr", "loopback", "uid map",
 	} {
 		if strings.Contains(msg, needle) {
 			return true

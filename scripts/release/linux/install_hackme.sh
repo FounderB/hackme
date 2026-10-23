@@ -162,11 +162,11 @@ if [[ "${ENABLE_SERVICE}" == "1" ]]; then
   systemctl enable --now hackme-node
 fi
 
-# Immutable install tree: root owns binaries/scripts; service user only data/logs/.env.
+# Immutable install tree: root owns binaries/scripts; service user data/logs/.env/.cache.
 chown -R root:root "${INSTALL_DIR}"
 chmod -R go-w "${INSTALL_DIR}"
-mkdir -p "${INSTALL_DIR}/data" "${INSTALL_DIR}/logs"
-chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}/data" "${INSTALL_DIR}/logs"
+mkdir -p "${INSTALL_DIR}/data" "${INSTALL_DIR}/logs" "${INSTALL_DIR}/.cache"
+chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}/data" "${INSTALL_DIR}/logs" "${INSTALL_DIR}/.cache"
 [[ -f "${INSTALL_DIR}/.env" ]] && chown "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}/.env" && chmod 0600 "${INSTALL_DIR}/.env"
 [[ -f "${INSTALL_DIR}/pool.miner.token" ]] && chown root:"${SERVICE_USER}" "${INSTALL_DIR}/pool.miner.token" && chmod 0640 "${INSTALL_DIR}/pool.miner.token"
 
@@ -187,7 +187,10 @@ if [[ "${HACKME_SKIP_HUNT_ENGINES:-0}" != "1" ]]; then
     echo "[install] Hunt engines (clang, AFL++, bubblewrap)..."
     HACKME_PREFIX="${INSTALL_DIR}" bash "$eng" --system --prefix "${INSTALL_DIR}" || \
       echo "[install] WARN: Hunt engines incomplete — Hunt soft-skips; Dig unchanged" >&2
-    chown -R root:root "${INSTALL_DIR}/.cache" 2>/dev/null || true
+    # Hunt writes harness/AFL/seed caches under .cache; keep service-user owned.
+    # Toolchains stay root-owned above.
+    mkdir -p "${INSTALL_DIR}/.cache"
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}/.cache" 2>/dev/null || true
   fi
 fi
 

@@ -1,9 +1,43 @@
 package hunt
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestAllowBareTriesBwrapFirst(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "bwrap-used")
+	fake := filepath.Join(dir, "bwrap")
+	script := "#!/bin/sh\necho used >\"" + marker + "\"\nexit 0\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("HACKME_HUNT_ISOLATE_REQUIRE", "1")
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "1")
+
+	bin := filepath.Join(dir, "harness")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\necho should-not-run\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := RunIsolated(context.Background(), IsolateOpts{
+		Bin:       bin,
+		Args:      nil,
+		Wall:      2 * time.Second,
+		AllowBare: true,
+	})
+	if err != nil {
+		t.Fatalf("AllowBare must still use bwrap when present: %v", err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatal("AllowBare must not skip bwrap: marker missing (regression: early bare bypass)")
+	}
+}
 
 func TestScrubIsolateEnvDropsSecrets(t *testing.T) {
 	in := []string{

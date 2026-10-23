@@ -14,11 +14,11 @@ RestartSec=3
 EnvironmentFile=-__INSTALL_DIR__/.env
 NoNewPrivileges=true
 LimitNOFILE=65535
-# Binaries/scripts are root-owned; only allow writes under data/logs and .env.
+# Binaries/scripts are root-owned; service may write data/logs/.env/.cache (Hunt).
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=__INSTALL_DIR__/data __INSTALL_DIR__/logs __INSTALL_DIR__/.env
+ReadWritePaths=__INSTALL_DIR__/data __INSTALL_DIR__/logs __INSTALL_DIR__/.env __INSTALL_DIR__/.cache
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
