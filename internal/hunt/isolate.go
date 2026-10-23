@@ -20,9 +20,9 @@ type IsolateOpts struct {
 	Dir        string
 	Wall       time.Duration
 	RSSLimitMB int
-	Stdin  io.Reader
-	Stdout io.Writer
-	Stderr io.Writer
+	Stdin      io.Reader
+	Stdout     io.Writer
+	Stderr     io.Writer
 	// ExtraBind / ExtraRoBind are additional paths for the bwrap cage (corpus, stdin driver).
 	ExtraBind   []string
 	ExtraRoBind []string

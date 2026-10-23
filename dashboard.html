@@ -2324,7 +2324,7 @@
 				<div id="panel-analytics" class="tab-panel max-w-[1600px] mx-auto space-y-4">
 					<div id="panel-analytics-hms-banner" data-coin-scope="hms-only" class="coin-scope-hidden card card-glow rounded-lg p-4 border-emerald-500/25">
 						<p class="font-display text-[10px] tracking-[0.25em] text-emerald-400 uppercase mb-1">HMS analytics (preview)</p>
-						<p class="text-[11px] text-gray-400 mb-3">Storage throughput, seal latency, and chunk challenge rate from HMS coordinator when online. Switch to <strong class="text-white/90">HMC</strong> for live PoW telemetry.</p>
+						<p class="text-[11px] text-gray-400 mb-3">HMS KPIs when online · switch to <strong class="text-white/90">HMC</strong> for PoW telemetry.</p>
 						<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-[11px] font-mono">
 							<div class="rounded border border-white/10 bg-black/35 p-3"><span class="text-gray-500 block text-[9px] uppercase">Seal latency</span><span class="text-emerald-300 text-lg">—</span></div>
 							<div class="rounded border border-white/10 bg-black/35 p-3"><span class="text-gray-500 block text-[9px] uppercase">Chunk challenges/h</span><span class="text-white text-lg">0</span></div>
@@ -2650,7 +2650,7 @@
 							<div class="flex flex-wrap items-start justify-between gap-2">
 								<div>
 									<h3 class="font-display text-[10px] tracking-[0.25em] text-gray-400 uppercase">Mining insight</h3>
-									<p class="text-[10px] text-gray-600 mt-1 max-w-2xl leading-relaxed">ETA / progress: heuristics. Worker rewards: Work payout / projected HMC/h. <span class="text-matrix">Pool work</span> = coordinator ranges; <span class="text-matrix">session solves</span> = local PoH only.</p>
+									<p class="text-[10px] text-gray-600 mt-1 max-w-2xl leading-relaxed"><span class="text-matrix">Pool work</span> = coordinator · <span class="text-matrix">session solves</span> = local PoH.</p>
 								</div>
 								<div class="text-right">
 									<p id="mine-insight-eta-label" class="text-[9px] text-gray-600 uppercase tracking-wider">ETA (next solve)</p>
@@ -2937,7 +2937,7 @@
 							<div>
 								<p class="font-display text-[10px] tracking-[0.35em] text-emerald-400 uppercase mb-1">HMS · storage market</p>
 								<h3 class="font-display text-sm font-semibold text-white tracking-wide">B2B encrypted backup (HMC)</h3>
-								<p class="text-[11px] text-gray-400 leading-relaxed mt-1 max-w-2xl">Get a quote, create an order (debits your <strong class="text-white/90">HMC</strong> wallet on this node), then upload via the coordinator API. Requires local <strong class="text-white/90">hackme-node</strong> — not available on public hub alone.</p>
+								<p class="text-[11px] text-gray-400 leading-relaxed mt-1 max-w-2xl">Quote → order (debits local <strong class="text-white/90">HMC</strong>) → upload · needs local node.</p>
 							</div>
 							<span class="tag-pill border-emerald-500/40 text-emerald-300">local node</span>
 						</div>
@@ -2982,7 +2982,7 @@
 						<div class="flex flex-wrap items-start justify-between gap-2">
 							<div>
 								<h3 class="font-display text-[10px] tracking-[0.25em] text-neon uppercase">Rig profile · GPU tune & OC</h3>
-								<p class="text-[10px] text-gray-600 mt-1 max-w-2xl leading-relaxed">Stage 1 auto-detect: batch, claim cooldown, thermal guard, vendor OC guide. Writes <code class="text-neon/70">hackme.env</code> — restart pool worker after apply.</p>
+								<p class="text-[10px] text-gray-600 mt-1 max-w-2xl leading-relaxed">Auto-detect → writes <code class="text-neon/70">hackme.env</code> · restart worker after apply.</p>
 							</div>
 							<div class="flex flex-wrap gap-2">
 								<button type="button" id="btn-rig-profile-detect" class="px-3 py-1.5 rounded border border-white/20 text-gray-300 text-[10px] uppercase tracking-wider hover:bg-white/5">Detect GPU</button>
@@ -3019,7 +3019,7 @@
 							<div class="max-w-3xl">
 								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">Useful-PoW market</p>
 								<h2 class="orders-hero-title">Security audits &amp; orders</h2>
-								<p id="orders-panel-subtitle" class="text-[12px] text-gray-400 mt-1 max-w-2xl leading-relaxed">Top up on-chain HMC on <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">Wallet</a>, then Dig/Hunt <strong class="text-white/85">Start</strong> — payment locks from that balance in one click. Prepaid escrow is automatic (Fund Orders is optional). Reports in <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz</a>.</p>
+								<p id="orders-panel-subtitle" class="text-[12px] text-gray-400 mt-1 max-w-2xl leading-relaxed">Fund <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">Wallet</a> · Dig/Hunt <strong class="text-white/85">Start</strong> locks escrow · reports in <a href="#" class="text-neon/90 underline" data-goto-tab="fuzz">Fuzz</a>.</p>
 							</div>
 							<button type="button" id="btn-orders-refresh" class="btn-order-ghost shrink-0">Refresh</button>
 						</div>
@@ -3030,7 +3030,7 @@
 						</div>
 					</div>
 					<div id="orders-market-banner" class="orders-banner info">
-						<strong class="text-neon">Start pays from Wallet</strong> — sync desktop token, have on-chain HMC on <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">#wallet</a>, press Dig/Hunt Start (auto-funds escrow).
+						<strong class="text-neon">Start pays from Wallet</strong> — on-chain HMC on <a href="#" class="text-neon/90 underline" data-goto-tab="wallet">#wallet</a>, then Dig/Hunt Start.
 					</div>
 					<div id="orders-wallet-gate" class="hidden rounded-lg border border-warn/35 bg-warn/5 p-3 text-[11px] text-warn/95 leading-snug"></div>
 					<div id="orders-balance-strip" class="orders-balance-strip hidden">
@@ -3042,7 +3042,7 @@
 					</div>
 					<div id="orders-fund-panel" class="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
 						<p class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Optional · Fund Orders (prepaid)</p>
-						<p class="text-[11px] text-gray-400 leading-snug">Usually skip this — <strong class="text-white/80">Start</strong> auto-funds from Wallet. Address <code id="orders-fund-address" class="text-neon/90 break-all">—</code></p>
+						<p class="text-[11px] text-gray-400 leading-snug">Optional prepaid · <strong class="text-white/80">Start</strong> auto-funds. <code id="orders-fund-address" class="text-neon/90 break-all">—</code></p>
 						<div class="flex flex-wrap items-end gap-2">
 							<label class="text-[10px] text-gray-500">Amount HMC
 								<input id="orders-fund-amount" type="number" min="15" step="1" value="20" class="ml-1 w-24 rounded border border-white/15 bg-black/50 px-2 py-1 text-white font-mono text-[12px]" />
@@ -3054,7 +3054,7 @@
 					<div id="orders-security-audit" class="hidden order-product-card dig-card" data-orders-section="dig">
 						<p class="card-kicker text-neon">Dig · recommended</p>
 						<h3 class="font-display text-base font-bold text-white tracking-wide mb-1">Security audit</h3>
-						<p class="text-[12px] text-gray-400 mb-1 leading-relaxed max-w-3xl">Compile guard → PoH order + distributed fuzz → <code class="text-neon/80">fuzz_report_v2</code>. Pick an honest SKU — smoke stays cheap; Deep pays for depth (40/60 escrow, seed merge).</p>
+						<p class="text-[12px] text-gray-400 mb-1 leading-relaxed max-w-3xl">Compile guard → fuzz → <code class="text-neon/80">fuzz_report_v2</code> · smoke cheap · Deep 40/60.</p>
 						<div class="sku-picker" id="dig-sku-picker" role="listbox" aria-label="Dig product SKU">
 							<button type="button" class="sku-card active" data-dig-sku="wasm_only" role="option" aria-selected="true">
 								<span class="sku-badge">smoke</span>
@@ -3135,7 +3135,7 @@
 					<div id="orders-hunt-campaign" class="hidden order-product-card hunt-card mt-1" data-orders-section="hunt">
 						<p class="card-kicker text-warn">Hunt · native</p>
 						<h3 class="font-display text-base font-bold text-white tracking-wide mb-1">ASAN shards</h3>
-						<p class="text-[12px] text-gray-400 mb-1 leading-relaxed max-w-3xl">Catalog OSS or your repo → pool ASAN shards. Escrow <strong class="text-warn/90">50% runs / 50% bounty</strong>. CLEAN ≠ CVE.</p>
+						<p class="text-[12px] text-gray-400 mb-1 leading-relaxed max-w-3xl">OSS/repo → ASAN shards · escrow <strong class="text-warn/90">50/50</strong> · CLEAN ≠ CVE.</p>
 						<div class="sku-picker" id="hunt-sku-picker" role="listbox" aria-label="Hunt package">
 							<button type="button" class="sku-card active" data-hunt-sku="hunt_lite" role="option" aria-selected="true">
 								<span class="sku-badge">smoke</span>
@@ -3339,15 +3339,14 @@
 				<div id="panel-fuzz" data-coin-scope="hmc-only" class="tab-panel max-w-[1600px] mx-auto space-y-4">
 					<div id="fuzz-market-banner" class="fuzz-hero text-[12px] text-gray-300 leading-relaxed">
 						<p class="font-display text-[10px] tracking-[0.3em] text-neon uppercase mb-1">Fuzz operations</p>
-						<p><strong class="text-neon">Customer:</strong> place Dig / Hunt in <code class="text-neon/80">#orders</code> — report token stays in this browser. Open <strong>fuzz_report_v2</strong> HTML with repro.</p>
-						<p class="mt-1.5"><strong class="text-warn">Operator:</strong> admin token for full fuzz ops. Public L1 research: <a href="https://hackme.tech/reports/l1-crypto-stack-v3.html" class="text-neon/90 underline" target="_blank" rel="noopener">L1 stack</a>.</p>
+						<p><strong class="text-neon">Customer:</strong> Dig/Hunt in <code class="text-neon/80">#orders</code> · <strong>fuzz_report_v2</strong> in browser. <strong class="text-warn">Operator:</strong> admin token · <a href="https://hackme.tech/reports/l1-crypto-stack-v3.html" class="text-neon/90 underline" target="_blank" rel="noopener">L1 stack</a>.</p>
 					</div>
 					<div id="fuzz-customer-only" class="hidden space-y-4">
 						<div class="flex flex-wrap items-center justify-between gap-2">
 							<div>
 								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">Your fuzz campaigns</p>
 								<h2 class="font-display text-sm font-bold text-white">Reports &amp; proof bundle</h2>
-								<p class="text-[11px] text-gray-500 mt-1">Campaigns from <strong>Security audit</strong> on this node. Report token is stored in this browser — required for HTML/JSON (<code class="text-neon/70">fuzz_report_v2</code>).</p>
+								<p class="text-[11px] text-gray-500 mt-1">Campaigns from this node · browser stores report token for <code class="text-neon/70">fuzz_report_v2</code>.</p>
 							</div>
 							<button type="button" id="btn-fuzz-customer-refresh" class="text-[10px] px-3 py-1.5 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Refresh</button>
 						</div>
@@ -3382,7 +3381,7 @@
 						<div>
 							<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">White-hat runtime</p>
 							<h2 class="font-display text-sm font-bold text-white tracking-wide">Fuzz campaigns · live operations</h2>
-							<p class="text-[11px] text-gray-500 mt-1 max-w-2xl">Operator UI for <code class="text-neon/80">/api/fuzz/campaigns</code>: list, pulse, diff, export. Uses same admin token as Market tab (auto-loaded on localhost).</p>
+							<p class="text-[11px] text-gray-500 mt-1 max-w-2xl"><code class="text-neon/80">/api/fuzz/campaigns</code> · admin token (localhost auto).</p>
 							<p id="fuzz-auth-hint" class="text-[10px] text-warn/90 font-mono mt-1"></p>
 						</div>
 						<div class="flex flex-wrap items-center gap-2">
@@ -3584,7 +3583,7 @@
 					<div class="flex flex-wrap items-end justify-between gap-3">
 						<div>
 							<h2 class="font-display text-sm tracking-[0.22em] text-neon uppercase">Chain</h2>
-							<p class="text-[11px] text-gray-500 mt-1">Canonical network head and recent blocks from the pool — not a local ledger viewer.</p>
+							<p class="text-[11px] text-gray-500 mt-1">Network head &amp; recent blocks.</p>
 						</div>
 						<div class="flex items-center gap-2">
 							<button type="button" id="btn-open-explorer-chain" class="text-[10px] px-3 py-1.5 rounded border border-white/15 text-gray-400 hover:text-neon hover:border-neon/40 uppercase tracking-wider transition-colors">Full explorer</button>
@@ -3595,7 +3594,7 @@
 						<div class="card card-glow rounded-xl p-6 lg:col-span-1 border-neon/20">
 							<p class="text-[10px] uppercase tracking-[0.3em] text-gray-500 mb-2">Network height</p>
 							<p id="chain-height-display" class="font-display text-5xl font-bold text-white tabular-nums leading-none">0</p>
-							<p class="text-[10px] text-gray-500 mt-3 leading-snug">Live tip from the canonical / pool network.</p>
+							<p class="text-[10px] text-gray-500 mt-3 leading-snug">Canonical tip.</p>
 						</div>
 						<div class="card card-glow rounded-xl p-5 lg:col-span-2 border-white/10">
 							<p class="text-[10px] uppercase tracking-[0.25em] text-gray-500 mb-2">Canonical head</p>
@@ -3634,7 +3633,7 @@
 							</div>
 							<div class="card card-glow rounded-lg p-4 border-white/8">
 								<p class="text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2">Explorer</p>
-								<p class="text-[11px] text-gray-500 leading-relaxed">Open the full explorer for address and transaction lookup on the live network.</p>
+								<p class="text-[11px] text-gray-500 leading-relaxed">Address &amp; tx lookup on the live network.</p>
 								<button type="button" id="btn-open-explorer-chain-side" class="mt-3 text-[10px] px-3 py-1.5 rounded border border-white/15 text-gray-300 hover:text-neon hover:border-neon/40 uppercase tracking-wider transition-colors">Open explorer</button>
 							</div>
 						</div>
@@ -3692,7 +3691,7 @@
 							<div>
 								<p class="font-display text-[10px] tracking-[0.4em] text-neon uppercase mb-1">HackMe network</p>
 								<h1 class="font-display text-2xl lg:text-3xl font-bold text-white tracking-wide mb-1">Wallet hub</h1>
-								<p class="text-sm text-gray-400 max-w-xl">All ecosystem assets — HMC on-chain, SUP bonus accrual while mining, roadmap lanes. Mining entry is only on live pools in Ecosystem.</p>
+								<p class="text-sm text-gray-400 max-w-xl">HMC · SUP · roadmap lanes · mine on Ecosystem pools.</p>
 							</div>
 							<div class="flex flex-wrap gap-2 text-[10px] font-mono items-center">
 								<span class="px-2 py-1 rounded border border-matrix/35 text-matrix">portfolio: <span id="wallet-portfolio-total">—</span></span>
@@ -3708,7 +3707,7 @@
 						<aside class="wallet-sidebar">
 							<p class="text-[9px] uppercase tracking-[0.22em] text-gray-500 px-2 mb-2">Assets</p>
 							<div id="wallet-coin-list" class="space-y-1" role="listbox" aria-label="Ecosystem coins"></div>
-							<p class="text-[9px] text-gray-600 font-mono px-2 mt-3 leading-relaxed">One address (<span class="text-neon/80">HMC-…</span>) for the primary chain today. Lane coins will map payouts to the same wallet when live.</p>
+							<p class="text-[9px] text-gray-600 font-mono px-2 mt-3 leading-relaxed">One address (<span class="text-neon/80">HMC-…</span>) · lanes share this wallet when live.</p>
 						</aside>
 						<div id="wallet-detail-root" class="min-w-0">
 							<div id="wallet-planned-pane" class="wallet-planned-card hidden">
@@ -4251,7 +4250,7 @@
 				mineTab: 'mining',
 				roadmap: null,
 				walletLive: true,
-				walletDesc: 'Primary chain · on-chain balance · pool settlement to your HMC address.',
+				walletDesc: 'On-chain balance · pool settlement.',
 				estPriceUsd: 0,
 			},
 			{
@@ -4266,7 +4265,7 @@
 				roadmap: 'Accrual live · exchange listing after HMC lists',
 				walletLive: true,
 				walletRole: 'bonus',
-				walletDesc: 'Earn via hybrid-signed HMC pool work only (no faucet). Accrual in coordinator; not tradable until HMC is listed on exchanges.',
+				walletDesc: 'Hybrid HMC pool accrual · not tradable until HMC lists.',
 				estPriceUsd: 0,
 			},
 			{
@@ -4278,9 +4277,9 @@
 				iconHtml: 'HMS',
 				accent: 'hms',
 				mineTab: 'mining',
-				roadmap: 'Hub coordinator live · Stratum ASIC on heavy VPS · epoch mint via ops',
+				roadmap: 'Hub coordinator · Stratum ASIC · epoch mint',
 				walletLive: true,
-				walletDesc: 'On-chain HMS for storage+seal epoch payouts (mint after sealed epoch). Run disk/ASIC workers on local node; hub shows public metrics.',
+				walletDesc: 'Storage+seal epoch payouts · workers on local node.',
 				estPriceUsd: 0,
 			},
 			{
@@ -4293,7 +4292,7 @@
 				accent: 'planned',
 				mineTab: null,
 				roadmap: 'Q3 · testnet PoH',
-				walletDesc: 'Public testnet wallet lane with faucet — separate coordinator when live.',
+				walletDesc: 'Testnet wallet lane · faucet when live.',
 			},
 			{
 				id: 'hmc-orders',
@@ -4305,7 +4304,7 @@
 				accent: 'planned',
 				mineTab: 'orders',
 				roadmap: 'Orders + PoH hybrid',
-				walletDesc: 'Paid security-audit orders · escrow and miner payouts on a dedicated lane.',
+				walletDesc: 'Audit orders · escrow and miner payouts.',
 			},
 			{
 				id: 'hmc-shard',
@@ -4317,7 +4316,7 @@
 				accent: 'planned',
 				mineTab: null,
 				roadmap: 'Multi-pool coordinator',
-				walletDesc: 'Sharded coordinators for scale — aggregated in this hub when deployed.',
+				walletDesc: 'Sharded coordinators · aggregated here when live.',
 			},
 		];
 		const DASH_ACTIVE_COIN_KEY = 'hackme.dashboard.active_coin.v1';
@@ -4332,8 +4331,8 @@
 				miningTabLabel: 'Workers',
 				heroKicker: 'HackMe network',
 				heroTitle: 'Mining ecosystem',
-				heroCopy: 'Mine <strong class="text-white/90">HMC</strong> on the live coordinator pool. Hybrid workers earn PoH + Dig/Hunt when customers open campaigns. SUP and roadmap assets live in <strong class="text-neon/90">Wallet hub</strong>.',
-				hint: 'Live useful-PoW · hybrid Dig/Hunt · on-chain settlement',
+				heroCopy: 'Live <strong class="text-white/90">HMC</strong> pool · Dig/Hunt on Workers · assets in <strong class="text-neon/90">Wallet</strong>.',
+				hint: 'Live PoW · Dig/Hunt · on-chain settlement',
 				defaultTab: 'ecosystem',
 				solopoolVector: 'hmc',
 			},
@@ -4344,8 +4343,8 @@
 				miningTabLabel: 'Workers',
 				heroKicker: 'Support coin',
 				heroTitle: 'HackMe Support (SUP)',
-				heroCopy: 'Accrual via <strong class="text-white/90">hybrid-signed HMC pool work</strong> only (no faucet). Wallet hub shows balance; not tradable until HMC lists on exchanges.',
-				hint: 'SUP accrual lane · wallet & overview in this hub — no separate mining tab',
+				heroCopy: 'Accrual via <strong class="text-white/90">hybrid HMC pool work</strong> · balance in Wallet.',
+				hint: 'SUP accrual · wallet and overview — no mining tab',
 				defaultTab: 'wallet',
 				solopoolVector: 'hmc',
 			},
@@ -4357,8 +4356,8 @@
 				marketTabLabel: 'Market',
 				heroKicker: 'Storage lane · live',
 				heroTitle: 'HackMe Storage (HMS)',
-				heroCopy: 'Encrypted disk <strong class="text-white/90">Proof-of-Storage</strong> + hourly <strong class="text-white/90">manifest seal</strong> (SHA256 / ASIC-friendly). Hub serves coordinator metrics; workers and market orders on <strong class="text-white/90">local hackme-node</strong>.',
-				hint: 'Combo rig +10% · epoch base 0.5 HMS · mint via scripts/ops/hms_epoch_settle.sh',
+				heroCopy: 'Disk <strong class="text-white/90">PoSt</strong> + hourly <strong class="text-white/90">manifest seal</strong> · workers on local node.',
+				hint: 'Combo rig +10% · epoch base 0.5 HMS',
 				defaultTab: 'mining',
 				solopoolVector: 'hms',
 			},
@@ -4610,8 +4609,8 @@
 				const note = panel.querySelector('p.text-gray-400');
 				if (note) {
 					note.innerHTML = metrics.live
-						? 'Live from <strong class="text-emerald-300/90">HMS coordinator</strong> — disk quota + Stratum seal miners. Seal difficulty retargets after each epoch seal.'
-						: 'Encrypted chunks on disk + hourly <strong class="text-white/90">manifest seal</strong> (SHA256 / ASIC). Values below are <strong class="text-warn/90">preview mocks</strong> until coordinator is reachable.';
+						? 'Live from <strong class="text-emerald-300/90">HMS coordinator</strong> · disk + Stratum seal.'
+						: 'Disk + hourly <strong class="text-white/90">manifest seal</strong> · <strong class="text-warn/90">preview mocks</strong> until coordinator online.';
 				}
 			}
 		}
