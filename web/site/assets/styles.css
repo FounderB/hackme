@@ -2442,3 +2442,56 @@ input[type=number] {
 @media (prefers-reduced-motion: reduce) {
   .page-home .hs-net { display: none; }
 }
+
+/* —— Mobile overflow containment (docs/tables/pre) —— */
+@media (max-width: 720px) {
+  .container,
+  .wrap,
+  main,
+  .prose,
+  table,
+  pre,
+  code,
+  .card,
+  .glass {
+    max-width: 100%;
+  }
+  /* Grid min-content: .pool-table { min-width: 680px } + nowrap cells expanded
+     the page. Zero min-width on grid kids + clip the container scrollport. */
+  .container {
+    overflow-x: clip;
+  }
+  .container > *,
+  .card,
+  .glass,
+  .panel {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  pre,
+  table,
+  .table-wrap,
+  .formula-box,
+  .code-block {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-wrap {
+    width: 100%;
+    max-width: 100%;
+  }
+  img,
+  svg,
+  video,
+  canvas {
+    max-width: 100%;
+    height: auto;
+  }
+  .topbar {
+    max-width: 100%;
+  }
+  .topbar .nav {
+    max-width: 100%;
+  }
+}
