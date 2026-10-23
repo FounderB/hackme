@@ -5,7 +5,10 @@ INSTALL="${BOOTSTRAP_INSTALL:-/opt/hackme-bootstrap}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 COORD="${HACKME_POOL_COORDINATOR_URL:-https://hackme.tech/pool/coordinator}"
 COORD="${COORD%/}"
-COORD_ADMIN="$(tr -d '\r\n' <"${COORD_ADMIN_FILE:-$INSTALL/.secrets/coordinator_admin.token}")"
+# shellcheck source=load_coord_token.sh
+source "$(dirname "$0")/load_coord_token.sh"
+load_bootstrap_coord_token
+COORD_ADMIN="${COORD_POLL_TOKEN:-}"
 DB="${HACKME_DATA_DIR:-$INSTALL/data}/hackme.db"
 CID_FILTER="${CAMPAIGN_ID:-}"
 [[ -n "$COORD_ADMIN" ]] || { echo "[bootstrap-resync] missing coordinator admin token" >&2; exit 1; }
