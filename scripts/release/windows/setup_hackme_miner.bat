@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-title HackMe — configure miner
+title HackMe - configure miner
 
 set "HACKME_DIR=%~dp0"
 if "%HACKME_DIR:~-1%"=="\" set "HACKME_DIR=%HACKME_DIR:~0,-1%"
@@ -23,7 +23,13 @@ if not exist "%HACKME_DIR%\hackme.exe" (
 )
 
 if not exist "%HACKME_DIR%\pool.miner.token" (
-  echo ERROR: pool.miner.token missing — reinstall from https://hackme.tech/downloads.html
+  echo ERROR: pool.miner.token missing - reinstall from https://hackme.tech/downloads.html
+  if /I not "%HACKME_SETUP_NONINTERACTIVE%"=="1" pause
+  exit /b 1
+)
+
+if not exist "%HACKME_DIR%\write_hackme_env.ps1" (
+  echo ERROR: write_hackme_env.ps1 missing - reinstall from https://hackme.tech/downloads.html
   if /I not "%HACKME_SETUP_NONINTERACTIVE%"=="1" pause
   exit /b 1
 )
@@ -51,7 +57,7 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo Repaired hackme.env — restart start_hackme_miner.bat
+echo Repaired hackme.env - restart start_hackme_miner.bat
 if /I not "%HACKME_SETUP_NONINTERACTIVE%"=="1" pause
 exit /b 0
 

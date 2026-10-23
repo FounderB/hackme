@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title HackMe — local node
+title HackMe - local node
 echo.
 echo HackMe: keep this window open while the node runs.
 echo Dashboard: http://127.0.0.1:8080  ^(same machine^)

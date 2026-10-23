@@ -1,6 +1,6 @@
 @echo off
 rem Keeps the public pool worker alive: restarts via node API if workerpoh exits (GPU reset, crash, thermal pause).
-rem Designed to run hidden (see run_watchdog_hidden.vbs). All status goes to logs\watchdog_worker.log — not a blank console.
+rem Designed to run hidden (see run_watchdog_hidden.vbs). All status goes to logs\watchdog_worker.log - not a blank console.
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
@@ -17,11 +17,11 @@ if exist "hackme.env" (
   )
 )
 if /I "!INTERNAL_WD!"=="1" (
-  call :log "internal HACKME_WORKER_WATCHDOG=1 — external bat watchdog idle"
+  call :log "internal HACKME_WORKER_WATCHDOG=1 - external bat watchdog idle"
   exit /b 0
 )
 if /I "!INTERNAL_WD!"=="true" (
-  call :log "internal HACKME_WORKER_WATCHDOG=true — external bat watchdog idle"
+  call :log "internal HACKME_WORKER_WATCHDOG=true - external bat watchdog idle"
   exit /b 0
 )
 
@@ -32,7 +32,7 @@ set "GPU_BACKEND=auto"
 set "WORKER_BATCH=16777216"
 
 if not exist "hackme.env" (
-  call :log "hackme.env missing — running write_hackme_env.ps1"
+  call :log "hackme.env missing - running write_hackme_env.ps1"
   if exist "write_hackme_env.ps1" if exist "pool.miner.token" (
     powershell -NoProfile -ExecutionPolicy Bypass -File "write_hackme_env.ps1" -InstallDir "%CD%" -RepairOnly -NonInteractive >> "%LOG%" 2>&1
   )
@@ -51,7 +51,7 @@ call :trim GPU_BACKEND
 call :trim WORKER_BATCH
 
 if "!ADMIN_TOKEN!"=="" (
-  call :log "ERROR: HACKME_ADMIN_TOKEN empty — repairing hackme.env"
+  call :log "ERROR: HACKME_ADMIN_TOKEN empty - repairing hackme.env"
   if exist "write_hackme_env.ps1" if exist "pool.miner.token" (
     powershell -NoProfile -ExecutionPolicy Bypass -File "write_hackme_env.ps1" -InstallDir "%CD%" -RepairOnly -NonInteractive >> "%LOG%" 2>&1
     call :load_env
@@ -60,7 +60,7 @@ if "!ADMIN_TOKEN!"=="" (
 )
 
 if "!ADMIN_TOKEN!"=="" (
-  call :log "FATAL: no admin token after repair — run setup_hackme_miner.bat"
+  call :log "FATAL: no admin token after repair - run setup_hackme_miner.bat"
   exit /b 1
 )
 if "!POOL_TOKEN!"=="" (
@@ -100,7 +100,7 @@ if !N! GEQ 90 (
   exit /b 1
 )
 if !N! EQU 1 call :log "waiting for node on 127.0.0.1:8080 ..."
-if !N! EQU 15 call :log "still waiting (!N!/90) — repair hackme.env if Mining API returns 401"
+if !N! EQU 15 call :log "still waiting (!N!/90) - repair hackme.env if Mining API returns 401"
 timeout /t 2 /nobreak >nul
 goto waitnode
 

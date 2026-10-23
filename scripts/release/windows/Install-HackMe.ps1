@@ -1,4 +1,4 @@
-# Launch HackMe Setup — unblocks Mark-of-the-Web and shows a message if start fails.
+# Launch HackMe Setup - unblocks Mark-of-the-Web and shows a message if start fails.
 param(
     [string]$SetupExe = ""
 )
@@ -14,7 +14,7 @@ function Show-Msg([string]$Text, [int]$Icon = 16) {
     }
 }
 
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+$here = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 if (-not $SetupExe) {
     $f = Get-ChildItem -Path $here -Filter "HackMe-Setup-*.exe" -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1

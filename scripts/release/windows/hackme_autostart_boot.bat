@@ -6,8 +6,8 @@ if not exist "hackme.exe" (
   exit /b 1
 )
 
-if exist "write_hackme_env.ps1" (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "write_hackme_env.ps1" >nul 2>&1
+if exist "write_hackme_env.ps1" if exist "pool.miner.token" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "write_hackme_env.ps1" -InstallDir "%CD%" -RepairOnly -NonInteractive >nul 2>&1
 )
 
 if exist "hackme.env" (
@@ -22,7 +22,7 @@ if exist ".env.desktop.windows" (
 )
 
 if "%HACKME_ADMIN_TOKEN%"=="" (
-  echo [autostart] HACKME_ADMIN_TOKEN empty — run start_hackme_miner.bat once
+  echo [autostart] HACKME_ADMIN_TOKEN empty - run start_hackme_miner.bat once
   exit /b 1
 )
 

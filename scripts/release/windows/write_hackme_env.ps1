@@ -36,7 +36,7 @@ if (Test-Path $envPath) {
         }
     }
 }
-# Empty / placeholder admin must be regenerated — blank env var blocks Go dotenv load and breaks dashboard Mining API.
+# Empty / placeholder admin must be regenerated - blank env var blocks Go dotenv load and breaks dashboard Mining API.
 if (-not $admin -or $admin -match '^(REPLACE|YOUR_|CHANGE_ME)') {
     $b = New-Object byte[] 24
     [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
@@ -50,7 +50,7 @@ $searchMs = 2500
 $claimMs = 100
 $tempPause = 83
 $tempResume = 76
-# Optional floor only when kernel timing fails — never pin pool GH/s (see HACKME_GPU_HASHRATE_FLOOR_GHS).
+# Optional floor only when kernel timing fails - never pin pool GH/s (see HACKME_GPU_HASHRATE_FLOOR_GHS).
 $floorGhs = ""
 
 $gpuVendor = ""
@@ -88,7 +88,7 @@ switch ($RigProfile) {
         if ($hasOpenCLBin -and ($GpuBackend -eq "auto" -or $GpuBackend -eq "opencl")) { $GpuBackend = "opencl" }
         $batch = 1048576; $chunk = 524288; $searchMs = 4500; $claimMs = 28000
         $tempPause = 78; $tempResume = 72
-        # No fixed CALIBRATE_GHS — worker measures OpenCL kernel time.
+        # No fixed CALIBRATE_GHS - worker measures OpenCL kernel time.
     }
     "amd_rx580_generic" {
         if ($hasOpenCLBin -and ($GpuBackend -eq "auto" -or $GpuBackend -eq "opencl")) { $GpuBackend = "opencl" }

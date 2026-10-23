@@ -1,10 +1,10 @@
-# HackMe miner self-update (W1) — Windows
+# HackMe miner self-update (W1) - Windows
 # Reads latest.json, downloads zip or prefers installer note, verifies SHA256,
 # replaces binaries, never overwrites hackme.env / data / logs.
 #
 # Usage (from install dir or repo):
 #   powershell -ExecutionPolicy Bypass -File scripts\ops\update_hackme_miner.ps1
-#   powershell -File update_hackme_miner.ps1 -InstallDir "C:\Program Files\HackMe" -DryRun
+#   powershell -File update_hackme_miner.ps1 -InstallDir "$env:LOCALAPPDATA\HackMe" -DryRun
 #
 # Env: HACKME_LATEST_URL
 
@@ -19,17 +19,45 @@ param(
 $ErrorActionPreference = "Stop"
 function Log([string]$m) { Write-Host "[hackme-update] $m" }
 
+# Prefer curl.exe (Win10+) over Invoke-WebRequest: fewer TLS/proxy locale surprises on PS 5.1.
+function Download-Url([string]$Uri, [string]$OutFile, [int]$TimeoutSec = 60) {
+  if ($Uri -like "file://*") {
+    Copy-Item ($Uri -replace "^file:///", "" -replace "^file://", "") $OutFile -Force
+    return
+  }
+  $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+  if ($curl) {
+    # Do not use $args (automatic variable); splat a dedicated array.
+    $curlArgs = @("-fsSL", "--connect-timeout", "20", "--max-time", "$TimeoutSec", "-o", $OutFile, $Uri)
+    & $curl.Source @curlArgs
+    if ($LASTEXITCODE -ne 0) { throw "curl exit $LASTEXITCODE" }
+    return
+  }
+  Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -TimeoutSec $TimeoutSec
+}
+
 if (-not $InstallDir) {
   if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "hackme.exe"))) {
     $InstallDir = $PSScriptRoot
-  } elseif (Test-Path "${env:ProgramFiles}\HackMe\hackme.exe") {
+  } elseif (Test-Path (Join-Path $env:LOCALAPPDATA "HackMe\hackme.exe")) {
+    # Inno Setup default: {localappdata}\HackMe (PrivilegesRequired=lowest)
+    $InstallDir = Join-Path $env:LOCALAPPDATA "HackMe"
+  } elseif (Test-Path (Join-Path $env:ProgramFiles "HackMe\hackme.exe")) {
     $InstallDir = Join-Path $env:ProgramFiles "HackMe"
   } else {
     $InstallDir = $PSScriptRoot
   }
 }
+$InstallDir = $InstallDir.Trim().Trim('"').TrimEnd([char]'\', '/')
 $InstallDir = (Resolve-Path -LiteralPath $InstallDir).Path
 Log "install_dir=$InstallDir dry_run=$DryRun"
+
+# Portable zip trees have no Inno uninstaller - update in place via windows_zip.
+# Setup installs get windows_installer (preserves env via Inno).
+if (-not $PreferZip -and -not (Test-Path -LiteralPath (Join-Path $InstallDir "unins000.exe"))) {
+  $PreferZip = $true
+  Log "portable install (no unins000.exe) - preferring windows_zip"
+}
 
 $urls = @()
 if ($LatestUrl) { $urls += $LatestUrl }
@@ -46,11 +74,7 @@ try {
   foreach ($u in $urls) {
     try {
       Log "fetch $u"
-      if ($u -like "file://*") {
-        Copy-Item ($u -replace "^file:///", "" -replace "^file://", "") $latestFile -Force
-      } else {
-        Invoke-WebRequest -Uri $u -OutFile $latestFile -UseBasicParsing -TimeoutSec 60
-      }
+      Download-Url -Uri $u -OutFile $latestFile -TimeoutSec 60
       $ok = $true
       break
     } catch {
@@ -63,15 +87,15 @@ try {
   if ($latest.schema -ne "hackme.release.latest.v1") {
     throw "unsupported schema: $($latest.schema)"
   }
-# Soft refuse if min_updater too high
-if ($latest.min_updater -and [int]$latest.min_updater -gt 1) {
-  # Protocol 1 ships with this script; bump when breaking latest.json changes land.
-  $localUpdater = 1
-  if ([int]$latest.min_updater -gt $localUpdater) {
-    throw "updater protocol too old (local=$localUpdater need>=$($latest.min_updater)) — re-download update_hackme_miner.ps1"
+  # Soft refuse if min_updater too high
+  if ($latest.min_updater -and [int]$latest.min_updater -gt 1) {
+    # Protocol 1 ships with this script; bump when breaking latest.json changes land.
+    $localUpdater = 1
+    if ([int]$latest.min_updater -gt $localUpdater) {
+      throw "updater protocol too old (local=$localUpdater need>=$($latest.min_updater)) - re-download update_hackme_miner.ps1"
+    }
   }
-}
-$remote = [string]$latest.version
+  $remote = [string]$latest.version
   Log "remote=$remote"
 
   $plat = $null
@@ -92,11 +116,7 @@ $remote = [string]$latest.version
       if (-not $u) { continue }
       try {
         Log "download $u"
-        if ($u -like "file://*") {
-          Copy-Item ($u -replace "^file:///", "" -replace "^file://", "") $arch -Force
-        } else {
-          Invoke-WebRequest -Uri $u -OutFile $arch -UseBasicParsing -TimeoutSec 600
-        }
+        Download-Url -Uri $u -OutFile $arch -TimeoutSec 600
         $dlOk = $true
         break
       } catch { Log "download miss" }
@@ -112,23 +132,22 @@ $remote = [string]$latest.version
       exit 0
     }
     Log "starting installer (interactive / silent if supported)"
-    Start-Process -FilePath $arch -Wait
-    Log "OK installer finished — verify version in dashboard"
+    $p = Start-Process -FilePath $arch -Wait -PassThru
+    if ($p -and $p.ExitCode -ne 0) {
+      throw "installer exited $($p.ExitCode)"
+    }
+    Log "OK installer finished - verify version in dashboard"
     exit 0
   }
 
-  # ZIP path — replace binaries in InstallDir
+  # ZIP path - replace binaries in InstallDir
   $arch = Join-Path $tmp $plat.file
   $dlOk = $false
   foreach ($u in @($plat.url, $plat.mirror_url)) {
     if (-not $u) { continue }
     try {
       Log "download $u"
-      if ($u -like "file://*") {
-        Copy-Item ($u -replace "^file:///", "" -replace "^file://", "") $arch -Force
-      } else {
-        Invoke-WebRequest -Uri $u -OutFile $arch -UseBasicParsing -TimeoutSec 600
-      }
+      Download-Url -Uri $u -OutFile $arch -TimeoutSec 600
       $dlOk = $true
       break
     } catch { Log "download miss" }
@@ -148,7 +167,7 @@ $remote = [string]$latest.version
   $payloadDir = $payload.Directory.FullName
 
   if ($DryRun) {
-    Log "DRY-RUN would copy from $payloadDir → $InstallDir"
+    Log "DRY-RUN would copy from $payloadDir -> $InstallDir"
     exit 0
   }
 
@@ -178,7 +197,7 @@ version=$remote
 updated_utc=$((Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))
 "@ | Set-Content -Path (Join-Path $InstallDir "BUILD_INFO.txt") -Encoding ASCII
 
-  Log "OK updated → $remote (backup $prev)"
+  Log "OK updated -> $remote (backup $prev)"
 }
 finally {
   Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue

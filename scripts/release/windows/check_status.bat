@@ -12,7 +12,7 @@ if exist "hackme.env" (
 set "ADMIN=!ADMIN:"=!"
 set "POOL=!POOL:"=!"
 if "!ADMIN!"=="" (
-  echo ERR:no_admin — run setup_hackme_miner.bat
+  echo ERR:no_admin - run setup_hackme_miner.bat
   exit /b 1
 )
 echo ADMIN_SET=!ADMIN:~0,4!...

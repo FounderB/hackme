@@ -1,5 +1,5 @@
 @echo off
-rem Legacy name — forwards to one-click miner launcher.
+rem Legacy name - forwards to one-click miner launcher.
 cd /d "%~dp0"
 if exist "start_hackme_miner.bat" (
   call "start_hackme_miner.bat"
