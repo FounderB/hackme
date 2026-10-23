@@ -222,7 +222,8 @@ func (a *app) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
 	escrowBudgetHMC := budgetHMC
 	cashBudgetHMC := budgetHMC
 	if useSUP {
-		log.Printf("security_audit: use_sup_discount ignored (no treasury top-up); full escrow %.6f HMC", escrowBudgetHMC)
+		// Do not log escrowBudgetHMC: it is derived from req.BudgetHMC (user input).
+		log.Printf("security_audit: use_sup_discount ignored (no treasury top-up); full escrow retained")
 	}
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
