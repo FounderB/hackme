@@ -139,7 +139,13 @@ repair_pool_coordinator_env() {
   fi
   local pub
   pub="$(read_orders_publish_token 2>/dev/null || true)"
-  [[ -n "$pub" ]] || return 0
+  if [[ -z "$pub" ]]; then
+    echo "[hackme-orders] NOTE: pool.orders.token is not shipped in public installers."
+    echo "[hackme-orders] Local Dig/Hunt on this machine still work. To publish campaigns to the"
+    echo "[hackme-orders] public pool, paste an operator-scoped publish token into:"
+    echo "[hackme-orders]   ${INSTALL_DIR}/pool.orders.token  (or ${CONFIG_DIR}/pool.orders.token)"
+    return 0
+  fi
   if grep -q '^HACKME_POOL_COORDINATOR_ADMIN_TOKEN=' "$ENV_FILE" 2>/dev/null; then
     sed -i "s|^HACKME_POOL_COORDINATOR_ADMIN_TOKEN=.*|HACKME_POOL_COORDINATOR_ADMIN_TOKEN=${pub}|" "$ENV_FILE"
   else
