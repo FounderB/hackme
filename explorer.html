@@ -228,6 +228,27 @@
     const short = (s, n=16) => { s = String(s || ""); return s.length > n ? s.slice(0,n) + "…" : s; };
     const hmc = (u) => (Number(u || 0) / 1e8).toFixed(8);
     const esc = (s) => String(s || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    function blockHashFull(b) {
+      const full = String((b && (b.hash || b.block_hash || '')) || '').trim();
+      if (full && !full.includes('…') && !full.endsWith('...')) return full;
+      return '';
+    }
+    function copyText(v) {
+      const t = String(v || '').trim();
+      if (!t) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(t).catch(() => {});
+        return;
+      }
+      const ta = document.createElement('textarea');
+      ta.value = t;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+    }
     /** Public nginx proxies pool APIs under /pool/api; node adds coordinator token server-side. */
     function apiUrl(path) {
       const p = path.startsWith('/') ? path : '/' + path;
@@ -296,7 +317,14 @@
           primaryLabel = 'Node tip (canonical unavailable — check pool URL / network)';
         }
         $('kpi-height').textContent = String(primaryH || 0);
-        $('kpi-tip').textContent = short(primaryHash || '—', 22);
+        const tipEl = $('kpi-tip');
+        if (tipEl) {
+          tipEl.textContent = short(primaryHash || '—', 22);
+          tipEl.title = primaryHash ? (primaryHash + ' · click to copy full tip') : '';
+          tipEl.dataset.hash = primaryHash || '';
+          tipEl.style.cursor = primaryHash ? 'pointer' : '';
+          tipEl.onclick = primaryHash ? (() => copyText(primaryHash)) : null;
+        }
         const poolTM = Number(s.pool_target_mod || 0);
         const poolLoadHint = Number(s.pool_target_mod_load_hint || 0);
         const poolLoadCapped = s.pool_target_mod_load_capped === true;
@@ -582,10 +610,16 @@
         return;
       }
       rows.forEach((b) => {
+        const hashFull = blockHashFull(b) || String(b.hash_prefix || '').trim();
         const tr = document.createElement('tr');
         tr.className = 'clickable';
-        tr.title = 'Click to copy task id into TX search';
-        tr.addEventListener('click', () => {
+        tr.title = 'Click hash to copy full block hash · click row to load task id';
+        tr.addEventListener('click', (ev) => {
+          if (ev.target && ev.target.closest && ev.target.closest('[data-copy-hash]')) {
+            ev.preventDefault();
+            copyText(hashFull);
+            return;
+          }
           const v = String(b.task_id || '').trim();
           if (v) {
             $('in-tx').value = v;
@@ -596,7 +630,7 @@
           '<td class="mono">' + fmtTs(b.timestamp_unix) + '</td>' +
           '<td>' + esc(String(b.task_kind || '—')) + '</td>' +
           '<td class="mono">' + esc(short(b.task_id || '—', 20)) + '</td>' +
-          '<td class="mono">' + esc(String(b.hash_prefix || '—')) + '</td>';
+          '<td class="mono" data-copy-hash="1" title="' + esc(hashFull || '—') + '">' + esc(short(hashFull || '—', 18)) + '</td>';
         tb.appendChild(tr);
       });
     }
@@ -663,7 +697,7 @@
         }
       } catch (_) {}
 
-      // 2) Fallback: search recent blocks by task_id or hash_prefix.
+      // 2) Fallback: search recent blocks by task_id or full/prefix hash.
       try {
         const blocksR = await fetch(apiUrl('/reports/blocks?limit=400'), { cache: 'no-store' });
         if (blocksR.ok) {
@@ -672,8 +706,11 @@
           const q = query.toLowerCase();
           const hit = rows.find((b) => {
             const taskId = String(b.task_id || '').toLowerCase();
-            const hashPrefix = String(b.hash_prefix || '').toLowerCase();
-            return taskId === q || taskId.includes(q) || hashPrefix.startsWith(q) || hashPrefix.includes(q);
+            const hashFull = String(b.hash || '').toLowerCase();
+            const hashPrefix = String(b.hash_prefix || '').toLowerCase().replace(/…$/, '').replace(/\.\.\.$/, '');
+            return taskId === q || taskId.includes(q) ||
+              (hashFull && (hashFull === q || hashFull.startsWith(q) || hashFull.includes(q))) ||
+              hashPrefix.startsWith(q) || hashPrefix.includes(q);
           });
           if (hit) {
             let minerWallet = String(hit.miner_address || '').trim();
@@ -704,7 +741,7 @@
               { key: 'Block index', value: String(hit.index || 0), highlight: true },
               { key: 'Task kind', value: String(hit.task_kind || '—') },
               { key: 'Task ID', value: String(hit.task_id || '—') },
-              { key: 'Block hash prefix', value: String(hit.hash_prefix || '—') },
+              { key: 'Block hash', value: String(hit.hash || hit.hash_prefix || '—'), highlight: true },
               { key: 'Timestamp', value: fmtTs(hit.timestamp_unix) },
               { key: 'Miner / reward address', value: displayMinerFromBlock(minerWallet) },
               { key: 'Note', value: 'On-chain mint credits this miner address + node wallet row; another HMC- label with balance 0 simply never received mints/transfers.' },

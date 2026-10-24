@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-func (a *app) fetchRemoteReportsBlocksJSON(ctx context.Context, base string, limit int) (map[string]any, error) {
-	u := strings.TrimRight(base, "/") + "/api/reports/blocks?limit=" + strconv.Itoa(limit)
+func (a *app) fetchRemoteJSONMap(ctx context.Context, base, path string) (map[string]any, error) {
+	u := strings.TrimRight(base, "/") + path
 	httpSec := 8
 	curlSec := 12
 	if envBool("HACKME_DESKTOP_MODE", false) {
@@ -60,6 +60,115 @@ func (a *app) fetchRemoteReportsBlocksJSON(ctx context.Context, base string, lim
 		return out, nil
 	}
 	return tryCurl()
+}
+
+func (a *app) fetchRemoteReportsBlocksJSON(ctx context.Context, base string, limit int) (map[string]any, error) {
+	out, err := a.fetchRemoteJSONMap(ctx, base, "/api/reports/blocks?limit="+strconv.Itoa(limit))
+	if err != nil {
+		return nil, err
+	}
+	a.enrichReportsBlocksWithFullHash(ctx, base, limit, out)
+	return out, nil
+}
+
+// enrichReportsBlocksWithFullHash merges full block hashes from /api/chain when
+// reports rows only expose truncated hash_prefix (pre-upgrade peers).
+func (a *app) enrichReportsBlocksWithFullHash(ctx context.Context, base string, limit int, reports map[string]any) {
+	if reports == nil {
+		return
+	}
+	rawBlocks, ok := reports["blocks"].([]any)
+	if !ok || len(rawBlocks) == 0 {
+		return
+	}
+	need := false
+	for _, row := range rawBlocks {
+		m, ok := row.(map[string]any)
+		if !ok {
+			continue
+		}
+		h := strings.TrimSpace(fmt.Sprint(m["hash"]))
+		if h == "" || h == "<nil>" || strings.Contains(h, "…") || strings.HasSuffix(h, "...") {
+			need = true
+			break
+		}
+	}
+	if !need {
+		return
+	}
+	// Own path: avoid curl-semaphore contention with the just-finished reports fetch,
+	// and avoid net/http 403s some edges see against the public hub.
+	u := strings.TrimRight(base, "/") + "/api/chain?limit=" + strconv.Itoa(limit)
+	chain, err := fetchJSONViaCurlDesktop(u, 8)
+	if err != nil || chain == nil {
+		ectx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		chain, err = a.fetchRemoteJSONMap(ectx, base, "/api/chain?limit="+strconv.Itoa(limit))
+		cancel()
+		if err != nil || chain == nil {
+			return
+		}
+	}
+	byIndex := map[uint64]string{}
+	switch rows := chain["blocks"].(type) {
+	case []any:
+		for _, row := range rows {
+			m, ok := row.(map[string]any)
+			if !ok {
+				continue
+			}
+			idx := jsonUint64(m["index"])
+			h := strings.TrimSpace(fmt.Sprint(m["hash"]))
+			if idx > 0 && h != "" && h != "<nil>" && !strings.Contains(h, "…") {
+				byIndex[idx] = h
+			}
+		}
+	}
+	if len(byIndex) == 0 {
+		return
+	}
+	for _, row := range rawBlocks {
+		m, ok := row.(map[string]any)
+		if !ok {
+			continue
+		}
+		idx := jsonUint64(m["index"])
+		if h, ok := byIndex[idx]; ok {
+			m["hash"] = h
+		}
+	}
+}
+
+func jsonUint64(v any) uint64 {
+	switch t := v.(type) {
+	case float64:
+		if t < 0 {
+			return 0
+		}
+		return uint64(t)
+	case json.Number:
+		n, _ := t.Int64()
+		if n < 0 {
+			return 0
+		}
+		return uint64(n)
+	case string:
+		n, _ := strconv.ParseUint(strings.TrimSpace(t), 10, 64)
+		return n
+	case int:
+		if t < 0 {
+			return 0
+		}
+		return uint64(t)
+	case int64:
+		if t < 0 {
+			return 0
+		}
+		return uint64(t)
+	case uint64:
+		return t
+	default:
+		return 0
+	}
 }
 
 func (a *app) handleReportsBlocks(w http.ResponseWriter, r *http.Request) {

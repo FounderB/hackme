@@ -1029,7 +1029,8 @@ type BlockSummary struct {
 	TimestampUnix int64  `json:"timestamp_unix"`
 	TaskKind      string `json:"task_kind"`
 	TaskID        string `json:"task_id"`
-	HashPrefix    string `json:"hash_prefix"`
+	Hash          string `json:"hash"`        // full block hash (copy/search)
+	HashPrefix    string `json:"hash_prefix"` // short display form
 	MinerAddress  string `json:"miner_address,omitempty"`
 	PoHFormula    string `json:"poh_formula,omitempty"`
 }
@@ -1060,7 +1061,8 @@ func (s *Service) ListRecentBlockSummaries(ctx context.Context, limit int) ([]Bl
 		if err := json.Unmarshal([]byte(raw), &b); err != nil {
 			continue
 		}
-		hp := b.Hash
+		full := strings.TrimSpace(b.Hash)
+		hp := full
 		if len(hp) > 16 {
 			hp = hp[:16] + "…"
 		}
@@ -1069,6 +1071,7 @@ func (s *Service) ListRecentBlockSummaries(ctx context.Context, limit int) ([]Bl
 			TimestampUnix: b.Timestamp,
 			TaskKind:      b.Task.Kind,
 			TaskID:        b.Task.ID,
+			Hash:          full,
 			HashPrefix:    hp,
 			MinerAddress:  strings.TrimSpace(b.EffectiveMinerAddress()),
 			PoHFormula:    pohFormulaFromBlock(&b),
@@ -1091,7 +1094,8 @@ func (s *Service) GetBlockSummaryByIndex(ctx context.Context, index uint64) (Blo
 	if err := json.Unmarshal([]byte(raw), &b); err != nil {
 		return BlockSummary{}, false, err
 	}
-	hp := b.Hash
+	full := strings.TrimSpace(b.Hash)
+	hp := full
 	if len(hp) > 16 {
 		hp = hp[:16] + "…"
 	}
@@ -1100,6 +1104,7 @@ func (s *Service) GetBlockSummaryByIndex(ctx context.Context, index uint64) (Blo
 		TimestampUnix: b.Timestamp,
 		TaskKind:      b.Task.Kind,
 		TaskID:        b.Task.ID,
+		Hash:          full,
 		HashPrefix:    hp,
 		MinerAddress:  strings.TrimSpace(b.EffectiveMinerAddress()),
 		PoHFormula:    pohFormulaFromBlock(&b),

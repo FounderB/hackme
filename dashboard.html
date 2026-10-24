@@ -3598,7 +3598,10 @@
 						</div>
 						<div class="card card-glow rounded-xl p-5 lg:col-span-2 border-white/10">
 							<p class="text-[10px] uppercase tracking-[0.25em] text-gray-500 mb-2">Canonical head</p>
-							<p id="chain-tip-full" class="text-xs sm:text-sm font-mono text-matrix break-all leading-relaxed">—</p>
+							<div class="flex flex-wrap items-start gap-2">
+								<p id="chain-tip-full" class="text-xs sm:text-sm font-mono text-matrix break-all leading-relaxed flex-1 min-w-0">—</p>
+								<button type="button" id="btn-copy-chain-tip" class="btn-copy-mini shrink-0 mt-0.5">copy</button>
+							</div>
 							<div class="mt-4 flex flex-wrap gap-2 items-center">
 								<span id="chain-genesis-badge" class="text-[10px] px-2 py-1 rounded border border-warn/40 text-warn uppercase tracking-wider">Genesis: pending</span>
 								<span id="chain-mining-badge" class="text-[10px] px-2 py-1 rounded border border-gray-600 text-gray-500 uppercase tracking-wider">Miner: idle</span>
@@ -5723,7 +5726,10 @@
 			const addr = walletKnownAddress();
 			if (addr.startsWith('HMC-')) {
 				walletSnapshot.address = addr;
-				if ($('wallet-address-display')) $('wallet-address-display').textContent = addr;
+				if ($('wallet-address-display')) {
+					$('wallet-address-display').textContent = addr;
+					$('wallet-address-display').dataset.address = addr;
+				}
 			}
 			if (walletSnapshot.balanceHMC > 0 || walletSnapshot.balanceUnits > 0 || walletSnapshot.address) {
 				applyWalletHmcOnChainFields();
@@ -8147,8 +8153,12 @@
 			if ($('btn-copy-address')) {
 				$('btn-copy-address').addEventListener('click', async () => {
 					const code = $('wallet-address-display');
-					const t = code ? String(code.textContent || '').trim() : '';
-					if (!t) return;
+					const fromAttr = code ? String(code.dataset.address || code.dataset.hash || '').trim() : '';
+					const t = fromAttr || (code ? String(code.textContent || '').trim() : '');
+					if (!t || t.includes('…')) {
+						logLine('[wallet] copy skipped — no full address');
+						return;
+					}
 					try {
 						await navigator.clipboard.writeText(t);
 						logLine('[wallet] address copied');
@@ -9426,8 +9436,24 @@
 				return null;
 			}
 		}
+		function blockHashFull(b) {
+			const full = String((b && (b.hash || b.block_hash || '')) || '').trim();
+			if (full && !full.includes('…') && !full.endsWith('...')) return full;
+			const prefix = String((b && b.hash_prefix) || '').trim();
+			// Never treat truncated display prefix as the copyable value.
+			if (prefix && !prefix.includes('…') && !prefix.endsWith('...') && prefix.length >= 40) return prefix;
+			return full || '';
+		}
 		function blockHashDisplay(b) {
-			return String((b && (b.hash || b.hash_prefix)) || '').trim();
+			const full = blockHashFull(b);
+			if (full) return full;
+			return String((b && b.hash_prefix) || '').trim();
+		}
+		function shortHashForUI(hash, n) {
+			const s = String(hash || '').trim();
+			const lim = Number(n) > 0 ? Number(n) : 22;
+			if (!s) return '—';
+			return s.length > lim ? (s.slice(0, lim) + '…') : s;
 		}
 		function blockTaskId(b) {
 			if (!b) return '';
@@ -9511,7 +9537,8 @@
 			}
 			const sorted = blocks.slice().sort((a, b) => Number(b.index || 0) - Number(a.index || 0));
 			sorted.forEach((b, i) => {
-				const hash = blockHashDisplay(b);
+				const hashFull = blockHashFull(b) || blockHashDisplay(b);
+				const hashShow = shortHashForUI(hashFull, 22);
 				const miner = String(b.miner_address || '—');
 				const kind = blockTaskKindShort(b);
 				const idx = fmtUInt(b.index || 0);
@@ -9531,15 +9558,16 @@
 					'<span class="font-display text-sm text-neon tabular-nums">#' + idx + '</span>' +
 					'<span class="text-[10px] text-gray-400">' + escapeHtml(rel) + '</span>' +
 					gap +
-					'<button type="button" class="btn-copy-mini ml-auto hash-copy" data-hash="' + escapeHtml(hash) + '">copy</button>' +
+					'<button type="button" class="btn-copy-mini ml-auto hash-copy" data-hash="' + escapeHtml(hashFull) + '">copy</button>' +
 					'</div>' +
 					'<p class="text-[10px] text-gray-500">' + escapeHtml(abs) + ' · <span class="text-gray-400">' + escapeHtml(kind) + '</span></p>' +
-					'<p class="text-[10px] text-matrix/80 truncate mt-1" title="' + escapeHtml(hash) + '">' + escapeHtml(hash.length > 24 ? hash.slice(0, 22) + '…' : hash) + '</p>' +
+					'<p class="text-[10px] text-matrix/80 truncate mt-1" title="' + escapeHtml(hashFull) + '">' + escapeHtml(hashShow) + '</p>' +
 					'<p class="text-[9px] text-gray-600 mt-1 truncate" title="' + escapeHtml(miner) + '">' + escapeHtml(miner) + '</p>' +
 					'</div>';
 				item.querySelector('.hash-copy')?.addEventListener('click', (ev) => {
 					ev.stopPropagation();
-					copyTextToClipboard(hash);
+					const fromAttr = String(ev.currentTarget && ev.currentTarget.getAttribute('data-hash') || '').trim();
+					copyTextToClipboard(fromAttr || hashFull);
 				});
 				el.appendChild(item);
 			});
@@ -9584,13 +9612,15 @@
 			}
 			const sorted = blocks.slice().sort((a, b) => Number(b.index || 0) - Number(a.index || 0));
 			sorted.forEach((b) => {
-				const hash = blockHashDisplay(b);
+				const hashFull = blockHashFull(b) || blockHashDisplay(b);
+				const hashShow = shortHashForUI(hashFull, 28);
 				const tid = blockTaskId(b);
 				const miner = String(b.miner_address || '—');
 				const kind = blockTaskKindShort(b);
 				const row = document.createElement('div');
 				row.className = 'reports-feed-item cursor-pointer';
-				row.title = 'Click to copy hash';
+				row.title = 'Click to copy full hash';
+				row.dataset.hash = hashFull;
 				row.innerHTML =
 					'<div class="flex flex-wrap items-start gap-2">' +
 					'<span class="font-display text-matrix text-sm tabular-nums">#' + fmtUInt(b.index || 0) + '</span>' +
@@ -9598,9 +9628,9 @@
 					'<span class="text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-gray-500 uppercase">' + escapeHtml(kind) + '</span>' +
 					'<span class="text-[9px] text-gray-600 ml-auto truncate max-w-[140px]" title="' + escapeHtml(miner) + '">' + escapeHtml(miner.length > 18 ? miner.slice(0, 16) + '…' : miner) + '</span>' +
 					'</div>' +
-					'<p class="hash-chip text-matrix/90 mt-2 truncate">' + escapeHtml(hash || '—') + '</p>' +
+					'<p class="hash-chip text-matrix/90 mt-2 truncate" title="' + escapeHtml(hashFull) + '">' + escapeHtml(hashShow || '—') + '</p>' +
 					(tid ? '<p class="text-[9px] text-gray-600 mt-1 truncate" title="' + escapeHtml(tid) + '">task ' + escapeHtml(tid.length > 28 ? tid.slice(0, 26) + '…' : tid) + '</p>' : '');
-				row.addEventListener('click', () => copyTextToClipboard(hash));
+				row.addEventListener('click', () => copyTextToClipboard(row.dataset.hash || hashFull));
 				feed.appendChild(row);
 			});
 		}
@@ -12306,7 +12336,10 @@
 						const ctip = Number(st.canonical_tip_height || 0);
 						latestGlobalChainHeight = h;
 						latestCanonicalChainHeight = ctip > 0 ? ctip : latestCanonicalChainHeight;
-						if ($('chain-tip-full')) $('chain-tip-full').textContent = tip || '—';
+						if ($('chain-tip-full')) {
+							$('chain-tip-full').textContent = tip || '—';
+							$('chain-tip-full').dataset.hash = tip || '';
+						}
 						const pm = Number(st.pool_target_mod || 0);
 						if (pm > 0 && (!isPoolWorkContext() || pm >= POOL_TARGET_MOD_FLOOR)) {
 							lastGlobalTargetMod = pm;
@@ -12394,7 +12427,10 @@
 				latestGlobalChainHeight = h;
 				latestCanonicalChainHeight = cTip > 0 ? cTip : latestCanonicalChainHeight;
 				const tip = String(chain.tip_hash || '');
-				if ($('chain-tip-full')) $('chain-tip-full').textContent = tip || '—';
+				if ($('chain-tip-full')) {
+							$('chain-tip-full').textContent = tip || '—';
+							$('chain-tip-full').dataset.hash = tip || '';
+						}
 				renderHive(networkStatsFromGlobalNetwork(network), metricsForHive || null);
 				const target = Number(work.target_mod || 0);
 				if (target > 0) {
@@ -13558,9 +13594,17 @@
 				const h = Number(s.tip_height || 0);
 				const tip = String(s.tip_hash || '');
 				// Keep top-chain KPIs sourced from refreshGlobalMetrics; this call updates local-only fields.
-				if ($('chain-tip-full') && Number(latestGlobalChainHeight || 0) <= 0) $('chain-tip-full').textContent = tip || '—';
+				if ($('chain-tip-full') && Number(latestGlobalChainHeight || 0) <= 0) {
+					$('chain-tip-full').textContent = tip || '—';
+					$('chain-tip-full').dataset.hash = tip || '';
+				}
 				if ($('chain-local-tip-height')) $('chain-local-tip-height').textContent = fmtUInt(h);
-				if ($('chain-local-tip-hash')) $('chain-local-tip-hash').textContent = tip ? (tip.slice(0, 22) + '…') : '—';
+				if ($('chain-local-tip-hash')) {
+					const el = $('chain-local-tip-hash');
+					el.textContent = tip ? shortHashForUI(tip, 22) : '—';
+					el.title = tip || '';
+					el.dataset.hash = tip || '';
+				}
 				if ($('chain-genesis-badge')) {
 					const gOk = !!s.has_genesis;
 					$('chain-genesis-badge').textContent = gOk ? 'Genesis: ready' : 'Genesis: pending';
@@ -13611,14 +13655,14 @@
 			const ts = fmtUnix(b.timestamp_unix || 0);
 			const kind = escapeHtml(String(b.task_kind || (b.task && b.task.kind) || 'poh').replace(/_v\d+$/, ''));
 			const miner = escapeHtml(String(b.miner_address || b.miner_address_effective || '—'));
-			const hashFull = String(b.hash || b.hash_prefix || '');
-			const hashShow = hashFull.length > 20 ? (hashFull.slice(0, 18) + '…') : hashFull;
+			const hashFull = blockHashFull(b) || String(b.hash || b.hash_prefix || '');
+			const hashShow = shortHashForUI(hashFull, 18);
 			const pad = compact ? 'px-2 py-1.5' : 'px-3 py-2';
 			return '<td class="' + pad + ' tabular-nums text-neon/90">' + idx + '</td>' +
 				'<td class="' + pad + ' text-gray-400 tabular-nums whitespace-nowrap">' + ts + '</td>' +
 				'<td class="' + pad + ' text-gray-300">' + kind + '</td>' +
 				'<td class="' + pad + ' text-gray-500 truncate max-w-[140px]" title="' + miner + '">' + miner + '</td>' +
-				'<td class="' + pad + ' truncate max-w-[280px] font-mono text-matrix/90" title="' + escapeHtml(hashFull) + '">' + escapeHtml(hashShow || '—') + '</td>';
+				'<td class="' + pad + ' truncate max-w-[280px] font-mono text-matrix/90" title="' + escapeHtml(hashFull) + '" data-hash="' + escapeHtml(hashFull) + '">' + escapeHtml(hashShow || '—') + '</td>';
 		}
 		function fillChainTable(tbodyId, blocks, colspan, compact) {
 			const tb = $(tbodyId);
@@ -16145,7 +16189,10 @@
 				const addrHint = walletKnownAddress();
 				if (addrFromApi.startsWith('HMC-')) {
 					walletSnapshot.address = addrFromApi;
-					if ($('wallet-address-display')) $('wallet-address-display').textContent = addrFromApi;
+					if ($('wallet-address-display')) {
+						$('wallet-address-display').textContent = addrFromApi;
+						$('wallet-address-display').dataset.address = addrFromApi;
+					}
 				} else if (addrHint.startsWith('HMC-')) {
 					walletSnapshot.address = addrHint;
 				}
@@ -16443,6 +16490,23 @@
 				if ($('btn-hardware-refresh')) $('btn-hardware-refresh').addEventListener('click', () => { void refreshHardwareTune(); });
 				if ($('btn-quick-refresh')) $('btn-quick-refresh').addEventListener('click', refreshAllNow);
 				if ($('btn-work-stats-refresh')) $('btn-work-stats-refresh').addEventListener('click', () => { void refreshWorkStats(true); });
+				if ($('btn-copy-chain-tip')) {
+					$('btn-copy-chain-tip').addEventListener('click', () => {
+						const tipEl = $('chain-tip-full');
+						const localEl = $('chain-local-tip-hash');
+						const full = String(
+							(tipEl && (tipEl.dataset.hash || tipEl.textContent)) ||
+							(localEl && localEl.dataset.hash) ||
+							''
+						).trim();
+						if (!full || full === '—' || full.includes('…')) {
+							logLine('[chain] copy skipped — tip not loaded');
+							return;
+						}
+						copyTextToClipboard(full);
+						logLine('[chain] tip hash copied');
+					});
+				}
 				if ($('btn-copy-miner-env')) $('btn-copy-miner-env').addEventListener('click', async () => {
 					const snap = $('public-staging-env-snippet');
 					const txt = (snap && !snap.classList.contains('hidden') && String(snap.textContent || '').trim())

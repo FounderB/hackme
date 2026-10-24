@@ -365,12 +365,21 @@ func TestPoHBlockCountSinceAndSummaries(t *testing.T) {
 	if sums[0].MinerAddress != addr {
 		t.Fatalf("tip miner_address: want %q got %q", addr, sums[0].MinerAddress)
 	}
+	if sums[0].Hash == "" || strings.Contains(sums[0].Hash, "…") {
+		t.Fatalf("tip hash must be full, got %q", sums[0].Hash)
+	}
+	if !strings.HasPrefix(sums[0].HashPrefix, sums[0].Hash[:min(16, len(sums[0].Hash))]) {
+		t.Fatalf("hash_prefix %q does not match hash %q", sums[0].HashPrefix, sums[0].Hash)
+	}
 	got, ok, err := svc.GetBlockSummaryByIndex(ctx, sums[0].Index)
 	if err != nil || !ok {
 		t.Fatalf("GetBlockSummaryByIndex: ok=%v err=%v", ok, err)
 	}
 	if got.MinerAddress != addr || got.TaskID != sums[0].TaskID {
 		t.Fatalf("GetBlockSummaryByIndex mismatch: %+v vs tip %+v", got, sums[0])
+	}
+	if got.Hash != sums[0].Hash || got.Hash == "" {
+		t.Fatalf("GetBlockSummaryByIndex hash mismatch: %+v vs tip %+v", got, sums[0])
 	}
 }
 
