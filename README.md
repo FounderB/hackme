@@ -65,7 +65,7 @@ Payout follows **accepted work**, not lottery blocks. Model: [NETWORK_MODEL.md](
 | Area | State |
 |------|--------|
 | **Installers** | Win · Linux · `.deb` · Dig/Hunt CLI · HackMe OS ISO + **SHA256SUMS** |
-| **Pool** | Live public coordinator · auto `target_mod` · hybrid signer |
+| **Pool** | Live public coordinator · hybrid signer · **Blake3 PoH LIVE** (tip ≥ #485000) · GH/s = wall-rate (~few GH/s fleet class, not pre-cliff hybrid calib) |
 | **Dig / Hunt** | Live product rails · Hunt = **libFuzzer/AFL++ leases** + showmap/ASAN prove |
 | **Paper Exchange** | Desk live · **not** a CEX, **not** financial advice |
 | **Hunt Watch 2026sep** | **12/12 closed** · [ledger](https://hackme.tech/reports/hunt-watch-2026sep/) |

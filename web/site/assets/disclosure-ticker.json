@@ -6,8 +6,8 @@
     {
       "kind": "release",
       "badge": "CHANNEL",
-      "title": "0.1.0-rc17.4 — Blake3 @ 485k · ISO",
-      "detail": "Update workerpoh before #485000 · soft attempt-pay · HackMe OS ISO + SHA256SUMS-iso",
+      "title": "0.1.0-rc17.4 — Blake3 LIVE @ 485k · ISO",
+      "detail": "Blake3 activated (tip ≥ #485000) · soft attempt-pay · wall-rate GH/s cliff expected · HackMe OS ISO",
       "cta": "Downloads",
       "href": "/downloads.html#start",
       "accent": "success",

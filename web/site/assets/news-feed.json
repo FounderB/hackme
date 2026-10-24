@@ -1,11 +1,50 @@
 {
   "items": [
     {
+      "id": "2026-10-24-blake3-live",
+      "date": "2026-10-24",
+      "title": "Blake3 PoH LIVE — tip ≥ #485000 · honest ~few GH/s wall-rate",
+      "summary": "Mainnet crossed the Blake3 gate at height 485000. Pool formula is blake3_v3(prev‖miner‖nonce_le)%M==0. Soft attempt-pay continues (shares = verified stats until SHARE_STRICT). Real PoW GH/s is wall-timed Blake3 throughput (~few GH/s fleet class) — not the pre-cliff hybrid algebraic calib. Dig/Hunt leases remain live. Economics v2 (emission lock, pool-from-emission, burn-on-orders) is upcoming RFC — not live numbers as gospel.",
+      "impact": "Dashboard/site must show blake3_pow_ghs. Rebuild workerpoh so submit ghs= matches wall rate. Soft 429/no-work on fuzz is OK. Exchange: own paper desk D0 + listing pack ready; no foreign CEX listing claimed.",
+      "action": "Downloads: https://hackme.tech/downloads.html · Listing: https://hackme.tech/listing.html · Pool: https://hackme.tech/pool/explorer",
+      "tags": [
+        "blake3",
+        "mainnet",
+        "hashrate",
+        "rc17.4",
+        "pool"
+      ],
+      "status": "published",
+      "telegram": {
+        "headline": "Blake3 @ #485000 — LIVE",
+        "lead": "Gate activated. Soft attempt-pay continues; GH/s cliff is real PoW.",
+        "bullets": [
+          "Blake3 PoH live at tip ≥ 485000",
+          "Soft shares / attempt-pay still",
+          "Fleet GH/s now Blake3 wall-rate (~few GH/s class)",
+          "Dig/Hunt working",
+          "Economics v2 RFC next (not live yet)"
+        ],
+        "footer": "hackme.tech/downloads.html · not financial advice"
+      },
+      "discord": {
+        "title": "Blake3 LIVE @ #485000",
+        "body": "**Blake3 PoH activated**\n\n• Tip ≥ **#485000** — formula `blake3_v3`\n• Soft pool: **attempt-pay** (shares = stats)\n• Honest GH/s cliff (wall-rate, not hybrid calib)\n• Dig/Hunt live\n• Economics v2 = upcoming RFC\n\nhttps://hackme.tech/downloads.html",
+        "ping": "#announcements"
+      },
+      "links": {
+        "downloads": "https://hackme.tech/downloads.html",
+        "listing": "https://hackme.tech/listing.html",
+        "news": "https://hackme.tech/news.html",
+        "telegram": "https://t.me/hackme_tech"
+      }
+    },
+    {
       "id": "2026-10-22-rc17.4-live",
       "date": "2026-10-22",
-      "title": "0.1.0-rc17.4 — Blake3 @ 485k · soft attempt-pay · ISO · settle fix",
-      "summary": "Blake3 PoH activates at height 485000 (was 500000). Soft pool mode always attempt-pays; verified share_nonces (M/1024) are stats/rate-check only until SHARE_STRICT (GPU full-batch harvest next). Settlement SQLite export no longer rolls back settled_sup. HackMe OS ISO + SHA256SUMS-iso on GitHub and hackme.tech/dist. Expect GH/s to drop ~100–200× after Blake3 — retarget lowers M. Update workerpoh before tip reaches 485k. RTX 50: CUDA ≥12.8 for compute_120.",
-      "impact": "Mandatory worker update before #485000. Soft share-pay underpay bug fixed (attempt-pay restored). Operators: coordinator on soft attempt-pay; ISO mirror live; read miner notices.",
+      "title": "0.1.0-rc17.4 — Blake3 gate @ 485k · soft attempt-pay · ISO · settle fix",
+      "summary": "Released the Blake3 PoH gate at height 485000 (was 500000). Soft pool mode always attempt-pays; verified share_nonces (M/1024) are stats/rate-check only until SHARE_STRICT. Settlement SQLite export no longer rolls back settled_sup. HackMe OS ISO + SHA256SUMS-iso on GitHub and hackme.tech/dist. GH/s dropped ~100–200× after activation (expected). RTX 50: CUDA ≥12.8 for compute_120.",
+      "impact": "Historical release note — gate is now LIVE (see 2026-10-24 item). Soft share-pay underpay bug fixed (attempt-pay restored).",
       "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.4 · Notices: /api/miner/notices",
       "tags": [
         "release",
@@ -13,7 +52,8 @@
         "blake3",
         "shares",
         "settle",
-        "iso"
+        "iso",
+        "archive"
       ],
       "status": "published",
       "telegram": {
@@ -394,43 +434,6 @@
         "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc15",
         "news": "https://hackme.tech/news.html",
         "research": "https://hackme.tech/research.html"
-      }
-    },
-    {
-      "id": "2026-08-19-release-rc14x-fuzz-report-honesty",
-      "date": "2026-08-19",
-      "title": "rc14x hotfix shipped — honest fuzz report/gate + depth evidence visible",
-      "summary": "rc14x makes the fuzz customer reporting plane more truthful: reports now carry explicit `evidence_window` scope (fetched-window vs full-history) and disclose raw vs grouped counters (raw_findings_total, grouped_rows_visible/hidden) without changing gate/coordinator behavior.",
-      "impact": "Customer-facing truth improvements for B2B fuzz reports: JSON/HTML/CSV now clearly separate what was fetched for this request from the full campaign history, with raw vs grouped semantics disclosed to prevent overstated totals.",
-      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc14x · Verify SHA256SUMS.txt from the rc14x bundle.",
-      "tags": [
-        "release",
-        "rc14x",
-        "fuzzing",
-        "honesty",
-        "report-plane",
-        "pre-exchange"
-      ],
-      "status": "published",
-      "telegram": {
-        "headline": "rc14x hotfix shipped — honest fuzz report/gate",
-        "lead": "Fetch-window truth + raw vs grouped counters are now explicit in JSON/HTML/CSV (`evidence_window`).",
-        "bullets": [
-          "`evidence_window` is explicit: query_limit + fetched_findings vs full_campaign_findings + history_truncated",
-          "Honesty counters are disclosed: raw_findings_total + grouped_rows_visible/grouped_rows_hidden",
-          "Gate remains crash-first; it observes raw crash counters (no grouped/display clipping for PASS/FAIL)",
-          "Depth evidence posture is now visible, scoped to the fetched window for this request"
-        ],
-        "footer": "For rc14x: use the site buttons + verify SHA256SUMS.txt before flashing/running."
-      },
-      "discord": {
-        "title": "rc14x hotfix: honest fuzz report/gate",
-        "body": "**rc14x hotfix shipped**\n\n• Reports now include explicit `evidence_window` scope (what was fetched vs full history)\n• Raw vs grouped counters are disclosed (so totals aren’t overstated)\n• Gate stays crash-first and observes raw crash counters\n\nDownloads: https://hackme.tech/downloads.html",
-        "ping": "#announcements"
-      },
-      "links": {
-        "downloads": "https://hackme.tech/downloads.html",
-        "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc14x"
       }
     }
   ],

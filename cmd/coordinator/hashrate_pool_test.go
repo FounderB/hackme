@@ -56,6 +56,13 @@ func TestEffectiveWorkerHashrateGHSKeepsLiveSample(t *testing.T) {
 	}
 }
 
+func TestEffectiveWorkerHashrateGHSIgnoresBlake3CliffPeak(t *testing.T) {
+	st := workerPayoutStat{LastHashrateGHS: 0.27, PeakHashrateGHS: 93.8}
+	if got := effectiveWorkerHashrateGHS(st); got != 0.27 {
+		t.Fatalf("got %v want 0.27 (no pre-Blake3 peak resurrect)", got)
+	}
+}
+
 func TestWorkerRateLimitPerMinGPUMinFloor(t *testing.T) {
 	wm := &workManager{
 		claimPerMin: 6000,

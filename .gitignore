@@ -4,6 +4,10 @@ local_social_drafts/
 scripts/local/
 docs/local/
 docs/social/
+docs/comms/
+docs/TELEGRAM_POST_*
+docs/BITCOINTALK_*
+docs/**/*POSTS*
 adapters/
 bounty-lab/
 .sentry-native/

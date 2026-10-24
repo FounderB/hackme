@@ -98,6 +98,19 @@ func TestWorkerActiveFromParticipantLog(t *testing.T) {
 	}
 }
 
+func TestParseWorkerpohMeasuredGHsPrefersInstOnCalibCliff(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "workerpoh-worker-kapa-pc-20261024T120000Z.log")
+	line := "submit ok found=false batch=16777216 mod=38013700 ghs=93.814861 inst_ghs=0.68 t_ms=1\n"
+	if err := os.WriteFile(p, []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := parseWorkerpohMeasuredGHs(dir)
+	if got < 0.6 || got > 0.8 {
+		t.Fatalf("measured=%v want ~0.68 (inst_ghs), not sticky calib ghs=", got)
+	}
+}
+
 func TestWorkerLogStartedUnixLocalFilename(t *testing.T) {
 	dir := t.TempDir()
 	stamp := time.Now().Add(-45 * time.Minute).Format("20060102T150405")

@@ -96,15 +96,15 @@ nvidia-smi
 
 Both kernels live in `internal/gpupoh/poh_search.cu` (mirrored under `kernels/`). Device Blake3 uses the same message layout as `chain.PohWorkBlake3` / `gpupoh.Blake3Search` (ASCII-lower tip hex ‖ miner UTF-8 ‖ nonce u64 LE → LE uint64 of digest[0:8]). Host path is the correctness lock; set `HACKME_CUDA_BLAKE3_HOST=1` to force it for A/B checks.
 
-Mainnet Blake3 activation: height **485000** as of rc17.4 (`PoHFormulaV3ActivationHeight`). Until tip crosses that gate, workers still search v1 on device.
+Mainnet Blake3 activation: height **485000** as of rc17.4 (`PoHFormulaV3ActivationHeight`). **LIVE** — tip has crossed the gate; workers search Blake3 on device (or host fallback).
 
-### Measured on RTX 5060 Ti (desktop, 2026-10-22)
+### Measured on RTX 5060 Ti (desktop, 2026-10-22; still valid post-activation)
 
 | Path | Arch (NVRTC) | ~GH/s (4M batch) | Notes |
 |------|--------------|------------------|-------|
-| v1 `poh_search` | `compute_90` fallback* | **~63** | Algebraic; production today |
-| v3 device `poh_search_blake3` | `compute_90` fallback* | **~0.3** | Parity with host OK |
-| v3 host `Blake3Search` | CPU GOMAXPROCS | **~0.3–0.4** | Same order as device today |
+| v1 `poh_search` | `compute_90` fallback* | **~63** | Algebraic; pre-gate only (historical) |
+| v3 device `poh_search_blake3` | `compute_90` fallback* | **~0.3** | Production path after #485000 |
+| v3 host `Blake3Search` | CPU GOMAXPROCS | **~0.3–0.4** | Same order as device |
 
 \*Bundled `.deps` NVRTC **12.0** cannot JIT `compute_120`; driver reports CC 12.0 but probe falls back to `compute_90`. Install **CUDA toolkit ≥12.8** (`sudo bash scripts/ops/install_cuda_dev_ubuntu.sh`) for native Blackwell arch. Even with `compute_120`, expect Blake3 ≪ v1 GH/s — crypto hash vs multiply. Retarget must drop `M` after activation or blocks stall; dashboard GH/s will look “dead” unless UX explains the unit change.
 
@@ -130,4 +130,4 @@ Remote CPU workers: **do not** deploy the CUDA binary; use `go build -o workerpo
 
 **Low GH/s with CUDA** — set `HACKME_CUDA_VERBOSE=1`, confirm `compute_120` (not `compute_60`).
 
-**Blake3 GH/s collapses after height 485000** — expected (~0.3 GH/s class vs ~60+ GH/s algebraic). Confirm worker binary was rebuilt with `-tags cuda`; check logs for `cuda blake3 search` vs host fallback; A/B with `HACKME_CUDA_BLAKE3_HOST=1`.
+**Blake3 GH/s collapsed after height 485000 (LIVE)** — expected (~0.3 GH/s/GPU class vs ~60+ GH/s algebraic). Confirm worker binary was rebuilt with `-tags cuda` after the cliff; check logs for `cuda blake3 search` vs host fallback and that `ghs=` ≈ `inst_ghs=` (not sticky hybrid calib); A/B with `HACKME_CUDA_BLAKE3_HOST=1`.

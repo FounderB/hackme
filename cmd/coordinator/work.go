@@ -609,10 +609,16 @@ func smoothWorkerHashrateGHS(prev, sample float64) float64 {
 }
 
 // effectiveWorkerHashrateGHS uses peak when rolling EMA collapsed far below observed GPU peak.
+// After Blake3, live wall GH/s is often ≪ pre-cliff hybrid calib peaks — never resurrect those.
 func effectiveWorkerHashrateGHS(st workerPayoutStat) float64 {
 	gh := clampWorkerHashrateGHS(st.LastHashrateGHS)
 	peak := clampWorkerHashrateGHS(st.PeakHashrateGHS)
 	if peak > 1 && gh < peak*0.25 {
+		// Sticky pre-Blake3 calib peak vs a stable Blake3-class wall sample.
+		// Near-zero gh (contention/startup) still may borrow peak; do not treat that as the cliff.
+		if gh >= 0.05 && peak >= 10 && peak > gh*20 {
+			return gh
+		}
 		return peak * 0.72
 	}
 	return gh
@@ -2516,6 +2522,9 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if gh > 0 {
 		st.LastHashrateGHS = gh
 		if gh > st.PeakHashrateGHS {
+			st.PeakHashrateGHS = gh
+		} else if leaseFV >= 3 && st.PeakHashrateGHS > gh*20 {
+			// Drop sticky pre-Blake3 calib peaks so UI / Dig soft-priority stay wall-honest.
 			st.PeakHashrateGHS = gh
 		}
 		st.LastPoHSeenUnix = now

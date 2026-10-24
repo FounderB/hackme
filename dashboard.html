@@ -1989,7 +1989,7 @@
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div class="min-w-0 flex-1">
 							<p class="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-neon mb-1.5">What&apos;s new · <span id="dashboard-whats-new-ver">0.1.0-rc17.4</span></p>
-							<p id="dashboard-whats-new-body" class="text-gray-200/95"><strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> · soft <strong class="text-white/90">attempt-pay</strong> (shares = stats) · HackMe OS ISO · settle SUP/HMC fix. <strong class="text-warn">Update workerpoh before the gate</strong> — GH/s drops ~100–200× after Blake3 (expected). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.</p>
+							<p id="dashboard-whats-new-body" class="text-gray-200/95"><strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> <strong class="text-matrix">LIVE</strong> · soft <strong class="text-white/90">attempt-pay</strong> (shares = stats) · HackMe OS ISO · settle SUP/HMC fix. Pool GH/s is Blake3 wall-rate (not pre-cliff hybrid calib). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.</p>
 						</div>
 						<button type="button" id="dashboard-whats-new-dismiss" class="shrink-0 text-[10px] px-2 py-1 rounded border border-white/15 text-gray-400 hover:text-gray-200 uppercase tracking-wider">Dismiss</button>
 					</div>
@@ -4129,7 +4129,7 @@
 		// Enable JS-driven tab behavior (single active panel view).
 		document.body.classList.add('js-ui');
 		const DASHBOARD_UI_VER = '0.1.0-rc17.4';
-		const DASHBOARD_WHATS_NEW_HTML = '<strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> · soft <strong class="text-white/90">attempt-pay</strong> (shares = stats) · HackMe OS ISO · settle SUP/HMC fix. <strong class="text-warn">Update workerpoh before the gate</strong> — GH/s drops ~100–200× after Blake3 (expected). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.';
+		const DASHBOARD_WHATS_NEW_HTML = '<strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> <strong class="text-matrix">LIVE</strong> · soft <strong class="text-white/90">attempt-pay</strong> (shares = stats) · HackMe OS ISO · settle SUP/HMC fix. Pool GH/s is Blake3 wall-rate (not pre-cliff hybrid calib). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.';
 		function updateUIModeBadge() {
 			const el = document.getElementById('hdr-ui-mode');
 			if (!el) return;
@@ -7208,6 +7208,11 @@
 		}
 		function poolGhFromWorkStats(ws) {
 			if (!ws || typeof ws !== 'object') return 0;
+			// Blake3: coordinator pool_hashrate_gh_s is wall-timed PoW — prefer it over Σ worker
+			// rows that may still carry sticky hybrid calib peaks on older coordinators.
+			const kind = String(ws.pool_hashrate_kind || '');
+			const poolField = Number(ws.pool_hashrate_gh_s || 0);
+			if (kind === 'blake3_pow_ghs' && poolField > 0) return Math.min(poolField, 5000);
 			const workers = ws.workers;
 			if (workers && typeof workers === 'object') {
 				let sum = 0;
@@ -7219,7 +7224,6 @@
 			}
 			let gh = sumActiveRigsGh(ws.active_rigs);
 			if (gh > 0) return Math.min(gh, 5000);
-			const poolField = Number(ws.pool_hashrate_gh_s || 0);
 			if (poolField > 0) return Math.min(poolField, 5000);
 			const fromDelta = poolGhFromAttemptsDelta(ws);
 			if (fromDelta > 0) return fromDelta;
@@ -9784,11 +9788,19 @@
 			const nowSec = Number(sampleUnix || (latestWorkStats && latestWorkStats.now_unix) || 0);
 			const wid = String((row && row.id) || (row && row.worker_id) || '');
 			const attemptsNow = Number((row && row.attempts) || 0);
+			const blake3Live = String((latestWorkStats && latestWorkStats.pool_hashrate_kind) || '') === 'blake3_pow_ghs'
+				|| Number((latestWorkStats && latestWorkStats.poh_formula_version) || 0) >= 3
+				|| Number((lastMetricsPayload && lastMetricsPayload.poh_formula_version) || 0) >= 3;
 			const runningWid = configuredLocalWorkerId();
+			const coordGH = clampRigHashrateGHS((row && row.hashrate_gh_s) || (row && row.live && row.live.hashrate_gh_s));
+			const coordFromStatus = clampRigHashrateGHS(latestWorkerStatus && latestWorkerStatus.coordinator_hashrate_gh_s);
+			const honestCoord = Math.max(coordGH, coordFromStatus);
 			if (wid && wid === runningWid && latestWorkerStatus && latestWorkerStatus.running) {
 				const meas = clampRigHashrateGHS(latestWorkerStatus.measured_hashrate_gh_s);
-				const coordGH = clampRigHashrateGHS((row && row.hashrate_gh_s) || (row && row.live && row.live.hashrate_gh_s));
-				if (meas > 0 && (coordGH < 1 || meas > coordGH * 1.2)) return meas;
+				// Blake3 / cliff: never prefer stale local ghs= calib (~50–100) over coordinator wall-rate.
+				if (blake3Live && honestCoord > 0) return honestCoord;
+				if (meas > 0 && honestCoord > 0 && meas > honestCoord * 2.5) return honestCoord;
+				if (meas > 0 && (honestCoord < 0.01 || (meas > honestCoord * 1.2 && meas < honestCoord * 2.5))) return meas;
 			}
 			if (wid && nowSec > 0 && attemptsNow >= 0) {
 				const prev = workerAttemptsPrevMap[wid];
@@ -9797,7 +9809,10 @@
 					const dAtt = attemptsNow - prev.attempts;
 					if (dt >= 20 && dAtt > 0) {
 						const est = clampRigHashrateGHS((dAtt / dt) / 1e9);
-						if (est > 0) return est;
+						if (est > 0) {
+							if (blake3Live && honestCoord > 0 && est > honestCoord * 2.5) return honestCoord;
+							return est;
+						}
 					}
 				}
 			}

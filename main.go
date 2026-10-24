@@ -3206,8 +3206,10 @@ func parseWorkerpohGHField(line, key string) float64 {
 	return 0
 }
 
-// parseWorkerpohMeasuredGHs reads recent submit ok lines; prefers reported ghs= (after floor)
-// over raw inst_ghs= so the dashboard matches pool payout hashrate.
+// parseWorkerpohMeasuredGHs reads recent submit ok lines for local desktop telemetry.
+// Prefers reported ghs= when it matches live work; if ghs= is a stale hybrid calib floor
+// while inst_ghs= shows Blake3 wall rate (ghs >> inst), prefer inst so the Workers table
+// matches coordinator blake3_pow_ghs instead of pre-cliff ~50–100 GH/s.
 func parseWorkerpohMeasuredGHs(logDir string) float64 {
 	p := latestWorkerpohLogPath(logDir)
 	if p == "" {
@@ -3217,7 +3219,8 @@ func parseWorkerpohMeasuredGHs(logDir string) float64 {
 	if err != nil || len(lines) == 0 {
 		return 0
 	}
-	best := 0.0
+	bestGHS := 0.0
+	bestInst := 0.0
 	start := len(lines) - 25
 	if start < 0 {
 		start = 0
@@ -3227,13 +3230,20 @@ func parseWorkerpohMeasuredGHs(logDir string) float64 {
 		if !strings.Contains(line, "submit ok") {
 			continue
 		}
-		for _, key := range []string{"ghs=", "inst_ghs="} {
-			if g := parseWorkerpohGHField(line, key); g > best {
-				best = g
-			}
+		if g := parseWorkerpohGHField(line, "ghs="); g > bestGHS {
+			bestGHS = g
+		}
+		if g := parseWorkerpohGHField(line, "inst_ghs="); g > bestInst {
+			bestInst = g
 		}
 	}
-	return best
+	if bestGHS > 0 && bestInst > 0 && bestGHS > bestInst*2.5 {
+		return bestInst
+	}
+	if bestGHS > 0 {
+		return bestGHS
+	}
+	return bestInst
 }
 
 // sanitizeWorkerIDHost maps hostname to a stable coordinator worker id (matches Windows autostart).
