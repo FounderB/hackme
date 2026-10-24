@@ -15,7 +15,8 @@ Factual pass/fail snapshots for releases and research series.
 | [../archive/rc/HACKME_RC11R.md](../archive/rc/HACKME_RC11R.md) | Historical rc11r (superseded) |
 | [../archive/rc/HACKME_RC11L.md](../archive/rc/HACKME_RC11L.md) | ISO channel rc11l — live USB boot fix (historical) |
 | [../archive/rc/HACKME_RC11M.md](../archive/rc/HACKME_RC11M.md) | Historical rc11m — wallet treasury |
-| [../archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.md](../archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.md) | GPU matrix field test (historical) |
+| [../archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.md](../archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.md) | GPU matrix **pre-Blake3** (algebraic/hybrid Peak GH/s) — **history only** |
+| [../BLAKE3_GPU_MATRIX.md](../BLAKE3_GPU_MATRIX.md) | **Current** Blake3 fv≥3 matrix — burn / pool GH/s / multi-GPU / HMC est |
 
 Older RC notes: [../archive/rc/](../archive/rc/) · VAST GPU logs: [../archive/vast/](../archive/vast/)
 

@@ -1,5 +1,8 @@
 # GPU Matrix Field Test — Final Verdict (2026-06-02)
 
+> **HISTORICAL (pre-Blake3).** Peak GH/s here is algebraic/hybrid-era calib — **not** comparable to Blake3 LIVE wall-rate.  
+> Current matrix: [`../../BLAKE3_GPU_MATRIX.md`](../../BLAKE3_GPU_MATRIX.md).
+
 Production pool: `https://hackme.tech/pool/coordinator`  
 Method: rented Vast.ai rigs + operator desktop (RTX 5060 Ti), ultra runs (inventory, latency, 6–7 min mining, coordinator stats, optional fuzz gate).
 
