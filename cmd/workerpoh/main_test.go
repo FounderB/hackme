@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestEnvUint64(t *testing.T) {
 	cases := []struct {
@@ -80,5 +83,29 @@ func TestEnvIntPositive(t *testing.T) {
 				t.Fatalf("envIntPositive = %d, want %d", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestSubmitHashrateBlake3OmitsStickyCalibEMA(t *testing.T) {
+	// Simulate pre-Blake3 FORCE/calib still sitting in EMA; fv≥3 must report wall only.
+	prevEMA := submitHashrateEMA
+	prevCal := gpuCalibratedGHS
+	t.Cleanup(func() {
+		submitHashrateEMA = prevEMA
+		gpuCalibratedGHS = prevCal
+	})
+	submitHashrateEMA = 80
+	gpuCalibratedGHS = 80
+	t.Setenv("HASHRATE_GHS", "")
+	t.Setenv("HACKME_WORKER_HASHRATE_GHS", "")
+	t.Setenv("HACKME_WORKER_DECLARED_HASHRATE_GHS", "")
+	t.Setenv("HACKME_GPU_HASHRATE_FLOOR_GHS", "")
+	t.Setenv("HACKME_CUDA_CALIBRATE_GHS", "")
+
+	const batch uint64 = 4_000_000
+	got := submitHashrateGHSForFormula(batch, 2.0, "cpu", 3)
+	// wall = 4e6/2/1e9 = 0.002 GH/s — must not resurrect 80 GH/s FORCE/calib EMA.
+	if got > 0.01 || math.IsNaN(got) || got <= 0 {
+		t.Fatalf("blake3 must omit FORCE/calib EMA and report wall, got %v", got)
 	}
 }

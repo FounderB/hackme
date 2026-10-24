@@ -597,6 +597,12 @@ func smoothWorkerHashrateGHS(prev, sample float64) float64 {
 	if prev <= 0 {
 		return sample
 	}
+	// Blake3 / post-cliff wall sample vs sticky pre-cliff calib EMA: never drag the
+	// old peak down slowly — that resurrected FORCE/calib GH/s into attempt-pay caps
+	// and Dig soft-priority after fv≥3 activation.
+	if prev >= 10 && sample >= 0.05 && prev > sample*20 {
+		return sample
+	}
 	alpha := 0.35
 	if sample > prev*1.8 {
 		alpha = 0.55
@@ -2450,8 +2456,14 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if leaseFV <= 0 {
 		leaseFV = m.resolvedPoHFormulaVersionLocked()
 	}
-	rawGH := workerHashrateGHSForSubmitFormula(reportedGH, req.BatchSize, issuedAt, now, m.worker[req.WorkerID].LastHashrateGHS, leaseFV)
-	gh := smoothWorkerHashrateGHS(m.worker[req.WorkerID].LastHashrateGHS, rawGH)
+	prevGH := m.worker[req.WorkerID].LastHashrateGHS
+	rawGH := workerHashrateGHSForSubmitFormula(reportedGH, req.BatchSize, issuedAt, now, prevGH, leaseFV)
+	gh := smoothWorkerHashrateGHS(prevGH, rawGH)
+	// Blake3 wall samples are often 0.002–0.02 GH/s (below the generic smooth cliff
+	// floor of 0.05). Snap so FORCE/calib EMA cannot inflate attempt-pay maxCred or peaks.
+	if leaseFV >= 3 && rawGH > 0 && prevGH >= 10 && prevGH > rawGH*20 {
+		gh = rawGH
+	}
 	if req.Found && reportedGH <= 0 {
 		gh = 0
 	}

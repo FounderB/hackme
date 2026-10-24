@@ -3,6 +3,7 @@ package main
 import (
 	"math"
 	"testing"
+	"time"
 )
 
 func TestClampWorkerHashrateGHSAllowsRealGPUClass(t *testing.T) {
@@ -83,6 +84,19 @@ func TestSmoothWorkerHashrateGHSRecoversFromStuckLow(t *testing.T) {
 	}
 }
 
+func TestSmoothWorkerHashrateGHSSnapsBlake3Cliff(t *testing.T) {
+	// Pre-Blake3 calib EMA (~100 GH/s) must not bleed into a Blake3 wall sample.
+	got := smoothWorkerHashrateGHS(100.0, 0.27)
+	if got != 0.27 {
+		t.Fatalf("cliff snap want 0.27, got %v", got)
+	}
+	// Modest drops still EMA (not a cliff).
+	mixed := smoothWorkerHashrateGHS(30.0, 20.0)
+	if mixed <= 20 || mixed >= 30 {
+		t.Fatalf("non-cliff should blend, got %v", mixed)
+	}
+}
+
 func TestSubmitPrefersReportedHashrateOverWallGH(t *testing.T) {
 	// Parent shells / desktop env must not force hybrid-strict on unit tests.
 	t.Setenv("HACKME_POOL_HYBRID_SIGNER_ENABLED", "")
@@ -109,4 +123,98 @@ func TestSubmitPrefersReportedHashrateOverWallGH(t *testing.T) {
 		t.Fatalf("coordinator should record reported GH/s, got %v", st.LastHashrateGHS)
 	}
 	_ = now
+}
+
+func TestBlake3SubmitDropsStickyPeakAndClampsFORCE(t *testing.T) {
+	t.Setenv("HACKME_POOL_HYBRID_SIGNER_ENABLED", "")
+	t.Setenv("HACKME_POOL_HYBRID_SIGNER_STRICT", "")
+	wm := newAbuseTestWM()
+	wm.attemptRecheckPct = 0
+	wm.pohFormulaVersion = 3
+	wm.tipHeight = 500_000
+	wm.tipHash = testTipHash
+	wm.worker["w-force"] = workerPayoutStat{
+		LastHashrateGHS: 95,
+		PeakHashrateGHS: 120,
+	}
+	base, size, _, _, _, ok, reason := wm.claim("w-force", wm.defaultBatch)
+	if !ok {
+		t.Fatalf("claim: %s", reason)
+	}
+	now := time.Now().Unix()
+	k := workKey{base: base, batch: size}
+	rec := wm.active[k]
+	rec.FormulaVersion = 3
+	rec.PrevHash = wm.tipHash
+	rec.IssuedAt = now - 2
+	rec.ExpiresAt = now + 60
+	wm.active[k] = rec
+
+	_, subReason, _, _, _ := wm.submit(submitWorkRequest{
+		WorkerID:    "w-force",
+		BaseNonce:   base,
+		BatchSize:   size,
+		Attempts:    size,
+		Found:       false,
+		HashrateGHS: 500, // FORCE_HASHRATE-style inflate
+	})
+	if subReason != "" {
+		t.Fatalf("submit: %s", subReason)
+	}
+	st := wm.worker["w-force"]
+	// Wall for defaultBatch/2s ≈ 0.002 GH/s; must not keep FORCE/calib.
+	if st.LastHashrateGHS > 1 {
+		t.Fatalf("blake3 must clamp FORCE report to wall, Last=%v", st.LastHashrateGHS)
+	}
+	if st.PeakHashrateGHS > st.LastHashrateGHS*1.01 {
+		t.Fatalf("sticky pre-Blake3 peak must drop, peak=%v last=%v", st.PeakHashrateGHS, st.LastHashrateGHS)
+	}
+}
+
+func TestSoftAttemptPayCappedByClaimedGHS(t *testing.T) {
+	t.Setenv("HACKME_POOL_HYBRID_SIGNER_ENABLED", "")
+	t.Setenv("HACKME_POOL_HYBRID_SIGNER_STRICT", "")
+	wm := newAbuseTestWM()
+	wm.attemptRecheckPct = 0
+	wm.rewardPerM = 0.01
+	base, size, _, _, _, ok, reason := wm.claim("w-soft", wm.defaultBatch)
+	if !ok {
+		t.Fatalf("claim: %s", reason)
+	}
+	now := time.Now().Unix()
+	k := workKey{base: base, batch: size}
+	rec := wm.active[k]
+	rec.IssuedAt = now - 1
+	rec.ExpiresAt = now + 60
+	wm.active[k] = rec
+
+	// Tiny claimed GH/s: maxCred = gh*1e9*elapsed*1.15 << defaultBatch.
+	const claimGH = 0.001
+	_, subReason, payout, _, _ := wm.submit(submitWorkRequest{
+		WorkerID:    "w-soft",
+		BaseNonce:   base,
+		BatchSize:   size,
+		Attempts:    size,
+		Found:       false,
+		HashrateGHS: claimGH,
+	})
+	if subReason != "" {
+		t.Fatalf("submit: %s", subReason)
+	}
+	st := wm.worker["w-soft"]
+	maxCred := uint64(claimGH * 1e9 * 1.0 * 1.15)
+	if maxCred < 1 {
+		t.Fatal("test setup: maxCred too small")
+	}
+	if st.AcceptedAtt > maxCred+1 {
+		t.Fatalf("soft attempt-pay must cap by GH×elapsed: accepted=%d maxCred≈%d", st.AcceptedAtt, maxCred)
+	}
+	maxPay := (float64(maxCred) / 1_000_000.0) * wm.rewardPerM * 1.05
+	if payout > maxPay+1e-9 {
+		t.Fatalf("payout=%v exceeds soft GH cap max≈%v", payout, maxPay)
+	}
+	fullBatchPay := (float64(size) / 1_000_000.0) * wm.rewardPerM
+	if payout >= fullBatchPay*0.99 {
+		t.Fatalf("expected soft GH cap below full-batch pay, payout=%v full=%v", payout, fullBatchPay)
+	}
 }
