@@ -207,6 +207,7 @@ var rigProfiles = []RigProfile{
 			PowerLimit: "−10…−15% PL — verify stability after any clock change",
 			Notes: []string{
 				"RTX 50xx is sensitive to power cap and cooling — tune one knob at a time.",
+				"Blake3 LIVE: expect low nvidia-smi util and ~CPU-class GH/s until CUDA occupancy rises — OC will not create GPU≫CPU by itself.",
 				"If nvidia-smi shows driver/library mismatch, reboot after driver update for full telemetry.",
 			},
 		},

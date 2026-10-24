@@ -2966,11 +2966,15 @@
 						<p class="font-display text-[10px] tracking-[0.2em] text-warn uppercase mb-2">Disclaimer</p>
 						<p><strong class="text-gray-300">CPU:</strong> soft load cap (not OS power policy). <strong class="text-gray-300">GPU:</strong> heuristics only; OC at your risk. <strong class="text-gray-300">NVIDIA:</strong> <code class="text-neon/90">nvidia-smi -pl</code>. <strong class="text-gray-300">AMD:</strong> sysfs telemetry; no PL via API. <code class="text-matrix/90">HACKME_GPU_TEMP_*</code> — restart after changes.</p>
 					</div>
+					<div class="rounded-lg border border-matrix/35 bg-matrix/5 p-4 text-[11px] text-gray-300 leading-relaxed">
+						<p class="font-display text-[10px] tracking-[0.2em] text-matrix uppercase mb-2">Blake3 PoH · GPU load</p>
+						<p id="hardware-blake3-honesty" class="text-gray-400">Live Blake3 CUDA is still latency-bound: nvidia-smi util often stays low (single-digit…~30%) while wall GH/s is only modestly above a good CPU. Raising power limit / core clocks will <strong class="text-gray-200">not</strong> make GPU ≫ CPU until the kernel saturates SMs. Prefer Daily PL + kernel/calib wins; Turbo/OC is optional thermals headroom, not a 10× GH/s lever.</p>
+					</div>
 					<div class="flex flex-wrap items-start justify-between gap-4">
 						<div class="flex-1 min-w-0 max-w-3xl">
 							<h2 class="font-display text-sm font-bold tracking-[0.15em] text-white uppercase">Hardware tune</h2>
 							<p class="hardware-tune-subtitle text-[11px] mt-1 leading-relaxed"><code class="text-neon/60">GET/POST /api/hardware/tune</code> <span class="text-gray-600">— admin token required for POST</span></p>
-							<p class="text-[10px] text-gray-600 mt-1">Fine-tune after Blake3 activation</p>
+							<p class="text-[10px] text-gray-600 mt-1">Blake3 LIVE — power caps for stability; GH/s gains come from CUDA calib, not OC</p>
 						</div>
 						<button type="button" id="btn-hardware-refresh" class="shrink-0 text-[10px] px-3 py-1.5 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Refresh</button>
 					</div>
@@ -7155,7 +7159,7 @@
 			return fmt(g, 1);
 		}
 		// Display/UI cap (500) — coordinator billing clamp is 512 (500/512 family).
-		// Real single GPUs ~140–150 GH/s; multi-GPU workers can approach ~500.
+		// Pre-cliff hybrid calib could show 100+ GH/s; Blake3 LIVE wall-rate is far lower (~sub–few GH/s/rig today).
 		function clampRigHashrateGHS(gh) {
 			const v = Number(gh || 0);
 			if (!(v > 0) || !Number.isFinite(v)) return 0;
@@ -15398,15 +15402,29 @@
 			const activeRig = String(j.active_rig_profile_id || '').trim();
 			const wstHw = latestWorkerStatus || {};
 			const liveGhHw = Number(wstHw.measured_hashrate_gh_s || wstHw.hashrate_gh_s || 0);
+			const liveUtilHint = Number((devs[0] && devs[0].util_pct) || 0);
+			const honestyEl = $('hardware-blake3-honesty');
+			if (honestyEl) {
+				let line = 'Live Blake3 CUDA is still latency-bound: nvidia-smi util often stays low while wall GH/s is only modestly above a good CPU. Raising PL / clocks will not make GPU ≫ CPU until the kernel saturates SMs — prefer Daily PL + CUDA calib.';
+				if (liveGhHw > 0.01 || liveUtilHint >= 0) {
+					line = 'Now: ~' + (liveGhHw > 0.01 ? fmt(liveGhHw, liveGhHw >= 1 ? 2 : 3) + ' GH/s' : '— GH/s') +
+						(Number.isFinite(liveUtilHint) ? ' · GPU util ~' + fmt(liveUtilHint, 0) + '%' : '') +
+						'. Low util + ~CPU-class GH/s is expected on Blake3 until kernel occupancy rises — OC/Turbo will not flip that.';
+				}
+				honestyEl.textContent = line;
+			}
+			let gpuHtml = hintBar;
 			if (activeRig && amdTel && !canPL && /nvidia/i.test(activeRig)) {
 				gpuHtml += '<p class="text-[10px] text-warn/90 mb-3 font-mono leading-relaxed">Env rig profile <span class="text-neon">' + escapeHtml(activeRig) + '</span> is NVIDIA-oriented but this host reports AMD only — use <strong>Detect GPU</strong> and apply an AMD profile (e.g. RX 580).</p>';
 			}
-			let gpuHtml = hintBar;
 			if (drvMismatch) {
 				gpuHtml += '<p class="text-[10px] text-warn/90 mb-3 font-mono leading-relaxed">NVML/driver mismatch: reboot after NVIDIA driver update for live temp/util. Eco/Daily/Turbo still run <code class="text-neon/80">nvidia-smi -pl</code> (often needs sudo on Linux).</p>';
 			}
 			if (activeRig) {
 				gpuHtml += '<p class="text-[10px] text-matrix/80 mb-2 font-mono">Active rig profile: <span class="text-neon">' + escapeHtml(activeRig) + '</span></p>';
+			}
+			if (devs.length && liveUtilHint >= 0 && liveUtilHint < 40 && liveGhHw > 0.05) {
+				gpuHtml += '<p class="text-[10px] text-warn/85 mb-3 leading-relaxed">Util &lt;40% with live Blake3 hashrate: SM occupancy is the bottleneck, not power limit. Eco/Daily is enough; Turbo rarely buys GH/s here.</p>';
 			}
 			if (!devs.length) {
 				const fallback = String(j.message || '').trim() || 'No GPU telemetry (no NVIDIA nvidia-smi and no amdgpu sysfs on this host). CPU tuning still works.';

@@ -163,6 +163,7 @@ func (m *workManager) permabanWorkerLocked(workerID, ipKey string) {
 }
 
 // revokeWorker zeros a worker ledger row, rolls back pool totals, and optionally permabans.
+// Durable worker_accrual is deleted in the same critical section so prefetch/restart cannot revive unpaid.
 func (m *workManager) revokeWorker(workerID, ipKey string, permaban bool) map[string]any {
 	workerID = strings.TrimSpace(workerID)
 	if workerID == "" {
@@ -172,6 +173,8 @@ func (m *workManager) revokeWorker(workerID, ipKey string, permaban bool) map[st
 	defer m.mu.Unlock()
 	st, exists := m.worker[workerID]
 	if !exists {
+		// Ban/revoke after prune: still purge durable unpaid so settle cannot resurrect it.
+		m.deleteWorkerAccrualLocked(workerID)
 		if !permaban {
 			return map[string]any{"ok": false, "reason": "worker_not_found", "worker_id": workerID}
 		}
@@ -216,6 +219,7 @@ func (m *workManager) revokeWorker(workerID, ipKey string, permaban bool) map[st
 		ipKey = st.LastClientIP
 	}
 	delete(m.worker, workerID)
+	m.deleteWorkerAccrualLocked(workerID)
 	if permaban {
 		m.permabanWorkerLocked(workerID, ipKey)
 		persistPermabanEntry(workerID, ipKey)

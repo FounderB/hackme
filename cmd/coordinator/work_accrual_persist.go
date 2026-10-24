@@ -179,6 +179,24 @@ func accrualPersistMinGapSec() int64 {
 	return 2 // throttle DB writes on the hot submit path
 }
 
+// deleteWorkerAccrualLocked removes durable unpaid for workerID.
+// Caller must hold m.mu. Safe no-op when DB is nil.
+func (m *workManager) deleteWorkerAccrualLocked(workerID string) {
+	if m == nil || m.dedupDB == nil {
+		return
+	}
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return
+	}
+	if _, err := m.dedupDB.Exec(`DELETE FROM worker_accrual WHERE worker_id=?`, workerID); err != nil {
+		log.Printf("worker accrual revoke %s: %v", workerID, err)
+	}
+	accrualPersistMu.Lock()
+	delete(accrualPersistLast, workerID)
+	accrualPersistMu.Unlock()
+}
+
 func (m *workManager) persistWorkerAccrual(workerID string, force bool) {
 	if m == nil || m.dedupDB == nil {
 		return
@@ -205,6 +223,7 @@ func (m *workManager) persistWorkerAccrual(workerID string, force bool) {
 	if !ok {
 		return
 	}
+	// Monotonic upsert: a delayed goroutine must not overwrite a newer accepted_attempts row.
 	_, err := m.dedupDB.Exec(`
 INSERT INTO worker_accrual (
   worker_id, accepted_ranges, accepted_hits, accepted_attempts,
@@ -225,10 +244,30 @@ ON CONFLICT(worker_id) DO UPDATE SET
   last_poh_seen_unix=excluded.last_poh_seen_unix,
   last_fuzz_seen_unix=excluded.last_fuzz_seen_unix,
   updated_at=excluded.updated_at
+WHERE excluded.accepted_attempts >= worker_accrual.accepted_attempts
 `, workerID, st.AcceptedRanges, st.AcceptedHits, st.AcceptedAtt,
 		st.PayoutHMC, st.PayoutSUP, strings.TrimSpace(st.PayoutAddress), st.SignedSubmits,
 		st.LastHashrateGHS, st.PeakHashrateGHS, st.LastSeenUnix, st.LastPoHSeenUnix, st.LastFuzzSeenUnix, now)
 	if err != nil {
 		log.Printf("worker accrual persist %s: %v", workerID, err)
+	}
+}
+
+// flushAllWorkerAccruals force-persists every in-memory row (SIGTERM / graceful stop).
+func (m *workManager) flushAllWorkerAccruals() {
+	if m == nil || m.dedupDB == nil {
+		return
+	}
+	m.mu.Lock()
+	ids := make([]string, 0, len(m.worker))
+	for id := range m.worker {
+		ids = append(ids, id)
+	}
+	m.mu.Unlock()
+	for _, id := range ids {
+		m.persistWorkerAccrual(id, true)
+	}
+	if len(ids) > 0 {
+		log.Printf("worker accrual: flushed %d worker(s) on shutdown", len(ids))
 	}
 }
