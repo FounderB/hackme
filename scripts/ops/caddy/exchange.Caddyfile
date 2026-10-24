@@ -91,8 +91,17 @@
 			not path /assets/boot-*
 		}
 		header @assets Cache-Control "public, max-age=31536000, immutable"
-		@boot_assets path /assets/boot-* /index.html
-		header @boot_assets Cache-Control "no-cache"
+		# HTML / SW / boot loader must never stick in browser or CF (stale chart bug).
+		# `/` is the real SPA entry — `/index.html` alone is not enough.
+		@volatile {
+			path / /index.html /sw.js /theme-boot.js /manifest.webmanifest /offline.html
+			path /sw-v5-*.js
+			path /assets/boot-*
+		}
+		header @volatile Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+		header @volatile CDN-Cache-Control "no-store"
+		header @volatile Cloudflare-CDN-Cache-Control "no-store"
+		header @volatile Pragma "no-cache"
 	}
 }
 
