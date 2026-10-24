@@ -55,6 +55,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -140,10 +141,16 @@ func (a *oclAccel) close() error {
 
 func (a *oclAccel) SearchPoH(ctx context.Context, req SearchRequest) (bool, uint64, error) {
 	if req.FormulaVersion >= 3 {
+		oclBlake3HostOnce.Do(func() {
+			// OpenCL Blake3 device kernel is not wired yet — always announce host path once.
+			hotlog.Stderrf("gpupoh: OpenCL Blake3 uses host Blake3Search (no device kernel yet)")
+		})
 		return Blake3Search(ctx, req.Base, req.Count, req.Mod, req.PrevHash, req.MinerAddress)
 	}
 	return a.Search(ctx, req.Base, req.Count, req.Mod)
 }
+
+var oclBlake3HostOnce sync.Once
 
 func (a *oclAccel) Search(ctx context.Context, base, count, mod uint64) (found bool, nonce uint64, err error) {
 	if count == 0 || mod == 0 {

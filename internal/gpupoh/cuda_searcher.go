@@ -160,8 +160,9 @@ func newCUDAAccelerator(devID int) (Accelerator, error) {
 	}
 	fnB3, errB3 := mod.Function(knameB3)
 	haveB3 := errB3 == nil
-	if !haveB3 && os.Getenv("HACKME_CUDA_VERBOSE") == "1" {
-		hotlog.VerboseStderrf("gpupoh: blake3 kernel unavailable (%v); host Blake3Search fallback", errB3)
+	if !haveB3 {
+		// Always log once: silent host fallback hides Blake3 money-path regressions.
+		hotlog.Stderrf("gpupoh: blake3 kernel unavailable (%v); host Blake3Search fallback", errB3)
 	}
 	dOut, err := cu.MemAlloc(8)
 	if err != nil {
@@ -228,20 +229,39 @@ func (a *cudaAccel) close() error {
 
 func (a *cudaAccel) SearchPoH(ctx context.Context, req SearchRequest) (bool, uint64, error) {
 	if req.FormulaVersion >= 3 {
-		if a.haveB3 && os.Getenv("HACKME_CUDA_BLAKE3_HOST") != "1" {
+		forceHost := os.Getenv("HACKME_CUDA_BLAKE3_HOST") == "1"
+		if a.haveB3 && !forceHost {
 			found, nonce, err := a.searchBlake3Device(ctx, req)
 			if err == nil {
 				return found, nonce, nil
 			}
+			// One-shot always-on notice; VERBOSE keeps per-call detail without flood.
+			cudaBlake3DeviceErrOnce.Do(func() {
+				hotlog.Stderrf("gpupoh: cuda blake3 device error, host fallback: %v", err)
+			})
 			if os.Getenv("HACKME_CUDA_VERBOSE") == "1" {
 				hotlog.VerboseStderrf("gpupoh: cuda blake3 device error, host fallback: %v", err)
 			}
+		} else if forceHost {
+			cudaBlake3ForcedHostOnce.Do(func() {
+				hotlog.Stderrf("gpupoh: HACKME_CUDA_BLAKE3_HOST=1; using host Blake3Search")
+			})
+		} else if !a.haveB3 {
+			cudaBlake3MissingHostOnce.Do(func() {
+				hotlog.Stderrf("gpupoh: blake3 device kernel missing; host Blake3Search fallback")
+			})
 		}
 		// Host path matches chain.PohWorkBlake3 exactly (correctness lock + NVRTC escape hatch).
 		return Blake3Search(ctx, req.Base, req.Count, req.Mod, req.PrevHash, req.MinerAddress)
 	}
 	return a.Search(ctx, req.Base, req.Count, req.Mod)
 }
+
+var (
+	cudaBlake3ForcedHostOnce  sync.Once
+	cudaBlake3MissingHostOnce sync.Once
+	cudaBlake3DeviceErrOnce   sync.Once
+)
 
 func (a *cudaAccel) ensurePrefix(n int) error {
 	if n <= 0 {
