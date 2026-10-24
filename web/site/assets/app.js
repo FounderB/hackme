@@ -342,6 +342,16 @@
     if (rEl && data.reward != null) rEl.textContent = data.reward;
     if (dEl && data.diff != null) dEl.textContent = data.diff;
     if (sEl && data.status != null) sEl.textContent = data.status;
+    // Hero mirrors (homepage live strip) — keep in sync with table cells.
+    const heroHash = document.getElementById("hero-live-hash");
+    const heroWorkers = document.getElementById("hero-live-workers");
+    const heroHeight = document.getElementById("hero-live-height");
+    if (heroHash && data.hash != null) {
+      heroHash.textContent = data.hash;
+      if (data.hashTitle) heroHash.title = data.hashTitle;
+    }
+    if (heroWorkers && data.workers != null) heroWorkers.textContent = data.workers;
+    if (heroHeight && data.height != null) heroHeight.textContent = data.height;
     if (data.ts) {
       const ago = fmtAgo(data.ts);
       setPoolUpdated(

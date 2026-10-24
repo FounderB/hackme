@@ -11,9 +11,9 @@
 
 # HackMe Network
 
-**Useful Proof-of-Work** · public GPU pool · B2B Dig/Hunt fuzz · paper Exchange · research ledgers
+**Your computer finds real security bugs. You get paid for it.**
 
-Hashrate settles on-chain. Security work is escrowed, distributed, and reported — not a slide deck.
+HackMe is a mining network where rigs run fuzzing jobs ordered by developers — and earn HMC for every hour of work, plus a bounty share when they find a crash.
 
 <br/>
 
@@ -40,10 +40,10 @@ Hashrate settles on-chain. Security work is escrowed, distributed, and reported 
 
 | Lane | You get |
 |------|---------|
-| **Mine** | Public HTTP pool · CUDA / OpenCL / CPU · hybrid Ed25519 submits · **HMC** rewards · **SUP** loyalty |
-| **Dig** | Customer WASM packs (Scan / Audit / Deep) · smoke **20/80** · Deep **40/60** · pool workers · deliverable report |
-| **Hunt** | **Coverage-guided** (libFuzzer fleet · AFL++ Deep) · ASAN prove · Lite / Standard / Heavy · **50/50** escrow |
-| **Exchange** | Soft-launch desk at [exchange.hackme.tech](https://exchange.hackme.tech/) — live matching + HMC/SUP custody; USDT BSC watch + Didit KYT (TM); no USDT hot-send |
+| **Mine** | Public HTTP pool · CUDA / OpenCL / CPU · hybrid Ed25519 submits · **HMC** for work hours · **SUP** loyalty |
+| **Dig** | Customer packs (Scan / Audit / Deep) · pool workers · report + CI gate · unused bounty refunded |
+| **Hunt** | Coverage-guided fleet (libFuzzer · AFL++ Heavy) · Lite / Standard / Heavy · report + escrow |
+| **Exchange** | Early access desk at [exchange.hackme.tech](https://exchange.hackme.tech/) — live matching + HMC/SUP custody; not a CEX listing |
 | **Research** | Public ledgers (Hunt Watch, OSS CVE Watch, Bitcoin30) — evidence, not hype |
 
 ```mermaid
@@ -66,8 +66,8 @@ Payout follows **accepted work**, not lottery blocks. Model: [NETWORK_MODEL.md](
 |------|--------|
 | **Installers** | Win · Linux · `.deb` · Dig/Hunt CLI · HackMe OS ISO + **SHA256SUMS** |
 | **Pool** | Live public coordinator · hybrid signer · **Blake3 PoH LIVE** (tip ≥ #485000) · GH/s = wall-rate (~few GH/s fleet class, not pre-cliff hybrid calib) |
-| **Dig / Hunt** | Live product rails · Hunt = **libFuzzer/AFL++ leases** + showmap/ASAN prove |
-| **Paper Exchange** | Desk live · **not** a CEX, **not** financial advice |
+| **Dig / Hunt** | Live product rails · coverage-guided Hunt fleet · report + CI gate |
+| **Exchange desk** | Early access live · **not** a CEX, **not** financial advice |
 | **Hunt Watch 2026sep** | **12/12 closed** · [ledger](https://hackme.tech/reports/hunt-watch-2026sep/) |
 | **OSS CVE Watch** | nghttp2 **14/14** · libheif **14/14** CLEAN ledgers |
 | **HMS storage** | Preview only — not a miner lane |

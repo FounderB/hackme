@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HackMe for Developers — Fuzzing & API</title>
-  <meta name="description" content="B2B Dig (Scan·Audit·Deep wizard) and coverage-guided Hunt (libFuzzer/AFL++ Lite·Standard·Heavy). Local node escrow, pool, report + CI gate." />
+  <title>HackMe for Developers — Order a security scan</title>
+  <meta name="description" content="Find crashes before attackers do. Coverage-guided Dig/Hunt fleet in one command — report + CI gate. Unused bounty refunded." />
   <link rel="canonical" href="https://hackme.tech/developers.html" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20261024blake3" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20261024plain1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="./assets/favicon.png" type="image/png" />
 </head>
@@ -30,11 +30,12 @@
       <a href="./fuzzing-console.html">Observer tracker</a>
     </nav>
     <section class="hero glass">
-      <p class="kicker">Commercial · B2B security audit</p>
-      <h1>B2B fuzz final — one command to report + CI gate</h1>
+      <p class="kicker">Developers · security scans</p>
+      <h1>Find crashes before attackers do.</h1>
       <p class="hero-copy">
-        Ship a WASM Dig guard <em>or</em> pick a ready pack, choose <strong>Scan · Dig · Audit · Deep</strong> (or Hunt),
-        get HTML report + CI gate. Escrow on your local node (<code>127.0.0.1:8080</code>); hackme.tech is tracker + docs only.
+        Point a coverage-guided fleet at your target with one command.
+        You get a report and a CI gate. Unused bounty is refunded.
+        Orders run on <strong>your local node</strong> (<code>127.0.0.1:8080</code>) — hackme.tech is docs and status only.
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="./orders.html">Customer orders path</a>
@@ -43,11 +44,10 @@
         <a class="btn btn-secondary" href="./fuzzing-console.html">Public status tracker</a>
       </div>
       <div class="pill-row">
-        <span class="pill">Scan · Dig · Audit · Deep</span>
-        <span class="pill">Hunt · coverage-guided</span>
+        <span class="pill">Scan · Audit · Deep</span>
+        <span class="pill">Hunt Lite · Standard · Heavy</span>
         <span class="pill">CI gate</span>
         <span class="pill">0.1.0-rc17.4</span>
-        <span class="pill">No browser admin on prod</span>
       </div>
     </section>
 
@@ -55,7 +55,7 @@
       <div class="panel-head"><h2>Developer quick index</h2></div>
       <div class="pill-row" style="row-gap:0.5rem">
         <a class="pill" href="#integrator-token">Integrator token</a>
-        <a class="pill" href="#b2b-packages">B2B packages</a>
+        <a class="pill" href="#b2b-packages">Packages</a>
         <a class="pill" href="#order-limits">Order limits</a>
         <a class="pill" href="#windows-cli">Windows path</a>
         <a class="pill" href="#quick-start">Quick start</a>
@@ -64,8 +64,8 @@
     </section>
 
     <section id="integrator-token" class="panel glass dev-connect">
-      <div class="panel-head"><h2>Integrator API token (automatic)</h2></div>
-      <p class="subtle">Issue a scoped <span class="code-inline">X-Hackme-Developer-Token</span> on <strong>your local node</strong> (dashboard header → Issue, or CLI below). Tokens issued here on hackme.tech are for API testing only — <strong>create orders on localhost</strong>, not in the browser on this site.</p>
+      <div class="panel-head"><h2>Integrator API token</h2></div>
+      <p class="subtle">Issue a scoped <span class="code-inline">X-Hackme-Developer-Token</span> on <strong>your local node</strong> (dashboard header → Issue, or CLI below). Tokens issued here on hackme.tech are for API testing only — <strong>create orders on localhost</strong>.</p>
       <label class="dev-field dev-field-full">
         <span>Label (optional)</span>
         <input id="integrator-label" type="text" placeholder="acme-security-audit" autocomplete="off" />
@@ -79,61 +79,88 @@
       <p id="integrator-status" class="dev-status"></p>
     </section>
 
-    <section class="panel glass" style="border:1px solid rgba(0,209,255,0.28)">
-      <div class="panel-head"><h2>Customer path — before vs now</h2></div>
-      <p class="subtle">Visual UI on hackme.tech did <strong>not</strong> get a new order portal (by design). What changed is the <strong>CLI product layer</strong> and site copy — fewer steps, fixed packages, CI gate URLs printed for you.</p>
-      <details class="dev-details" style="margin-top:1rem">
-        <summary>Steps overview (expand)</summary>
-        <div class="table-wrap" style="margin-top:1rem">
-          <table class="endpoint-table">
-            <thead><tr><th>Step</th><th>Before (v3)</th><th>Now (B2B final)</th></tr></thead>
-            <tbody>
-              <tr><td>1 · Setup</td><td>Read 5 docs, guess budget</td><td><code>hackme-node</code> + on-chain HMC on <code>#wallet</code> (starter 0; Start auto-funds)</td></tr>
-              <tr><td>2 · Build guard</td><td><code>hackme-fuzzing build</code> + manual manifest</td><td>Same, or existing <code>.wasm</code></td></tr>
-              <tr><td>3 · Order</td><td><code>create manifest.json</code> or long <code>curl security-audit</code></td><td><strong>One command:</strong> <code>wizard --pack secrets --package audit</code> or <code>wizard --wasm guard.wasm --package audit</code></td></tr>
-              <tr><td>4 · Package</td><td>Pick depth_tier + budget by hand</td><td><strong>Scan / Dig Audit / Deep</strong> presets (1 / 5 / 40 HMC) + Hunt inventory</td></tr>
-              <tr><td>5 · Deliverable</td><td>Hunt for report token in JSON</td><td>Wizard prints <code>report_url</code>, <code>gate_url</code>, <code>pulse_url</code> (Dig). Hunt uses Hunt campaign status + escrow settle.</td></tr>
-              <tr><td>6 · CI</td><td>Wire gate yourself</td><td>GitHub Action example in repo + gate URL in wizard output</td></tr>
-              <tr><td>Where</td><td>Same localhost model</td><td>Same — <strong>no</strong> public upload on hackme.tech</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </details>
-    </section>
-
     <section id="b2b-packages" class="panel glass">
-      <div class="panel-head"><h2>B2B packages</h2></div>
+      <div class="panel-head">
+        <h2>Packages</h2>
+        <p class="subtle">Pick by time, depth, and price. Escrow split details are below the table.</p>
+      </div>
       <div class="table-wrap">
         <table class="endpoint-table">
-          <thead><tr><th>Package</th><th>HMC</th><th>Runs</th><th>exec/unit</th><th>Pool</th><th>Best for</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Package</th>
+              <th>Time / depth</th>
+              <th>Price (HMC)</th>
+              <th>Best for</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr><td><code>scan</code></td><td>~1</td><td>64</td><td>1</td><td>local</td><td>CI smoke — <code>bounds_smoke</code> · <code>overflow_smoke</code> · <code>state_smoke</code></td></tr>
-            <tr><td><code>audit</code></td><td>~5</td><td>256</td><td>64</td><td>yes</td><td>Protocol guards, DeFi invariants, <code>filter_utf8</code> preflight</td></tr>
-            <tr><td><code>deep</code></td><td>~25</td><td>2048</td><td>512 local · <strong>256 cap</strong> on hub</td><td>yes</td><td>WASM depth · seed merge · hours-scale (not AFL)</td></tr>
-            <tr><td><code>hunt_lite</code></td><td>~20</td><td>fleet leases</td><td>libFuzzer</td><td>yes</td><td>Coverage-guided inventory · 50/50 · showmap/ASAN pay prove</td></tr>
-            <tr><td><code>hunt_standard</code></td><td>~60</td><td>fleet leases</td><td>libFuzzer</td><td>yes</td><td>Larger budget · template Accept · inventory pool · cross-campaign persist</td></tr>
-            <tr><td><code>hunt_heavy</code></td><td>~150</td><td>fleet leases</td><td>AFL++ / LF</td><td>yes</td><td>Deep profile · severity-tier bounty (critical 100% · high 60%)</td></tr>
+            <tr>
+              <td><strong>Scan</strong></td>
+              <td>~minutes · 64 runs · smoke depth</td>
+              <td>~1</td>
+              <td>CI smoke before merge</td>
+            </tr>
+            <tr>
+              <td><strong>Audit</strong></td>
+              <td>~tens of minutes · 256 runs · protocol depth</td>
+              <td>~5</td>
+              <td>Guards, filters, DeFi invariants</td>
+            </tr>
+            <tr>
+              <td><strong>Deep</strong></td>
+              <td>~hours · 2048 runs · WASM depth</td>
+              <td>~25–40</td>
+              <td>Long seed merge · hours-scale dig</td>
+            </tr>
+            <tr>
+              <td><strong>Hunt Lite</strong></td>
+              <td>Coverage-guided fleet · libFuzzer leases</td>
+              <td>~20</td>
+              <td>First coverage pass on a repo</td>
+            </tr>
+            <tr>
+              <td><strong>Hunt Standard</strong></td>
+              <td>Larger libFuzzer budget · inventory pool</td>
+              <td>~60</td>
+              <td>Serious repo hunt with persistence</td>
+            </tr>
+            <tr>
+              <td><strong>Hunt Heavy</strong></td>
+              <td>AFL++ / libFuzzer deep profile</td>
+              <td>~150</td>
+              <td>High-severity bounty hunting</td>
+            </tr>
           </tbody>
         </table>
       </div>
-      <pre class="code-block" style="margin-top:1rem"><code># Dig (WASM)
+      <details class="dev-details" style="margin-top:1rem">
+        <summary>Escrow splits &amp; prove rules (details)</summary>
+        <p class="subtle" style="margin-top:0.75rem">
+          Dig smoke escrow <strong>20/80</strong> · Dig Deep <strong>40/60</strong> · Hunt escrow <strong>50/50</strong>
+          (full PayRun on proven edges/crash; CLEAN floor otherwise). Unused bounty refunded.
+          Not a claim to beat OSS-Fuzz. Spec:
+          <a href="./fuzz-guide.html">fuzz guide</a> ·
+          <a href="https://github.com/jokeez/hackme/blob/main/docs/HUNT_COVERAGE_ENGINES.md" target="_blank" rel="noreferrer">HUNT_COVERAGE_ENGINES.md</a>.
+        </p>
+      </details>
+      <pre class="code-block" style="margin-top:1rem"><code># Dig
 export HACKME_ADMIN_TOKEN=…   # local node only
 hackme-fuzzing wizard --pack filter_utf8 --package audit --title "Filter preflight"
 
-# Hunt (coverage-guided ASAN) — separate CLI, not wizard
+# Hunt
 bash scripts/ops/install_hunt_engines.sh --desktop
 hackme-fuzzing hunt packages
 hackme-fuzzing hunt inventory --path ./repo
 hackme-fuzzing hunt create --package hunt_lite …</code></pre>
-      <p class="subtle" style="margin-top:0.75rem">Dig smoke escrow <strong>20/80</strong> · Dig Deep <strong>40/60</strong> · Hunt escrow <strong>50/50</strong> (full PayRun on proven edges/crash; CLEAN floor otherwise). Not better than OSS-Fuzz. Details: <a href="./fuzz-guide.html">fuzz guide</a> · <a href="https://github.com/jokeez/hackme/blob/main/docs/HUNT_COVERAGE_ENGINES.md" target="_blank" rel="noreferrer">HUNT_COVERAGE_ENGINES.md</a>.</p>
     </section>
 
     <section class="grid grid-2">
       <article class="panel glass">
         <div class="panel-head"><h2>Who this is for</h2></div>
         <ul class="check-list">
-          <li>Security vendors posting audit workloads</li>
-          <li>Studios needing WASM gate verification</li>
+          <li>Teams that want crashes found before attackers do</li>
+          <li>Studios shipping a guard and needing a CI gate</li>
           <li>Integrators building on HMC escrow</li>
           <li>Not for GPU miners — use <a href="./downloads.html">Downloads</a></li>
         </ul>
@@ -141,11 +168,11 @@ hackme-fuzzing hunt create --package hunt_lite …</code></pre>
       <article class="panel glass">
         <div class="panel-head"><h2>What you get</h2></div>
         <ul class="check-list">
-          <li><strong>Dig wizard</strong> — Scan / Audit / Deep (<code>security-audit</code>)</li>
-          <li><strong>Hunt CLI</strong> — coverage-guided <code>hunt_lite</code> · <code>hunt_standard</code> · <code>hunt_heavy</code> (libFuzzer/AFL++ · 50/50)</li>
-          <li><strong>CI gate</strong> — <code>GET …/gate</code> with report token (Dig)</li>
+          <li><strong>Dig wizard</strong> — Scan / Audit / Deep</li>
+          <li><strong>Hunt CLI</strong> — Lite / Standard / Heavy</li>
+          <li><strong>CI gate</strong> — report token URL for pipelines</li>
           <li><strong>Public tracker</strong> — redacted orders + pool stats</li>
-          <li>Spec: <a href="https://github.com/jokeez/hackme/blob/main/docs/DEVELOPERS_FUZZING.md" target="_blank" rel="noreferrer">DEVELOPERS_FUZZING.md</a> · <a href="https://github.com/jokeez/hackme/blob/main/docs/HUNT_COVERAGE_ENGINES.md" target="_blank" rel="noreferrer">engines</a></li>
+          <li>Spec: <a href="https://github.com/jokeez/hackme/blob/main/docs/DEVELOPERS_FUZZING.md" target="_blank" rel="noreferrer">DEVELOPERS_FUZZING.md</a></li>
         </ul>
       </article>
     </section>
@@ -171,82 +198,45 @@ hackme-fuzzing hunt create --package hunt_lite …</code></pre>
       <div class="panel-head"><h2>Windows integrator path</h2></div>
       <ol class="check-list">
         <li>Install node from <a href="./downloads.html">Downloads</a> — start dashboard at <code>127.0.0.1:8080</code>.</li>
-        <li>Top up <strong>Wallet → on-chain HMC</strong> on <code>#wallet</code> (starter spendable = 0). Dig/Hunt <strong>Start</strong> auto-funds prepaid escrow — Fund Orders is optional.</li>
+        <li>Top up <strong>Wallet → on-chain HMC</strong> on <code>#wallet</code> (starter spendable = 0). Dig/Hunt <strong>Start</strong> auto-funds prepaid escrow.</li>
         <li>Download <strong>both</strong> <code>hackme-fuzzing</code> and <code>hackme-fuzzing-build</code> into the same folder.</li>
-        <li>Issue a developer token in the dashboard, or <code>hackme-fuzzing register --base http://127.0.0.1:8080 --save</code> when <code>HACKME_INTEGRATOR_SELF_REGISTER=1</code>.</li>
-        <li><strong>Recommended:</strong> <code>hackme-fuzzing wizard --pack secrets --package audit</code> — or <code>--wasm guard.wasm</code>. Add <code>--public-proof</code> for a public facts page + README badge.</li>
-        <li>Classic path: <code>hackme-fuzzing create manifest.json</code> or local dashboard <code>#orders</code>.</li>
-        <li>Open <code>report_url</code> / <code>gate_url</code> on <code>http://127.0.0.1:8080</code> (not hackme.tech) · wire gate into CI.</li>
+        <li>Issue a developer token in the dashboard, or <code>hackme-fuzzing register --base http://127.0.0.1:8080 --save</code>.</li>
+        <li><strong>Recommended:</strong> <code>hackme-fuzzing wizard --pack secrets --package audit</code> — or <code>--wasm guard.wasm</code>.</li>
+        <li>Open <code>report_url</code> / <code>gate_url</code> on <code>http://127.0.0.1:8080</code> · wire gate into CI.</li>
       </ol>
       <p class="subtle">Token on <strong>hackme.tech</strong> in the browser is for API smoke tests only — create orders on <strong>localhost</strong>.</p>
     </section>
 
     <section id="quick-start" class="panel glass">
-      <div class="panel-head"><h2>Quick start (curl / CLI)</h2></div>
+      <div class="panel-head"><h2>Quick start (CLI)</h2></div>
       <details class="dev-details">
         <summary>Copy/paste command examples</summary>
-        <pre class="code-block"><code># Recommended — B2B final (local node)
-# Desktop installers enable HACKME_INTEGRATOR_SELF_REGISTER=1
+        <pre class="code-block"><code># Local node
 hackme-fuzzing register --base http://127.0.0.1:8080 --save
-# or: export HACKME_ADMIN_TOKEN=… (dashboard Issue)
 
 hackme-fuzzing wizard --pack secrets --package audit --public-proof --title "My pack"
-# or: hackme-fuzzing wizard --wasm ./guard.wasm --package audit --title "My guard"
 # → campaign_id, customer_report_token, report_url/gate_url on 127.0.0.1:8080
 
-# Classic: build WASM + manifest
 hackme-fuzzing build -lang rust -source check.rs -out ./fuzzing-out
 hackme-fuzzing create ./fuzzing-out/my-order.manifest.json
-hackme-fuzzing tasks
-
-# Public wallet is redacted on hackme.tech (no treasury address)
-curl -sS https://hackme.tech/api/wallet | jq .
-
-# Remote from_code returns HTTP 403 on hackme.tech (build WASM locally).</code></pre>
+hackme-fuzzing tasks</code></pre>
       </details>
-      <p class="subtle">When your order is open, pool workers receive the WASM gate in <span class="code-inline">/api/work/claim</span> and can commit order blocks — escrow pays the solver&apos;s <span class="code-inline">miner_address</span>, not a separate bounty for &quot;finding a CVE&quot;. Small coordinator accrual may still apply for attempts. See <a href="./economics-model.html">economics model</a>.</p>
     </section>
 
     <section id="paths" class="panel glass">
-      <div class="panel-head"><h2>Paths</h2></div>
-      <details class="dev-details">
-        <summary>Where to start</summary>
-        <div class="quick-grid">
-          <a class="quick-item" href="./downloads.html#local-node">
-            <h4>Local node (#orders)</h4>
-            <p>Wallet + WASM on 127.0.0.1:8080</p>
-          </a>
-          <a class="quick-item" href="./downloads.html#fuzzing-client">
-            <h4>hackme-fuzzing</h4>
-            <p>CLI — automation</p>
-          </a>
-          <a class="quick-item" href="./fuzzing-console.html">
-            <h4>Status tracker</h4>
-            <p>Read-only — no tokens</p>
-          </a>
-          <a class="quick-item" href="./api-reference.html">
-            <h4>API Reference</h4>
-            <p>HTTP routes overview</p>
-          </a>
-          <a class="quick-item" href="./downloads.html">
-            <h4>Miners only</h4>
-            <p>ISO / worker / pool</p>
-          </a>
-          <a class="quick-item" href="./fuzz-guide.html">
-            <h4>Fuzz guide</h4>
-            <p>Wizard, gate, operator gates</p>
-          </a>
-          <a class="quick-item" href="#integrator-token">
-            <h4>Get API token</h4>
-            <p>Automatic self-service</p>
-          </a>
-        </div>
-      </details>
+      <div class="panel-head"><h2>Links</h2></div>
+      <ul class="check-list">
+        <li><a href="./orders.html">Orders path</a></li>
+        <li><a href="./fuzz-guide.html">Fuzz how-to</a></li>
+        <li><a href="./fuzz-marketplace.html">Campaign board</a></li>
+        <li><a href="./api-reference.html">API reference</a></li>
+        <li><a href="./downloads.html">Downloads</a></li>
+      </ul>
     </section>
   </main>
   <script src="./assets/hackme-dev-common.js" defer></script>
   <script src="./assets/integrator-token.js" defer></script>
-  <script src="./assets/site-shell.js?v=20261024blake3"></script>
-  <script src="./assets/app.js?v=20260914dev1"></script>
+  <script src="./assets/site-shell.js?v=20261024plain1"></script>
+  <script src="./assets/app.js?v=20261024plain1"></script>
 </body>
 </html>
