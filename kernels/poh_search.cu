@@ -58,7 +58,8 @@ __device__ __constant__ unsigned int BLAKE3_IV[8] = {
     } while (0)
 
 __device__ static unsigned int rotr32(unsigned int w, unsigned int c) {
-    return (w >> c) | (w << (32 - c));
+    // Prefer SHF (funnel shift) over SHR+SHL+OR when the toolchain emits it.
+    return __funnelshift_r(w, w, c);
 }
 
 __device__ static void g(unsigned int *state, size_t a, size_t b, size_t c, size_t d,
@@ -170,6 +171,47 @@ __device__ static void blake3_hash_from_cv(const unsigned int cv0[8],
     }
 }
 
+// Hot path: single partial block from CV → LE uint64 work (digest[0:8] only).
+__device__ static unsigned long long blake3_work64_from_cv_words(
+    const unsigned int cv0[8], const unsigned int block_words[16], unsigned int block_len)
+{
+    unsigned int state[16];
+    // compress_pre expects a byte block; rebuild aligned bytes from words (LE).
+    __align__(4) unsigned char block[BLAKE3_BLOCK_LEN];
+#pragma unroll
+    for (int i = 0; i < 16; i++) {
+        ((unsigned int *)(void *)block)[i] = block_words[i];
+    }
+    compress_pre(state, cv0, block, 0, block_len, BLAKE3_CHUNK_END | BLAKE3_ROOT);
+    unsigned int w0 = state[0] ^ state[8];
+    unsigned int w1 = state[1] ^ state[9];
+    return (unsigned long long)w0 | ((unsigned long long)w1 << 32);
+}
+
+__device__ static void put_u64_le_bytes(unsigned int words[16], int byte_off,
+                                       unsigned long long n) {
+#pragma unroll
+    for (int i = 0; i < 8; i++) {
+        int b = byte_off + i;
+        int wi = b >> 2;
+        int sh = (b & 3) * 8;
+        unsigned int mask = 0xFFu << sh;
+        words[wi] = (words[wi] & ~mask) | ((unsigned int)((n >> (8 * i)) & 0xFFu) << sh);
+    }
+}
+
+// Exact work % mod == 0 without 64-bit division (Lemire / Montgomery form).
+__device__ static int work_divisible_mod(unsigned long long work, unsigned long long inv,
+                                        unsigned long long lim, unsigned int tz) {
+    if (tz > 0u) {
+        if ((work & ((1ULL << tz) - 1ULL)) != 0ULL) {
+            return 0;
+        }
+        work >>= tz;
+    }
+    return (work * inv) <= lim;
+}
+
 // Nonces hashed per thread (grid covers ceil(count/NPT) threads). NPT=4 was
 // REVERT pre-MSG-unroll; NPT=2 re-tried after word-load for occupancy.
 #ifndef BLAKE3_NONCES_PER_THREAD
@@ -181,17 +223,23 @@ __device__ static void blake3_hash_from_cv(const unsigned int cv0[8],
 // When prefix_len >= 64 (production tip hex), one thread compresses the first
 // 64B block into shared CV; others only hash suffix||nonce — cuts ~½ compress work
 // and avoids re-reading the tip bytes from shared mem per nonce.
+// mod_inv / mod_lim / mod_tz: host prepareBlake3ModDiv(mod) — exact % without GPU udiv.
 extern "C" __global__ void poh_search_blake3(
     unsigned long long base,
     unsigned long long count,
     unsigned long long mod,
+    unsigned long long mod_inv,
+    unsigned long long mod_lim,
+    unsigned int mod_tz,
     const unsigned char* prefix,
     int prefix_len,
     unsigned long long* out_nonce)
 {
     __shared__ unsigned char sprefix[960];
     __shared__ unsigned int scv[8];
+    __shared__ unsigned int stail_words[16];
     __shared__ int s_use_cv;
+    __shared__ int s_rem;
     if (prefix_len < 0 || prefix_len > 960 || mod == 0ULL) {
         return;
     }
@@ -202,6 +250,9 @@ extern "C" __global__ void poh_search_blake3(
 
     if (threadIdx.x == 0) {
         s_use_cv = 0;
+        s_rem = 0;
+#pragma unroll
+        for (int i = 0; i < 16; i++) stail_words[i] = 0;
         if (prefix_len >= BLAKE3_BLOCK_LEN) {
             unsigned int cv[8];
             for (int i = 0; i < 8; i++) cv[i] = BLAKE3_IV[i];
@@ -211,6 +262,14 @@ extern "C" __global__ void poh_search_blake3(
             compress_pre(state, cv, block, 0, BLAKE3_BLOCK_LEN, BLAKE3_CHUNK_START);
             for (int i = 0; i < 8; i++) scv[i] = state[i] ^ state[i + 8];
             s_use_cv = 1;
+            int rem = prefix_len - BLAKE3_BLOCK_LEN;
+            s_rem = rem;
+            // Fixed address bytes → words once per block (nonce patched per thread).
+            for (int i = 0; i < rem; i++) {
+                int wi = i >> 2;
+                int sh = (i & 3) * 8;
+                stail_words[wi] |= ((unsigned int)sprefix[BLAKE3_BLOCK_LEN + i]) << sh;
+            }
         }
     }
     __syncthreads();
@@ -232,9 +291,15 @@ extern "C" __global__ void poh_search_blake3(
             break;
         }
         unsigned long long n = base + (unsigned long long)idx;
-        unsigned char digest[32];
-        if (s_use_cv) {
-            int rem = plen - BLAKE3_BLOCK_LEN;
+        unsigned long long work;
+        if (s_use_cv && s_rem + 8 <= BLAKE3_BLOCK_LEN) {
+            unsigned int words[16];
+#pragma unroll
+            for (int i = 0; i < 16; i++) words[i] = stail_words[i];
+            put_u64_le_bytes(words, s_rem, n);
+            work = blake3_work64_from_cv_words(scv, words, (unsigned int)(s_rem + 8));
+        } else if (s_use_cv) {
+            int rem = s_rem;
             unsigned char tail[96];
             for (int i = 0; i < rem; i++) {
                 tail[i] = sprefix[BLAKE3_BLOCK_LEN + i];
@@ -247,7 +312,17 @@ extern "C" __global__ void poh_search_blake3(
             tail[rem + 5] = (unsigned char)(n >> 40);
             tail[rem + 6] = (unsigned char)(n >> 48);
             tail[rem + 7] = (unsigned char)(n >> 56);
+            unsigned char digest[32];
             blake3_hash_from_cv(scv, tail, (size_t)rem + 8, digest);
+            work =
+                (unsigned long long)digest[0] |
+                ((unsigned long long)digest[1] << 8) |
+                ((unsigned long long)digest[2] << 16) |
+                ((unsigned long long)digest[3] << 24) |
+                ((unsigned long long)digest[4] << 32) |
+                ((unsigned long long)digest[5] << 40) |
+                ((unsigned long long)digest[6] << 48) |
+                ((unsigned long long)digest[7] << 56);
         } else {
             unsigned char msg[160];
             for (int i = 0; i < plen; i++) {
@@ -261,18 +336,19 @@ extern "C" __global__ void poh_search_blake3(
             msg[plen + 5] = (unsigned char)(n >> 40);
             msg[plen + 6] = (unsigned char)(n >> 48);
             msg[plen + 7] = (unsigned char)(n >> 56);
+            unsigned char digest[32];
             blake3_hash_one_chunk(msg, (size_t)plen + 8, digest);
+            work =
+                (unsigned long long)digest[0] |
+                ((unsigned long long)digest[1] << 8) |
+                ((unsigned long long)digest[2] << 16) |
+                ((unsigned long long)digest[3] << 24) |
+                ((unsigned long long)digest[4] << 32) |
+                ((unsigned long long)digest[5] << 40) |
+                ((unsigned long long)digest[6] << 48) |
+                ((unsigned long long)digest[7] << 56);
         }
-        unsigned long long work =
-            (unsigned long long)digest[0] |
-            ((unsigned long long)digest[1] << 8) |
-            ((unsigned long long)digest[2] << 16) |
-            ((unsigned long long)digest[3] << 24) |
-            ((unsigned long long)digest[4] << 32) |
-            ((unsigned long long)digest[5] << 40) |
-            ((unsigned long long)digest[6] << 48) |
-            ((unsigned long long)digest[7] << 56);
-        if ((work % mod) == 0ULL) {
+        if (work_divisible_mod(work, mod_inv, mod_lim, mod_tz)) {
             atomicMin(out_nonce, n);
         }
     }

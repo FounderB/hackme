@@ -45,13 +45,13 @@ func TestGetRigProfileMissing(t *testing.T) {
 func TestGPURigProfilesBatchAndCooldown(t *testing.T) {
 	// Fast GPU profiles: 16M batch (50xx Blake3: 64M) + claim cooldown ≥80.
 	fast16M := map[string]bool{
-		"amd_rdna2_daily":     true,
-		"amd_rdna3_daily":     true,
-		"nvidia_rtx_30_daily": true,
-		"nvidia_rtx_40_daily": true,
-		"nvidia_hopper_hmai":  true,
+		"amd_rdna2_daily":    true,
+		"amd_rdna3_daily":    true,
+		"nvidia_hopper_hmai": true,
 	}
 	fast64M := map[string]bool{
+		"nvidia_rtx_30_daily": true,
+		"nvidia_rtx_40_daily": true,
 		"nvidia_rtx_50_daily": true,
 	}
 	for _, p := range ListRigProfiles() {
@@ -83,7 +83,7 @@ func TestDetectRigProfileRTX3080Batch(t *testing.T) {
 	if !ok || p.ID != "nvidia_rtx_30_daily" {
 		t.Fatalf("got ok=%v id=%q", ok, p.ID)
 	}
-	if p.Env["HACKME_WORKER_BATCH_SIZE"] != "16777216" {
+	if p.Env["HACKME_WORKER_BATCH_SIZE"] != "67108864" {
 		t.Fatalf("batch: %v", p.Env["HACKME_WORKER_BATCH_SIZE"])
 	}
 	if p.Env["HACKME_WORKER_CLAIM_COOLDOWN_MS"] != "100" {

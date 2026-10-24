@@ -341,9 +341,16 @@ func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (
 		}
 	}
 
+	div, ok := prepareBlake3ModDiv(mod)
+	if !ok {
+		return false, 0, nil
+	}
 	b := req.Base
 	c := count
 	m := mod
+	inv := div.Inv
+	lim := div.Lim
+	tz := div.Tz
 	plen := int32(len(prefix))
 	dptr := a.dOut
 	pptr := a.dPrefix
@@ -351,6 +358,9 @@ func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (
 		unsafe.Pointer(&b),
 		unsafe.Pointer(&c),
 		unsafe.Pointer(&m),
+		unsafe.Pointer(&inv),
+		unsafe.Pointer(&lim),
+		unsafe.Pointer(&tz),
 		unsafe.Pointer(&pptr),
 		unsafe.Pointer(&plen),
 		unsafe.Pointer(&dptr),
