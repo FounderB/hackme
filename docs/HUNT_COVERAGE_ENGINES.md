@@ -44,7 +44,7 @@ Cap: `HACKME_HUNT_ENGINE_PROVE_MAX` default **16** seeds per delta window (extra
 
 ## Soft-skip / byte fallback
 
-- Missing runner / unknown catalog target without published harness / `HACKME_HUNT_ISOLATE_STRICT=1` cage failure → `hunt_engine_soft_skip` (release lease — **not** 1ms CLEAN success). Userns/`RTM_NEWADDR` → bare retry, not soft_skip.
+- Missing runner / unknown catalog target without published harness / STRICT cage failure → `hunt_engine_soft_skip` (release lease — **not** 1ms CLEAN success). Userns/`RTM_NEWADDR` → bare retry only when `HACKME_HUNT_ISOLATE_STRICT=0`; with default STRICT ON those launches fail closed (soft_skip).
 - Inventory fleet uses **libFuzzer subprocess + published ASAN stdin harness** (~60s wall); never silent byte dilution.
 - Coordinator rejects coverage-engine submits with `duration_ms` ≪ lease wall (`hunt_engine_wall_too_short`; escape `HACKME_HUNT_ENGINE_MIN_WALL_MS=0`).
 - Empty corpus after a finished LF wall → CLEAN floor (not soft-skip).
@@ -73,14 +73,14 @@ Ships clang + AFL++ (`afl-fuzz`, `afl-clang-fast`, `afl-showmap`) + bubblewrap f
 | `HACKME_HUNT_ENGINE_LEASE_SEC` | — | Override wall |
 | `HACKME_HUNT_ENGINE_BYTE_FALLBACK` | **OFF** | Soft-skip → byte |
 | `HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP` | OFF | Allow byte on Deep |
-| `HACKME_HUNT_ISOLATE_REQUIRE` | **ON** | Prefer bwrap; missing/failed cage → bare unless STRICT |
-| `HACKME_HUNT_ISOLATE_STRICT` | **OFF** (fleet) / **ON** (coordinator prove) | Fail closed on userns/RTM_NEWADDR (no bare fallback) |
+| `HACKME_HUNT_ISOLATE_REQUIRE` | **ON** | Prefer bwrap; missing/failed cage → bare only if STRICT off |
+| `HACKME_HUNT_ISOLATE_STRICT` | **ON** (code default; ISO/firstboot + coordinator unit also set `=1`) | Fail closed on missing bwrap / userns/`RTM_NEWADDR` (no bare fallback). Opt out: `=0` on locked-down hosts only |
 | `HACKME_HUNT_ENGINE_PROVE_MAX` | 16 | Max seeds proven per delta |
 | `HACKME_POOL_SEED_FROM_RESEARCH` | OFF | Dig seed feed — **do not enable** |
 
 ## Isolation
 
-Native LF/AFL/showmap prefer **`bwrap --unshare-net`**. If bwrap is missing or the cage fails (`RTM_NEWADDR` / userns / Operation not permitted), **bare exec retry** unless `HACKME_HUNT_ISOLATE_STRICT=1`. Fleet desktop/hub should keep STRICT off so Hunt leases are not soft_skip-starved.
+Native LF/AFL/showmap prefer **`bwrap --unshare-net`**. Code default is **STRICT ON** (`IsolateStrict()` empty env → true; covered by `TestIsolateStrictDefaultOn`). If bwrap is missing or the cage fails (`RTM_NEWADDR` / userns / Operation not permitted), bare exec retry only when `HACKME_HUNT_ISOLATE_STRICT=0`. Operators who hit soft_skip starvation on broken userns may opt out locally — do not weaken hub prove.
 
 Miners do **not** `git clone` AFL++. Install engines via `install_hunt_engines.sh` (release tarball / bundle).
 

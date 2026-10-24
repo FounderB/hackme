@@ -60,7 +60,7 @@
         <li><strong>hunt_standard</strong> — ~60 HMC · libFuzzer fleet wall</li>
         <li><strong>hunt_heavy</strong> — ~150 HMC · AFL++ when present · severity-tier bounty</li>
         <li><strong>Pay</strong> — full PayRun for coordinator-proven <code>afl-showmap</code> edges and/or ASAN crash; structural ≠ pay; CLEAN without delta = <strong>floor</strong> (worker <code>edges_touched</code> untrusted)</li>
-        <li>Pool miners claim <code>hunt_shard</code> engine leases; isolation prefers <code>bwrap</code> (hub may set isolate=0 if userns broken).</li>
+        <li>Pool miners claim <code>hunt_shard</code> engine leases; isolation prefers <code>bwrap</code> (STRICT default ON; opt out <code>HACKME_HUNT_ISOLATE_STRICT=0</code> only if userns broken).</li>
         <li>Spec: <a href="https://github.com/jokeez/hackme/blob/main/docs/HUNT_COVERAGE_ENGINES.md" target="_blank" rel="noreferrer">HUNT_COVERAGE_ENGINES.md</a> · <a href="https://github.com/jokeez/hackme/blob/main/docs/HUNT_ECONOMICS.md" target="_blank" rel="noreferrer">HUNT_ECONOMICS.md</a> · API <code>GET /api/hunt/packages</code></li>
       </ul>
       <p class="muted">Dig smoke stays 20/80; Dig Deep is 40/60 (WASM hygiene prove; seed-from-research OFF by default). Hunt stays 50/50 — floor pay for verified CLEAN work, full PayRun when edges/crash prove.</p>
