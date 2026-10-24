@@ -24,6 +24,9 @@ var pohCuSource string
 
 const blockThreads = 256
 
+// Must match BLAKE3_NONCES_PER_THREAD in poh_search.cu (grid covers count/NPT threads).
+const blake3NoncesPerThread = 2
+
 type pohPTXEntry struct {
 	ptx     string
 	kname   string
@@ -353,7 +356,11 @@ func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (
 		unsafe.Pointer(&dptr),
 	}
 
-	grid := cudaDivUp(int(count), bt)
+	npt := blake3NoncesPerThread
+	if npt < 1 {
+		npt = 1
+	}
+	grid := cudaDivUp(int(count), bt*npt)
 	if grid < 1 {
 		grid = 1
 	}
