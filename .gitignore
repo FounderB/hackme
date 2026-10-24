@@ -1,18 +1,6 @@
-# === Local trees (lab / drafts — never commit) ===
-local_scratch/
-local_social_drafts/
-scripts/local/
-docs/local/
-docs/social/
-docs/comms/
-docs/TELEGRAM_POST_*
-docs/BITCOINTALK_*
-docs/**/*POSTS*
-adapters/
-bounty-lab/
-.sentry-native/
-
-# === Build outputs ===
+# =============================================================================
+# Build outputs (repo-root binaries / packages)
+# =============================================================================
 /telegrambot
 /hackme
 /hackme-node
@@ -34,8 +22,11 @@ hackme.exe
 resource_windows_amd64.syso
 *.deb
 !scripts/release/**/*.deb
+cuda-keyring*.deb
 
-# === Secrets / env / runtime ===
+# =============================================================================
+# Secrets, env, runtime
+# =============================================================================
 .secrets/
 *.seed
 *.seed.hex
@@ -47,7 +38,6 @@ resource_windows_amd64.syso
 !.env.*.example
 telegram_bot.env
 hackme.env
-/hackme.env
 data/
 !data/.gitkeep
 logs/
@@ -55,9 +45,11 @@ logs/
 .hackme-toolchains.env
 .venv-deploy/
 
-# === Artifacts / reports / caches ===
+# =============================================================================
+# Caches, artifacts, lab trees
+# =============================================================================
 dist/
-reports/
+/reports/
 tmp/
 backups/
 .cache/
@@ -72,33 +64,24 @@ __pycache__/
 *.tar.gz
 *.zip
 !web/site/**
-cuda-keyring*.deb
 /crash-*
-crash-*
-GET
-Untitled
-text123.txt
-
-# === Editor / OS / agent ===
-.idea/
-.vscode/
-.cursor/
-*.swp
-.DS_Store
-Thumbs.db
-
-# === Site drafts (after !web/site/** re-include) ===
-web/site/reports/**/*-wip.html
-web/site/assets/social/
-web/site/assets/*-draft.json
-web/site/assets/reddit-r-HackMeTech-*.png
-web/site/assets/reddit-r-HackMeTech-*.jpg
-web/site/assets/*.bakcheck
-
-# === Local fuzz harness scratch (not catalogued yet) ===
+local_scratch/
+local_social_drafts/
+scripts/local/
+adapters/
+bounty-lab/
+.sentry-native/
 tasks/sources/fuzz/oss/*_stdin.c
 
-# === Root product-brief drops ===
+# =============================================================================
+# Docs — local drafts only (keep docs/*.md, archive/, releases/, verdicts/)
+# =============================================================================
+docs/local/
+docs/social/
+docs/comms/
+docs/reports/
+
+# Root scratch markdown (prefer docs/local/ for new notes)
 /HackMe_Fuzz_*.md
 /*_Prod_vs_Local.md
 /FUZZ_V2_*.md
@@ -106,10 +89,30 @@ tasks/sources/fuzz/oss/*_stdin.c
 /POST*_DIG.md
 /REPO_CLEANUP_REPORT.md
 
-# === Hunt / disclosure scratch ===
+# Hunt / disclosure scratch (any tree)
 **/01_EMAIL.txt
 **/02_GITHUB_ISSUE.md
 **/03_PUBLIC_AFTER_FIX.md
 **/poc_input_*.bin
 **/asan_stack_example*.txt
 **/README_HOLD.txt
+
+# =============================================================================
+# Site drafts (after !web/site/**)
+# =============================================================================
+web/site/reports/**/*-wip.html
+web/site/assets/social/
+web/site/assets/*-draft.json
+web/site/assets/reddit-r-HackMeTech-*.png
+web/site/assets/reddit-r-HackMeTech-*.jpg
+web/site/assets/*.bakcheck
+
+# =============================================================================
+# OS / editor / agent
+# =============================================================================
+.idea/
+.vscode/
+.cursor/
+*.swp
+.DS_Store
+Thumbs.db
