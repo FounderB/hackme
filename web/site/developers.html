@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/styles.css?v=20261024plain1" />
+  <link rel="stylesheet" href="./assets/styles.css?v=20261024eco1" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="icon" href="./assets/favicon.png" type="image/png" />
 </head>
@@ -30,12 +30,13 @@
       <a href="./fuzzing-console.html">Observer tracker</a>
     </nav>
     <section class="hero glass">
-      <p class="kicker">Developers · security scans</p>
+      <p class="kicker">Developers · HackMe ecosystem</p>
       <h1>Find crashes before attackers do.</h1>
       <p class="hero-copy">
         Point a coverage-guided fleet at your target with one command.
         You get a report and a CI gate. Unused bounty is refunded.
-        Orders run on <strong>your local node</strong> (<code>127.0.0.1:8080</code>) — hackme.tech is docs and status only.
+        Packages are priced in HMC; orders run on <strong>your local node</strong>
+        (<code>127.0.0.1:8080</code>) — hackme.tech is docs and status only.
       </p>
       <div class="cta-row">
         <a class="btn btn-primary" href="./orders.html">Customer orders path</a>
@@ -54,7 +55,7 @@
     <section class="panel glass" style="margin-top:1rem">
       <div class="panel-head"><h2>Developer quick index</h2></div>
       <div class="pill-row" style="row-gap:0.5rem">
-        <a class="pill" href="#integrator-token">Integrator token</a>
+        <a class="pill" href="#integrator-token">Developer token</a>
         <a class="pill" href="#b2b-packages">Packages</a>
         <a class="pill" href="#order-limits">Order limits</a>
         <a class="pill" href="#windows-cli">Windows path</a>
@@ -63,20 +64,18 @@
       </div>
     </section>
 
-    <section id="integrator-token" class="panel glass dev-connect">
-      <div class="panel-head"><h2>Integrator API token</h2></div>
-      <p class="subtle">Issue a scoped <span class="code-inline">X-Hackme-Developer-Token</span> on <strong>your local node</strong> (dashboard header → Issue, or CLI below). Tokens issued here on hackme.tech are for API testing only — <strong>create orders on localhost</strong>.</p>
-      <label class="dev-field dev-field-full">
-        <span>Label (optional)</span>
-        <input id="integrator-label" type="text" placeholder="acme-security-audit" autocomplete="off" />
-      </label>
+    <section id="integrator-token" class="panel glass">
+      <div class="panel-head"><h2>Developer token</h2></div>
+      <p class="subtle">
+        Issue your developer token on your <strong>local node / after install</strong> — not on the public hub.
+        Self-registration on hackme.tech is off. Miner and Orders packages ship with what you need;
+        for CLI/API work use the local dashboard or
+        <code>hackme-fuzzing register --base http://127.0.0.1:8080 --save</code>.
+      </p>
       <div class="cta-row">
-        <button type="button" class="btn btn-primary" id="btn-integrator-register">Issue new token</button>
-        <button type="button" class="btn btn-secondary" id="btn-integrator-rotate" disabled>Rotate token</button>
-        <a class="btn btn-secondary" id="integrator-console-link" href="./downloads.html#local-node" style="display:none">Open local node (#orders)</a>
+        <a class="btn btn-primary" href="./downloads.html#local-node">Downloads · local node</a>
+        <a class="btn btn-secondary" href="./docs.html">Docs</a>
       </div>
-      <p id="integrator-token-out" class="code-block" style="display:none;word-break:break-all"></p>
-      <p id="integrator-status" class="dev-status"></p>
     </section>
 
     <section id="b2b-packages" class="panel glass">
@@ -161,7 +160,7 @@ hackme-fuzzing hunt create --package hunt_lite …</code></pre>
         <ul class="check-list">
           <li>Teams that want crashes found before attackers do</li>
           <li>Studios shipping a guard and needing a CI gate</li>
-          <li>Integrators building on HMC escrow</li>
+          <li>Integrators building on network escrow</li>
           <li>Not for GPU miners — use <a href="./downloads.html">Downloads</a></li>
         </ul>
       </article>
@@ -200,11 +199,11 @@ hackme-fuzzing hunt create --package hunt_lite …</code></pre>
         <li>Install node from <a href="./downloads.html">Downloads</a> — start dashboard at <code>127.0.0.1:8080</code>.</li>
         <li>Top up <strong>Wallet → on-chain HMC</strong> on <code>#wallet</code> (starter spendable = 0). Dig/Hunt <strong>Start</strong> auto-funds prepaid escrow.</li>
         <li>Download <strong>both</strong> <code>hackme-fuzzing</code> and <code>hackme-fuzzing-build</code> into the same folder.</li>
-        <li>Issue a developer token in the dashboard, or <code>hackme-fuzzing register --base http://127.0.0.1:8080 --save</code>.</li>
+        <li>Use the developer token from install, or issue one on the local dashboard / <code>hackme-fuzzing register --base http://127.0.0.1:8080 --save</code>.</li>
         <li><strong>Recommended:</strong> <code>hackme-fuzzing wizard --pack secrets --package audit</code> — or <code>--wasm guard.wasm</code>.</li>
         <li>Open <code>report_url</code> / <code>gate_url</code> on <code>http://127.0.0.1:8080</code> · wire gate into CI.</li>
       </ol>
-      <p class="subtle">Token on <strong>hackme.tech</strong> in the browser is for API smoke tests only — create orders on <strong>localhost</strong>.</p>
+      <p class="subtle">Create orders on <strong>localhost</strong> — not on the public hub.</p>
     </section>
 
     <section id="quick-start" class="panel glass">
@@ -234,9 +233,7 @@ hackme-fuzzing tasks</code></pre>
       </ul>
     </section>
   </main>
-  <script src="./assets/hackme-dev-common.js" defer></script>
-  <script src="./assets/integrator-token.js" defer></script>
-  <script src="./assets/site-shell.js?v=20261024plain1"></script>
-  <script src="./assets/app.js?v=20261024plain1"></script>
+  <script src="./assets/site-shell.js?v=20261024eco1"></script>
+  <script src="./assets/app.js?v=20261024eco1"></script>
 </body>
 </html>
