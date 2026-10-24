@@ -27,7 +27,9 @@ MIN_HASHRATE_GHS="${MIN_HASHRATE_GHS:-0.001}"
 MAX_HASHRATE_GHS="${MAX_HASHRATE_GHS:-200.0}"
 EMA_ALPHA="${EMA_ALPHA:-0.35}"
 # Optional: pin reported hashrate_gh_s (test/display fleets). Skips EMA drift from wall-time.
+# Under Blake3 (poh_formula_version>=3) FORCE is ignored — algebraic GH/s is not real PoW throughput.
 FORCE_HASHRATE_GHS="${FORCE_HASHRATE_GHS:-}"
+FORCE_HASHRATE_GHS_REQUESTED="$FORCE_HASHRATE_GHS"
 WORKER_NAME="${WORKER_NAME:-${WORKER_ID}}"
 COORD_PUSH_WORK="${COORD_PUSH_WORK:-1}"
 # Coordinator claim/submit needs HACKME_COORDINATOR_ADMIN_TOKEN from the coordinator process,
@@ -194,6 +196,10 @@ if [[ "$SIGN_SUBMITS" == "1" ]]; then
   echo "[worker] hybrid signer: claims+submits carry miner_pubkey_ed25519; submits also miner_sig_ed25519 + submit_nonce (nonce file=${NONCE_FILE})"
 fi
 echo "[worker] note: HASHRATE_GHS env seeds EMA only; sustained GH/s ≈ batch_size / full claim+submit seconds (often ~0.002–0.02 GH/s), not GPU saturation."
+if [[ -n "$FORCE_HASHRATE_GHS_REQUESTED" ]]; then
+  echo "[worker] FORCE_HASHRATE_GHS=${FORCE_HASHRATE_GHS_REQUESTED} requested (ignored automatically when claim poh_formula_version>=3 / Blake3)"
+fi
+force_ghs_blake3_logged=0
 
 while true; do
   # Full claim→submit wall time matches credited batch throughput (pool GH/s / global TH/s).
@@ -224,11 +230,22 @@ while true; do
 	base="$(printf '%s' "$claim" | jq -r '.base_nonce // empty' 2>/dev/null || echo "")"
 	size="$(printf '%s' "$claim" | jq -r '.batch_size // empty' 2>/dev/null || echo "")"
 	work_id="$(printf '%s' "$claim" | jq -r '.work_id // empty' 2>/dev/null || echo "")"
+  claim_fv="$(printf '%s' "$claim" | jq -r '.poh_formula_version // .formula_version // 0' 2>/dev/null || echo "0")"
   if [[ -z "$base" || -z "$size" || -z "$work_id" ]]; then
     last_reason="claim_parse_error"
     echo "[worker] claim parse error backoff=${backoff_sec}s"
     sleep_backoff
     continue
+  fi
+  # Blake3 PoW: never advertise algebraic/display FORCE GH/s in submits or logs.
+  if [[ "$claim_fv" =~ ^[0-9]+$ ]] && (( claim_fv >= 3 )) && [[ -n "$FORCE_HASHRATE_GHS" || -n "$FORCE_HASHRATE_GHS_REQUESTED" ]]; then
+    if [[ "$force_ghs_blake3_logged" == "0" ]]; then
+      echo "[worker] Blake3 fv=${claim_fv}: omitting FORCE_HASHRATE_GHS=${FORCE_HASHRATE_GHS_REQUESTED} (wall-timed hashrate_gh_s)"
+      force_ghs_blake3_logged=1
+    fi
+    FORCE_HASHRATE_GHS=""
+    # named_hybrid also seeds HASHRATE_GHS=FORCE; drop the pin so this submit is honest.
+    ema_hashrate_ghs="$MIN_HASHRATE_GHS"
   fi
   ok_claims=$((ok_claims + 1))
   reset_backoff

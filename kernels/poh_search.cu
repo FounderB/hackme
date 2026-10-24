@@ -111,7 +111,6 @@ __device__ static void blake3_hash_one_chunk(const unsigned char *input, size_t 
     unsigned char block[BLAKE3_BLOCK_LEN];
     size_t offset = 0;
     unsigned int flags = BLAKE3_CHUNK_START;
-    int blocks = 0;
     while (input_len - offset > BLAKE3_BLOCK_LEN) {
         for (int i = 0; i < BLAKE3_BLOCK_LEN; i++) block[i] = input[offset + i];
         unsigned int state[16];
@@ -119,7 +118,38 @@ __device__ static void blake3_hash_one_chunk(const unsigned char *input, size_t 
         for (int i = 0; i < 8; i++) cv[i] = state[i] ^ state[i + 8];
         offset += BLAKE3_BLOCK_LEN;
         flags = 0;
-        blocks++;
+    }
+    size_t rem = input_len - offset;
+    for (int i = 0; i < BLAKE3_BLOCK_LEN; i++) block[i] = 0;
+    for (size_t i = 0; i < rem; i++) block[i] = input[offset + i];
+    unsigned int block_flags = flags | BLAKE3_CHUNK_END | BLAKE3_ROOT;
+    unsigned int state[16];
+    compress_pre(state, cv, block, 0, (unsigned int)rem, block_flags);
+    for (int i = 0; i < 8; i++) {
+        unsigned int w = state[i] ^ state[i + 8];
+        out[4 * i + 0] = (unsigned char)(w);
+        out[4 * i + 1] = (unsigned char)(w >> 8);
+        out[4 * i + 2] = (unsigned char)(w >> 16);
+        out[4 * i + 3] = (unsigned char)(w >> 24);
+    }
+}
+
+// Continue hashing after a prior full block (flags already advanced past CHUNK_START).
+__device__ static void blake3_hash_from_cv(const unsigned int cv0[8],
+                                          const unsigned char *input, size_t input_len,
+                                          unsigned char out[BLAKE3_OUT_LEN]) {
+    unsigned int cv[8];
+    for (int i = 0; i < 8; i++) cv[i] = cv0[i];
+    unsigned char block[BLAKE3_BLOCK_LEN];
+    size_t offset = 0;
+    unsigned int flags = 0;
+    while (input_len - offset > BLAKE3_BLOCK_LEN) {
+        for (int i = 0; i < BLAKE3_BLOCK_LEN; i++) block[i] = input[offset + i];
+        unsigned int state[16];
+        compress_pre(state, cv, block, 0, BLAKE3_BLOCK_LEN, flags);
+        for (int i = 0; i < 8; i++) cv[i] = state[i] ^ state[i + 8];
+        offset += BLAKE3_BLOCK_LEN;
+        flags = 0;
     }
     size_t rem = input_len - offset;
     for (int i = 0; i < BLAKE3_BLOCK_LEN; i++) block[i] = 0;
@@ -138,7 +168,9 @@ __device__ static void blake3_hash_one_chunk(const unsigned char *input, size_t 
 
 // prefix: prev_hash_hex_ascii_lower || miner_address_utf8 (no nonce).
 // Each thread appends nonce as 8-byte little-endian and Blake3-hashes.
-// Shared-memory prefix copy (once per block) keeps occupancy usable on RTX 50.
+// When prefix_len >= 64 (production tip hex), one thread compresses the first
+// 64B block into shared CV; others only hash suffix||nonce — cuts ~½ compress work
+// and avoids re-reading the tip bytes from shared mem per nonce.
 extern "C" __global__ void poh_search_blake3(
     unsigned long long base,
     unsigned long long count,
@@ -148,11 +180,28 @@ extern "C" __global__ void poh_search_blake3(
     unsigned long long* out_nonce)
 {
     __shared__ unsigned char sprefix[960];
+    __shared__ unsigned int scv[8];
+    __shared__ int s_use_cv;
     if (prefix_len < 0 || prefix_len > 960 || mod == 0ULL) {
         return;
     }
     for (int i = (int)threadIdx.x; i < prefix_len; i += (int)blockDim.x) {
         sprefix[i] = prefix[i];
+    }
+    __syncthreads();
+
+    if (threadIdx.x == 0) {
+        s_use_cv = 0;
+        if (prefix_len >= BLAKE3_BLOCK_LEN) {
+            unsigned int cv[8];
+            for (int i = 0; i < 8; i++) cv[i] = BLAKE3_IV[i];
+            unsigned char block[BLAKE3_BLOCK_LEN];
+            for (int i = 0; i < BLAKE3_BLOCK_LEN; i++) block[i] = sprefix[i];
+            unsigned int state[16];
+            compress_pre(state, cv, block, 0, BLAKE3_BLOCK_LEN, BLAKE3_CHUNK_START);
+            for (int i = 0; i < 8; i++) scv[i] = state[i] ^ state[i + 8];
+            s_use_cv = 1;
+        }
     }
     __syncthreads();
 
@@ -166,20 +215,37 @@ extern "C" __global__ void poh_search_blake3(
     if (plen + 8 > 160) {
         return;
     }
-    unsigned char msg[160];
-    for (int i = 0; i < plen; i++) {
-        msg[i] = sprefix[i];
-    }
-    msg[plen + 0] = (unsigned char)(n);
-    msg[plen + 1] = (unsigned char)(n >> 8);
-    msg[plen + 2] = (unsigned char)(n >> 16);
-    msg[plen + 3] = (unsigned char)(n >> 24);
-    msg[plen + 4] = (unsigned char)(n >> 32);
-    msg[plen + 5] = (unsigned char)(n >> 40);
-    msg[plen + 6] = (unsigned char)(n >> 48);
-    msg[plen + 7] = (unsigned char)(n >> 56);
     unsigned char digest[32];
-    blake3_hash_one_chunk(msg, (size_t)plen + 8, digest);
+    if (s_use_cv) {
+        int rem = plen - BLAKE3_BLOCK_LEN;
+        unsigned char tail[96];
+        for (int i = 0; i < rem; i++) {
+            tail[i] = sprefix[BLAKE3_BLOCK_LEN + i];
+        }
+        tail[rem + 0] = (unsigned char)(n);
+        tail[rem + 1] = (unsigned char)(n >> 8);
+        tail[rem + 2] = (unsigned char)(n >> 16);
+        tail[rem + 3] = (unsigned char)(n >> 24);
+        tail[rem + 4] = (unsigned char)(n >> 32);
+        tail[rem + 5] = (unsigned char)(n >> 40);
+        tail[rem + 6] = (unsigned char)(n >> 48);
+        tail[rem + 7] = (unsigned char)(n >> 56);
+        blake3_hash_from_cv(scv, tail, (size_t)rem + 8, digest);
+    } else {
+        unsigned char msg[160];
+        for (int i = 0; i < plen; i++) {
+            msg[i] = sprefix[i];
+        }
+        msg[plen + 0] = (unsigned char)(n);
+        msg[plen + 1] = (unsigned char)(n >> 8);
+        msg[plen + 2] = (unsigned char)(n >> 16);
+        msg[plen + 3] = (unsigned char)(n >> 24);
+        msg[plen + 4] = (unsigned char)(n >> 32);
+        msg[plen + 5] = (unsigned char)(n >> 40);
+        msg[plen + 6] = (unsigned char)(n >> 48);
+        msg[plen + 7] = (unsigned char)(n >> 56);
+        blake3_hash_one_chunk(msg, (size_t)plen + 8, digest);
+    }
     unsigned long long work =
         (unsigned long long)digest[0] |
         ((unsigned long long)digest[1] << 8) |
