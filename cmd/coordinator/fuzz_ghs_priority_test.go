@@ -69,6 +69,30 @@ func TestAllowFuzzClaimBootstrapFuzzExemptFromDefer(t *testing.T) {
 	}
 }
 
+func TestBlake3ClassWallGHSCountsAsHybrid(t *testing.T) {
+	// Live Blake3 desktop GPUs report ~0.1–0.4 GH/s — must clear hybrid floor.
+	t.Setenv("HACKME_FUZZ_CLAIM_GHS_PRIORITY", "1")
+	t.Setenv("HACKME_FUZZ_GHS_HYBRID_MIN", "") // default 0.05
+	now := time.Now().Unix()
+	wm := &workManager{worker: map[string]workerPayoutStat{
+		"worker-kapa-pc": {
+			LastHashrateGHS: 0.27, PeakHashrateGHS: 0.39,
+			LastSeenUnix: now, LastPoHSeenUnix: now, LastFuzzSeenUnix: now,
+		},
+		"dig-1": {LastHashrateGHS: 0, LastSeenUnix: now, LastFuzzSeenUnix: now},
+	}}
+	cap := wm.fuzzFleetCapacity(now)
+	if cap.HybridWorkersOnline != 1 {
+		t.Fatalf("blake3-class hybrid online=%d want 1: %+v", cap.HybridWorkersOnline, cap)
+	}
+	if cap.FleetHashrateGHS < 0.2 || cap.FleetHashrateGHS > 0.4 {
+		t.Fatalf("fleet ghs=%v", cap.FleetHashrateGHS)
+	}
+	if ok, _ := wm.allowFuzzClaimByGHS("worker-kapa-pc", now); !ok {
+		t.Fatal("blake3 hybrid must claim")
+	}
+}
+
 func TestAllowFuzzClaimByGHSAllowsDigOnlyWhenNoHybrid(t *testing.T) {
 	t.Setenv("HACKME_FUZZ_CLAIM_GHS_PRIORITY", "1")
 	now := time.Now().Unix()

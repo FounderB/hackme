@@ -15,10 +15,25 @@ import (
 // and publishes honest ETA capacity from live hybrid GHS.
 
 const (
-	fuzzGHSHybridMinGHS     = 1.0 // worker counts as hybrid capacity above this
-	fuzzGHSPriorityStaleSec = 90  // recent PoH / fuzz activity window
-	fuzzGHSDigOnlyAdmitPct  = 25  // dig-only admit share when hybrids are online
+	// Pre-Blake3 hybrid calib was often ≥1 GH/s; Blake3 LIVE wall-rate is ~0.05–0.4 GH/s/GPU.
+	// Keep a small floor so noise/canary ≪0.05 does not count as hybrid Dig capacity.
+	fuzzGHSHybridMinGHS     = 0.05
+	fuzzGHSPriorityStaleSec = 90 // recent PoH / fuzz activity window
+	fuzzGHSDigOnlyAdmitPct  = 25 // dig-only admit share when hybrids are online
 )
+
+// fuzzGHSHybridMin returns the GH/s floor for hybrid Dig capacity (env override).
+func fuzzGHSHybridMin() float64 {
+	v := strings.TrimSpace(os.Getenv("HACKME_FUZZ_GHS_HYBRID_MIN"))
+	if v == "" {
+		return fuzzGHSHybridMinGHS
+	}
+	n, err := strconv.ParseFloat(v, 64)
+	if err != nil || n < 0 {
+		return fuzzGHSHybridMinGHS
+	}
+	return n
+}
 
 func fuzzClaimGHSPriorityEnabled() bool {
 	v := strings.TrimSpace(os.Getenv("HACKME_FUZZ_CLAIM_GHS_PRIORITY"))
@@ -67,7 +82,7 @@ func workerFuzzFresh(st workerPayoutStat, now int64) bool {
 
 // workerHybridClaimEligible: recent verified PoH GH/s (not fuzz heartbeat alone).
 func workerHybridClaimEligible(st workerPayoutStat, now int64) bool {
-	return workerPoHFresh(st, now) && effectiveWorkerHashrateGHS(st) >= fuzzGHSHybridMinGHS
+	return workerPoHFresh(st, now) && effectiveWorkerHashrateGHS(st) >= fuzzGHSHybridMin()
 }
 
 // workerHybridCapacity: digs Dig/Hunt while also mining recently.
@@ -133,7 +148,7 @@ func (m *workManager) allowFuzzClaimByGHS(workerID string, now int64) (bool, str
 	if st, ok := m.worker[workerID]; ok {
 		my = st
 	}
-	if cap.HybridWorkersOnline == 0 || cap.FleetHashrateGHS < fuzzGHSHybridMinGHS {
+	if cap.HybridWorkersOnline == 0 || cap.FleetHashrateGHS < fuzzGHSHybridMin() {
 		return true, ""
 	}
 	if workerHybridClaimEligible(my, now) {
