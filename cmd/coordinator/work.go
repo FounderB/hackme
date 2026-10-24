@@ -1672,7 +1672,8 @@ func coordinatorIdlePruneMaxHMC() float64 {
 }
 
 // pruneStaleWorkersLocked drops offline idle workers; caller must hold m.mu.
-// Settlement history lives in node worker_settlement_state.json — coordinator rows are ephemeral.
+// In-memory rows are ephemeral for UI pruning; durable unpaid lives in worker_accrual
+// (see work_accrual_persist.go) and is re-hydrated on the next submit after prune/restart.
 func (m *workManager) pruneStaleWorkersLocked(prefix string, maxPayout float64, staleSec int64, dryRun bool, ignorePayout bool, now int64) (removed, kept []string) {
 	if m == nil {
 		return nil, nil
@@ -2085,6 +2086,8 @@ func (m *workManager) claim(workerID string, batch uint64) (base uint64, size ui
 func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason string, payoutHMC float64, signerOut string, signed bool) {
 	k := workKey{base: req.BaseNonce, batch: req.BatchSize}
 	now := time.Now().Unix()
+	// Hydrate durable unpaid before the submit lock (restart/prune safety).
+	m.prefetchWorkerAccrual(req.WorkerID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	rec, ok := m.active[k]
@@ -2506,7 +2509,7 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if payout > maxSubmitHMC {
 		payout = maxSubmitHMC
 	}
-	st := m.worker[req.WorkerID]
+	st := m.ensureWorkerAccrualLocked(req.WorkerID)
 	st.AcceptedRanges++
 	st.AcceptedAtt += attempts
 	if req.Found {
@@ -2538,6 +2541,8 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	}
 	m.worker[req.WorkerID] = st
 	m.totalPayoutHMC += payout
+	// Durable accrual: survive coordinator restart (session_anchor alone abandons unpaid growth).
+	go m.persistWorkerAccrual(req.WorkerID, false)
 	// Keep pool M aligned with live fleet GH/s even when nothing polls /api/work/stats (top pools
 	// continuously adjust difficulty from observed work; we approximate via submit heartbeats).
 	retNow := time.Now().Unix()

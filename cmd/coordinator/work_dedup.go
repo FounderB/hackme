@@ -38,6 +38,9 @@ func migrateWorkDedupTables(db *sql.DB) error {
 			return err
 		}
 	}
+	if err := migrateWorkerAccrualTable(db); err != nil {
+		return err
+	}
 	return ensurePayoutLockSeenAt(db)
 }
 
@@ -96,6 +99,7 @@ func (m *workManager) attachDedupDB(db *sql.DB) {
 	m.gcIdlePayoutLocks()
 	m.loadDurableDedup()
 	m.loadPayoutLocks()
+	m.loadWorkerAccruals()
 }
 
 func workDedupTTLSec() int64 {
