@@ -43,8 +43,19 @@ __device__ __constant__ unsigned int BLAKE3_IV[8] = {
     0x6A09E667UL, 0xBB67AE85UL, 0x3C6EF372UL, 0xA54FF53AUL,
     0x510E527FUL, 0x9B05688CUL, 0x1F83D9ABUL, 0x5BE0CD19UL};
 
-__device__ __constant__ unsigned char BLAKE3_MSG_PERMUTATION[16] = {
-    2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8};
+// Precomputed MSG schedule (indices into original block_words). Same as iteratively
+// applying BLAKE3_MSG_PERMUTATION — avoids O(round) re-permute work each compress.
+#define BLAKE3_ROUND(state, msg, i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15) \
+    do {                                                                                            \
+        g((state), 0, 4, 8, 12, (msg)[i0], (msg)[i1]);                                              \
+        g((state), 1, 5, 9, 13, (msg)[i2], (msg)[i3]);                                              \
+        g((state), 2, 6, 10, 14, (msg)[i4], (msg)[i5]);                                             \
+        g((state), 3, 7, 11, 15, (msg)[i6], (msg)[i7]);                                             \
+        g((state), 0, 5, 10, 15, (msg)[i8], (msg)[i9]);                                             \
+        g((state), 1, 6, 11, 12, (msg)[i10], (msg)[i11]);                                           \
+        g((state), 2, 7, 8, 13, (msg)[i12], (msg)[i13]);                                            \
+        g((state), 3, 4, 9, 14, (msg)[i14], (msg)[i15]);                                            \
+    } while (0)
 
 __device__ static unsigned int rotr32(unsigned int w, unsigned int c) {
     return (w >> c) | (w << (32 - c));
@@ -60,24 +71,6 @@ __device__ static void g(unsigned int *state, size_t a, size_t b, size_t c, size
     state[d] = rotr32(state[d] ^ state[a], 8);
     state[c] = state[c] + state[d];
     state[b] = rotr32(state[b] ^ state[c], 7);
-}
-
-__device__ static void round_fn(unsigned int state[16], const unsigned int *msg, size_t round) {
-    unsigned int m[16];
-    for (int i = 0; i < 16; i++) m[i] = msg[i];
-    for (size_t r = 0; r < round; r++) {
-        unsigned int m2[16];
-        for (int i = 0; i < 16; i++) m2[i] = m[BLAKE3_MSG_PERMUTATION[i]];
-        for (int i = 0; i < 16; i++) m[i] = m2[i];
-    }
-    g(state, 0, 4, 8, 12, m[0], m[1]);
-    g(state, 1, 5, 9, 13, m[2], m[3]);
-    g(state, 2, 6, 10, 14, m[4], m[5]);
-    g(state, 3, 7, 11, 15, m[6], m[7]);
-    g(state, 0, 5, 10, 15, m[8], m[9]);
-    g(state, 1, 6, 11, 12, m[10], m[11]);
-    g(state, 2, 7, 8, 13, m[12], m[13]);
-    g(state, 3, 4, 9, 14, m[14], m[15]);
 }
 
 __device__ static void compress_pre(unsigned int state[16], const unsigned int cv[8],
@@ -99,9 +92,14 @@ __device__ static void compress_pre(unsigned int state[16], const unsigned int c
     state[13] = (unsigned int)(counter >> 32);
     state[14] = block_len;
     state[15] = flags;
-    for (size_t r = 0; r < 7; r++) {
-        round_fn(state, block_words, r);
-    }
+    // 7 rounds, MSG schedule fully unrolled (constant indices for NVRTC).
+    BLAKE3_ROUND(state, block_words, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+    BLAKE3_ROUND(state, block_words, 2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8);
+    BLAKE3_ROUND(state, block_words, 3, 4, 10, 12, 13, 2, 7, 14, 6, 5, 9, 0, 11, 15, 8, 1);
+    BLAKE3_ROUND(state, block_words, 10, 7, 12, 9, 14, 3, 13, 15, 4, 0, 11, 2, 5, 8, 1, 6);
+    BLAKE3_ROUND(state, block_words, 12, 13, 9, 11, 15, 10, 14, 8, 7, 2, 5, 3, 0, 1, 6, 4);
+    BLAKE3_ROUND(state, block_words, 9, 14, 11, 5, 8, 12, 15, 1, 13, 3, 0, 10, 2, 6, 4, 7);
+    BLAKE3_ROUND(state, block_words, 11, 15, 5, 0, 1, 9, 8, 6, 14, 10, 2, 12, 3, 4, 7, 13);
 }
 
 __device__ static void blake3_hash_one_chunk(const unsigned char *input, size_t input_len,
