@@ -101,10 +101,10 @@ with p.open('a') as f:
 "
 
 export BOOTSTRAP_INSTALL="$INSTALL" BUDGET_HMC="$budget" BUDGET_RUNS="$runs" REWARD_HMC="${REWARD_HMC:-0.05}" TARGET_SOLVES="$solves"
-# Don't block the timer for hours — campaign keeps running on pool after we exit.
-export POLL_SEC="${POLL_SEC:-45}" MAX_WAIT="${MAX_WAIT:-600}"
+# Don't block the timer — CREATE+bounded pool_sync, then exit (campaign keeps running on pool).
+export PLACE_ONLY="${PLACE_ONLY:-1}" POLL_SEC="${POLL_SEC:-45}" MAX_WAIT="${MAX_WAIT:-0}"
 export HACKME_MINIMAL_POH_GATE="${HACKME_MINIMAL_POH_GATE:-1}"
-log "placing target=$TARGET budget_hmc=$budget runs=$runs solves=$solves poh_gate=minimal max_wait=$MAX_WAIT"
+log "placing target=$TARGET budget_hmc=$budget runs=$runs solves=$solves poh_gate=minimal place_only=$PLACE_ONLY"
 set +e
 bash "$SCRIPT_DIR/place_bootstrap_order.sh" "$TARGET" >>"$LOG" 2>&1
 rc=$?

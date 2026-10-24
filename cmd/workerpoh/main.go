@@ -525,18 +525,25 @@ func rawHashrateGHS(batch uint64, elapsedSec float64) float64 {
 
 // measureWorkerHashrateGHS estimates GH/s from batch size and elapsed search time.
 func measureWorkerHashrateGHS(batch uint64, elapsedSec float64) float64 {
+	return measureWorkerHashrateGHSForFormula(batch, elapsedSec, 1)
+}
+
+// measureWorkerHashrateGHSForFormula prefers wall time for Blake3 (v3+): host Blake3
+// does not refresh LastCUDAKernelSeconds, so stale v1 calib timing would otherwise
+// advertise 50–80 GH/s while real Blake3 work is far slower.
+func measureWorkerHashrateGHSForFormula(batch uint64, elapsedSec float64, formulaVersion int) float64 {
 	if batch == 0 {
 		return 0
 	}
+	wall := elapsedSec
+	if formulaVersion >= 3 {
+		if wall <= 0 {
+			wall = effectiveSearchSeconds(elapsedSec)
+		}
+		return rawHashrateGHS(batch, wall)
+	}
 	elapsedSec = effectiveSearchSeconds(elapsedSec)
-	ghs := float64(batch) / elapsedSec / 1e9
-	if ghs > workerMeasureHashrateCapGHS {
-		return workerMeasureHashrateCapGHS
-	}
-	if ghs < 1e-9 {
-		return 0
-	}
-	return ghs
+	return rawHashrateGHS(batch, elapsedSec)
 }
 
 func envFloatGHS(keys ...string) float64 {
@@ -634,24 +641,43 @@ func syncWorkerGPUBackendFromSearcher(srch searcher, mode string) {
 }
 
 func calibrateGPUHashrateGHS(srch searcher, batch, mod uint64) float64 {
+	return calibrateGPUHashrateGHSForFormula(srch, batch, mod, 3)
+}
+
+// calibrateGPUHashrateGHSForFormula measures live search GH/s. Prefer formula 3 (Blake3)
+// so pool stats after activation are not pinned to legacy 7n+13 GPU rates.
+func calibrateGPUHashrateGHSForFormula(srch searcher, batch, mod uint64, formulaVersion int) float64 {
 	if batch == 0 {
 		return 0
+	}
+	if formulaVersion <= 0 {
+		formulaVersion = 3
 	}
 	const warmup = 1
 	const samples = 4
 	var sum float64
 	var n int
+	calibReq := gpupoh.SearchRequest{
+		Base: 1, Count: batch, Mod: mod,
+		FormulaVersion: formulaVersion,
+		PrevHash:       "00",
+		MinerAddress:   "HMC-calib",
+	}
 	for i := 0; i < warmup+samples; i++ {
-		_, _, _, err := srch.Search(60*time.Second, 1, batch, mod)
+		_, _, wallSec, err := srch.SearchPoH(60*time.Second, calibReq)
 		if err != nil {
 			if os.Getenv("HACKME_CUDA_VERBOSE") == "1" {
 				hotlog.Stderrf("workerpoh: calib search err: %v", err)
 			}
 			continue
 		}
-		sec := gpupoh.LastCUDAKernelSeconds()
-		if sec <= 0 {
-			sec = gpupoh.LastOCLKernelSeconds()
+		sec := wallSec
+		if formulaVersion < 3 {
+			if k := gpupoh.LastCUDAKernelSeconds(); k > 0 {
+				sec = k
+			} else if k := gpupoh.LastOCLKernelSeconds(); k > 0 {
+				sec = k
+			}
 		}
 		if sec <= 0 {
 			continue
@@ -682,27 +708,33 @@ func calibrateGPUHashrateGHS(srch searcher, batch, mod uint64) float64 {
 // submitHashrateGHS reports GH/s from GPU search time (batch / kernelSec).
 // CUDA: dynamic EMA from measured kernel time; calibration is fallback only when timing is missing.
 // OpenCL: when timing is bogus (too slow), fall back to calibrated/declared so workers are not under-paid.
+// formulaVersion >= 3 (Blake3): never re-inflate from pre-Blake3 calib floors — report live wall rate.
 func submitHashrateGHS(batch uint64, searchSec float64, mode string) float64 {
-	inst := measureWorkerHashrateGHS(batch, searchSec)
+	return submitHashrateGHSForFormula(batch, searchSec, mode, 1)
+}
+
+func submitHashrateGHSForFormula(batch uint64, searchSec float64, mode string, formulaVersion int) float64 {
+	inst := measureWorkerHashrateGHSForFormula(batch, searchSec, formulaVersion)
 	kernelTimed := mode == "gpu" && gpuKernelTimingActive()
 	floor := gpuHashrateFloorGHS()
-	if gpuBackendConfigured() && mode == "gpu" && !kernelTimed {
+	blake3 := formulaVersion >= 3
+	if !blake3 && gpuBackendConfigured() && mode == "gpu" && !kernelTimed {
 		if inst < 2 && gpuCalibratedGHS > 0 {
 			inst = gpuCalibratedGHS
 		} else if inst < gpuCalibratedGHS*0.7 && gpuCalibratedGHS > 0 {
 			inst = gpuCalibratedGHS
 		}
-	} else if gpuBackendConfigured() && mode == "gpu" && kernelTimed && openclBackendConfigured() && !cudaBackendConfigured() {
+	} else if !blake3 && gpuBackendConfigured() && mode == "gpu" && kernelTimed && openclBackendConfigured() && !cudaBackendConfigured() {
 		// OpenCL-only: reject bogus slow wall/kernel timing; trust calibration/EMA.
 		if inst < 2 && gpuCalibratedGHS > 0 {
 			inst = gpuCalibratedGHS
 		} else if inst < gpuCalibratedGHS*0.7 && gpuCalibratedGHS > 0 {
 			inst = gpuCalibratedGHS
 		}
-	} else if cudaBackendConfigured() && kernelTimed && gpuCalibratedGHS > 0 && inst > gpuCalibratedGHS*2.5 {
+	} else if !blake3 && cudaBackendConfigured() && kernelTimed && gpuCalibratedGHS > 0 && inst > gpuCalibratedGHS*2.5 {
 		// Cap absurd over-report spikes; trust live measurement otherwise.
 		inst = gpuCalibratedGHS * 1.15
-	} else if cudaBackendConfigured() && kernelTimed && gpuCalibratedGHS > 10 && inst > 0 && inst < gpuCalibratedGHS*0.25 {
+	} else if !blake3 && cudaBackendConfigured() && kernelTimed && gpuCalibratedGHS > 10 && inst > 0 && inst < gpuCalibratedGHS*0.25 {
 		// Desktop GPU contention (browser/IDE): avoid pinning pool stats and coordinator
 		// rate limits to a one-off slow kernel sample.
 		contentionFloor := gpuCalibratedGHS * 0.55
@@ -726,7 +758,10 @@ func submitHashrateGHS(batch uint64, searchSec float64, mode string) float64 {
 		}
 	}
 	ghs := inst
-	if cudaBackendConfigured() && kernelTimed && inst > 0 {
+	if blake3 && inst > 0 {
+		// Blake3: always prefer live wall/device rate (no sticky pre-cliff EMA).
+		ghs = inst
+	} else if cudaBackendConfigured() && kernelTimed && inst > 0 {
 		// Prefer live measurement for pool payout; EMA is diagnostic only.
 		ghs = inst
 	} else if submitHashrateEMA > ghs {
@@ -734,11 +769,13 @@ func submitHashrateGHS(batch uint64, searchSec float64, mode string) float64 {
 	}
 	declared := envFloatGHS("HASHRATE_GHS", "HACKME_WORKER_HASHRATE_GHS", "HACKME_WORKER_DECLARED_HASHRATE_GHS")
 	if gpuBackendConfigured() {
-		if ghs <= 0 && gpuCalibratedGHS > 0 {
-			ghs = gpuCalibratedGHS
-		}
-		if floor > 0 && ghs > 0 && ghs < floor {
-			ghs = floor
+		if !blake3 {
+			if ghs <= 0 && gpuCalibratedGHS > 0 {
+				ghs = gpuCalibratedGHS
+			}
+			if floor > 0 && ghs > 0 && ghs < floor {
+				ghs = floor
+			}
 		}
 		if ghs > workerMeasureHashrateCapGHS {
 			return workerMeasureHashrateCapGHS
@@ -995,12 +1032,12 @@ func main() {
 		if searched > 0 && searched < hashBatch {
 			hashBatch = searched
 		}
-		instGHS := measureWorkerHashrateGHS(hashBatch, elapsed)
-		ghs := submitHashrateGHS(hashBatch, elapsed, mode)
+		instGHS := measureWorkerHashrateGHSForFormula(hashBatch, elapsed, fv)
+		ghs := submitHashrateGHSForFormula(hashBatch, elapsed, mode, fv)
 		if os.Getenv("HACKME_CUDA_VERBOSE") == "1" && mode == "gpu" {
 			kern := lastGPUKernelSeconds()
-			hotlog.VerboseStderrf("workerpoh: search_sec=%.6f kernel_sec=%.6f inst_ghs=%.2f submit_ghs=%.2f calib=%.2f",
-				elapsed, kern, instGHS, ghs, gpuCalibratedGHS)
+			hotlog.VerboseStderrf("workerpoh: search_sec=%.6f kernel_sec=%.6f fv=%d inst_ghs=%.2f submit_ghs=%.2f calib=%.2f",
+				elapsed, kern, fv, instGHS, ghs, gpuCalibratedGHS)
 		}
 		wasmGatePass := false
 		if found && strings.TrimSpace(cr.WasmCheckHex) != "" && strings.TrimSpace(cr.OrderTaskID) != "" {

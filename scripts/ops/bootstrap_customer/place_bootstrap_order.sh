@@ -112,20 +112,43 @@ CID_OUT="$(jq -r '.campaign_id // empty' <<<"$resp")"
 [[ -n "$CID_OUT" ]] || { log "FAIL create: $(cat "$LOG_DIR/${STAMP}-audit.json")"; exit 1; }
 log "created campaign=$CID_OUT order=$(jq -c '.order // {}' <<<"$resp") pool_sync=$(jq -r '.pool_sync // ""' <<<"$resp")"
 
-if [[ "$(jq -r '.pool_sync // ""' <<<"$resp")" == "queued" ]]; then
-  log "pool_sync queued — pushing to coordinator"
-  for attempt in 1 2 3 4 5; do
-    if CAMPAIGN_ID="$CID_OUT" bash "$(dirname "$0")/bootstrap_resync_pool.sh" >>"$LOG_DIR/${STAMP}.log" 2>&1; then
-      log "pool_sync ok attempt=$attempt"
-      break
+POOL_SYNC="$(jq -r '.pool_sync // ""' <<<"$resp")"
+case "$POOL_SYNC" in
+  ok|sync|synced) log "pool_sync already $POOL_SYNC — skip resync retries" ;;
+  queued|"")
+    log "pool_sync ${POOL_SYNC:-empty} — pushing to coordinator (bounded retries)"
+    sync_ok=0
+    for attempt in 1 2 3; do
+      if CAMPAIGN_ID="$CID_OUT" RESYNC_CURL_MAX_TIME=45 \
+        bash "$(dirname "$0")/bootstrap_resync_pool.sh" >>"$LOG_DIR/${STAMP}.log" 2>&1; then
+        log "pool_sync ok attempt=$attempt"
+        sync_ok=1
+        break
+      fi
+      log "pool_sync retry attempt=$attempt failed; sleep ${attempt}s"
+      sleep "$attempt"
+    done
+    if [[ "$sync_ok" -ne 1 ]]; then
+      log "WARN pool_sync still pending after retries — continuing (CREATE already succeeded)"
     fi
-    log "pool_sync retry attempt=$attempt failed; sleep ${attempt}s"
-    sleep "$attempt"
-  done
-fi
+    ;;
+  *)
+    log "WARN unexpected pool_sync=$POOL_SYNC — continuing (CREATE already succeeded)"
+    ;;
+esac
 
 export CAMPAIGN_ID="$CID_OUT"
 bash "$(dirname "$0")/bootstrap_snapshot.sh" "$STAMP" "post-create-${TARGET}" >>"$LOG_DIR/${STAMP}.log" 2>&1 || true
+
+# PLACE_ONLY=1: exit after create/resync (Dig bot / timers must not hang for hours).
+if [[ "${PLACE_ONLY:-0}" == "1" ]]; then
+  log "PLACE_ONLY=1 — done after create campaign=$CID_OUT"
+  jq -nc --arg target "$TARGET" --arg cid "$CID_OUT" --arg stamp "$STAMP" --arg oid "$OID" \
+    --argjson runs 0 --argjson poh 0 --arg verdict "placed" \
+    '{target:$target,campaign_id:$cid,order_id:$oid,stamp:$stamp,runs_done:$runs,poh_progress:$poh,verdict:$verdict}' \
+    >>"$INSTALL/logs/bootstrap/order_results.jsonl" || true
+  exit 0
+fi
 
 POLL_SEC="${POLL_SEC:-120}"
 MAX_WAIT="${MAX_WAIT:-7200}"

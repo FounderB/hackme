@@ -2509,6 +2509,13 @@ func applyCanonicalBlockEconomics(s *MetricsSnapshot, bh uint64) bool {
 		return false
 	}
 	s.BlockHeight = bh
+	// Followers with empty local tip still need tip_height + Blake3 formula for dashboards.
+	if s.TipHeight == 0 || bh > s.TipHeight {
+		s.TipHeight = bh
+	}
+	s.PoHFormulaVersion = chain.PoHFormulaVersionForIndex(bh + 1)
+	s.PoHFormula = chain.PoHFormulaLabelForIndex(bh + 1)
+	s.PoHActivationHeight = chain.PoHFormulaV3ActivationHeight()
 	s.EconNextHalvingBlock = chain.NextHalvingBlock(bh)
 	s.EconExpectedEmptyHmcHour = chain.ExpectedEmptyMiningHMCPerHour(bh)
 	s.EconBaseRewardNowHMC = chain.BaseRewardForBlockIndex(bh + 1)
@@ -2630,8 +2637,43 @@ func (a *app) overlayCanonicalMiningIntoSnapshot(ctx context.Context, s *Metrics
 	}
 	if bh := asUint64(remote["block_height"]); bh > 0 {
 		s.BlockHeight = bh
+		if s.TipHeight == 0 || bh > s.TipHeight {
+			s.TipHeight = bh
+		}
 		sched = true
 		out = true
+	}
+	if th := asUint64(remote["tip_height"]); th > 0 {
+		if s.TipHeight == 0 || th > s.TipHeight {
+			s.TipHeight = th
+		}
+		if s.BlockHeight == 0 || th > s.BlockHeight {
+			s.BlockHeight = th
+		}
+		sched = true
+		out = true
+	}
+	if tipHash := strings.TrimSpace(asString(remote["tip_hash"])); tipHash != "" {
+		s.TipHash = tipHash
+		out = true
+	}
+	if fv := asInt64(remote["poh_formula_version"]); fv > 0 && fv <= 1<<31-1 {
+		s.PoHFormulaVersion = int(fv)
+		out = true
+	} else if s.TipHeight > 0 {
+		s.PoHFormulaVersion = chain.PoHFormulaVersionForIndex(s.TipHeight + 1)
+	}
+	if f := strings.TrimSpace(asString(remote["poh_formula"])); f != "" {
+		s.PoHFormula = f
+		out = true
+	} else if s.TipHeight > 0 {
+		s.PoHFormula = chain.PoHFormulaLabelForIndex(s.TipHeight + 1)
+	}
+	if act := asUint64(remote["poh_activation_height"]); act > 0 {
+		s.PoHActivationHeight = act
+		out = true
+	} else {
+		s.PoHActivationHeight = chain.PoHFormulaV3ActivationHeight()
 	}
 	if obs := canonicalMiningObservedSec(remote); obs > 0 {
 		s.MiningObservedBlockSec = obs
@@ -2641,6 +2683,10 @@ func (a *app) overlayCanonicalMiningIntoSnapshot(ctx context.Context, s *Metrics
 		s.EconNextHalvingBlock = chain.NextHalvingBlock(s.BlockHeight)
 		s.EconExpectedEmptyHmcHour = chain.ExpectedEmptyMiningHMCPerHour(s.BlockHeight)
 		s.EconBaseRewardNowHMC = chain.BaseRewardForBlockIndex(s.BlockHeight + 1)
+		if s.PoHFormulaVersion <= 0 && s.TipHeight > 0 {
+			s.PoHFormulaVersion = chain.PoHFormulaVersionForIndex(s.TipHeight + 1)
+			s.PoHFormula = chain.PoHFormulaLabelForIndex(s.TipHeight + 1)
+		}
 		if strings.TrimSpace(s.MiningTaskSource) != chain.TaskSourceOrder {
 			s.MiningRewardHMC = s.EconBaseRewardNowHMC
 		}

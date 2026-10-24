@@ -96,10 +96,12 @@ TOK="$(jq -r '.customer_report_token // empty' <<<"$resp")"
 [[ -n "$CID_OUT" ]] || { log "FAIL no campaign id"; exit 1; }
 log "created campaign=$CID_OUT pool_sync=$(jq -r '.pool_sync // ""' <<<"$resp")"
 
-if [[ "$(jq -r '.pool_sync // ""' <<<"$resp")" == "queued" ]]; then
-  log "pool_sync queued — resync"
-  export BOOTSTRAP_INSTALL="$INSTALL" CAMPAIGN_ID="$CID_OUT"
-  bash "$(dirname "$0")/bootstrap_resync_pool.sh" >>"$LOG_DIR/${STAMP}.log" 2>&1 || true
+POOL_SYNC="$(jq -r '.pool_sync // ""' <<<"$resp")"
+if [[ "$POOL_SYNC" == "queued" || -z "$POOL_SYNC" ]]; then
+  log "pool_sync ${POOL_SYNC:-empty} — bounded resync"
+  export BOOTSTRAP_INSTALL="$INSTALL" CAMPAIGN_ID="$CID_OUT" RESYNC_CURL_MAX_TIME=45
+  bash "$(dirname "$0")/bootstrap_resync_pool.sh" >>"$LOG_DIR/${STAMP}.log" 2>&1 || \
+    log "WARN pool_resync failed — CREATE already succeeded"
 fi
 
 deadline=$(( $(date +%s) + MAX_WAIT ))

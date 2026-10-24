@@ -82,13 +82,20 @@ echo "$resp" | jq -c '{ok,id:(.campaign.id//.id),pool_sync,err:(.error//.code//.
 cid_out="$(echo "$resp" | jq -r '.campaign.id // .id // empty')"
 [[ -n "$cid_out" ]] || exit 1
 
-# Best-effort resync + progress peek (non-fatal).
-if [[ -x "$INSTALL/scripts/bootstrap_customer/bootstrap_resync_pool.sh" ]]; then
-  CAMPAIGN_ID="$cid_out" bash "$INSTALL/scripts/bootstrap_customer/bootstrap_resync_pool.sh" \
-    >>"$LOG_DIR/${CID}.resync.log" 2>&1 || true
+# Best-effort resync + progress peek (non-fatal). Prefer repo script (has curl --max-time).
+RESYNC="$(dirname "$0")/bootstrap_resync_pool.sh"
+if [[ ! -x "$RESYNC" && -x "$INSTALL/scripts/bootstrap_customer/bootstrap_resync_pool.sh" ]]; then
+  RESYNC="$INSTALL/scripts/bootstrap_customer/bootstrap_resync_pool.sh"
 fi
-for i in 1 2 3 4 5; do
-  prog="$(curl -fsS --max-time 20 -H "X-Hackme-Admin-Token: ${COORD_POLL_TOKEN}" "$COORD/api/fuzz/pool/campaigns/progress?id=${cid_out}" 2>/dev/null || echo '{}')"
+POOL_SYNC="$(echo "$resp" | jq -r '.pool_sync // empty')"
+if [[ "$POOL_SYNC" == "queued" || -z "$POOL_SYNC" ]]; then
+  if [[ -x "$RESYNC" ]]; then
+    CAMPAIGN_ID="$cid_out" RESYNC_CURL_MAX_TIME=45 bash "$RESYNC" \
+      >>"$LOG_DIR/${CID}.resync.log" 2>&1 || true
+  fi
+fi
+for i in 1 2 3; do
+  prog="$(curl -fsS --max-time 15 -H "X-Hackme-Admin-Token: ${COORD_POLL_TOKEN}" "$COORD/api/fuzz/pool/campaigns/progress?id=${cid_out}" 2>/dev/null || echo '{}')"
   if echo "$prog" | jq -e '.ok==true' >/dev/null 2>&1; then
     echo "$prog" | jq -c '{ok,id,status,runs_done,budget_runs,title}'
     exit 0

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"hackme/internal/chain"
@@ -82,5 +83,21 @@ func TestOverlayCanonicalMiningSkipsSelfNode(t *testing.T) {
 	// Must not attempt outbound /api/metrics to self (would deadlock).
 	if a.overlayCanonicalMiningIntoSnapshot(context.Background(), s) {
 		t.Fatal("command hub must skip canonical metrics overlay")
+	}
+}
+
+func TestApplyCanonicalBlockEconomicsSetsBlake3Formula(t *testing.T) {
+	s := &MetricsSnapshot{PoHFormulaVersion: 1, TipHeight: 0}
+	if !applyCanonicalBlockEconomics(s, 485_000) {
+		t.Fatal("expected overlay apply")
+	}
+	if s.TipHeight != 485_000 {
+		t.Fatalf("tip_height=%d", s.TipHeight)
+	}
+	if s.PoHFormulaVersion != 3 {
+		t.Fatalf("poh_formula_version=%d want 3", s.PoHFormulaVersion)
+	}
+	if !strings.Contains(s.PoHFormula, "blake3") {
+		t.Fatalf("poh_formula=%q", s.PoHFormula)
 	}
 }

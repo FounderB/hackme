@@ -917,10 +917,6 @@ func (m *workManager) prefetchTargetMod(now int64) {
 	if now-m.targetLastAt < m.targetEvery && !snap.HasMod && !snap.HasBase && snap.TipHash == "" {
 		return
 	}
-	if snap.HasMod {
-		m.storeChainPoHMod(snap.Mod)
-		m.applyChainTargetMod(snap.Mod, now)
-	}
 	if snap.HasBase {
 		m.baseRewardHMC = snap.BaseRewardHMC
 	}
@@ -944,6 +940,11 @@ func (m *workManager) prefetchTargetMod(now int64) {
 	} else {
 		m.pohActivationHeight = chain.PoHFormulaV3ActivationHeight()
 	}
+	// Apply chain M after tip/formula so Blake3 track-chain engages on first prefetch.
+	if snap.HasMod {
+		m.storeChainPoHMod(snap.Mod)
+		m.applyChainTargetMod(snap.Mod, now)
+	}
 	if rewardAuto && m.targetMod > 0 && m.baseRewardHMC > 0 {
 		m.rewardPerM = (m.baseRewardHMC * 1_000_000.0) / float64(m.targetMod)
 		if m.rewardPerM < 0 {
@@ -957,7 +958,24 @@ func (m *workManager) applyChainTargetMod(parsed uint64, now int64) {
 	if parsed == 0 {
 		return
 	}
-	// Pool auto-retarget owns M once seeded; chain solo M (251) must not reset it.
+	// After Blake3 v3 activation, pool M tracks chain mining_target_mod so finds
+	// remain solvable on-chain and load retarget cannot pin at target_mod_max.
+	if m.tracksChainTargetModLocked() {
+		next := m.clampTargetMod(parsed)
+		if next != m.targetMod {
+			m.targetMod = next
+			m.targetModUpdatedUnix = now
+			persistPoolTargetMod(next)
+			if m.rewardAuto && m.baseRewardHMC > 0 {
+				m.rewardPerM = (m.baseRewardHMC * 1_000_000.0) / float64(m.targetMod)
+				if m.rewardPerM < 0 {
+					m.rewardPerM = 0
+				}
+			}
+		}
+		return
+	}
+	// Pre-v3: pool auto-retarget owns M once seeded; chain solo M (251) must not reset it.
 	if m.poolRetarget && m.targetMod > 0 {
 		return
 	}
@@ -970,6 +988,22 @@ func (m *workManager) applyChainTargetMod(parsed uint64, now int64) {
 		m.targetMod = m.clampTargetMod(parsed)
 		m.targetModUpdatedUnix = now
 	}
+}
+
+// tracksChainTargetModLocked is true when Blake3 v3 is active (formula or tip).
+// Caller must hold m.mu.
+func (m *workManager) tracksChainTargetModLocked() bool {
+	if m.pohFormulaVersion >= 3 {
+		return true
+	}
+	act := m.pohActivationHeight
+	if act == 0 {
+		act = chain.PoHFormulaV3ActivationHeight()
+	}
+	if m.tipHeight > 0 && m.tipHeight+1 >= act {
+		return true
+	}
+	return false
 }
 
 // maxWorkerHashrateGHS caps reported/wall GH/s used for billing EMA and pool retarget.
@@ -992,6 +1026,13 @@ func clampWorkerHashrateGHS(ghs float64) float64 {
 
 // workerHashrateGHSForSubmit prefers reported GH/s when consistent with lease wall time.
 func workerHashrateGHSForSubmit(reported float64, batch uint64, issuedAt, now int64, last float64) float64 {
+	return workerHashrateGHSForSubmitFormula(reported, batch, issuedAt, now, last, 1)
+}
+
+// workerHashrateGHSForSubmitFormula clamps over-reported GH/s to lease wall rate.
+// formulaVersion >= 3 (Blake3): never trust calibration spikes above wall — host Blake3
+// is often << legacy GPU calib, and fast claim→submit with stale GH/s inflated pool M.
+func workerHashrateGHSForSubmitFormula(reported float64, batch uint64, issuedAt, now int64, last float64, formulaVersion int) float64 {
 	wallGH := 0.0
 	wall := 0.0
 	if issuedAt > 0 && batch > 0 {
@@ -1003,6 +1044,12 @@ func workerHashrateGHSForSubmit(reported float64, batch uint64, issuedAt, now in
 	}
 	rep := clampWorkerHashrateGHS(reported)
 	if rep > 0 {
+		if formulaVersion >= 3 {
+			if wallGH > 0 && rep > wallGH*1.5 {
+				return wallGH
+			}
+			return rep
+		}
 		// Fast GPU cycles (claim→submit <1s) legitimately report calibration GH/s above batch/wall.
 		if wallGH > 0 && wall >= 1.0 && rep > wallGH*2.5 {
 			return wallGH
@@ -1020,6 +1067,9 @@ func workerHashrateGHSForSubmit(reported float64, batch uint64, issuedAt, now in
 
 func (m *workManager) maybeRetargetPoolMod(now int64) {
 	if !m.poolRetarget {
+		return
+	}
+	if m.tracksChainTargetModLocked() {
 		return
 	}
 	if m.lastFoundHitUnix > 0 {
@@ -1093,6 +1143,9 @@ func (m *workManager) maybeEasePoolModOnStallLocked(now int64) {
 	if !m.poolRetarget {
 		return
 	}
+	if m.tracksChainTargetModLocked() {
+		return
+	}
 	// A recent accepted found means the gate is solvable — not stalled.
 	if m.lastFoundHitUnix > 0 && now-m.lastFoundHitUnix < poolStallEaseFoundGapSec {
 		return
@@ -1141,6 +1194,9 @@ func (m *workManager) maybeRetargetPoolLoad(now int64, poolGH float64, miners in
 // maybeRetargetPoolLoadLocked is maybeRetargetPoolLoad; caller must hold m.mu.
 func (m *workManager) maybeRetargetPoolLoadLocked(now int64, poolGH float64, miners int) {
 	if !m.poolRetarget || poolGH < 0.01 {
+		return
+	}
+	if m.tracksChainTargetModLocked() {
 		return
 	}
 	if m.lastPoolRetargetUnix > 0 && now-m.lastPoolRetargetUnix < m.poolRetargetMinSec {
@@ -2381,7 +2437,11 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	}
 	attempts := attemptsPre
 	reportedGH := clampWorkerHashrateGHS(req.HashrateGHS)
-	rawGH := workerHashrateGHSForSubmit(reportedGH, req.BatchSize, issuedAt, now, m.worker[req.WorkerID].LastHashrateGHS)
+	leaseFV := rec.FormulaVersion
+	if leaseFV <= 0 {
+		leaseFV = m.resolvedPoHFormulaVersionLocked()
+	}
+	rawGH := workerHashrateGHSForSubmitFormula(reportedGH, req.BatchSize, issuedAt, now, m.worker[req.WorkerID].LastHashrateGHS, leaseFV)
 	gh := smoothWorkerHashrateGHS(m.worker[req.WorkerID].LastHashrateGHS, rawGH)
 	if req.Found && reportedGH <= 0 {
 		gh = 0
@@ -3022,6 +3082,14 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 	out["pool_hashrate_gh_s"] = poolGHStat
 	out["hashrate"] = poolGHStat * 1e9
 	out["hashrate_hs"] = poolGHStat * 1e9
+	// Honesty label: after Blake3, pool_hashrate_gh_s is PoW attempt throughput (hashes/s / 1e9),
+	// not legacy 7n+13 GPU calib. UI should not treat pre-v3 static 50–80 GH/s as Blake3 truth.
+	if m.pohFormulaVersion >= 3 || (m.tipHeight > 0 && m.tipHeight+1 >= chain.PoHFormulaV3ActivationHeight()) {
+		out["pool_hashrate_kind"] = "blake3_pow_ghs"
+		out["pool_hashrate_note"] = "Blake3 PoW throughput (wall-timed); not legacy eval calib"
+	} else {
+		out["pool_hashrate_kind"] = "eval_pow_ghs"
+	}
 	if m.poolGHSmoothed > poolGHStat {
 		out["pool_hashrate_gh_s_smoothed"] = m.poolGHSmoothed
 	}

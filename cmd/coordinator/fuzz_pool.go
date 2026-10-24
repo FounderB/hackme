@@ -679,44 +679,44 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": reasonSeen})
 			return
 		}
-		work, ok, err := pf.Claim(r.Context(), workerID, now)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		huntCapable := poolfuzz.HuntHarnessCapable(req.HuntHarnessExec)
+		var work poolfuzz.ClaimedWork
+		var ok bool
+		var err error
+		// Dig-only workers must not sticky-lease Hunt shards then 403 — skip/retry for Dig.
+		for try := 0; try < 8; try++ {
+			work, ok, err = pf.Claim(r.Context(), workerID, now)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if !ok {
+				break
+			}
+			isHunt := work.TaskClass == "hunt" || work.WorkKind == "hunt_shard"
+			if isHunt && !huntCapable {
+				_, _ = pf.ReleaseWorkLease(r.Context(), work.CampaignID, work.ItemID, workerID)
+				if try == 0 {
+					wm.recordDrop("worker_outdated_for_hunt")
+				}
+				ok = false
+				continue
+			}
+			if isHunt {
+				if soft, reason := applyHuntEngineClaimGate(&work, req.HuntEngines); soft {
+					_, _ = pf.ReleaseWorkLease(r.Context(), work.CampaignID, work.ItemID, workerID)
+					wm.recordDrop(reason)
+					ok = false
+					continue
+				}
+			}
+			break
 		}
 		if !ok {
 			wm.recordDrop("no_fuzz_work")
 			w.WriteHeader(http.StatusTooManyRequests)
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "reason": "no_fuzz_work"})
 			return
-		}
-		isHunt := work.TaskClass == "hunt" || work.WorkKind == "hunt_shard"
-		if isHunt && !poolfuzz.HuntHarnessCapable(req.HuntHarnessExec) {
-			_, _ = pf.ReleaseWorkLease(r.Context(), work.CampaignID, work.ItemID, workerID)
-			wm.recordDrop("worker_outdated_for_hunt")
-			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"ok":                false,
-				"reason":            "worker_outdated_for_hunt",
-				"need_hunt_harness": poolfuzz.HuntHarnessLibFuzzerOneshot,
-				"got_hunt_harness":  strings.TrimSpace(req.HuntHarnessExec),
-				"hint":              "rebuild/redeploy workerfuzz with libFuzzer one-shot RunInputDetailed",
-			})
-			return
-		}
-		if isHunt {
-			if soft, reason := applyHuntEngineClaimGate(&work, req.HuntEngines); soft {
-				_, _ = pf.ReleaseWorkLease(r.Context(), work.CampaignID, work.ItemID, workerID)
-				wm.recordDrop(reason)
-				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				w.WriteHeader(http.StatusTooManyRequests)
-				_ = json.NewEncoder(w).Encode(map[string]any{
-					"ok": false, "reason": reason, "hunt_engine": work.HuntEngine,
-					"hint": "install Hunt engines (clang/libFuzzer or bundled afl-fuzz) or advertise hunt_engines=byte",
-				})
-				return
-			}
 		}
 		// Bind payout lock only after a fully successful claim (not on no_fuzz_work /
 		// rate-limit / harness reject — those must not squat an unlocked id).

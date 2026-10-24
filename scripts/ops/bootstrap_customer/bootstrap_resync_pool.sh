@@ -48,7 +48,9 @@ con.close()
 PY
   cid="$(jq -r '.id' <<<"$body")"
   echo "[bootstrap-resync] POST $cid"
-  code="$(curl -sS -o /tmp/bootstrap-resync-out.json -w '%{http_code}' -X POST "$COORD/api/fuzz/pool/campaigns" \
+  # Bound wait: coordinator campaign create can stall; never hang the Dig place bot.
+  code="$(curl -sS --connect-timeout 10 --max-time "${RESYNC_CURL_MAX_TIME:-45}" \
+    -o /tmp/bootstrap-resync-out.json -w '%{http_code}' -X POST "$COORD/api/fuzz/pool/campaigns" \
     -H "Content-Type: application/json" \
     -H "X-Hackme-Admin-Token: $COORD_ADMIN" \
     -d "$body" || true)"

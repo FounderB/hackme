@@ -999,6 +999,40 @@ func TestRefreshTargetModDoesNotDowngradePoolRetargetM(t *testing.T) {
 	}
 }
 
+func TestApplyChainTargetModTracksChainAfterBlake3(t *testing.T) {
+	t.Setenv("HACKME_COORDINATOR_TARGET_MOD_FILE", filepath.Join(t.TempDir(), "coordinator_target_mod.txt"))
+	wm := &workManager{
+		targetMod:           900_000_000,
+		poolRetarget:        true,
+		pohFormulaVersion:   3,
+		tipHeight:           485_000,
+		pohActivationHeight: 485_000,
+		rewardAuto:          true,
+		baseRewardHMC:       0.01,
+		targetModMin:        poolTargetModMin,
+		targetModMax:        poolTargetModMax,
+	}
+	wm.applyChainTargetMod(23_000_000, time.Now().Unix())
+	if wm.targetMod != 23_000_000 {
+		t.Fatalf("v3 pool M must track chain, got %d", wm.targetMod)
+	}
+}
+
+func TestWorkerHashrateGHSForSubmitFormulaBlake3ClampsToWall(t *testing.T) {
+	now := int64(1_000_000)
+	issued := now - 2
+	// Reported 80 GH/s but wall for 4e6 batch / 2s ≈ 0.002 GH/s — must trust wall on v3.
+	got := workerHashrateGHSForSubmitFormula(80.0, 4_000_000, issued, now, 0, 3)
+	if got > 0.01 {
+		t.Fatalf("blake3 must clamp to wall GH/s, got %v", got)
+	}
+	// Pre-v3 still allows fast-cycle calib trust when wall < 1s.
+	gotV1 := workerHashrateGHSForSubmitFormula(80.0, 4_000_000, now, now, 0, 1)
+	if gotV1 < 50 {
+		t.Fatalf("v1 fast cycle may keep reported calib, got %v", gotV1)
+	}
+}
+
 func TestPoolMinerCountBoostScalesManyMiners(t *testing.T) {
 	if poolMinerCountBoost(1) != 1.0 {
 		t.Fatalf("single miner boost want 1.0")
