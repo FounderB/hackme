@@ -269,9 +269,15 @@ func newWorkManagerFromEnv() *workManager {
 			batch = x
 		}
 	}
+	// Blake3 CUDA burns multi-GH/s; 16M leases (batch×4 with 4M default) make pool
+	// credit RTT-bound (~0.2–0.4 GH/s). Floor max claim at 64M (GPU maxBatch) unless env overrides.
 	maxClaim := batch * 4
 	if maxClaim < batch {
 		maxClaim = batch
+	}
+	const blake3FriendlyMaxClaim = uint64(1 << 26) // 64M — matches gpupoh maxBatch
+	if maxClaim < blake3FriendlyMaxClaim {
+		maxClaim = blake3FriendlyMaxClaim
 	}
 	if v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_MAX_CLAIM_BATCH")); v != "" {
 		if x, err := strconv.ParseUint(v, 10, 64); err == nil && x >= 1000 {

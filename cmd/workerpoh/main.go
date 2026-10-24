@@ -333,14 +333,29 @@ func workerClaimCooldownMS(mode string) int {
 	return ms
 }
 
-// effectiveClaimCooldownMS aligns worker pacing with coordinator per-GH rate caps (~2/min when gh < 1).
+// effectiveClaimCooldownMS aligns worker pacing with coordinator per-GH rate caps.
+// Blake3 LIVE wall samples are often 0.1–0.4 GH/s while the GPU kernel itself is
+// multi-GH/s — the old 25s floor on ghs<1 starved SM occupancy and made pool credit
+// look like a dead card. Only apply a mild sub-GH floor when kernel timing is also slow
+// (or missing) so pre-Blake3 CPU hammers still back off.
 func effectiveClaimCooldownMS(mode string, ghs float64) int {
 	ms := workerClaimCooldownMS(mode)
-	if mode == "gpu" && ghs > 0 && ghs < 1.0 {
-		const subGHMin = 25000
-		if ms < subGHMin {
-			return subGHMin
-		}
+	if mode != "gpu" || !(ghs > 0 && ghs < 1.0) {
+		return ms
+	}
+	// Fast Blake3 CUDA/OpenCL kernels: trust the short anti-hammer cooldown only.
+	if k := lastGPUKernelSeconds(); k > 0 && k < 0.05 {
+		return ms
+	}
+	if gpuKernelTimingActive() {
+		return ms
+	}
+	subGHMin := envIntMs("HACKME_WORKER_SUBGH_COOLDOWN_MS", 500)
+	if subGHMin <= 0 {
+		return ms
+	}
+	if ms < subGHMin {
+		return subGHMin
 	}
 	return ms
 }

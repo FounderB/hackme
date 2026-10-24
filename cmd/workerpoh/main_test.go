@@ -86,6 +86,26 @@ func TestEnvIntPositive(t *testing.T) {
 	}
 }
 
+func TestEffectiveClaimCooldownBlake3FastKernel(t *testing.T) {
+	t.Setenv("HACKME_WORKER_CLAIM_COOLDOWN_MS", "100")
+	t.Setenv("HACKME_WORKER_SUBGH_COOLDOWN_MS", "25000")
+	// ghs<1 would previously force 25s; with no kernel timing, mild floor applies.
+	got := effectiveClaimCooldownMS("gpu", 0.3)
+	if got < 100 || got > 25000 {
+		t.Fatalf("slow/missing kernel path: got %d", got)
+	}
+	// Explicit 0 disables sub-GH floor.
+	t.Setenv("HACKME_WORKER_SUBGH_COOLDOWN_MS", "0")
+	if got := effectiveClaimCooldownMS("gpu", 0.3); got != 100 {
+		t.Fatalf("subgh disabled: got %d want 100", got)
+	}
+	// High reported GH/s never hits sub-GH floor.
+	t.Setenv("HACKME_WORKER_SUBGH_COOLDOWN_MS", "25000")
+	if got := effectiveClaimCooldownMS("gpu", 6.0); got != 100 {
+		t.Fatalf("multi-GH/s: got %d want 100", got)
+	}
+}
+
 func TestSubmitHashrateBlake3OmitsStickyCalibEMA(t *testing.T) {
 	// Simulate pre-Blake3 FORCE/calib still sitting in EMA; fv≥3 must report wall only.
 	prevEMA := submitHashrateEMA

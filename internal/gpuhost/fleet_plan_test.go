@@ -14,7 +14,7 @@ func TestSlotForGPURTX5060Profile(t *testing.T) {
 	if s.RigProfileID != "nvidia_rtx_50_daily" {
 		t.Fatalf("profile: %q", s.RigProfileID)
 	}
-	if s.Env["HACKME_WORKER_BATCH_SIZE"] != "16777216" {
+	if s.Env["HACKME_WORKER_BATCH_SIZE"] != "67108864" {
 		t.Fatalf("batch: %q", s.Env["HACKME_WORKER_BATCH_SIZE"])
 	}
 }
