@@ -49,8 +49,9 @@ Method: tip ≥#485000, `pool_hashrate_kind=blake3_pow_ghs`, SHARE_STRICT PPS, a
 
 ## Next fills
 
-1. RDNA (6800/7800) burn + pool fill.  
-2. Windows CUDA/OpenCL smoke.
+1. **Windows** CUDA/OpenCL smoke.  
+2. Economy / RCF pass (after Windows).  
+3. Other AMD SKUs only when a real burn exists — do not invent RX 6000/7000 rows.
 
 ```bash
 bash scripts/vast/build_blake3_pack.sh   # bundles libnvrtc.so.12 for CUDA13 images
