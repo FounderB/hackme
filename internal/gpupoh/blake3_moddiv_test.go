@@ -3,7 +3,9 @@ package gpupoh
 import "testing"
 
 func TestBlake3ModDivMatchesPercent(t *testing.T) {
-	mods := []uint64{1, 2, 3, 97, 1_000_003, 20_618_406, 1 << 20, (1 << 20) + 1, 7 << 3}
+	// Include lease-scaled share mods (~batch/32 up to multi-GB) used by SHARE_STRICT PPS.
+	mods := []uint64{1, 2, 3, 97, 1_000_003, 20_618_406, 1 << 20, (1 << 20) + 1, 7 << 3,
+		1 << 29, (1 << 30) + 16, 2 << 30, (64 << 30) / 32}
 	for _, mod := range mods {
 		d, ok := prepareBlake3ModDiv(mod)
 		if !ok {

@@ -160,7 +160,7 @@ func validateShareNonces(shares []uint64, base, batch, shareMod uint64, formulaV
 	}
 	for _, n := range shares {
 		if len(accepted) >= maxSharesPerSubmit {
-			rejected += len(shares) - len(accepted) - rejected
+			// Drop extras without counting them as PoH rejects (cap is not a bad share).
 			break
 		}
 		if _, ok := seen[n]; ok {

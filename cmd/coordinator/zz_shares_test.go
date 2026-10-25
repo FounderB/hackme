@@ -35,6 +35,29 @@ func TestValidateShareNoncesV1(t *testing.T) {
 	}
 }
 
+func TestValidateShareNoncesCapDoesNotInflateRejects(t *testing.T) {
+	mod := uint64(997)
+	sm := shareModFor(mod, 1024)
+	base := uint64(0)
+	batch := uint64(2_000_000)
+	var hits []uint64
+	for n := base; n < base+batch && len(hits) < maxSharesPerSubmit+40; n++ {
+		if chain.PohEval(n)%sm == 0 {
+			hits = append(hits, n)
+		}
+	}
+	if len(hits) < maxSharesPerSubmit+10 {
+		t.Fatalf("need many share hits, got %d", len(hits))
+	}
+	ok, rej := validateShareNonces(hits, base, batch, sm, 1, "", "")
+	if len(ok) != maxSharesPerSubmit {
+		t.Fatalf("accepted=%d want %d", len(ok), maxSharesPerSubmit)
+	}
+	if rej != 0 {
+		t.Fatalf("cap drop must not count as PoH rejects, got rej=%d", rej)
+	}
+}
+
 func TestSoftShareKeepsAttemptPay(t *testing.T) {
 	wm := withTestTip(&workManager{
 		defaultBatch:         10_000,

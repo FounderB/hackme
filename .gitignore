@@ -116,3 +116,4 @@ web/site/assets/*.bakcheck
 *.swp
 .DS_Store
 Thumbs.db
+.venv-vast/

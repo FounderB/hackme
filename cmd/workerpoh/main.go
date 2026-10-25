@@ -73,6 +73,7 @@ type claimResp struct {
 	ShareMod            uint64  `json:"share_mod,omitempty"`
 	ShareStrict         bool    `json:"share_strict,omitempty"`
 	ShareScanMax        uint64  `json:"share_scan_max,omitempty"`
+	LeaseExpiresAt      int64   `json:"lease_expires_at,omitempty"`
 }
 
 type submitReq struct {
@@ -1041,6 +1042,14 @@ func main() {
 		}
 		// Chunked search: for GPU we keep each call bounded; for CPU this is one pass.
 		// Shares are harvested during the same hash pass (GPU kernel / host Blake3SearchCollect).
+		leaseDeadline := time.Time{}
+		if cr.LeaseExpiresAt > 0 {
+			// Leave 2s for submit/sign RTT so we don't burn expired leases.
+			leaseDeadline = time.Unix(cr.LeaseExpiresAt-2, 0)
+		}
+		pastLease := func() bool {
+			return !leaseDeadline.IsZero() && time.Now().After(leaseDeadline)
+		}
 		if mode == "gpu" {
 			remain := cr.BatchSize
 			cur := cr.BaseNonce
@@ -1049,6 +1058,10 @@ func main() {
 				chunk = 1024
 			}
 			for remain > 0 {
+				if pastLease() {
+					hotlog.Stderrf("workerpoh: lease deadline near — submit with %d shares searched=%d", len(collectedShares), searched)
+					break
+				}
 				n := chunk
 				if n > remain {
 					n = remain
@@ -1057,6 +1070,16 @@ func main() {
 				elapsed += sec
 				searched += n
 				mergeShares(res.Shares)
+				// Enough shares for PPS — don't burn the rest of a huge lease into expiry.
+				if cr.ShareMod > 0 && len(collectedShares) >= 32 {
+					if found || !cr.ShareStrict {
+						break
+					}
+					// Still hunting a block hit is optional; prefer timely submit under strict.
+					if len(collectedShares) >= 64 {
+						break
+					}
+				}
 				if err != nil {
 					// On transient GPU errors, fallback to CPU for this claim (preserve session; log for coordinator tail).
 					class := gputune.ClassifyGPUFailure(err)
@@ -1137,14 +1160,25 @@ func main() {
 			HashrateGHS: ghs,
 		}
 		if cr.ShareMod > 0 {
-			// Prefer shares from the main hash pass. Legacy CPU stride only if none found
-			// and coordinator still advertises a soft scan budget (share_scan_max > 0).
+			// Prefer shares from the main hash pass. Never submit a block-found nonce as a
+			// share unless it also satisfies share_mod (otherwise share_rejects inflate).
 			if len(collectedShares) > 0 {
+				if len(collectedShares) > 128 {
+					collectedShares = collectedShares[:128]
+				}
 				out.ShareNonces = collectedShares
 			} else if cr.ShareScanMax > 0 {
 				out.ShareNonces = collectShareNonces(cr.BaseNonce, cr.BatchSize, cr.ShareMod, fv, cr.PrevHash, minerForPoH, 128, foundNonce, found, cr.ShareScanMax)
 			} else if found {
-				out.ShareNonces = []uint64{foundNonce}
+				var work uint64
+				if fv >= 3 {
+					work = chain.PohWorkBlake3(cr.PrevHash, minerForPoH, foundNonce)
+				} else {
+					work = chain.PohEval(foundNonce)
+				}
+				if work%cr.ShareMod == 0 {
+					out.ShareNonces = []uint64{foundNonce}
+				}
 			}
 		}
 		if strings.TrimSpace(cr.OrderTaskID) != "" {

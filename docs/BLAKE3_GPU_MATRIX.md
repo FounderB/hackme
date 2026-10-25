@@ -60,7 +60,22 @@ HMC accrual ≠ chain block subsidy. Soft attempt-pay is treasury-backed; keep `
 
 ## Next fills (order)
 
-1. Re-rent Vast 5090 / 4090 under new GH/s + rpm.  
-2. Multi-GPU: 2× then **4×**.  
-3. AMD after OpenCL Blake3 device kernel.  
-4. Windows CUDA/OpenCL smoke.
+1. **2× RTX 4070 Ti Super** — `bash scripts/vast/rent_blake3_matrix.sh search "RTX 4070 Ti Super" 2` (needs `VAST_API_KEY`).  
+2. Re-rent 5090 / 4090 under inline share-PPS + honest wall GH.  
+3. Multi-GPU: 2× then **4×** (one `workerpoh-cuda` per GPU, `WORKER_ID=…-gpuN`).  
+4. AMD after OpenCL Blake3 device kernel.  
+5. Windows CUDA/OpenCL smoke.
+
+### Operator pack
+
+```bash
+# API key once:
+#   mkdir -p .secrets/vast && chmod 700 .secrets/vast
+#   printf '%s' "$VAST_API_KEY" > .secrets/vast/vast_api_key && chmod 600 .secrets/vast/vast_api_key
+
+bash scripts/vast/build_blake3_pack.sh
+bash scripts/vast/rent_blake3_matrix.sh search "RTX 4070 Ti Super" 2
+# rent <offer_id> … then scp dist/vast-blake3-pack.tar.gz + env.vast onto the box
+```
+
+**Stability (2026-10-25):** shares harvested in-kernel; bootstrap lease 512M; lease deadline abort; do not submit block-found as share unless `work%share_mod==0`; over-cap shares no longer inflate `share_rejects`.
