@@ -1094,15 +1094,17 @@ func workerHashrateGHSForSubmitFormulaMs(reported float64, batch uint64, issuedA
 			if wallGH > 0 && wall >= 1.0 && rep > wallGH*1.5 {
 				return wallGH
 			}
-			// Fast claim→submit (RTT-bound): trust device burn for UI; only cut absurd cheats.
-			if wallGH > 0 && wall < 1.0 {
-				cheat := 100.0
-				if issuedAtMs > 0 {
-					cheat = 50.0
+			// Fast claim→submit is RTT-bound (Vast often 100–300ms). wallGH for a
+			// 64M lease at 150ms is ~0.4 — must NOT clamp real 25–35 GH/s device burn.
+			// Trust reported up to the global device cap; only reject fantasy >2×cap.
+			if wall < 1.0 {
+				if rep > maxWorkerHashrateGHS*2 {
+					if wallGH > 0 {
+						return wallGH
+					}
+					return maxWorkerHashrateGHS
 				}
-				if rep > wallGH*cheat {
-					return wallGH
-				}
+				return rep
 			}
 			return rep
 		}

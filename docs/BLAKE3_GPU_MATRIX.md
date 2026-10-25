@@ -29,7 +29,8 @@ Method: tip ≥#485000, `pool_hashrate_kind=blake3_pow_ghs`, lease up to 64M, KE
 | Series | Config | Worker / rig | Burn GH/s | Pool GH/s | Util % | HMC/h est | Settle | Backend | Verdict | Notes |
 |--------|--------|--------------|-----------|-----------|--------|-----------|--------|---------|---------|-------|
 | **50xx** | 1× RTX 5060 Ti | `worker-kapa-pc` | **~5–7.8** | **~4–6** (`/api/work/stats`, post GH/s honesty) | ~15–30 | fleet ~1–3 HMC/h after rpm pin | Y | **cuda** | **PASS** | Desktop; OpenCL Blake3 = host ~0.25 |
-| **50xx** | 1× RTX 5090 | `vast-rtx5090-blake3-01` | **~26.8** (2²⁶) | was ~0.7–1.3 pre GH fix; instance gone | ~0 | — | — | **cuda** | **PASS burn** | Vast; re-rent for Pool GH/s with new credit path |
+| **50xx** | 1× RTX 5090 | `vast-rtx5090-blake3-01` | **~26.8** (2²⁶) | ~0.7–1.3 pre-fix (hist) | ~0 | — | — | **cuda** | **PASS burn** | first Vast; instance gone |
+| **50xx** | **2× RTX 5090** | `vast-2x5090` (`-gpu0`+`-gpu1`) | **~26.3 + ~26.4** | **~29–38** merged (`/api/work/stats`) | ~0–2 | TBD ≥15m | — | **cuda** | **PASS** | direct `:35940`; Σ burn ~52.7; fleet merge strip `-gpuN`; RTT cheat clamp fixed |
 | **40xx** | 1× RTX 4090 | — | TBD | TBD | TBD | TBD | — | cuda | — | Vast |
 | **40xx** | 2× RTX 4070 Ti S | — | TBD | TBD | TBD | TBD | — | cuda | — | multi-GPU agg |
 | **30xx** | 2× RTX 3060 Ti | — | TBD | TBD | TBD | TBD | — | cuda | — | multi-GPU |
