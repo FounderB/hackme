@@ -35,7 +35,7 @@ Method: tip ≥#485000, `pool_hashrate_kind=blake3_pow_ghs`, SHARE_STRICT PPS, a
 | **30xx** | **2× RTX 3060 Ti** | `vast-2x3060ti` (`-gpu0`+`-gpu1`) | **~5.05 + ~4.85** (2²⁶) | **~10.9** merged | ~0–98 | **cuda** | **PASS** | Σ burn ≈ pool |
 | **20xx** | **4× RTX 2080 Ti** | `vast-4x2080ti` (`-gpu0…3`) | **~5.88+5.65+5.88+5.81** | **~19.4** merged (Σ burn ~23.2) | ~0–84 | **cuda** | **PASS** | nvidia sees **4**; fleet → one UI row; CC 7.5 |
 | **10xx** | **6× GTX 1070 Ti** | `vast-6x1070ti` (`-gpu0…5`) | **~2.00×6** (2²⁶) | **~16.2** merged (Σ burn ~12) | ~0–100 | **cuda** | **PASS** | Pascal CC 6.1; replaces 1080 Ti target |
-| **AMD** | 1× RX 580 **2048SP** (Polaris) | LAN desktop (`rusticl`/radeonsi) | **~0.80–0.84** (2²⁵–2²⁶) | TBD (old docker fleet still on pre-device bin) | — | **opencl device** | **PASS burn** | Device kernel active; sustained 2²⁶×8 ≈0.80; prefix-sweep 0..152 device / 153..160 host fallback; log [`archive/vast/RX580_BLAKE3_OPENCL_CALIB_20261025.log`](archive/vast/RX580_BLAKE3_OPENCL_CALIB_20261025.log) |
+| **AMD** | 1× RX 580 **2048SP** (Polaris) | `worker-indep-alpha-80194f` (LAN docker→public pool) | **~0.80–0.84** (2²⁵–2²⁶) | **~0.94** | — | **opencl device** | **PASS** | Device kernel + SHARE_STRICT; single worker `GPU_CHUNK=16M`; bravo/charlie stopped; rusticl/Polaris |
 
 ---
 
