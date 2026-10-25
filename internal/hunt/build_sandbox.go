@@ -75,7 +75,8 @@ func RunBuildIsolated(ctx context.Context, opts BuildIsolateOpts) error {
 	if !BuildSandboxEnabled() {
 		return runBareBuild(ctx, opts, env, wall)
 	}
-	// Prefer cage; AllowBare only when STRICT opted out (desk/broken userns).
+	// Prefer cage; always allow scrubbed bare fallback when userns/bwrap is denied
+	// (desk CI / RTM_NEWADDR). Tokens are already scrubbed above.
 	return RunIsolated(ctx, IsolateOpts{
 		Bin:         opts.Bin,
 		Args:        opts.Args,
@@ -86,7 +87,7 @@ func RunBuildIsolated(ctx context.Context, opts BuildIsolateOpts) error {
 		Stderr:      opts.Stderr,
 		ExtraBind:   extraBind,
 		ExtraRoBind: extraRo,
-		AllowBare:   !IsolateStrict(),
+		AllowBare:   true,
 	})
 }
 

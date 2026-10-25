@@ -1,10 +1,13 @@
 package hunt
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -36,6 +39,37 @@ func TestAllowBareTriesBwrapFirst(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); err != nil {
 		t.Fatal("AllowBare must not skip bwrap: marker missing (regression: early bare bypass)")
+	}
+}
+
+func TestAttachIsolatedStdioSameWriterNoRace(t *testing.T) {
+	// Production: one stdout pump + one stderr pump share the syncWriter dest.
+	var buf bytes.Buffer
+	sw := newSyncWriter(&buf)
+	ec := bareIsolatedCommand(context.Background(), "/bin/true", nil)
+	var tee bytes.Buffer
+	attachIsolatedStdio(ec, sw, sw, &tee)
+	const n = 256
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			_, _ = io.WriteString(ec.Stdout, "O")
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			_, _ = io.WriteString(ec.Stderr, "E")
+		}
+	}()
+	wg.Wait()
+	if buf.Len() != n*2 {
+		t.Fatalf("shared buffer len=%d want %d", buf.Len(), n*2)
+	}
+	if tee.Len() != n {
+		t.Fatalf("stderr tee len=%d want %d", tee.Len(), n)
 	}
 }
 

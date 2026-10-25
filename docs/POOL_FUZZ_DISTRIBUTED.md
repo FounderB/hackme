@@ -88,19 +88,17 @@ Rejects empty/fake CLEAN without paying. Defaults stay conservative so honest mi
 | `HACKME_POOL_CLEAN_MIN_EDGES_DEEP` | 2 | Min edges for Dig Deep SKU |
 | `HACKME_POOL_CLEAN_EDGES_REQUIRE` | auto | `auto` = ON at ≥90% fleet report rate; `1` force; `0` off |
 
-### Canary / challenge shards (Dig guided)
+### Canary / challenge shards (Dig guided + Hunt)
 
-Hunt (optional): set campaign `canary_input_hex` / `hunt_canary_input_hex` and `HACKME_HUNT_CANARY_PCT` (default follows Dig pct). CLEAN without a crash claim → `canary_miss`.
-
-
-With small probability the claim locks a pack-known detector-hit input. Honest workers report the finding (full replay). CLEAN without hitting it → `canary_miss` reject.
+With small probability Dig locks a pack-known detector-hit input; Hunt optionally locks `canary_input_hex` / `hunt_canary_input_hex`. Honest workers report the finding/crash. CLEAN without hitting it → `canary_miss` reject.
 
 | Env | Default | Meaning |
 |-----|---------|---------|
-| `HACKME_POOL_CANARY` | ON | Master switch |
+| `HACKME_POOL_CANARY` | ON | Master switch (Dig + Hunt) |
 | `HACKME_POOL_CANARY_PCT` | 2 | % of guided Dig claims marked canary (start low) |
+| `HACKME_HUNT_CANARY_PCT` | (falls back to POOL) | % of Hunt claims; requires known-crash hex in campaign config |
 
-**Hunt canaries (optional):** campaign config `canary_input_hex` or `hunt_canary_input_hex` (known-crash seed) plus `HACKME_HUNT_CANARY_PCT` (default 2; 0=off; else falls back to `HACKME_POOL_CANARY_PCT`). Without hex in config, Hunt canaries stay off.
+Without Hunt hex in config, Hunt canaries stay off.
 
 ### Replay sample env
 

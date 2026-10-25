@@ -75,12 +75,15 @@ Ships clang + AFL++ (`afl-fuzz`, `afl-clang-fast`, `afl-showmap`) + bubblewrap f
 | `HACKME_HUNT_ENGINE_BYTE_FALLBACK_DEEP` | OFF | Allow byte on Deep |
 | `HACKME_HUNT_ISOLATE_REQUIRE` | **ON** | Prefer bwrap; missing/failed cage → bare only if STRICT off |
 | `HACKME_HUNT_ISOLATE_STRICT` | **ON** (code default; ISO/firstboot + coordinator unit also set `=1`) | Fail closed on missing bwrap / userns/`RTM_NEWADDR` (no bare fallback). Opt out: `=0` on locked-down hosts only |
+| `HACKME_HUNT_BUILD_SANDBOX` | **ON** | Harness builds (clang / cargo fuzz / afl-cc) under bwrap + scrubbed env (no admin/settlement tokens). Desk opt-out: `=0` (env still scrubbed) |
 | `HACKME_HUNT_ENGINE_PROVE_MAX` | 16 | Max seeds proven per delta |
 | `HACKME_POOL_SEED_FROM_RESEARCH` | OFF | Dig seed feed — **do not enable** |
 
 ## Isolation
 
-Native LF/AFL/showmap prefer **`bwrap --unshare-net`**. Code default is **STRICT ON** (`IsolateStrict()` empty env → true; covered by `TestIsolateStrictDefaultOn`). If bwrap is missing or the cage fails (`RTM_NEWADDR` / userns / Operation not permitted), bare exec retry only when `HACKME_HUNT_ISOLATE_STRICT=0`. Operators who hit soft_skip starvation on broken userns may opt out locally — do not weaken hub prove.
+Native LF/AFL/showmap prefer **`bwrap --unshare-net --new-session --unshare-ipc --unshare-uts --cap-drop ALL`**. Code default is **STRICT ON** (`IsolateStrict()` empty env → true; covered by `TestIsolateStrictDefaultOn`). If bwrap is missing or the cage fails (`RTM_NEWADDR` / userns / Operation not permitted), bare exec retry only when `HACKME_HUNT_ISOLATE_STRICT=0`. Operators who hit soft_skip starvation on broken userns may opt out locally — do not weaken hub prove.
+
+**Harness builds on the hub** also use the isolate cage (`RunBuildIsolated`) so customer `build.rs` / proc-macros cannot see coordinator tokens. Local desk: `HACKME_HUNT_BUILD_SANDBOX=0` if userns breaks cargo/clang (tokens remain scrubbed).
 
 Miners do **not** `git clone` AFL++. Install engines via `install_hunt_engines.sh` (release tarball / bundle).
 

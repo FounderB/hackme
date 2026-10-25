@@ -325,13 +325,18 @@ __kernel void poh_search_blake3(
 			n = base + (ulong)idx;
 			if (s_use_cv && s_rem + 8 <= BLAKE3_BLOCK_LEN) {
 				uint words[16];
+				uint pcv[8];
+				for (i = 0; i < 8; i++) pcv[i] = scv[i];
 				for (i = 0; i < 16; i++) words[i] = stail_words[i];
 				put_u64_le_bytes(words, s_rem, n);
-				work = blake3_work64_from_cv_words(scv, words, (uint)(s_rem + 8));
+				// Copy __local CV → private: OpenCL forbids passing __local to plain pointers.
+				work = blake3_work64_from_cv_words(pcv, words, (uint)(s_rem + 8));
 			} else if (s_use_cv) {
 				int rem = s_rem;
 				uchar tail[96];
 				uchar digest[32];
+				uint pcv[8];
+				for (i = 0; i < 8; i++) pcv[i] = scv[i];
 				for (i = 0; i < rem; i++) {
 					tail[i] = sprefix[BLAKE3_BLOCK_LEN + i];
 				}
@@ -343,7 +348,7 @@ __kernel void poh_search_blake3(
 				tail[rem + 5] = (uchar)(n >> 40);
 				tail[rem + 6] = (uchar)(n >> 48);
 				tail[rem + 7] = (uchar)(n >> 56);
-				blake3_hash_from_cv(scv, tail, (size_t)rem + 8, digest);
+				blake3_hash_from_cv(pcv, tail, (size_t)rem + 8, digest);
 				work =
 					(ulong)digest[0] |
 					((ulong)digest[1] << 8) |

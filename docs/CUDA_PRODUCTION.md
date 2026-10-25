@@ -116,7 +116,7 @@ Mainnet Blake3 activation: height **485000** as of rc17.4 (`PoHFormulaV3Activati
 | AMD / Intel | OpenCL (`workerpoh-opencl`) | See [GPU_MINING_BACKENDS.md](GPU_MINING_BACKENDS.md) |
 | Build | `nvrtc.h`, CGO | `libOpenCL` |
 | MSK CPU worker | Use CPU build | — |
-| Blake3 v3 | Device `poh_search_blake3` + host fallback | Host Blake3Search (OpenCL device Blake3 not wired) |
+| Blake3 v3 | Device `poh_search_blake3` + host fallback | Device `poh_search_blake3` in `poh_search.cl` + host fallback |
 
 Remote CPU workers: **do not** deploy the CUDA binary; use `go build -o workerpoh ./cmd/workerpoh` (no tags).
 
