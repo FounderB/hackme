@@ -127,13 +127,21 @@ if [[ "$SKIP_LIVE" != "1" ]]; then
     record "admin_auth_enabled" "fail" "admin auth disabled on audit node"
   fi
 
-  # Desktop local-auth must not leak token by default
-  curl -fsS --max-time 5 "$BASE/api/desktop/local-auth" >"$OUT/local_auth.json" 2>/dev/null || echo '{}' >"$OUT/local_auth.json"
-  if jq -e 'has("admin_token") | not' "$OUT/local_auth.json" >/dev/null 2>&1; then
-    record "desktop_local_auth_no_leak" "pass" "admin_token not in /api/desktop/local-auth JSON"
-  else
-    record "desktop_local_auth_no_leak" "fail" "admin_token exposed in local-auth response"
+  # Non-desktop audit node: local-auth must 404 (no token). Desktop UX is different by
+  # design — JSON always returns admin_token on loopback; EXPOSE only gates HTML embed.
+  # That contract is asserted by the Go unit cases below (not by flipping live env mid-run).
+  la_code="$(curl -sS -o "$OUT/local_auth.json" -w '%{http_code}' --max-time 5 "$BASE/api/desktop/local-auth" || echo 000)"
+  if [[ ! -s "$OUT/local_auth.json" ]]; then
+    echo '{}' >"$OUT/local_auth.json"
   fi
+  # httptest NotFound body is plain text — do not require JSON. Fail only if a token sneaks out.
+  if [[ "$la_code" == "404" ]] && ! jq -e 'has("admin_token")' "$OUT/local_auth.json" >/dev/null 2>&1; then
+    record "desktop_local_auth_nondesk_404" "pass" "non-desktop local-auth HTTP 404 / no admin_token"
+  else
+    record "desktop_local_auth_nondesk_404" "fail" "expected HTTP 404 without admin_token on non-desktop node (got HTTP $la_code)"
+  fi
+  run_case "desktop_local_auth_unit" "desktop JSON token + EXPOSE HTML-only gate" \
+    bash -c "cd \"$ROOT\" && go test . -run 'TestDesktopLocalAuthAlwaysReturnsTokenOnLoopback|TestDesktopAdminTokenEmbedRequiresExposeFlag' -count=1 -timeout=60s"
 
   run_case "security_assertions" "economics invariants + tx rate limit" \
     env BASE="$BASE" ADMIN_TOKEN="$ADMIN_TOKEN" RUN_ID="${RID}_assert" "$ROOT/scripts/tests/security_assertions.sh"
