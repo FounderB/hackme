@@ -2584,16 +2584,9 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	} else if issuedAt > 0 && now >= issuedAt {
 		wallSec = float64(now - issuedAt)
 	}
-	wallGH := 0.0
-	if req.BatchSize > 0 && wallSec > 0 {
-		w := wallSec
-		if w < 0.001 {
-			w = 0.001
-		}
-		wallGH = clampWorkerHashrateGHS(float64(req.BatchSize) / w / 1e9)
-	}
+	wallGH := honestWallHashrateGHS(req.BatchSize, wallSec, prevGH)
 	var rawGH float64
-	honestGH := leaseFV >= 3 || useShares
+	honestGH := leaseFV >= 3 || useShares || m.shareStrict
 	if honestGH {
 		// PPS / Blake3: never trust client-reported GH/s for billing or pool M.
 		if len(validShares) > 0 && sm > 0 {
@@ -2601,6 +2594,10 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		}
 		if rawGH <= 0 && wallSec >= 1.0 && wallGH > 0 {
 			rawGH = wallGH
+		}
+		// Prefer device-reported only as an upper clamp when wall was capped (early found).
+		if reportedGH > 0 && rawGH > reportedGH*1.35 && reportedGH >= 0.5 {
+			rawGH = reportedGH
 		}
 	} else {
 		rawGH = workerHashrateGHSForSubmitFormulaMs(reportedGH, req.BatchSize, issuedAt, now, rec.IssuedAtMs, nowMs, prevGH, leaseFV)
@@ -2613,7 +2610,17 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if !honestGH && req.Found && reportedGH <= 0 {
 		gh = 0
 	}
-	if !useShares {
+	if useShares {
+		// PPS: credit share-implied hashes for stats/SUP (not attempt-pay).
+		implied := uint64(len(validShares)) * sm
+		if implied > 0 {
+			attempts = implied
+		}
+		attempts = m.clampPaidAttempts(attempts, req.BatchSize)
+	} else if m.shareStrict {
+		// Found without shares: do not attempt-pay the full lease (early-hit inflation).
+		attempts = 0
+	} else {
 		if gh > 0 {
 			ia := issuedAt
 			if ia <= 0 {
@@ -2631,13 +2638,6 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 			attempts = 0
 		} else if req.Found && gh <= 0 {
 			attempts = 0
-		}
-		attempts = m.clampPaidAttempts(attempts, req.BatchSize)
-	} else {
-		// PPS: credit share-implied hashes for stats/SUP (not attempt-pay).
-		implied := uint64(len(validShares)) * sm
-		if implied > 0 {
-			attempts = implied
 		}
 		attempts = m.clampPaidAttempts(attempts, req.BatchSize)
 	}
@@ -2661,6 +2661,10 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 			if !foundIsShare {
 				payout += m.foundBonus
 			}
+		}
+	} else if m.shareStrict {
+		if req.Found && !chainSolve.OK {
+			payout = m.foundBonus
 		}
 	} else {
 		payout = (float64(paidAttempts) / 1_000_000.0) * m.rewardPerM

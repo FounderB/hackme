@@ -205,3 +205,29 @@ func shareImpliedGHS(nShares int, shareMod uint64, wallSec float64) float64 {
 	hashes := float64(nShares) * float64(shareMod)
 	return clampWorkerHashrateGHS(hashes / wallSec / 1e9)
 }
+
+// honestWallHashrateGHS converts lease wall into GH/s without crediting a full
+// early-found batch as if the GPU burned every nonce (64G / 2s → fantasy 30 GH/s).
+// Credited hashes are capped to what prevGH (or a mid-GPU bootstrap) could do.
+func honestWallHashrateGHS(batch uint64, wallSec, prevGH float64) float64 {
+	if batch == 0 || wallSec < 0.5 {
+		return 0
+	}
+	w := wallSec
+	if w < 0.001 {
+		w = 0.001
+	}
+	ceiling := prevGH
+	if ceiling < 0.5 {
+		ceiling = 12 // single mid-class GPU bootstrap until share/wall samples land
+	}
+	if ceiling > maxWorkerHashrateGHS {
+		ceiling = maxWorkerHashrateGHS
+	}
+	maxHashes := ceiling * 1e9 * w * 1.25
+	credited := float64(batch)
+	if credited > maxHashes {
+		credited = maxHashes
+	}
+	return clampWorkerHashrateGHS(credited / w / 1e9)
+}

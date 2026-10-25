@@ -137,6 +137,38 @@ test.describe('Dashboard UI buttons and API wiring', () => {
     await expect(page.locator('#mining-pool-status-line')).toBeVisible();
   });
 
+  test('Mining calculator slider changes HMC/h estimate', async ({ page }) => {
+    await page.click('#tab-bar .tab-btn[data-tab="mining"]');
+    const slider = page.locator('#mine-calc-gh-slider');
+    const hour = page.locator('#mine-calc-out-hour');
+    await expect(slider).toBeVisible();
+    await page.waitForFunction(() => {
+      const el = document.querySelector('#mine-calc-gh-slider') as HTMLInputElement | null;
+      const out = document.querySelector('#mine-calc-out-hour');
+      return !!el && Number(el.max) >= 1 && !!out && (out.textContent || '').trim() !== '—';
+    }, null, { timeout: 20_000 });
+    const readHour = async () => {
+      const t = (await hour.textContent()) || '0';
+      return Number(String(t).replace(/,/g, '')) || 0;
+    };
+    await slider.evaluate((el) => {
+      const s = el as HTMLInputElement;
+      s.value = '5';
+      s.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.waitForTimeout(200);
+    const low = await readHour();
+    await slider.evaluate((el) => {
+      const s = el as HTMLInputElement;
+      const hi = Math.min(Number(s.max) || 40, 40);
+      s.value = String(hi);
+      s.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.waitForTimeout(200);
+    const high = await readHour();
+    expect(high).toBeGreaterThan(low * 1.5);
+  });
+
   test('Hardware refresh loads tune API', async ({ page }) => {
     await page.click('#tab-bar .tab-btn[data-tab="hardware"]');
     const tuneResp = page.waitForResponse(

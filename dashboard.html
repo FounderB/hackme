@@ -490,13 +490,36 @@
 			-webkit-appearance: none;
 			appearance: none;
 			width: 100%;
-			height: 6px;
+			height: 8px;
 			border-radius: 999px;
 			background: linear-gradient(90deg, rgba(0,209,255,0.35), rgba(57,255,20,0.35));
 			outline: none;
+			cursor: pointer;
+			accent-color: #39ff14;
+		}
+		.mine-calc-range::-webkit-slider-runnable-track {
+			height: 8px;
+			border-radius: 999px;
+			background: linear-gradient(90deg, rgba(0,209,255,0.35), rgba(57,255,20,0.35));
 		}
 		.mine-calc-range::-webkit-slider-thumb {
 			-webkit-appearance: none;
+			appearance: none;
+			width: 16px; height: 16px;
+			margin-top: -4px;
+			border-radius: 50%;
+			background: #39ff14;
+			border: 2px solid #0a140a;
+			box-shadow: 0 0 12px rgba(57,255,20,0.55);
+			cursor: pointer;
+		}
+		.mine-calc-range::-moz-range-track {
+			height: 8px;
+			border-radius: 999px;
+			background: linear-gradient(90deg, rgba(0,209,255,0.35), rgba(57,255,20,0.35));
+			border: none;
+		}
+		.mine-calc-range::-moz-range-thumb {
 			width: 16px; height: 16px;
 			border-radius: 50%;
 			background: #39ff14;
@@ -991,36 +1014,38 @@
 			background: linear-gradient(90deg, rgba(0, 209, 255, 0.45), rgba(57, 255, 20, 0.65));
 			transition: width 0.4s ease;
 		}
-		/* Terminal-style scrollbars (mining log + dense lists) */
-		#mining-log,
-		#mining-fuzz-market-rows,
-		#panel-mining .overflow-y-auto {
+		/* Dark thin scrollbars everywhere — kill the default white “pipe” column */
+		html {
 			scrollbar-width: thin;
-			scrollbar-color: rgba(0, 209, 255, 0.35) rgba(2, 3, 4, 0.9);
+			scrollbar-color: rgba(0, 209, 255, 0.4) rgba(2, 3, 4, 0.95);
 		}
-		#mining-log::-webkit-scrollbar,
-		#mining-fuzz-market-rows::-webkit-scrollbar,
-		#panel-mining .overflow-y-auto::-webkit-scrollbar {
+		* {
+			scrollbar-width: thin;
+			scrollbar-color: rgba(0, 209, 255, 0.4) rgba(2, 3, 4, 0.95);
+		}
+		*::-webkit-scrollbar {
 			width: 8px;
 			height: 8px;
 		}
-		#mining-log::-webkit-scrollbar-track,
-		#mining-fuzz-market-rows::-webkit-scrollbar-track,
-		#panel-mining .overflow-y-auto::-webkit-scrollbar-track {
+		*::-webkit-scrollbar-button {
+			display: none;
+			width: 0;
+			height: 0;
+		}
+		*::-webkit-scrollbar-track {
 			background: rgba(2, 3, 4, 0.95);
 			border-radius: 8px;
 		}
-		#mining-log::-webkit-scrollbar-thumb,
-		#mining-fuzz-market-rows::-webkit-scrollbar-thumb,
-		#panel-mining .overflow-y-auto::-webkit-scrollbar-thumb {
-			background: linear-gradient(180deg, rgba(0, 209, 255, 0.35), rgba(57, 255, 20, 0.25));
+		*::-webkit-scrollbar-thumb {
+			background: linear-gradient(180deg, rgba(0, 209, 255, 0.4), rgba(57, 255, 20, 0.28));
 			border-radius: 8px;
 			border: 2px solid rgba(2, 3, 4, 0.95);
 		}
-		#mining-log::-webkit-scrollbar-thumb:hover,
-		#mining-fuzz-market-rows::-webkit-scrollbar-thumb:hover,
-		#panel-mining .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+		*::-webkit-scrollbar-thumb:hover {
 			background: linear-gradient(180deg, rgba(0, 209, 255, 0.55), rgba(57, 255, 20, 0.4));
+		}
+		*::-webkit-scrollbar-corner {
+			background: rgba(2, 3, 4, 0.95);
 		}
 		#mining-log {
 			border-color: rgba(0, 209, 255, 0.12);
@@ -8649,40 +8674,24 @@
 			return x;
 		}
 
-		/** Pool work: HMC/h from coordinator payout Δ or accepted-attempts billing — never raw GH/s×10⁹. */
+		/** Pool work: slider GH/s drives estimate; live Δ is reference only (never ignore the slider). */
 		function mineCalcPoolDisplayHour(inputs, net) {
 			const fleetGh = Math.max(0, Number(inputs.hashrateGh) || 0) * Math.max(1, Math.floor(Number(inputs.rigCount) || 1));
-			const workerGh = Math.max(0, Number(net.workerGh) || 0);
 			const poolGh = Math.max(0, Number(net.poolGh) || 0);
-			const observed = Number(net.observedPayoutPerHour || 0);
 			const rpm = Math.max(0, Number(net.rewardPerM) || 0);
-			const effGh = poolGh > 0 ? Math.min(fleetGh, poolGh) : fleetGh;
-			const maxTrialAps = Math.max(effGh, workerGh, poolGh) * 1e9;
+			const baseReward = Math.max(0, Number(net.baseRewardHmc) || 0);
+			const targetMod = Math.max(POOL_TARGET_MOD_FLOOR, Number(net.targetMod) || POOL_TARGET_MOD_FLOOR);
 			const sharePct = Math.max(0.01, Math.min(100, Number(inputs.poolSharePct) || 100));
-			// Live payout rate from coordinator: scale by this worker's pool share, not whole-pool Δ.
-			if (observed > 0 && net.mySharePct > 0 && net.mySharePct < 99.5) {
-				return Math.max(0, observed * (sharePct / 100));
-			}
-			if (observed > 0 && workerGh > 0 && fleetGh > 0 && workerGh <= fleetGh * 1.05) {
-				return Math.max(0, observed * (effGh / workerGh));
-			}
-			if (observed > 0 && poolGh > 0 && fleetGh > 0) {
-				return Math.max(0, observed * (effGh / poolGh));
-			}
-			let billingAps = 0;
-			const workerAps = sanitizeCoordinatorAttemptRate(net.workerAttemptsPerSec, workerGh || effGh);
-			const poolAps = sanitizeCoordinatorAttemptRate(net.poolAttemptsPerSec, poolGh || effGh);
-			if (workerAps > 0 && workerGh > 0 && fleetGh > 0) {
-				billingAps = workerAps * (effGh / workerGh);
-			} else if (poolAps > 0 && poolGh > 0 && effGh > 0) {
-				billingAps = poolAps * (effGh / poolGh);
-			} else if (observed > 0 && rpm > 0) {
-				billingAps = ((observed / 3600) / rpm) * 1e6;
-			}
-			if (billingAps > maxTrialAps && maxTrialAps > 0) billingAps = maxTrialAps;
 			const share = sharePct / 100;
-			if (billingAps > 0 && rpm > 0) {
-				return Math.max(0, (billingAps / 1e6) * rpm * 3600 * share);
+			const effGh = poolGh > 0 ? Math.min(fleetGh, poolGh) : fleetGh;
+			if (!(effGh > 0)) return 0;
+			// Share-PPS / economic model: ~ baseReward × (hashes/h) / M
+			if (baseReward > 0 && targetMod > 0) {
+				return Math.max(0, baseReward * (effGh * 1e9 * 3600) / targetMod * share);
+			}
+			// Soft attempt-pay: reward_per_m × millions of attempts / hour
+			if (rpm > 0) {
+				return Math.max(0, (effGh * 1e9 / 1e6) * rpm * 3600 * share);
 			}
 			return 0;
 		}
@@ -8728,7 +8737,9 @@
 			let targetMod = eff.mod > 0 ? eff.mod : workStatsTargetMod(ws);
 			if (targetMod <= 0) targetMod = Math.max(POOL_TARGET_MOD_FLOOR, Number(st.pool_target_mod || m.mining_target_mod || 0));
 			const rewardPerM = Number(ws.reward_per_m || 0);
+			const baseRewardHmc = Number(ws.base_reward_hmc || 0.01);
 			const foundBonus = Number(ws.found_bonus_hmc || 0);
+			const shareStrict = !!(ws.share_strict === true || ws.share_strict === 1 || ws.share_strict === 'true');
 			const emptyHour = Number(m.econ_expected_empty_hmc_hour || 0);
 			let poolGh = poolGhFromWorkStats(ws);
 			if (!(poolGh > 0)) {
@@ -8770,6 +8781,8 @@
 			return {
 				targetMod,
 				rewardPerM,
+				baseRewardHmc,
+				shareStrict,
 				foundBonus,
 				emptyHour,
 				poolGh,
@@ -8777,7 +8790,7 @@
 				mySharePct,
 				schedulerMode: String(ws.scheduler_mode || 'baseline'),
 				syncAgeSec: syncAge,
-				hasLive: !!(ws && ws.ok !== false && rewardPerM > 0),
+				hasLive: !!(ws && ws.ok !== false && (rewardPerM > 0 || baseRewardHmc > 0)),
 				netMode: !!st.network_mode_active,
 				poolWork: isPoolWorkContext(),
 				observedRewardPerM,
@@ -8814,16 +8827,9 @@
 			const observedPayoutPerHour = Number(net.observedPayoutPerHour || 0);
 			const poolAttemptsPerSec = Math.max(0, Number(net.poolAttemptsPerSec || 0));
 			const workerAttemptsPerSec = Math.max(0, Number(net.workerAttemptsPerSec || 0));
-			let billingAps = 0;
-			if (poolWork) {
-				if (workerAttemptsPerSec > 0 && workerGhLive > 0 && fleetGh > 0) {
-					billingAps = workerAttemptsPerSec * (effGh / workerGhLive);
-				} else if (poolAttemptsPerSec > 0 && poolGhLive > 0) {
-					billingAps = poolAttemptsPerSec * (effGh / poolGhLive);
-				} else if (observedPayoutPerHour > 0 && rpm > 0) {
-					billingAps = ((observedPayoutPerHour / 3600) / rpm) * 1e6;
-				}
-			} else {
+			// Attempts/sec display follows the slider (what-if), not sticky live Δ.
+			let billingAps = effAps;
+			if (!poolWork) {
 				billingAps = effAps;
 			}
 			const theoreticalUncappedHour = rpm > 0 ? ((aps / 1e6) * rpm * 3600 * share) : 0;
@@ -8952,12 +8958,15 @@
 				}
 				if (out.poolWork) {
 					if (displayHmcHour > 0) {
-						parts.push('live ~' + fmt(displayHmcHour, 4) + ' HMC/h (coordinator)');
+						parts.push(net.shareStrict
+							? ('~' + fmt(displayHmcHour, 4) + ' HMC/h @ ' + fmt(inputs.hashrateGh, 2) + ' GH/s (share-PPS model)')
+							: ('~' + fmt(displayHmcHour, 4) + ' HMC/h @ ' + fmt(inputs.hashrateGh, 2) + ' GH/s (reward/M)'));
 					} else {
-						parts.push('waiting for coordinator payout rate');
+						parts.push('set hashrate — estimate scales with the slider');
 					}
-					if (out.theoreticalUncappedHour > displayHmcHour * 10 && out.theoreticalUncappedHour > 1) {
-						parts.push('uncapped GH/s×10⁹ fantasy ~' + fmt(out.theoreticalUncappedHour, 1) + ' HMC/h — not used');
+					const obs = Number(net.observedPayoutPerHour || 0);
+					if (obs > 0 && Math.abs(obs - displayHmcHour) / Math.max(displayHmcHour, 0.001) > 0.35) {
+						parts.push('live accrual ~' + fmt(obs, 3) + ' HMC/h (reference only)');
 					}
 				} else if (displayHmcHour > 0) {
 					parts.push('model ~' + fmt(displayHmcHour, 4) + ' HMC/h');
@@ -8994,7 +9003,9 @@
 			setMineCalcBar('mine-calc-bar-poh', out.pohProgress * 100);
 			if (mineCalcEl('mine-calc-poh-note')) {
 				const poolNote = net.poolWork
-					? 'Pool work pays per accepted attempt (reward/M); found bonus is rare — not included in HMC/h estimate.'
+					? (net.shareStrict
+						? 'Share-PPS: estimate ≈ base_reward × (your GH/s×10⁹×3600) / M. Found bonus is rare — not averaged into HMC/h.'
+						: 'Pool work pays per accepted attempt (reward/M); found bonus is rare — not included in HMC/h estimate.')
 					: '';
 				mineCalcEl('mine-calc-poh-note').textContent =
 					(poolNote ? poolNote + ' ' : '') +
@@ -9002,7 +9013,7 @@
 						? ('Poisson model: P(solve within 1 mod window) ≈ ' + fmt(out.pohProgress * 100, 1) + '% · scheduler ' + net.schedulerMode +
 							(' · ~' + fmt(out.solvesPerSec * 3600, 4) + ' solves/h fleet-wide'))
 						: (net.poolWork
-							? 'Pool mode: HMC/h from coordinator payout Δ (scaled to your GH/s). GH/s×10⁹ is not billed 1:1.'
+							? 'Drag Your hashrate — HMC/h scales with the slider. Live accrual Δ is shown only as a reference.'
 							: ('ETA order-of-magnitude: M / (GH/s×10⁹) · scheduler ' + net.schedulerMode)));
 			}
 			if (mineCalcEl('mine-calc-out-power-total')) mineCalcEl('mine-calc-out-power-total').textContent = fmt(out.powerTotalW, 0) + ' W';
@@ -9035,17 +9046,19 @@
 			if (mineCalcEl('mine-calc-footnote')) {
 				const parts = [
 					out.poolWork
-						? 'Estimate from live coordinator reward/M and your GH/s slider (share % in advanced = attempts weight, not hash %).'
+						? (net.shareStrict
+							? 'Share-PPS estimate from base_reward, live M, and your GH/s slider (advanced Share % = payout weight).'
+							: 'Estimate from live coordinator reward/M and your GH/s slider (share % in advanced = attempts weight).')
 						: 'Connect pool worker for live coordinator stats.',
 					out.poolWork && net.foundBonus > 0
 						? ('Rare found bonus +' + fmt(net.foundBonus, 6) + ' HMC per hit — not averaged into HMC/h.')
 						: '',
-					'Higher M (more miners/hash) → lower reward/M. See Work payout for actual settled HMC.',
+					'Higher M (more miners/hash) → lower HMC/h. Work payout shows settled accrual (may include older stock).',
 					inputs.hmcUsd > 0
 						? ('USD uses ' + (mineCalcHmcUsdExplicit ? 'your override' : 'live HMC/USDT spot') + ' @ $' + fmt(inputs.hmcUsd, inputs.hmcUsd >= 0.1 ? 4 : 6) + '.')
 						: 'USD ROI waits for live HMC/USDT from exchange.hackme.tech (or set override in advanced).',
 					'Pool accrual in Wallet resets after on-chain settlement; on-chain balance increases instead.',
-					inputs.scenario === 'fleet' ? ('Fleet: ' + inputs.rigCount + ' × ' + fmt(inputs.hashrateGh, 2) + ' GH/s = ' + fmt(inputs.hashrateGh * inputs.rigCount, 2) + ' GH/s aggregate.') : '',
+					inputs.rigCount > 1 ? ('Fleet: ' + inputs.rigCount + ' × ' + fmt(inputs.hashrateGh, 2) + ' GH/s = ' + fmt(inputs.hashrateGh * inputs.rigCount, 2) + ' GH/s aggregate.') : '',
 				].filter(Boolean);
 				setTextSilent(mineCalcEl('mine-calc-footnote'), parts.join(' '));
 			}

@@ -371,6 +371,21 @@ func TestBlake3StrictPPSIgnoresReportedGHS(t *testing.T) {
 	}
 }
 
+func TestHonestWallHashrateCapsEarlyFoundBatch(t *testing.T) {
+	// 64G lease submitted after ~2s with prev ~7 GH/s must not credit ~32 GH/s.
+	got := honestWallHashrateGHS(1<<36, 2.0, 7.0)
+	if got > 10 {
+		t.Fatalf("early-found wall GH inflated: got %v want ≤~8.75", got)
+	}
+	if got < 5 {
+		t.Fatalf("should credit near prev ceiling, got %v", got)
+	}
+	raw := honestWallHashrateGHS(1<<22, 2.0, 7.0) // 4M / 2s ≈ 0.002
+	if raw > 1 {
+		t.Fatalf("small lease wall unexpected %v", raw)
+	}
+}
+
 func TestAdaptClaimBatchBootstrapsBlake3(t *testing.T) {
 	wm := &workManager{
 		defaultBatch:      1 << 22,

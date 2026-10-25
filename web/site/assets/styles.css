@@ -1542,15 +1542,43 @@ input[type=number] {
   box-sizing: border-box;
   /* Dark thin scrollbar — kill the default white “pipe” */
   scrollbar-width: thin;
-  scrollbar-color: rgba(77, 228, 255, 0.45) rgba(255, 255, 255, 0.04);
+  scrollbar-color: rgba(77, 228, 255, 0.45) rgba(8, 12, 18, 0.95);
 }
-.nav-more-menu::-webkit-scrollbar {
-  width: 6px;
+/* Global dark scrollbars (site + dashboard embeds) */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(77, 228, 255, 0.45) rgba(8, 12, 18, 0.95);
 }
-.nav-more-menu::-webkit-scrollbar-button {
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(77, 228, 255, 0.4) rgba(8, 12, 18, 0.95);
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-button {
   display: none;
   width: 0;
   height: 0;
+}
+*::-webkit-scrollbar-track {
+  background: rgba(8, 12, 18, 0.95);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(77, 228, 255, 0.45), rgba(57, 255, 20, 0.28));
+  border-radius: 8px;
+  border: 2px solid rgba(8, 12, 18, 0.95);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(77, 228, 255, 0.65), rgba(57, 255, 20, 0.4));
+}
+*::-webkit-scrollbar-corner {
+  background: rgba(8, 12, 18, 0.95);
+}
+.nav-more-menu::-webkit-scrollbar {
+  width: 6px;
 }
 .nav-more-menu::-webkit-scrollbar-track {
   background: transparent;
