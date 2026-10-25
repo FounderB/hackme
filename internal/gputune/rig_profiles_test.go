@@ -46,13 +46,15 @@ func TestGetRigProfileMissing(t *testing.T) {
 }
 
 func TestGPURigProfilesBatchAndCooldown(t *testing.T) {
-	// Fast GPU profiles: 16M batch (50xx Blake3: 64M) + claim cooldown ≥80.
+	// Fast GPU profiles: Blake3-sized batches (16M+) + claim cooldown ≥80.
 	fast16M := map[string]bool{
-		"amd_rdna2_daily":    true,
-		"amd_rdna3_daily":    true,
 		"nvidia_hopper_hmai": true,
 	}
+	fast32M := map[string]bool{
+		"amd_rdna2_daily": true,
+	}
 	fast64M := map[string]bool{
+		"amd_rdna3_daily":     true,
 		"nvidia_rtx_30_daily": true,
 		"nvidia_rtx_40_daily": true,
 		"nvidia_rtx_50_daily": true,
@@ -74,6 +76,9 @@ func TestGPURigProfilesBatchAndCooldown(t *testing.T) {
 		}
 		if fast16M[p.ID] && p.Env["HACKME_WORKER_BATCH_SIZE"] != "16777216" {
 			t.Fatalf("%s: want batch 16777216, got %q", p.ID, p.Env["HACKME_WORKER_BATCH_SIZE"])
+		}
+		if fast32M[p.ID] && p.Env["HACKME_WORKER_BATCH_SIZE"] != "33554432" {
+			t.Fatalf("%s: want batch 33554432, got %q", p.ID, p.Env["HACKME_WORKER_BATCH_SIZE"])
 		}
 		if fast64M[p.ID] && p.Env["HACKME_WORKER_BATCH_SIZE"] != "67108864" {
 			t.Fatalf("%s: want Blake3 batch 67108864, got %q", p.ID, p.Env["HACKME_WORKER_BATCH_SIZE"])

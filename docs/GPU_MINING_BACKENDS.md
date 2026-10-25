@@ -94,7 +94,7 @@ Ubuntu 24.04: `cuda-toolkit-12-8`, driver ≥550 (580+ for RTX 50).
 
 ## AMD (OpenCL)
 
-**Status (2026-10-25):** algebraic + **Blake3 device** kernels ship in `internal/gpupoh/poh_search.cl` (`poh_search` / `poh_search_blake3`). Build `workerpoh-opencl`, set `HACKME_GPU_BACKEND=opencl`. If JIT fails, worker falls back to host Blake3 (log line). **Pool GH/s rows for AMD are still TBD** until an RX 580/RDNA host is calibrated on live SHARE_STRICT.
+**Status (2026-10-25):** algebraic + **Blake3 device** kernels ship in `internal/gpupoh/poh_search.cl` (`poh_search` / `poh_search_blake3`, in-kernel shares, chunked `Scanned`). Build `workerpoh-opencl`, set `HACKME_GPU_BACKEND=opencl`. Success log: `gpupoh: OpenCL Blake3 device kernel active (…)`. Host fallback if JIT/launch fails or `HACKME_OPENCL_BLAKE3_HOST=1`. **AMD burn/pool GH/s still TBD** (pending RX 580 SSH / local Polaris-RDNA calib — do not invent numbers). NVIDIA OpenCL ICD smoke on desktop is only a wiring check, not an AMD matrix fill.
 
 **Debian/Ubuntu:**
 
