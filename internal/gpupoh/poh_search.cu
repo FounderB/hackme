@@ -264,11 +264,15 @@ extern "C" __global__ void poh_search_blake3(
             s_use_cv = 1;
             int rem = prefix_len - BLAKE3_BLOCK_LEN;
             s_rem = rem;
-            // Fixed address bytes → words once per block (nonce patched per thread).
-            for (int i = 0; i < rem; i++) {
-                int wi = i >> 2;
-                int sh = (i & 3) * 8;
-                stail_words[wi] |= ((unsigned int)sprefix[BLAKE3_BLOCK_LEN + i]) << sh;
+            // Word path only when suffix||nonce fits one Blake3 block (rem+8 <= 64).
+            // rem can be up to 88 (prefix 152); writing all rem bytes into
+            // stail_words[16] OOB-corrupts s_use_cv/s_rem then IllegalAddress.
+            if (rem + 8 <= BLAKE3_BLOCK_LEN) {
+                for (int i = 0; i < rem; i++) {
+                    int wi = i >> 2;
+                    int sh = (i & 3) * 8;
+                    stail_words[wi] |= ((unsigned int)sprefix[BLAKE3_BLOCK_LEN + i]) << sh;
+                }
             }
         }
     }

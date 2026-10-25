@@ -1164,7 +1164,7 @@ func TestPoolDifficultyRisesOnMinerSurge(t *testing.T) {
 func newTestWorkManagerForPayout(rewardPerM float64, payoutFoundOnly bool) *workManager {
 	return &workManager{
 		defaultBatch:         1000,
-		targetMod:            997,
+		targetMod:            10_000_000, // ≥ batch so attempt-pay economic cap does not bind
 		leaseSec:             30,
 		rewardPerM:           rewardPerM,
 		payoutFoundOnly:      payoutFoundOnly,

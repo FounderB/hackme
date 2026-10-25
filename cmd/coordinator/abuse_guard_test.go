@@ -159,7 +159,7 @@ func newAbuseTestWM() *workManager {
 	})
 }
 
-func TestAttemptsInflationCappedToDefaultBatch(t *testing.T) {
+func TestAttemptsInflationCappedToLeaseBatch(t *testing.T) {
 	wm := newAbuseTestWM()
 	base, size, _, _, _, ok, _ := wm.claim("w1", wm.defaultBatch)
 	if !ok {
@@ -173,7 +173,7 @@ func TestAttemptsInflationCappedToDefaultBatch(t *testing.T) {
 		Found:       false,
 		HashrateGHS: 25,
 	})
-	max := (float64(wm.defaultBatch) / 1_000_000.0) * wm.rewardPerM * 1.05
+	max := wm.maxSubmitHMCForBatch(size)
 	if payout > max+1e-9 {
 		t.Fatalf("payout=%v max=%v", payout, max)
 	}
@@ -204,8 +204,9 @@ func TestFoundWithoutHashratePaysBonusOnly(t *testing.T) {
 	}
 }
 
-func TestMaxClaimBatchSubmitPaysDefaultBatchNotLease(t *testing.T) {
+func TestMaxClaimBatchSubmitPaysUpToTargetModNotDefaultOnly(t *testing.T) {
 	wm := newAbuseTestWM()
+	wm.targetMod = 8_000_000 // > defaultBatch(4M), < maxClaim(16M)
 	lease := wm.maxClaimBatch
 	base, size, _, _, _, ok, _ := wm.claim("w3", lease)
 	if !ok || size != lease {
@@ -219,9 +220,68 @@ func TestMaxClaimBatchSubmitPaysDefaultBatchNotLease(t *testing.T) {
 		Found:       false,
 		HashrateGHS: 40,
 	})
-	max := (float64(wm.defaultBatch) / 1_000_000.0) * wm.rewardPerM * 1.05
+	// Pays up to targetMod (not stuck at defaultBatch); not full 16M lease.
+	oldDefaultCap := (float64(wm.defaultBatch) / 1_000_000.0) * wm.rewardPerM * 1.05
+	max := wm.maxSubmitHMCForBatch(size)
+	if payout <= oldDefaultCap+1e-9 {
+		t.Fatalf("still stuck at defaultBatch: payout=%v oldCap=%v", payout, oldDefaultCap)
+	}
 	if payout > max+1e-9 {
-		t.Fatalf("paid lease-sized accrual: payout=%v max=%v", payout, max)
+		t.Fatalf("payout=%v exceeds maxSubmitHMC=%v", payout, max)
+	}
+}
+
+func TestClampPaidAttemptsHonorsLeaseUpToMaxClaim(t *testing.T) {
+	wm := newAbuseTestWM()
+	wm.targetMod = 0 // isolate lease/maxClaim behavior
+	got := wm.clampPaidAttempts(1<<26, 1<<26)
+	if got != wm.maxClaimBatch {
+		t.Fatalf("clamp 64M→maxClaim: got=%d want=%d", got, wm.maxClaimBatch)
+	}
+	got = wm.clampPaidAttempts(1<<26, 1<<22)
+	if got != 1<<22 {
+		t.Fatalf("clamp to lease batch: got=%d want=%d", got, 1<<22)
+	}
+	got = wm.clampPaidAttempts(100, 1<<22)
+	if got != 100 {
+		t.Fatalf("under-lease passthrough: got=%d", got)
+	}
+}
+
+func TestRewardAutoCapsAttemptPayAtTargetMod(t *testing.T) {
+	wm := newAbuseTestWM()
+	wm.rewardAuto = true
+	wm.baseRewardHMC = 0.01
+	wm.targetMod = 2_000_000
+	wm.rewardPerM = (wm.baseRewardHMC * 1_000_000.0) / float64(wm.targetMod)
+	lease := wm.maxClaimBatch
+	base, size, _, _, _, ok, _ := wm.claim("w-econ", lease)
+	if !ok || size != lease {
+		t.Fatalf("claim: ok=%v size=%d", ok, size)
+	}
+	_, _, payout, _, _ := wm.submit(submitWorkRequest{
+		WorkerID: "w-econ", BaseNonce: base, BatchSize: size,
+		Attempts: size, Found: false, HashrateGHS: 30,
+	})
+	// ≤ ~1× baseReward (attempt-pay capped at M), not lease-sized hyperinflation.
+	max := wm.maxSubmitHMCForBatch(size)
+	if payout > max+1e-9 {
+		t.Fatalf("payout=%v > max=%v", payout, max)
+	}
+	if payout > wm.baseRewardHMC*1.06 {
+		t.Fatalf("attempt-pay exceeded ~1 block: payout=%v base=%v", payout, wm.baseRewardHMC)
+	}
+	got := wm.clampPaidAttempts(lease, lease)
+	if got != wm.targetMod {
+		t.Fatalf("clamp under reward_auto: got=%d want targetMod=%d", got, wm.targetMod)
+	}
+}
+
+func TestBlake3HashratePrefersReportedOverSecondWall(t *testing.T) {
+	// Same unix second → old path wall=0.05s → ~1.3 GH/s for 64M; must keep ~30.
+	got := workerHashrateGHSForSubmitFormulaMs(30, 1<<26, 100, 100, 1000, 1050, 0, 3)
+	if got < 20 {
+		t.Fatalf("blake3 should trust reported burn, got %v", got)
 	}
 }
 

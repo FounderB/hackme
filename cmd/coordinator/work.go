@@ -176,9 +176,9 @@ type workKey struct {
 const (
 	poolTargetModDefault = 5_000_000
 	poolTargetModMin     = 2_000_000
-	// Default cap 1e9 — headroom for large fleets (100k+ workers) without UI stuck at max.
-	// Override via HACKME_COORDINATOR_POOL_TARGET_MOD_MAX (hard limit 2e9 in env parser).
-	poolTargetModMax = 1_000_000_000
+	// Default cap 2e9 — headroom for multi-5090 fleets when load retarget owns M.
+	// Override via HACKME_COORDINATOR_POOL_TARGET_MOD_MAX (env hard limit 2e9).
+	poolTargetModMax = 2_000_000_000
 )
 
 type leaseRecord struct {
@@ -186,6 +186,7 @@ type leaseRecord struct {
 	BaseNonce      uint64 `json:"base_nonce"`
 	BatchSize      uint64 `json:"batch_size"`
 	IssuedAt       int64  `json:"issued_at"`
+	IssuedAtMs     int64  `json:"issued_at_ms,omitempty"` // claim wall for Blake3 GH/s (ms)
 	ExpiresAt      int64  `json:"expires_at"`
 	Reissues       uint64 `json:"reissues"`
 	TargetMod      uint64 `json:"target_mod"`
@@ -299,7 +300,7 @@ func newWorkManagerFromEnv() *workManager {
 	}
 	minM := uint64(poolTargetModMin)
 	if v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_POOL_TARGET_MOD_MIN")); v != "" {
-		if x, err := strconv.ParseUint(v, 10, 64); err == nil && x >= 500_000 && x <= 100_000_000 {
+		if x, err := strconv.ParseUint(v, 10, 64); err == nil && x >= 500_000 && x <= 2_000_000_000 {
 			minM = x
 		}
 	}
@@ -340,7 +341,8 @@ func newWorkManagerFromEnv() *workManager {
 			rewardPerM = x
 		}
 	}
-	foundBonus := 0.01
+	// Soft found bonus: at low M every GPU submit finds; 0.01 HMC/submit was a faucet.
+	foundBonus := 0.0001
 	rewardAuto := true
 	if v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_COORDINATOR_REWARD_AUTO"))); v != "" {
 		rewardAuto = v == "1" || v == "true" || v == "yes" || v == "on"
@@ -1048,23 +1050,59 @@ func workerHashrateGHSForSubmit(reported float64, batch uint64, issuedAt, now in
 }
 
 // workerHashrateGHSForSubmitFormula clamps over-reported GH/s to lease wall rate.
-// formulaVersion >= 3 (Blake3): never trust calibration spikes above wall — host Blake3
-// is often << legacy GPU calib, and fast claim→submit with stale GH/s inflated pool M.
+// formulaVersion >= 3 (Blake3): prefer device-reported burn; second-granularity wall
+// used to falsely pin ~1 GH/s. Millisecond claim wall (when provided) still bounds cheats.
 func workerHashrateGHSForSubmitFormula(reported float64, batch uint64, issuedAt, now int64, last float64, formulaVersion int) float64 {
+	return workerHashrateGHSForSubmitFormulaMs(reported, batch, issuedAt, now, 0, 0, last, formulaVersion)
+}
+
+func workerHashrateGHSForSubmitFormulaMs(reported float64, batch uint64, issuedAt, now, issuedAtMs, nowMs int64, last float64, formulaVersion int) float64 {
 	wallGH := 0.0
 	wall := 0.0
-	if issuedAt > 0 && batch > 0 {
-		wall = float64(now - issuedAt)
-		if wall < 0.05 {
-			wall = 0.05
+	if batch > 0 {
+		secWall := 0.0
+		if issuedAt > 0 && now >= issuedAt {
+			secWall = float64(now - issuedAt)
 		}
-		wallGH = clampWorkerHashrateGHS(float64(batch) / wall / 1e9)
+		msWall := 0.0
+		if issuedAtMs > 0 && nowMs > 0 && nowMs >= issuedAtMs {
+			msWall = float64(nowMs-issuedAtMs) / 1000.0
+		}
+		switch {
+		case secWall >= 1.0 && (msWall <= 0 || msWall < 0.5):
+			// Prefer second wall when lease truly spanned ≥1s (FORCE/stale clamp).
+			wall = secWall
+		case msWall > 0:
+			wall = msWall
+			if wall < 0.001 {
+				wall = 0.001
+			}
+		case secWall > 0:
+			wall = secWall
+			if wall < 0.05 {
+				wall = 0.05
+			}
+		}
+		if wall > 0 {
+			wallGH = clampWorkerHashrateGHS(float64(batch) / wall / 1e9)
+		}
 	}
 	rep := clampWorkerHashrateGHS(reported)
 	if rep > 0 {
 		if formulaVersion >= 3 {
-			if wallGH > 0 && rep > wallGH*1.5 {
+			// Slow leases (≥1s wall): clamp FORCE/calib spikes to wall.
+			if wallGH > 0 && wall >= 1.0 && rep > wallGH*1.5 {
 				return wallGH
+			}
+			// Fast claim→submit (RTT-bound): trust device burn for UI; only cut absurd cheats.
+			if wallGH > 0 && wall < 1.0 {
+				cheat := 100.0
+				if issuedAtMs > 0 {
+					cheat = 50.0
+				}
+				if rep > wallGH*cheat {
+					return wallGH
+				}
 			}
 			return rep
 		}
@@ -2083,6 +2121,7 @@ func (m *workManager) claim(workerID string, batch uint64) (base uint64, size ui
 		BaseNonce:      base,
 		BatchSize:      batch,
 		IssuedAt:       now,
+		IssuedAtMs:     time.Now().UnixMilli(),
 		ExpiresAt:      leaseUntil,
 		TargetMod:      m.targetMod,
 		PrevHash:       prev,
@@ -2463,7 +2502,8 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		leaseFV = m.resolvedPoHFormulaVersionLocked()
 	}
 	prevGH := m.worker[req.WorkerID].LastHashrateGHS
-	rawGH := workerHashrateGHSForSubmitFormula(reportedGH, req.BatchSize, issuedAt, now, prevGH, leaseFV)
+	nowMs := time.Now().UnixMilli()
+	rawGH := workerHashrateGHSForSubmitFormulaMs(reportedGH, req.BatchSize, issuedAt, now, rec.IssuedAtMs, nowMs, prevGH, leaseFV)
 	gh := smoothWorkerHashrateGHS(prevGH, rawGH)
 	// Blake3 wall samples are often 0.002–0.02 GH/s (below the generic smooth cliff
 	// floor of 0.05). Snap so FORCE/calib EMA cannot inflate attempt-pay maxCred or peaks.
@@ -2522,8 +2562,8 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if payout < 0 {
 		payout = 0
 	}
-	// Hard per-submit HMC ceiling (attempt accrual + found bonus).
-	maxSubmitHMC := (float64(m.defaultBatch)/1_000_000.0)*m.rewardPerM*1.05 + m.foundBonus*1.05
+	// Hard per-submit HMC ceiling (attempt accrual + found bonus) — keyed to this lease.
+	maxSubmitHMC := m.maxSubmitHMCForBatch(req.BatchSize)
 	if payout > maxSubmitHMC {
 		payout = maxSubmitHMC
 	}

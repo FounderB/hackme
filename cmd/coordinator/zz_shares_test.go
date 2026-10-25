@@ -37,7 +37,7 @@ func TestValidateShareNoncesV1(t *testing.T) {
 func TestSoftShareKeepsAttemptPay(t *testing.T) {
 	wm := withTestTip(&workManager{
 		defaultBatch:         10_000,
-		targetMod:            997,
+		targetMod:            10_000_000, // ≥ lease so M economic cap does not bind attempt-pay
 		leaseSec:             60,
 		rewardPerM:           1.0,
 		baseRewardHMC:        0.01,

@@ -126,17 +126,49 @@ func (m *workManager) clampPaidAttempts(attempts, batch uint64) uint64 {
 	if m == nil || attempts == 0 {
 		return 0
 	}
-	cap := m.defaultBatch
-	if m.maxClaimBatch > 0 && m.maxClaimBatch < cap {
+	// Lease ceiling (coordinator-issued). defaultBatch only if batch missing.
+	cap := batch
+	if cap == 0 {
+		cap = m.defaultBatch
+	}
+	if m.maxClaimBatch > 0 && cap > m.maxClaimBatch {
 		cap = m.maxClaimBatch
+	}
+	// Economic cap: paying full 64M lease at M≈2M minted ~32 block-equivalents
+	// per submit. Always cap attempt-pay at targetMod when set (= one expected solve).
+	if m.targetMod > 0 && (cap == 0 || m.targetMod < cap) {
+		cap = m.targetMod
 	}
 	if cap > 0 && attempts > cap {
 		attempts = cap
 	}
-	if batch > 0 && attempts > batch {
-		attempts = batch
-	}
 	return attempts
+}
+
+// maxSubmitHMCForBatch is the hard HMC ceiling for one accepted submit.
+// Attempt-pay is capped at targetMod, so ceiling tracks that (+ found bonus).
+func (m *workManager) maxSubmitHMCForBatch(batch uint64) float64 {
+	if m == nil {
+		return 0
+	}
+	payBatch := batch
+	if payBatch == 0 {
+		payBatch = m.defaultBatch
+	}
+	if m.maxClaimBatch > 0 && payBatch > m.maxClaimBatch {
+		payBatch = m.maxClaimBatch
+	}
+	if m.targetMod > 0 && payBatch > m.targetMod {
+		payBatch = m.targetMod
+	}
+	ceil := (float64(payBatch)/1_000_000.0)*m.rewardPerM*1.05 + m.foundBonus*1.05
+	if m.rewardAuto && m.baseRewardHMC > 0 {
+		alt := m.baseRewardHMC*1.05 + m.foundBonus*1.05
+		if alt < ceil {
+			ceil = alt
+		}
+	}
+	return ceil
 }
 
 func (m *workManager) permabanWorkerLocked(workerID, ipKey string) {
