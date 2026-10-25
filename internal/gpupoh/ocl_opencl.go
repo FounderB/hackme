@@ -377,63 +377,91 @@ func (a *oclAccel) launchBlake3Chunk(base, count, mod uint64, div blake3ModDiv, 
 	if shareMod == 0 {
 		ms = 0
 	}
+	// Local cl_mem copies — avoid &a.field (cgo: Go pointer to unpinned Go pointer).
+	memPrefix := a.memPrefix
+	memOut := a.memOut
+	memLock := a.memLock
+	memShareCnt := a.memShareCnt
+	memShares := a.memShares
+	kernB3 := a.kernelB3
 
-	setArg := func(idx int, sz uintptr, ptr unsafe.Pointer) error {
-		e := C.clSetKernelArg(a.kernelB3, C.cl_uint(idx), C.size_t(sz), ptr)
+	setU64 := func(idx int, v *C.cl_ulong) error {
+		e := C.clSetKernelArg(kernB3, C.cl_uint(idx), C.size_t(unsafe.Sizeof(*v)), unsafe.Pointer(v))
 		if e != C.CL_SUCCESS {
 			return fmt.Errorf("gpupoh ocl: SetKernelArg blake3 %d: %d", idx, int(e))
 		}
 		return nil
 	}
-	if err := setArg(0, unsafe.Sizeof(b), unsafe.Pointer(&b)); err != nil {
+	setU32 := func(idx int, v *C.cl_uint) error {
+		e := C.clSetKernelArg(kernB3, C.cl_uint(idx), C.size_t(unsafe.Sizeof(*v)), unsafe.Pointer(v))
+		if e != C.CL_SUCCESS {
+			return fmt.Errorf("gpupoh ocl: SetKernelArg blake3 %d: %d", idx, int(e))
+		}
+		return nil
+	}
+	setI32 := func(idx int, v *C.cl_int) error {
+		e := C.clSetKernelArg(kernB3, C.cl_uint(idx), C.size_t(unsafe.Sizeof(*v)), unsafe.Pointer(v))
+		if e != C.CL_SUCCESS {
+			return fmt.Errorf("gpupoh ocl: SetKernelArg blake3 %d: %d", idx, int(e))
+		}
+		return nil
+	}
+	setMem := func(idx int, v *C.cl_mem) error {
+		e := C.clSetKernelArg(kernB3, C.cl_uint(idx), C.size_t(unsafe.Sizeof(*v)), unsafe.Pointer(v))
+		if e != C.CL_SUCCESS {
+			return fmt.Errorf("gpupoh ocl: SetKernelArg blake3 %d: %d", idx, int(e))
+		}
+		return nil
+	}
+	if err := setU64(0, &b); err != nil {
 		return res, err
 	}
-	if err := setArg(1, unsafe.Sizeof(c), unsafe.Pointer(&c)); err != nil {
+	if err := setU64(1, &c); err != nil {
 		return res, err
 	}
-	if err := setArg(2, unsafe.Sizeof(m), unsafe.Pointer(&m)); err != nil {
+	if err := setU64(2, &m); err != nil {
 		return res, err
 	}
-	if err := setArg(3, unsafe.Sizeof(inv), unsafe.Pointer(&inv)); err != nil {
+	if err := setU64(3, &inv); err != nil {
 		return res, err
 	}
-	if err := setArg(4, unsafe.Sizeof(lim), unsafe.Pointer(&lim)); err != nil {
+	if err := setU64(4, &lim); err != nil {
 		return res, err
 	}
-	if err := setArg(5, unsafe.Sizeof(tz), unsafe.Pointer(&tz)); err != nil {
+	if err := setU32(5, &tz); err != nil {
 		return res, err
 	}
-	if err := setArg(6, unsafe.Sizeof(a.memPrefix), unsafe.Pointer(&a.memPrefix)); err != nil {
+	if err := setMem(6, &memPrefix); err != nil {
 		return res, err
 	}
-	if err := setArg(7, unsafe.Sizeof(plen), unsafe.Pointer(&plen)); err != nil {
+	if err := setI32(7, &plen); err != nil {
 		return res, err
 	}
-	if err := setArg(8, unsafe.Sizeof(a.memOut), unsafe.Pointer(&a.memOut)); err != nil {
+	if err := setMem(8, &memOut); err != nil {
 		return res, err
 	}
-	if err := setArg(9, unsafe.Sizeof(a.memLock), unsafe.Pointer(&a.memLock)); err != nil {
+	if err := setMem(9, &memLock); err != nil {
 		return res, err
 	}
-	if err := setArg(10, unsafe.Sizeof(smod), unsafe.Pointer(&smod)); err != nil {
+	if err := setU64(10, &smod); err != nil {
 		return res, err
 	}
-	if err := setArg(11, unsafe.Sizeof(sinv), unsafe.Pointer(&sinv)); err != nil {
+	if err := setU64(11, &sinv); err != nil {
 		return res, err
 	}
-	if err := setArg(12, unsafe.Sizeof(slim), unsafe.Pointer(&slim)); err != nil {
+	if err := setU64(12, &slim); err != nil {
 		return res, err
 	}
-	if err := setArg(13, unsafe.Sizeof(stz), unsafe.Pointer(&stz)); err != nil {
+	if err := setU32(13, &stz); err != nil {
 		return res, err
 	}
-	if err := setArg(14, unsafe.Sizeof(a.memShareCnt), unsafe.Pointer(&a.memShareCnt)); err != nil {
+	if err := setMem(14, &memShareCnt); err != nil {
 		return res, err
 	}
-	if err := setArg(15, unsafe.Sizeof(a.memShares), unsafe.Pointer(&a.memShares)); err != nil {
+	if err := setMem(15, &memShares); err != nil {
 		return res, err
 	}
-	if err := setArg(16, unsafe.Sizeof(ms), unsafe.Pointer(&ms)); err != nil {
+	if err := setU32(16, &ms); err != nil {
 		return res, err
 	}
 

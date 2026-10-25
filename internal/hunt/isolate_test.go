@@ -12,6 +12,19 @@ import (
 	"time"
 )
 
+func TestWrapBubblewrapHardeningFlags(t *testing.T) {
+	argv, ok := wrapBubblewrap("/bin/true", nil, "", nil, nil)
+	if !ok {
+		t.Skip("bwrap not on PATH")
+	}
+	joined := strings.Join(argv, " ")
+	for _, flag := range []string{"--new-session", "--unshare-ipc", "--unshare-uts", "--cap-drop", "ALL", "--unshare-net"} {
+		if !strings.Contains(joined, flag) {
+			t.Fatalf("missing bwrap harden flag %q in %v", flag, argv)
+		}
+	}
+}
+
 func TestAllowBareTriesBwrapFirst(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "bwrap-used")

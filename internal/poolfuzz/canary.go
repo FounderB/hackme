@@ -244,16 +244,17 @@ func (s *Service) rejectCanaryMissIfNeeded(ctx context.Context, cfg map[string]a
 	if err != nil || !isCanary {
 		return err
 	}
-	// Worker already claimed a finding/crash — handled on full-replay path.
-	if submitClaimsFinding(fuzzengine.ParseCheckSemantics(cfg), req) {
-		return nil
-	}
+	// Hunt first: CheckResult 0 means CLEAN (Dig PoW gate treats 0 as a finding).
 	if IsHuntCampaign(cfg) {
 		trap := strings.TrimSpace(req.Trap)
 		if req.CheckResult != 0 && (strings.HasPrefix(trap, "hunt_crash:") || strings.HasPrefix(trap, "hunt_sanitizer:")) {
 			return nil
 		}
 		return fmt.Errorf("poolfuzz: canary_miss: Hunt CLEAN missed known crash seed")
+	}
+	// Dig: worker already claimed a finding/crash — handled on full-replay path.
+	if submitClaimsFinding(fuzzengine.ParseCheckSemantics(cfg), req) {
+		return nil
 	}
 	wasmHex := wasmHexFromConfig(cfg)
 	if wasmHex == "" {
