@@ -7,7 +7,7 @@ HackMe pool workers support **native CUDA** (NVIDIA) and **OpenCL** (AMD, Intel,
 | Platform | Backend | Binary | Typical burn GH/s (Blake3) |
 |----------|---------|--------|----------------------------|
 | **NVIDIA** (RTX 30/40/50) | **CUDA** (required for real GH) | `bin/workerpoh-cuda` | ~5 (5060 Ti) … ~27 (5090); see [`BLAKE3_GPU_MATRIX.md`](BLAKE3_GPU_MATRIX.md) |
-| **AMD** (RX 580 / 6000 / 7000) | OpenCL | `bin/workerpoh-opencl` | **device** `poh_search_blake3` (burn TBD — pending AMD calib); host fallback if ICD/build fails |
+| **AMD** (matrix: **RX 580 2048SP**) | OpenCL | `bin/workerpoh-opencl` | **device** `poh_search_blake3` — burn ~0.8 / pool ~0.94; other RX not in matrix yet |
 | **Intel** (Arc / iGPU) | OpenCL | `bin/workerpoh-opencl` | same OpenCL device path; calib TBD |
 | CPU-only (VPS) | — | `workerpoh` | ~0.05–0.3 (chunked full-lease scan) |
 

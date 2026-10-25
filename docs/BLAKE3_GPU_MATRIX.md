@@ -1,6 +1,6 @@
 # Blake3 PoH GPU matrix (LIVE fv≥3)
 
-**Status:** CUDA soft-launch matrix filled through Pascal 10xx; **AMD RX 580 2048SP OpenCL device PASS** (burn ~0.8 · pool ~0.94 SHARE_STRICT) — RDNA still open.  
+**Status:** CUDA soft-launch matrix filled through Pascal 10xx; **AMD in-matrix = RX 580 2048SP only** (OpenCL device PASS: burn ~0.8 · pool ~0.94 SHARE_STRICT). No other RX / RDNA rows until calibrated.  
 **Do not compare Peak GH/s to the June 2026 algebraic table** — that was pre-cliff hybrid/v1 calib.
 
 Historical (pre-Blake3) matrix: [`archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.md`](archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.md) — kept as archive only.
