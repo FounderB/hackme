@@ -317,6 +317,10 @@ func (a *app) handleReportsHardware(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// Off-loopback LAN nodes must not expose GPU/CPU model without a token.
+	if !requireAdminAuthOrDesktopLoopback(w, r) {
+		return
+	}
 
 	s := collector.snapshot()
 	ms := a.miner.Stats()

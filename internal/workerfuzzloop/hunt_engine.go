@@ -18,9 +18,13 @@ import (
 )
 
 // DetectHuntEngines returns locally available Hunt engines for claim advertising.
-// Always includes byte (ASAN L1). Adds libfuzzer when clang is present; aflpp when afl-fuzz is bundled.
+// Byte is included only when RunnerAvailable(byte) passes (Linux + working bwrap).
+// Adds libfuzzer when clang is present; aflpp when afl-fuzz is bundled.
 func DetectHuntEngines() []string {
-	out := []string{hunt.EngineByte}
+	out := make([]string, 0, 3)
+	if ok, _ := hunt.RunnerAvailable(hunt.EngineByte); ok {
+		out = append(out, hunt.EngineByte)
+	}
 	if ok, _ := hunt.RunnerAvailable(hunt.EngineLibFuzzer); ok {
 		out = append(out, hunt.EngineLibFuzzer)
 	}

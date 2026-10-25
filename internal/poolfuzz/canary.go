@@ -160,8 +160,15 @@ func (s *Service) applyDigCanary(ctx context.Context, work *ClaimedWork, cfg map
 	work.ActualInput = u
 	work.InputBytes = append([]byte(nil), b...)
 	if fuzzengine.GuidedSchedulingEnabled(cfg) || len(work.CorpusSeeds) > 0 {
-		seed := fuzzengine.PoolCorpusSeed{Input: u, InputBytes: append([]byte(nil), b...), Energy: 1000}
-		seeds := append([]fuzzengine.PoolCorpusSeed{seed}, work.CorpusSeeds...)
+		sum := sha256.Sum256([]byte(fmt.Sprintf("canary-slot|%s|%d", work.CampaignID, work.ItemID)))
+		energy := 40 + int(sum[0])%180
+		seed := fuzzengine.PoolCorpusSeed{Input: u, InputBytes: append([]byte(nil), b...), Energy: energy}
+		base := append([]fuzzengine.PoolCorpusSeed(nil), work.CorpusSeeds...)
+		slot := int(sum[1]) % (len(base) + 1)
+		seeds := make([]fuzzengine.PoolCorpusSeed, 0, len(base)+1)
+		seeds = append(seeds, base[:slot]...)
+		seeds = append(seeds, seed)
+		seeds = append(seeds, base[slot:]...)
 		if err := s.storeCorpusSnapshot(ctx, work.CampaignID, work.ItemID, seeds); err != nil {
 			return err
 		}
@@ -208,6 +215,8 @@ func shouldInjectHuntCanary(campaignID string, itemID int64, cfg map[string]any)
 }
 
 // applyHuntCanary locks a known-crash seed onto the Hunt claim corpus.
+// Canary is shuffled into a non-fixed corpus slot with non-constant Energy so
+// miners cannot fingerprint canaries as always corpus[0] + Energy 1000.
 func (s *Service) applyHuntCanary(ctx context.Context, work *ClaimedWork, cfg map[string]any) error {
 	if work == nil {
 		return fmt.Errorf("poolfuzz: nil work")
@@ -221,8 +230,15 @@ func (s *Service) applyHuntCanary(ctx context.Context, work *ClaimedWork, cfg ma
 	}
 	work.ActualInput = u
 	work.InputBytes = append([]byte(nil), b...)
-	seed := fuzzengine.PoolCorpusSeed{Input: u, InputBytes: append([]byte(nil), b...), Energy: 1000}
-	seeds := append([]fuzzengine.PoolCorpusSeed{seed}, work.CorpusSeeds...)
+	sum := sha256.Sum256([]byte(fmt.Sprintf("canary-slot|%s|%d", work.CampaignID, work.ItemID)))
+	energy := 40 + int(sum[0])%180 // 40..219 — never a magic 1000
+	seed := fuzzengine.PoolCorpusSeed{Input: u, InputBytes: append([]byte(nil), b...), Energy: energy}
+	base := append([]fuzzengine.PoolCorpusSeed(nil), work.CorpusSeeds...)
+	slot := int(sum[1]) % (len(base) + 1)
+	seeds := make([]fuzzengine.PoolCorpusSeed, 0, len(base)+1)
+	seeds = append(seeds, base[:slot]...)
+	seeds = append(seeds, seed)
+	seeds = append(seeds, base[slot:]...)
 	if err := s.storeCorpusSnapshot(ctx, work.CampaignID, work.ItemID, seeds); err != nil {
 		return err
 	}

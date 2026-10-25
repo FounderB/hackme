@@ -70,6 +70,8 @@ func TestBuildSubprocessLibFuzzer(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang not available")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
+	t.Setenv("HACKME_HUNT_BUILD_SANDBOX", "0")
 	root := RepoRoot()
 	dir := t.TempDir()
 	out := filepath.Join(dir, "subprocess-fuzzer")

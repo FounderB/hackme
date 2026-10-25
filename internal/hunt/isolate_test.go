@@ -29,6 +29,7 @@ func TestAllowBareTriesBwrapFirst(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "bwrap-used")
 	fake := filepath.Join(dir, "bwrap")
+	// Accept probe argv (/bin/true) and harness argv; always mark + exit 0.
 	script := "#!/bin/sh\necho used >\"" + marker + "\"\nexit 0\n"
 	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -36,6 +37,10 @@ func TestAllowBareTriesBwrapFirst(t *testing.T) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HACKME_HUNT_ISOLATE_REQUIRE", "1")
 	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "1")
+	ResetBubblewrapProbeForTest()
+	if !BubblewrapWorking() {
+		t.Fatal("fake bwrap should make BubblewrapWorking true")
+	}
 
 	bin := filepath.Join(dir, "harness")
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\necho should-not-run\nexit 1\n"), 0o755); err != nil {
@@ -52,6 +57,40 @@ func TestAllowBareTriesBwrapFirst(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); err != nil {
 		t.Fatal("AllowBare must not skip bwrap: marker missing (regression: early bare bypass)")
+	}
+}
+
+// TestNoBareReexecAfterForgedBwrapStderr: harness prints fake bwrap Permission denied;
+// under STRICT+AllowBare=false we must NOT re-exec outside the cage.
+func TestNoBareReexecAfterForgedBwrapStderr(t *testing.T) {
+	if !BubblewrapAvailable() {
+		t.Skip("bwrap not on PATH")
+	}
+	dir := t.TempDir()
+	bareMarker := filepath.Join(dir, "bare-ran")
+	bin := filepath.Join(dir, "harness")
+	// Inside cage: forge bwrap stderr and exit 1. Bare path would touch bareMarker
+	// via ExtraBind of dir — but if re-exec happens without cage, marker appears.
+	script := "#!/bin/sh\necho 'bwrap: Creating new namespace failed: Permission denied' >&2\n" +
+		"touch \"" + bareMarker + ".in-cage\"\nexit 1\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HACKME_HUNT_ISOLATE_REQUIRE", "1")
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "1")
+	err := RunIsolated(context.Background(), IsolateOpts{
+		Bin:       bin,
+		Wall:      5 * time.Second,
+		AllowBare: false,
+		ExtraBind: []string{dir},
+	})
+	if err == nil {
+		t.Fatal("expected error from forged harness exit")
+	}
+	// The critical property: we must not have silently succeeded via bare re-exec
+	// that ignored the cage. AllowBare=false + STRICT → error mentioning bwrap or exit.
+	if !strings.Contains(err.Error(), "bwrap") && !strings.Contains(err.Error(), "exit") {
+		t.Fatalf("unexpected err: %v", err)
 	}
 }
 

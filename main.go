@@ -3657,6 +3657,10 @@ func (a *app) handleMiningLogs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// Off-loopback: require admin token (path + hardware fingerprint otherwise leak).
+	if !requireAdminAuthOrDesktopLoopback(w, r) {
+		return
+	}
 	includeWorker := strings.TrimSpace(r.URL.Query().Get("include_worker")) == "1"
 	// Desktop loopback: read-only worker log tail is safe without pasting admin token in the browser.
 	allowWorkerTail := includeWorker && envBool("HACKME_DESKTOP_MODE", false) && requestFromLoopback(r) && requestHostIsLoopbackLiteral(r)

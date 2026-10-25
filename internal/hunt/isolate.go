@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -69,6 +70,68 @@ func BubblewrapAvailable() bool {
 	return err == nil
 }
 
+var (
+	bwrapProbeMu   sync.Mutex
+	bwrapProbeOK   bool
+	bwrapProbeDone bool
+	bwrapProbePath string
+)
+
+// BubblewrapWorking probes that bwrap can run /bin/true in a minimal cage.
+// Result is cached per resolved bwrap path (PATH changes in tests re-probe).
+// Prefer this over parsing stderr of untrusted programs when deciding AllowBare.
+func BubblewrapWorking() bool {
+	bwrap, err := exec.LookPath("bwrap")
+	if err != nil {
+		return false
+	}
+	bwrapProbeMu.Lock()
+	defer bwrapProbeMu.Unlock()
+	if bwrapProbeDone && bwrapProbePath == bwrap {
+		return bwrapProbeOK
+	}
+	bwrapProbeOK = probeBubblewrap()
+	bwrapProbePath = bwrap
+	bwrapProbeDone = true
+	return bwrapProbeOK
+}
+
+// ResetBubblewrapProbeForTest clears the cached probe (unit tests only).
+func ResetBubblewrapProbeForTest() {
+	bwrapProbeMu.Lock()
+	defer bwrapProbeMu.Unlock()
+	bwrapProbeDone = false
+	bwrapProbeOK = false
+	bwrapProbePath = ""
+}
+
+func probeBubblewrap() bool {
+	bwrap, err := exec.LookPath("bwrap")
+	if err != nil {
+		return false
+	}
+	trueBin, err := exec.LookPath("true")
+	if err != nil {
+		trueBin = "/bin/true"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bwrap,
+		"--ro-bind", "/", "/",
+		"--dev", "/dev",
+		"--proc", "/proc",
+		"--unshare-pid",
+		"--unshare-net",
+		"--die-with-parent",
+		"--", trueBin,
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		_ = out
+		return false
+	}
+	return true
+}
+
 // RunIsolated executes bin under wall-clock + bubblewrap (--unshare-net) when available.
 // When IsolateRequired and bwrap is missing (and AllowBare is false), returns an error
 // instead of falling through to bare exec (M1 fail-closed for paid Hunt).
@@ -95,6 +158,13 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 		useBwrap = false
 		argv = append([]string{opts.Bin}, opts.Args...)
 	}
+	// If the one-shot probe says the cage cannot run, never enter bwrap when
+	// bare is permitted (AllowBare or non-STRICT). Start would succeed then Wait
+	// fail with RTM_NEWADDR — and we intentionally never bare-retry after Wait.
+	if useBwrap && !BubblewrapWorking() && (opts.AllowBare || !IsolateStrict()) {
+		useBwrap = false
+		argv = append([]string{opts.Bin}, opts.Args...)
+	}
 	if !useBwrap {
 		if IsolateStrict() && !opts.AllowBare {
 			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT)")
@@ -111,9 +181,9 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	attachIsolatedStdio(cmd, opts.Stdout, opts.Stderr, &stderrBuf)
 	setProcessGroup(cmd)
 	allowBareFallback := !IsolateStrict() || opts.AllowBare
-	// Bare fallback only when bwrap fails to *launch* (Start error). Never after
-	// Wait: a malicious harness can forge "bwrap: … Permission denied" on stderr
-	// to force unsandboxed re-exec (audit 2026-10).
+	// Bare fallback ONLY when bwrap fails to *launch* (Start error).
+	// Never after Wait — a malicious harness/build.rs can forge
+	// "bwrap: … Permission denied" on stderr to force unsandboxed re-exec.
 	if err := cmd.Start(); err != nil {
 		if bwrapCageFailed(err, "") && allowBareFallback {
 			return runBareIsolated(runCtx, opts, env, wall)
@@ -131,20 +201,10 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 		_ = killProcessGroup(cmd)
 		return fmt.Errorf("hunt isolate: wall exceeded (%s)", wall)
 	}
-	// Cage setup failure after Start (RTM_NEWADDR / uid_map): bare-retry only when
-	// opted in and the harness does not appear to have run (anti-forge: ASAN output
-	// means the target already executed inside the cage — never unsandbox).
-	stderr := stderrBuf.String()
-	if err != nil && bwrapSetupFailed(stderr) && !harnessLikelyRanInCage(stderr) {
-		if allowBareFallback {
-			if s, ok := opts.Stdin.(io.Seeker); ok {
-				_, _ = s.Seek(0, io.SeekStart)
-			}
-			return runBareIsolated(runCtx, opts, env, wall)
-		}
-		if IsolateStrict() && !opts.AllowBare {
-			return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT): %v", err)
-		}
+	// Post-Wait: never bare-retry. Cage setup failures (RTM_NEWADDR / uid_map)
+	// surface as errors under STRICT; forged stderr cannot unsandbox.
+	if err != nil && IsolateStrict() && !opts.AllowBare && bwrapSetupFailed(stderrBuf.String()) {
+		return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT): %v", err)
 	}
 	return err
 }
@@ -341,45 +401,53 @@ func wrapBubblewrap(bin string, args []string, dir string, extraBind, extraRo []
 // cannot inherit hub secrets. Alias of the isolate scrub list.
 func ScrubBuildEnv(env []string) []string { return scrubIsolateEnv(env) }
 
+// scrubIsolateEnv keeps a whitelist of compiler/fuzzer knobs and drops everything
+// else (tokens, cloud keys, proxies, SSH agents). Prefer allowlist over denylist.
 func scrubIsolateEnv(env []string) []string {
-	denyExact := map[string]bool{
-		"http_proxy": true, "https_proxy": true, "HTTP_PROXY": true, "HTTPS_PROXY": true,
-		"ALL_PROXY": true, "all_proxy": true, "GIT_ASKPASS": true, "SSH_AUTH_SOCK": true,
-		"AWS_SECRET_ACCESS_KEY": true, "AWS_ACCESS_KEY_ID": true, "AWS_SESSION_TOKEN": true,
-		"COORD_TOKEN": true, "GITHUB_TOKEN": true, "GH_TOKEN": true,
-		"HACKME_ADMIN_TOKEN": true, "HACKME_POOL_COORDINATOR_TOKEN": true,
-		"HACKME_MINER_ED25519_SEED_HEX": true, "HACKME_COORDINATOR_ADMIN_TOKEN": true,
-		"HACKME_SETTLEMENT_ADMIN_TOKEN": true, "OPENAI_API_KEY": true, "ANTHROPIC_API_KEY": true,
+	allowExact := map[string]bool{
+		"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "SHELL": true,
+		"TMPDIR": true, "TMP": true, "TEMP": true, "LANG": true, "LANGUAGE": true,
+		"TERM": true, "TZ": true, "PWD": true,
+		"CC": true, "CXX": true, "CPP": true, "AR": true, "RANLIB": true, "LD": true,
+		"CFLAGS": true, "CXXFLAGS": true, "CPPFLAGS": true, "LDFLAGS": true,
+		"CARGO_HOME": true, "CARGO_TARGET_DIR": true, "CARGO_NET_OFFLINE": true,
+		"CARGO_TERM_COLOR": true, "RUSTUP_HOME": true, "RUSTC": true, "RUSTFLAGS": true,
+		"RUSTDOCFLAGS": true, "RUST_BACKTRACE": true,
+		"XDG_CACHE_HOME": true, "XDG_CONFIG_HOME": true, "XDG_DATA_HOME": true,
+		"AFL_PATH": true, "AFL_SKIP_CPUFREQ": true, "AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES": true,
+		"AFL_NO_UI": true, "AFL_MAP_SIZE": true, "AFL_USE_ASAN": true, "AFL_USE_UBSAN": true,
+		"ASAN_OPTIONS": true, "UBSAN_OPTIONS": true, "MSAN_OPTIONS": true, "LSAN_OPTIONS": true,
+		"LIBFUZZER_OPTS": true, "LLVM_PROFILE_FILE": true,
+		"HACKME_POOL_COORDINATOR_URL": true, "HACKME_POOL_SEED_FROM_RESEARCH": true,
+		"HACKME_PREFIX": true, "HACKME_AFL_FUZZ": true, "HACKME_LIBFUZZER_VERSION": true,
+		"HACKME_ISOLATE_RSS_MB": true,
 	}
-	denyPrefix := []string{
-		"HACKME_MINER_", "HACKME_POOL_", "HACKME_SETTLE", "AWS_", "GITHUB_",
+	allowPrefix := []string{
+		"LC_", "AFL_", "LIBFUZZER_", "CARGO_", "RUST", "CCACHE_", "SCCACHE_",
 	}
-	out := make([]string, 0, len(env)+2)
+	out := make([]string, 0, len(env)/4+8)
 	for _, e := range env {
 		key, _, _ := strings.Cut(e, "=")
-		if denyExact[key] {
+		if key == "" {
 			continue
 		}
-		skip := false
-		for _, p := range denyPrefix {
+		uk := strings.ToUpper(key)
+		if strings.Contains(uk, "TOKEN") || strings.Contains(uk, "SECRET") ||
+			strings.Contains(uk, "PASSWORD") || strings.Contains(uk, "CREDENTIAL") ||
+			strings.Contains(uk, "API_KEY") || strings.Contains(uk, "PRIVATE") ||
+			strings.Contains(uk, "SEED_HEX") {
+			continue
+		}
+		if allowExact[key] {
+			out = append(out, e)
+			continue
+		}
+		for _, p := range allowPrefix {
 			if strings.HasPrefix(key, p) {
-				// Keep non-secret pool knobs that engines need (URLs are OK; tokens scrubbed above).
-				if key == "HACKME_POOL_COORDINATOR_URL" || key == "HACKME_POOL_SEED_FROM_RESEARCH" {
-					break
-				}
-				if strings.Contains(strings.ToUpper(key), "TOKEN") ||
-					strings.Contains(strings.ToUpper(key), "SECRET") ||
-					strings.Contains(strings.ToUpper(key), "SEED") ||
-					strings.Contains(strings.ToUpper(key), "KEY") {
-					skip = true
-					break
-				}
+				out = append(out, e)
+				break
 			}
 		}
-		if skip {
-			continue
-		}
-		out = append(out, e)
 	}
 	return out
 }

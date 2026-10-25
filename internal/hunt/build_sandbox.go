@@ -48,6 +48,8 @@ type BuildIsolateOpts struct {
 
 // RunBuildIsolated runs a harness build under RunIsolated when BuildSandboxEnabled.
 // Env is always scrubbed. With sandbox off (desk), scrubbed bare exec is used.
+// Hub/production (sandbox ON): fail closed when bwrap cannot cage — never bare-retry
+// after Wait, never AllowBare.
 func RunBuildIsolated(ctx context.Context, opts BuildIsolateOpts) error {
 	if strings.TrimSpace(opts.Bin) == "" {
 		return fmt.Errorf("hunt build isolate: empty bin")
@@ -70,13 +72,25 @@ func RunBuildIsolated(ctx context.Context, opts BuildIsolateOpts) error {
 	extraRo := append([]string{}, opts.ExtraRoBind...)
 	extraRo = append(extraRo, buildToolchainRoBinds()...)
 	extraBind := append([]string{}, opts.ExtraBind...)
-	extraBind = append(extraBind, buildHomeBinds()...)
+	// Ephemeral CARGO_HOME / XDG_CACHE under a RW bind — never mount ~/.cargo or
+	// ~/.cache writable (persistence via config.toml / registry).
+	cargoHome, cacheHome, homeBinds, homeEnv := buildEphemeralHomeBinds(opts.Dir)
+	extraBind = append(extraBind, homeBinds...)
+	env = append(env, homeEnv...)
+	_ = cargoHome
+	_ = cacheHome
 
 	if !BuildSandboxEnabled() {
 		return runBareBuild(ctx, opts, env, wall)
 	}
-	// Prefer cage; always allow scrubbed bare fallback when userns/bwrap is denied
-	// (desk CI / RTM_NEWADDR). Tokens are already scrubbed above.
+	if !BubblewrapAvailable() || !BubblewrapWorking() {
+		// Hub (STRICT default ON): fail closed — never bare-compile customer code.
+		// Desk/CI with HACKME_HUNT_ISOLATE_STRICT=0: scrubbed bare build only.
+		if IsolateStrict() {
+			return fmt.Errorf("hunt build isolate: bwrap required for harness builds (probe failed)")
+		}
+		return runBareBuild(ctx, opts, env, wall)
+	}
 	return RunIsolated(ctx, IsolateOpts{
 		Bin:         opts.Bin,
 		Args:        opts.Args,
@@ -85,9 +99,9 @@ func RunBuildIsolated(ctx context.Context, opts BuildIsolateOpts) error {
 		Wall:        wall,
 		Stdout:      opts.Stdout,
 		Stderr:      opts.Stderr,
-		ExtraBind:   extraBind,
-		ExtraRoBind: extraRo,
-		AllowBare:   true,
+		ExtraBind:   uniqueBindPaths(extraBind...),
+		ExtraRoBind: uniqueBindPaths(extraRo...),
+		AllowBare:   false,
 	})
 }
 
@@ -105,27 +119,36 @@ func runBareBuild(ctx context.Context, opts BuildIsolateOpts, env []string, wall
 }
 
 func buildToolchainRoBinds() []string {
-	out := []string{"/opt/hackme"}
+	out := []string{"/opt/hackme", "/usr", "/lib", "/lib64", "/bin", "/sbin"}
 	if p := strings.TrimSpace(os.Getenv("HACKME_PREFIX")); p != "" {
 		out = append(out, p)
 	}
 	if home := strings.TrimSpace(os.Getenv("HOME")); home != "" {
 		out = append(out, filepath.Join(home, ".local/share/hackme/toolchains"))
+		// rustup toolchains are read-only; cargo registry stays ephemeral.
 		out = append(out, filepath.Join(home, ".rustup"))
 	}
 	return out
 }
 
-func buildHomeBinds() []string {
-	home := strings.TrimSpace(os.Getenv("HOME"))
-	if home == "" {
-		return nil
+// buildEphemeralHomeBinds places CARGO_HOME and XDG_CACHE_HOME under workDir (or
+// a temp dir) so the cage never gets a writable bind of the operator ~/.cargo.
+func buildEphemeralHomeBinds(workDir string) (cargoHome, cacheHome string, binds []string, env []string) {
+	base := strings.TrimSpace(workDir)
+	if base == "" {
+		base = os.TempDir()
 	}
-	// Cargo/rustc write under ~/.cargo; clang needs nothing here but cargo fuzz does.
-	return []string{
-		filepath.Join(home, ".cargo"),
-		filepath.Join(home, ".cache"),
+	cargoHome = filepath.Join(base, ".hackme-build-cargo")
+	cacheHome = filepath.Join(base, ".hackme-build-cache")
+	_ = os.MkdirAll(cargoHome, 0o700)
+	_ = os.MkdirAll(cacheHome, 0o700)
+	binds = []string{cargoHome, cacheHome}
+	env = []string{
+		"CARGO_HOME=" + cargoHome,
+		"XDG_CACHE_HOME=" + cacheHome,
+		"CARGO_NET_OFFLINE=false",
 	}
+	return cargoHome, cacheHome, binds, env
 }
 
 // uniqueBindPaths dedupes absolute paths for ExtraBind.

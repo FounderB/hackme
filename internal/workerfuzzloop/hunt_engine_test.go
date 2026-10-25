@@ -19,11 +19,15 @@ func TestDetectHuntEnginesIncludesByte(t *testing.T) {
 			found = true
 		}
 	}
-	if !found {
-		t.Fatalf("byte missing: %v", got)
+	wantByte, _ := hunt.RunnerAvailable(hunt.EngineByte)
+	if wantByte && !found {
+		t.Fatalf("byte missing with working bwrap: %v", got)
+	}
+	if !wantByte && found {
+		t.Fatalf("byte advertised without linux+bwrap: %v", got)
 	}
 	csv := HuntEnginesClaimCSV()
-	if !strings.Contains(csv, hunt.EngineByte) {
+	if wantByte && !strings.Contains(csv, hunt.EngineByte) {
 		t.Fatalf("csv %q", csv)
 	}
 }

@@ -130,6 +130,12 @@ func TestSafeHarnessFetchURL(t *testing.T) {
 	if !SafeHarnessFetchURL("/pool/coordinator/api/fuzz/pool/hunt/harness/abc12345") {
 		t.Fatal("pool coordinator relative path")
 	}
+	if SafeHarnessFetchURL("//api/fuzz/pool/hunt/harness/00000000") {
+		t.Fatal("scheme-relative //api must be rejected (host confusion)")
+	}
+	if SafeHarnessFetchURL("//evil.example/api/fuzz/pool/hunt/harness/abc12345") {
+		t.Fatal("scheme-relative evil host")
+	}
 	if SafeHarnessFetchURL("http://127.0.0.1/api/fuzz/pool/hunt/harness/abc12345") {
 		t.Fatal("absolute URL without coordinator env must be rejected")
 	}

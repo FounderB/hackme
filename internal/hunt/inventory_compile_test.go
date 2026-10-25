@@ -87,6 +87,8 @@ func TestScanInventoryCppAndCMakeHints(t *testing.T) {
 }
 
 func TestBuildInventoryHarnessCppMultiFile(t *testing.T) {
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
+	t.Setenv("HACKME_HUNT_BUILD_SANDBOX", "0")
 	if _, err := exec.LookPath("clang++"); err != nil {
 		t.Skip("clang++ required")
 	}
@@ -195,6 +197,8 @@ func TestBuildInventoryHarnessMixedCCompanion(t *testing.T) {
 	if _, err := exec.LookPath("clang++"); err != nil {
 		t.Skip("clang++ required")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
+	t.Setenv("HACKME_HUNT_BUILD_SANDBOX", "0")
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "helper.c"), []byte("int bump(int x){return x+1;}"), 0o644); err != nil {
 		t.Fatal(err)

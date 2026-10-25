@@ -15,6 +15,7 @@ func TestMergeMinimizeCorpusSmoke(t *testing.T) {
 	}
 	// CI hosts often deny bwrap RTM_NEWADDR; production hub keeps STRICT=1.
 	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
+	t.Setenv("HACKME_HUNT_BUILD_SANDBOX", "0")
 	root := RepoRoot()
 	bin := LibFuzzerImportBinPath(root, "mpack")
 	if st, err := os.Stat(bin); err != nil || st.Size() == 0 {

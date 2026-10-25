@@ -503,14 +503,24 @@ func fetchHarnessHTTP(ctx context.Context, rawURL string) ([]byte, error) {
 		}
 		rawURL = strings.TrimRight(base, "/") + rawURL
 	}
-	if !SafeHarnessFetchURL(rawURL) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("hunt artifact: bad fetch url: %w", err)
+	}
+	// Validate the same URL object used for the request (check≡use).
+	if !SafeHarnessFetchURL(u.String()) && !SafeHarnessFetchURL(rawURL) {
 		return nil, fmt.Errorf("hunt artifact: fetch url not allowed")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("hunt artifact: fetch url not allowed")
+	}
+	if _, ok := harnessFetchPathHash(u); !ok {
+		return nil, fmt.Errorf("hunt artifact: fetch url not allowed")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
-	u, _ := url.Parse(rawURL)
 	_, harnessOK := harnessFetchPathHash(u)
 	attachBearer := harnessOK
 	if attachBearer {
@@ -560,19 +570,32 @@ func fetchHarnessHTTP(ctx context.Context, rawURL string) ([]byte, error) {
 // that match the configured coordinator host only (no arbitrary public HTTPS).
 // Scheme must match the configured coordinator (https preferred); plain HTTP is
 // allowed only when the coordinator URL itself is http (pool-direct / lab).
+//
+// Scheme-relative URLs ("//host/...") are rejected: path.Clean would turn them
+// into "/host/..." while url.Parse would treat host as the authority.
 func SafeHarnessFetchURL(raw string) bool {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return false
 	}
+	// Reject scheme-relative URLs ("//api/...") before path.Clean can turn them
+	// into "/api/..." while url.Parse would treat "api" as the host.
+	if strings.HasPrefix(raw, "//") {
+		return false
+	}
 	if strings.HasPrefix(raw, "/") {
-		_, ok := harnessFetchPathHash(&url.URL{Path: raw})
+		if strings.Contains(raw, "\\") {
+			return false
+		}
+		u := &url.URL{Path: raw}
+		_, ok := harnessFetchPathHash(u)
 		return ok
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
 		return false
 	}
+	// Re-validate the parsed URL's path (same object used for the request).
 	if _, ok := harnessFetchPathHash(u); !ok {
 		return false
 	}

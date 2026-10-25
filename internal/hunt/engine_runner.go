@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -49,10 +50,18 @@ type EngineShardOpts struct {
 var LookPathFn = exec.LookPath
 
 // RunnerAvailable reports whether the local machine can run the engine.
+// Legacy byte engine is advertised only on Linux with a working bwrap probe —
+// Windows / no-cage hosts must not claim byte capability (audit: bare Hunt).
 func RunnerAvailable(engine string) (ok bool, reason string) {
 	engine = ParseHuntEngine(engine)
 	switch engine {
 	case EngineByte:
+		if runtime.GOOS != "linux" {
+			return false, "byte_requires_linux_bwrap"
+		}
+		if !BubblewrapAvailable() || !BubblewrapWorking() {
+			return false, "bwrap_unavailable"
+		}
 		return true, ""
 	case EngineLibFuzzer:
 		if _, err := LookPathFn("clang"); err != nil {

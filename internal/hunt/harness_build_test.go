@@ -34,6 +34,8 @@ func TestBuildInventoryHarnessWithTemplate(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang required")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0") // desk userns often denies bwrap
+	t.Setenv("HACKME_HUNT_BUILD_SANDBOX", "0")
 	dir := t.TempDir()
 	src := filepath.Join(dir, "fuzz_target.c")
 	body := `int LLVMFuzzerTestOneInput(const unsigned char *d, unsigned long n) {
@@ -77,6 +79,8 @@ func TestBuildInventoryHarnessDetectsInputOOBRead(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang required")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
+	t.Setenv("HACKME_HUNT_BUILD_SANDBOX", "0")
 	dir := t.TempDir()
 	src := filepath.Join(dir, "fuzz_oob.c")
 	// Use an explicit byte loop (not memcpy into a stack tmp): some clang/ASAN

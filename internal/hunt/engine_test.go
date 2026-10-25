@@ -1,6 +1,9 @@
 package hunt
 
-import "testing"
+import (
+	"runtime"
+	"testing"
+)
 
 func TestParseHuntEngine(t *testing.T) {
 	cases := map[string]string{
@@ -88,7 +91,19 @@ func TestCoverageKindForEngine(t *testing.T) {
 
 func TestRunnerAvailableByte(t *testing.T) {
 	ok, reason := RunnerAvailable(EngineByte)
+	if runtime.GOOS != "linux" {
+		if ok {
+			t.Fatalf("byte must be unavailable on %s: %s", runtime.GOOS, reason)
+		}
+		return
+	}
+	if !BubblewrapAvailable() || !BubblewrapWorking() {
+		if ok {
+			t.Fatalf("byte must be unavailable without working bwrap: %s", reason)
+		}
+		return
+	}
 	if !ok || reason != "" {
-		t.Fatalf("byte always available: %v %s", ok, reason)
+		t.Fatalf("byte should be available with linux+bwrap: %v %s", ok, reason)
 	}
 }

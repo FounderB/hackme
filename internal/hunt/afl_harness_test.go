@@ -55,6 +55,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 		t.Fatal(err)
 	}
 	repo := t.TempDir()
+	// Unit CI may lack userns; production coordinator keeps STRICT=1 (showmap requires bwrap).
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
+	t.Setenv("HACKME_HUNT_BUILD_SANDBOX", "0")
 	bin, err := BuildInventoryAFLHarness(context.Background(), repo, HarnessBuildRequest{
 		Pin:       &RepoPinResult{Path: dir},
 		SourceRel: "fuzz/fuzz_parse.c",
@@ -72,8 +75,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 	if !instrumented || path != bin {
 		t.Fatalf("instrumented=%v path=%s bin=%s", instrumented, path, bin)
 	}
-	// Unit CI may lack userns; production coordinator keeps STRICT=1 (showmap requires bwrap).
-	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
 	bm, err := ShowmapCoverageBitmap(context.Background(), bin, []byte("AB"))
 	if err != nil {
 		t.Fatalf("ShowmapCoverageBitmap: %v (bin=%s)", err, bin)

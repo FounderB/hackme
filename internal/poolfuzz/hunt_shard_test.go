@@ -102,6 +102,8 @@ func TestEvalHuntSubmitRejectsFakeCrash(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang required")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
+	t.Setenv("HACKME_HUNT_BUILD_SANDBOX", "0")
 	t.Setenv("HACKME_REPO_ROOT", hunt.RepoRoot())
 	hash, err := hunt.CatalogHarnessHash(hunt.RepoRoot(), "jsmn")
 	if err != nil {
@@ -155,6 +157,8 @@ func TestEvalHuntSubmitInformationalUBSan(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang required")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
+	t.Setenv("HACKME_HUNT_BUILD_SANDBOX", "0")
 	t.Setenv("HACKME_POOL_HUNT_REPLAY", "1")
 	dir := t.TempDir()
 	root := hunt.RepoRoot()
@@ -225,6 +229,8 @@ func TestEvalHuntSubmitConfirmsIntentionalCrash(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang required")
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
+	t.Setenv("HACKME_HUNT_BUILD_SANDBOX", "0")
 	t.Setenv("HACKME_POOL_HUNT_REPLAY", "1")
 	dir := t.TempDir()
 	root := hunt.RepoRoot()
