@@ -47,6 +47,7 @@ type workManager struct {
 	targetEvery     int64
 	targetLastAt    int64
 	leaseSec        int64
+	leaseWorkSec    float64 // target seconds of device work per claim (Blake3 adaptive batch)
 	rewardPerM      float64 // HMC per 1,000,000 accepted attempts
 	foundBonus      float64 // HMC bonus when found=true on accepted submit
 	baseRewardHMC   float64
@@ -190,6 +191,7 @@ type leaseRecord struct {
 	ExpiresAt      int64  `json:"expires_at"`
 	Reissues       uint64 `json:"reissues"`
 	TargetMod      uint64 `json:"target_mod"`
+	ShareMod       uint64 `json:"share_mod,omitempty"` // lease-scaled PPS difficulty
 	PrevHash       string `json:"prev_hash,omitempty"`
 	MinerAddress   string `json:"miner_address,omitempty"`
 	FormulaVersion int    `json:"formula_version,omitempty"`
@@ -270,13 +272,13 @@ func newWorkManagerFromEnv() *workManager {
 			batch = x
 		}
 	}
-	// Blake3 CUDA burns multi-GH/s; 16M leases (batch×4 with 4M default) make pool
-	// credit RTT-bound (~0.2–0.4 GH/s). Floor max claim at 64M (GPU maxBatch) unless env overrides.
+	// Blake3: leases should cover ~2–5s of device work so RTT≪search and wall GH/s
+	// is honest. Floor max claim at 64G (worker chunks 64M internally) unless env overrides.
 	maxClaim := batch * 4
 	if maxClaim < batch {
 		maxClaim = batch
 	}
-	const blake3FriendlyMaxClaim = uint64(1 << 26) // 64M — matches gpupoh maxBatch
+	const blake3FriendlyMaxClaim = uint64(1 << 36) // 64G ≈ 2s @ 30 GH/s
 	if maxClaim < blake3FriendlyMaxClaim {
 		maxClaim = blake3FriendlyMaxClaim
 	}
@@ -457,6 +459,12 @@ func newWorkManagerFromEnv() *workManager {
 			poolRetargetMinSec = x
 		}
 	}
+	leaseWorkSec := 3.0
+	if v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_LEASE_WORK_SEC")); v != "" {
+		if x, err := strconv.ParseFloat(v, 64); err == nil && x >= 1 && x <= 30 {
+			leaseWorkSec = x
+		}
+	}
 	wm := &workManager{
 		defaultBatch:             batch,
 		maxClaimBatch:            maxClaim,
@@ -464,6 +472,7 @@ func newWorkManagerFromEnv() *workManager {
 		targetURL:                targetURL,
 		targetEvery:              targetEvery,
 		leaseSec:                 lease,
+		leaseWorkSec:             leaseWorkSec,
 		rewardPerM:               rewardPerM,
 		foundBonus:               foundBonus,
 		baseRewardHMC:            0.01,
@@ -629,13 +638,21 @@ func effectiveWorkerHashrateGHS(st workerPayoutStat) float64 {
 	peak := clampWorkerHashrateGHS(st.PeakHashrateGHS)
 	if peak > 1 && gh < peak*0.25 {
 		// Sticky pre-Blake3 calib peak vs a stable Blake3-class wall sample.
-		// Near-zero gh (contention/startup) still may borrow peak; do not treat that as the cliff.
 		if gh >= 0.05 && peak >= 10 && peak > gh*20 {
 			return gh
 		}
 		return peak * 0.72
 	}
 	return gh
+}
+
+// workerHashrateForPool: share-PPS fleets use Last only (share/wall) so restored FORCE
+// peaks cannot inflate pool M / load retarget.
+func (m *workManager) workerHashrateForPool(st workerPayoutStat) float64 {
+	if m != nil && m.shareStrict {
+		return clampWorkerHashrateGHS(st.LastHashrateGHS)
+	}
+	return effectiveWorkerHashrateGHS(st)
 }
 
 func poolMinerCountBoost(miners int) float64 {
@@ -2049,10 +2066,54 @@ func (m *workManager) validateHybridSignature(req submitWorkRequest) (ok bool, r
 	return true, "", derivedAddr
 }
 
-func (m *workManager) claim(workerID string, batch uint64) (base uint64, size uint64, leaseUntil int64, targetMod uint64, reissued bool, ok bool, reason string) {
+// blake3BootstrapBatch: first Blake3 leases without credited GH/s — ~8G so wall
+// is measurable after RTT and share-implied GH can grow subsequent claims.
+const blake3BootstrapBatch = uint64(1 << 33)
+
+// adaptClaimBatch grows Blake3 leases toward ~leaseWorkSec of last credited GH/s
+// so claim→submit wall reflects real work, not RTT.
+func (m *workManager) adaptClaimBatch(workerID string, batch uint64) uint64 {
+	if m == nil {
+		return batch
+	}
 	if batch == 0 {
 		batch = m.defaultBatch
 	}
+	workSec := m.leaseWorkSec
+	if workSec < 1 {
+		workSec = 3
+	}
+	m.mu.Lock()
+	st := m.worker[workerID]
+	fv := m.resolvedPoHFormulaVersionLocked()
+	m.mu.Unlock()
+	if fv >= 3 {
+		if st.LastHashrateGHS >= 0.5 {
+			want := uint64(st.LastHashrateGHS * 1e9 * workSec)
+			if want > batch {
+				batch = want
+			}
+		} else if batch < blake3BootstrapBatch {
+			batch = blake3BootstrapBatch
+		}
+	}
+	if m.maxClaimBatch > 0 && batch > m.maxClaimBatch {
+		batch = m.maxClaimBatch
+	}
+	if m.defaultBatch > 0 && batch < m.defaultBatch {
+		batch = m.defaultBatch
+	}
+	return batch
+}
+
+func (m *workManager) claim(workerID string, batch uint64) (base uint64, size uint64, leaseUntil int64, targetMod uint64, reissued bool, ok bool, reason string) {
+	if batch == 0 {
+		batch = m.defaultBatch
+	} else if m.maxClaimBatch > 0 && batch > m.maxClaimBatch {
+		// Reject explicit oversize before adapt (adapt only grows honest leases).
+		return 0, 0, 0, m.targetMod, false, false, "batch_size_too_large"
+	}
+	batch = m.adaptClaimBatch(workerID, batch)
 	if m.maxClaimBatch > 0 && batch > m.maxClaimBatch {
 		return 0, 0, 0, m.targetMod, false, false, "batch_size_too_large"
 	}
@@ -2099,6 +2160,11 @@ func (m *workManager) claim(workerID string, batch uint64) (base uint64, size ui
 		rec.ExpiresAt = now + m.leaseSec
 		rec.Reissues++
 		rec.TargetMod = m.targetMod
+		if m.shareDivisor >= 2 {
+			rec.ShareMod = shareModForLease(m.targetMod, m.shareDivisor, batch)
+		} else {
+			rec.ShareMod = 0
+		}
 		rec.PrevHash = prev
 		rec.MinerAddress = boundAddr
 		rec.FormulaVersion = fv
@@ -2118,6 +2184,10 @@ func (m *workManager) claim(workerID string, batch uint64) (base uint64, size ui
 	base = next
 	m.nextNonce.Store(next + batch)
 	leaseUntil = now + m.leaseSec
+	smLease := uint64(0)
+	if m.shareDivisor >= 2 {
+		smLease = shareModForLease(m.targetMod, m.shareDivisor, batch)
+	}
 	m.active[workKey{base: base, batch: batch}] = leaseRecord{
 		WorkerID:       workerID,
 		BaseNonce:      base,
@@ -2126,6 +2196,7 @@ func (m *workManager) claim(workerID string, batch uint64) (base uint64, size ui
 		IssuedAtMs:     time.Now().UnixMilli(),
 		ExpiresAt:      leaseUntil,
 		TargetMod:      m.targetMod,
+		ShareMod:       smLease,
 		PrevHash:       prev,
 		MinerAddress:   boundAddr,
 		FormulaVersion: fv,
@@ -2379,7 +2450,10 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	attemptsPre = m.clampPaidAttempts(attemptsPre, req.BatchSize)
 
 	shareDiv := m.shareDivisor
-	sm := shareModFor(rec.TargetMod, shareDiv)
+	sm := rec.ShareMod
+	if sm == 0 && shareDiv >= 2 {
+		sm = shareModForLease(rec.TargetMod, shareDiv, req.BatchSize)
+	}
 	leasePrevShare := strings.TrimSpace(rec.PrevHash)
 	leaseAddrShare := strings.TrimSpace(rec.MinerAddress)
 	if leaseAddrShare == "" {
@@ -2408,12 +2482,11 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	// Strict: pay by verified shares when any accepted.
 	useShares := m.shareStrict && shareDiv >= 2 && len(validShares) > 0
 
-	// Soft share-rate check: expected = scanned * divisor / M.
-	// Soft scanned is capped to shareHarvestScanCap (worker CPU harvest window).
+	// Share-rate check: expected = scanned / shareMod (lease-scaled safe).
 	if shareDiv >= 2 && sm > 0 && !req.Found {
 		ws := m.worker[req.WorkerID]
 		scanned := softShareScanAttempts(attemptsPre, m.shareStrict)
-		ws.ShareExpected += expectedShares(scanned, rec.TargetMod, shareDiv)
+		ws.ShareExpected += expectedSharesForMod(scanned, sm)
 		ws.ShareAccepted += uint64(len(validShares))
 		if m.shareRateMin > 0 && ws.ShareExpected >= m.shareRateMinExpected {
 			rate := float64(ws.ShareAccepted) / ws.ShareExpected
@@ -2505,37 +2578,69 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	}
 	prevGH := m.worker[req.WorkerID].LastHashrateGHS
 	nowMs := time.Now().UnixMilli()
-	rawGH := workerHashrateGHSForSubmitFormulaMs(reportedGH, req.BatchSize, issuedAt, now, rec.IssuedAtMs, nowMs, prevGH, leaseFV)
+	wallSec := 0.0
+	if rec.IssuedAtMs > 0 && nowMs >= rec.IssuedAtMs {
+		wallSec = float64(nowMs-rec.IssuedAtMs) / 1000.0
+	} else if issuedAt > 0 && now >= issuedAt {
+		wallSec = float64(now - issuedAt)
+	}
+	wallGH := 0.0
+	if req.BatchSize > 0 && wallSec > 0 {
+		w := wallSec
+		if w < 0.001 {
+			w = 0.001
+		}
+		wallGH = clampWorkerHashrateGHS(float64(req.BatchSize) / w / 1e9)
+	}
+	var rawGH float64
+	honestGH := leaseFV >= 3 || useShares
+	if honestGH {
+		// PPS / Blake3: never trust client-reported GH/s for billing or pool M.
+		if len(validShares) > 0 && sm > 0 {
+			rawGH = shareImpliedGHS(len(validShares), sm, wallSec)
+		}
+		if rawGH <= 0 && wallSec >= 1.0 && wallGH > 0 {
+			rawGH = wallGH
+		}
+	} else {
+		rawGH = workerHashrateGHSForSubmitFormulaMs(reportedGH, req.BatchSize, issuedAt, now, rec.IssuedAtMs, nowMs, prevGH, leaseFV)
+	}
 	gh := smoothWorkerHashrateGHS(prevGH, rawGH)
-	// Blake3 wall samples are often 0.002–0.02 GH/s (below the generic smooth cliff
-	// floor of 0.05). Snap so FORCE/calib EMA cannot inflate attempt-pay maxCred or peaks.
-	if leaseFV >= 3 && rawGH > 0 && prevGH >= 10 && prevGH > rawGH*20 {
+	// Share/wall samples can sit far below sticky FORCE peaks — snap down.
+	if honestGH && rawGH > 0 && prevGH >= 10 && (prevGH > rawGH*20 || rawGH < 0.05) {
 		gh = rawGH
 	}
-	if req.Found && reportedGH <= 0 {
+	if !honestGH && req.Found && reportedGH <= 0 {
 		gh = 0
 	}
-	if gh > 0 {
-		ia := issuedAt
-		if ia <= 0 {
-			ia = now - m.leaseSec
+	if !useShares {
+		if gh > 0 {
+			ia := issuedAt
+			if ia <= 0 {
+				ia = now - m.leaseSec
+			}
+			elapsed := float64(now - ia)
+			if elapsed < 0.25 {
+				elapsed = 0.25
+			}
+			maxCred := uint64(gh * 1e9 * elapsed * 1.15)
+			if maxCred > 0 && attempts > maxCred {
+				attempts = maxCred
+			}
+		} else if !req.Found {
+			attempts = 0
+		} else if req.Found && gh <= 0 {
+			attempts = 0
 		}
-		elapsed := float64(now - ia)
-		if elapsed < 0.25 {
-			elapsed = 0.25
+		attempts = m.clampPaidAttempts(attempts, req.BatchSize)
+	} else {
+		// PPS: credit share-implied hashes for stats/SUP (not attempt-pay).
+		implied := uint64(len(validShares)) * sm
+		if implied > 0 {
+			attempts = implied
 		}
-		maxCred := uint64(gh * 1e9 * elapsed * 1.15)
-		if maxCred > 0 && attempts > maxCred {
-			attempts = maxCred
-		}
-	} else if !req.Found {
-		// No credible hashrate: do not pay attempt accrual (found proofs still validated).
-		attempts = 0
-	} else if req.Found && gh <= 0 {
-		// Found without hashrate proof: found_bonus only, no attempt inflation.
-		attempts = 0
+		attempts = m.clampPaidAttempts(attempts, req.BatchSize)
 	}
-	attempts = m.clampPaidAttempts(attempts, req.BatchSize)
 	m.totalAttempts += attempts
 	paidAttempts := attempts
 	if m.payoutFoundOnly && !req.Found {
@@ -2544,12 +2649,18 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	var payout float64
 	if useShares {
 		m.sharePaidSubmits++
-		payout = float64(len(validShares)) * rewardPerShare(m.baseRewardHMC, shareDiv)
-		// Found hit is a share only when M % shareMod == 0 (usual when shareMod = M/divisor).
-		// Money-wise: found nonce is still checked via chainSolve / found path separately —
-		// only add found_bonus when the hit was not listed among accepted shares.
-		if req.Found && !chainSolve.OK && len(validShares) == 0 {
-			payout += m.foundBonus
+		payout = float64(len(validShares)) * rewardPerShareAt(m.baseRewardHMC, sm, rec.TargetMod)
+		if req.Found && !chainSolve.OK {
+			foundIsShare := false
+			for _, n := range validShares {
+				if n == req.FoundNonce {
+					foundIsShare = true
+					break
+				}
+			}
+			if !foundIsShare {
+				payout += m.foundBonus
+			}
 		}
 	} else {
 		payout = (float64(paidAttempts) / 1_000_000.0) * m.rewardPerM
@@ -2858,7 +2969,7 @@ func workerCountsAsPoolMiner(st workerPayoutStat, now, staleSec int64) bool {
 	if st.LastPoHSeenUnix > 0 && (now-st.LastPoHSeenUnix) <= staleSec {
 		return true
 	}
-	gh := effectiveWorkerHashrateGHS(st)
+	gh := clampWorkerHashrateGHS(st.LastHashrateGHS)
 	return gh > 0 && st.LastSeenUnix > 0 && (now-st.LastSeenUnix) <= staleSec
 }
 
@@ -2879,7 +2990,7 @@ func (m *workManager) poolOnlineSummaryUnlocked(staleSec, now int64) (poolGH flo
 		if !workerCountsAsPoolMiner(st, now, staleSec) {
 			continue
 		}
-		gh := effectiveWorkerHashrateGHS(st)
+		gh := m.workerHashrateForPool(st)
 		if gh > 0 {
 			poolGH += gh
 		}
@@ -2919,7 +3030,7 @@ func (m *workManager) poolHashrateFromWorkersUnlocked(now int64) float64 {
 		if st.LastSeenUnix <= 0 || (now-st.LastSeenUnix) > poolHashrateStaleSec {
 			continue
 		}
-		if gh := effectiveWorkerHashrateGHS(st); gh > 0 {
+		if gh := m.workerHashrateForPool(st); gh > 0 {
 			sum += gh
 		}
 	}
@@ -3073,6 +3184,7 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 	out := map[string]any{
 		"default_batch":                m.defaultBatch,
 		"max_claim_batch":              m.maxClaimBatch,
+		"lease_work_sec":               m.leaseWorkSec,
 		"target_mod":                   m.clampTargetMod(m.targetMod),
 		"target_mod_updated_unix":      m.targetModUpdatedUnix,
 		"pool_retarget_enabled":        m.poolRetarget,
@@ -3473,14 +3585,14 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 			"poh_activation_height": actH,
 		}
 		if wm.shareDivisor >= 2 {
-			smOut := shareModFor(modOut, wm.shareDivisor)
+			smOut := shareModForLease(modOut, wm.shareDivisor, size)
 			resp["share_divisor"] = wm.shareDivisor
 			resp["share_mod"] = smOut
 			resp["share_strict"] = wm.shareStrict
-			// Advertise harvest window so workers stay aligned with soft expectedShares.
+			// Advertise harvest budget; strict uses stride sampling up to shareHashBudget.
 			scanMax := shareHarvestScanCap
 			if wm.shareStrict {
-				scanMax = size
+				scanMax = shareHashBudget
 			}
 			resp["share_scan_max"] = scanMax
 		}

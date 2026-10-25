@@ -6,40 +6,45 @@ import (
 	"strings"
 )
 
-// Pseudo-share target: shareMod = targetMod / shareDivisor (min 1).
+// Pseudo-share target: shareMod ≈ max(M/divisor, batch/targetSharesPerLease).
 // A share is a nonce in the lease where PoH work % shareMod == 0.
-// Expected shares per full lease ≈ batch * divisor / M ≈ divisor * batch / targetMod.
 //
-// Soft mode (default, !SHARE_STRICT): attempt-pay only. Shares are verified for
-// stats / rate checks; they must NOT change the payout formula (rc17.4 audit).
-// Strict mode: pay ≈ baseReward / divisor per accepted share; require shares when !found.
+// Soft mode (!SHARE_STRICT): attempt-pay; shares are stats/rate only.
+// Strict mode (Blake3 default): PPS on verified shares; GH/s and pool M from
+// shares + lease wall — never from client-reported hashrate_gh_s.
 
 const (
 	defaultShareDivisor = uint64(1024)
-	maxSharesPerSubmit  = 64
-	// shareHarvestScanCap must match workerpoh collectShareNonces maxScan until
-	// GPU full-batch harvest ships. Soft share-rate expected uses this cap so
-	// honest CPU miners are not flagged share_rate_low (~0.06 vs threshold 0.30).
+	maxSharesPerSubmit  = 128
+	// targetSharesPerLease: lease-scaled share difficulty so a full honest lease
+	// yields ~this many shares (fair vs RTT-bound tiny leases that always hit the cap).
+	targetSharesPerLease = uint64(32)
+	// shareHarvestScanCap: soft-mode expectedShares window.
 	shareHarvestScanCap = uint64(256 * 1024)
+	// shareHashBudget: max PoH hashes a worker spends stride-harvesting shares per submit.
+	shareHashBudget = uint64(4 << 20)
 	// defaultShareRateMin: after enough expected shares, accepted/expected below this
-	// flags share_rate_low. With soft scan-cap, honest rate ≈ 1.0; cheaters who omit
-	// share_nonces stay near 0. Keep SHARE_RATE_REJECT off until GPU harvest if unsure.
+	// flags share_rate_low.
 	defaultShareRateMin         = 0.30
 	defaultShareRateMinExpected = 8.0
 )
 
-// softShareScanAttempts caps soft-mode expected shares to the worker harvest window.
+// softShareScanAttempts caps expected-share window to the worker harvest budget.
 func softShareScanAttempts(attempts uint64, shareStrict bool) uint64 {
-	if shareStrict || attempts <= shareHarvestScanCap {
+	capN := shareHarvestScanCap
+	if shareStrict {
+		capN = shareHashBudget
+	}
+	if attempts <= capN {
 		return attempts
 	}
-	return shareHarvestScanCap
+	return capN
 }
 
 func envShareDivisor() uint64 {
 	v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_SHARE_DIVISOR"))
 	if v == "" {
-		return defaultShareDivisor // rc17.4+: pseudo-shares on by default
+		return defaultShareDivisor
 	}
 	if v == "0" || strings.EqualFold(v, "off") || strings.EqualFold(v, "false") {
 		return 0
@@ -57,7 +62,8 @@ func envShareDivisor() uint64 {
 func envShareStrict() bool {
 	v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_SHARE_STRICT"))
 	if v == "" {
-		return false
+		// Blake3 era default: PPS on verified shares (set =0 to keep soft attempt-pay).
+		return true
 	}
 	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
@@ -108,12 +114,37 @@ func shareModFor(targetMod, divisor uint64) uint64 {
 	return sm
 }
 
-// expectedShares returns attempts * divisor / M (Poisson mean for full-batch harvest).
+// shareModForLease hardens share difficulty on large Blake3 leases so expected
+// shares stay near targetSharesPerLease (not maxSharesPerSubmit on every submit).
+func shareModForLease(targetMod, divisor, batch uint64) uint64 {
+	sm := shareModFor(targetMod, divisor)
+	if batch == 0 {
+		return sm
+	}
+	leaseSM := batch / targetSharesPerLease
+	if leaseSM < 1 {
+		leaseSM = 1
+	}
+	if sm == 0 || leaseSM > sm {
+		return leaseSM
+	}
+	return sm
+}
+
+// expectedShares returns attempts * divisor / M (Poisson mean when shareMod = M/div).
 func expectedShares(attempts, targetMod, divisor uint64) float64 {
 	if attempts == 0 || targetMod == 0 || divisor < 2 {
 		return 0
 	}
 	return float64(attempts) * float64(divisor) / float64(targetMod)
+}
+
+// expectedSharesForMod is attempts / shareMod (works for lease-scaled share mods).
+func expectedSharesForMod(attempts, shareMod uint64) float64 {
+	if attempts == 0 || shareMod == 0 {
+		return 0
+	}
+	return float64(attempts) / float64(shareMod)
 }
 
 // validateShareNonces checks each nonce is in [base, base+batch) and satisfies
@@ -155,4 +186,22 @@ func rewardPerShare(baseRewardHMC float64, divisor uint64) float64 {
 		return 0
 	}
 	return baseRewardHMC / float64(divisor)
+}
+
+// rewardPerShareAt pays baseReward * shareMod / M (equals rewardPerShare when shareMod = M/div).
+func rewardPerShareAt(baseRewardHMC float64, shareMod, targetMod uint64) float64 {
+	if shareMod == 0 || targetMod == 0 || baseRewardHMC <= 0 {
+		return 0
+	}
+	return baseRewardHMC * float64(shareMod) / float64(targetMod)
+}
+
+// shareImpliedGHS estimates device GH/s from accepted shares and claim→submit wall.
+// wallSec < 0.5 is treated as RTT-noise and yields 0 (adaptive leases must grow first).
+func shareImpliedGHS(nShares int, shareMod uint64, wallSec float64) float64 {
+	if nShares <= 0 || shareMod == 0 || wallSec < 0.5 {
+		return 0
+	}
+	hashes := float64(nShares) * float64(shareMod)
+	return clampWorkerHashrateGHS(hashes / wallSec / 1e9)
 }

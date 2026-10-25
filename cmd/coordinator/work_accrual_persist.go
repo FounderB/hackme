@@ -78,6 +78,11 @@ FROM worker_accrual`)
 		if cur, ok := m.worker[id]; ok && (cur.PayoutHMC > 0 || cur.AcceptedAtt > 0) {
 			continue
 		}
+		if m.shareStrict {
+			// PPS era: do not rehydrate FORCE/calib GH into pool M; re-earn via shares/wall.
+			st.LastHashrateGHS = 0
+			st.PeakHashrateGHS = 0
+		}
 		m.worker[id] = st
 		sumHMC += st.PayoutHMC
 		sumSUP += st.PayoutSUP
@@ -149,6 +154,10 @@ func (m *workManager) prefetchWorkerAccrual(workerID string) {
 	if _, exists := m.worker[workerID]; exists {
 		return
 	}
+	if m.shareStrict {
+		st.LastHashrateGHS = 0
+		st.PeakHashrateGHS = 0
+	}
 	m.worker[workerID] = st
 	m.totalPayoutHMC += st.PayoutHMC
 	m.totalPayoutSUP += st.PayoutSUP
@@ -190,7 +199,8 @@ func (m *workManager) deleteWorkerAccrualLocked(workerID string) {
 		return
 	}
 	if _, err := m.dedupDB.Exec(`DELETE FROM worker_accrual WHERE worker_id=?`, workerID); err != nil {
-		log.Printf("worker accrual revoke %s: %v", workerID, err)
+		// Avoid logging raw worker_id (code-scanning go/log-injection); token is sanitized.
+		log.Printf("worker accrual revoke id=%s err=%v", sanitizeLogToken(workerID), err)
 	}
 	accrualPersistMu.Lock()
 	delete(accrualPersistLast, workerID)
@@ -249,7 +259,7 @@ WHERE excluded.accepted_attempts >= worker_accrual.accepted_attempts
 		st.PayoutHMC, st.PayoutSUP, strings.TrimSpace(st.PayoutAddress), st.SignedSubmits,
 		st.LastHashrateGHS, st.PeakHashrateGHS, st.LastSeenUnix, st.LastPoHSeenUnix, st.LastFuzzSeenUnix, now)
 	if err != nil {
-		log.Printf("worker accrual persist %s: %v", workerID, err)
+		log.Printf("worker accrual persist id=%s err=%v", sanitizeLogToken(workerID), err)
 	}
 }
 

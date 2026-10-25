@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"hackme/internal/chain"
 )
@@ -122,7 +123,7 @@ func TestStrictSharePayoutPath(t *testing.T) {
 	if !ok {
 		t.Fatalf("claim: %s", reason)
 	}
-	sm := shareModFor(mod, wm.shareDivisor)
+	sm := shareModForLease(mod, wm.shareDivisor, size)
 	var shares []uint64
 	for n := base; n < base+size && len(shares) < 3; n++ {
 		if chain.PohEval(n)%sm == 0 {
@@ -145,7 +146,7 @@ func TestStrictSharePayoutPath(t *testing.T) {
 	if reasonSub != "" {
 		t.Fatalf("submit failed: %s", reasonSub)
 	}
-	want := float64(len(shares)) * rewardPerShare(0.01, 1024)
+	want := float64(len(shares)) * rewardPerShareAt(0.01, sm, mod)
 	if payout < want*0.99 || payout > want*1.01 {
 		t.Fatalf("payout=%v want~%v", payout, want)
 	}
@@ -214,11 +215,29 @@ func TestSoftShareScanAttempts(t *testing.T) {
 	if softShareScanAttempts(4_194_304, false) != shareHarvestScanCap {
 		t.Fatalf("soft must cap to %d", shareHarvestScanCap)
 	}
-	if softShareScanAttempts(4_194_304, true) != 4_194_304 {
-		t.Fatal("strict uses full lease")
+	if softShareScanAttempts(4_194_304, true) != shareHashBudget {
+		t.Fatalf("strict must cap to shareHashBudget=%d", shareHashBudget)
 	}
 	if softShareScanAttempts(1000, false) != 1000 {
 		t.Fatal("under cap unchanged")
+	}
+}
+
+func TestShareModForLeaseScalesWithBatch(t *testing.T) {
+	mod := uint64(2_000_000)
+	div := uint64(1024)
+	easy := shareModFor(mod, div)
+	big := shareModForLease(mod, div, 64<<30) // 64G lease
+	if big <= easy {
+		t.Fatalf("large lease shareMod=%d should exceed M/div=%d", big, easy)
+	}
+	want := (64 << 30) / targetSharesPerLease
+	if big != want {
+		t.Fatalf("shareMod=%d want batch/targetShares=%d", big, want)
+	}
+	small := shareModForLease(mod, div, 10_000)
+	if small != easy && small != 10_000/targetSharesPerLease {
+		t.Fatalf("small lease unexpected shareMod=%d easy=%d", small, easy)
 	}
 }
 
@@ -277,5 +296,100 @@ func TestRewardPerShare(t *testing.T) {
 	}
 	if rewardPerShare(0.01, 1) != 0 {
 		t.Fatal("divisor<2")
+	}
+}
+
+func TestBlake3StrictPPSIgnoresReportedGHS(t *testing.T) {
+	wm := withTestTip(&workManager{
+		defaultBatch:         1 << 20,
+		maxClaimBatch:        1 << 26,
+		targetMod:            2_000_000,
+		leaseSec:             60,
+		leaseWorkSec:         3,
+		rewardPerM:           1.0,
+		baseRewardHMC:        0.01,
+		foundBonus:           0,
+		shareDivisor:         1024,
+		shareStrict:          true,
+		pohFormulaVersion:    1, // PohEval shares in this unit test
+		maxWorkers:           100,
+		maxActiveLeases:      100,
+		maxDedupEntries:      1000,
+		active:               make(map[workKey]leaseRecord),
+		worker:               make(map[string]workerPayoutStat),
+		acceptedResultHashes: make(map[string]struct{}),
+		acceptedFoundNonces:  make(map[uint64]struct{}),
+	})
+	// Seed credited GH so adaptClaimBatch grows past default (simulates prior honest wall).
+	wm.worker["w-pps"] = workerPayoutStat{LastHashrateGHS: 20}
+	base, size, _, mod, _, ok, reason := wm.claim("w-pps", 1<<22)
+	if !ok {
+		t.Fatalf("claim: %s", reason)
+	}
+	if size < 1<<22 {
+		t.Fatalf("adaptive lease too small: %d", size)
+	}
+	sm := shareModForLease(mod, wm.shareDivisor, size)
+	var shares []uint64
+	for n := base; n < base+size && len(shares) < 8; n++ {
+		if chain.PohEval(n)%sm == 0 {
+			shares = append(shares, n)
+		}
+	}
+	if len(shares) == 0 {
+		t.Skip("no shares in lease")
+	}
+	k := workKey{base: base, batch: size}
+	rec := wm.active[k]
+	rec.IssuedAtMs = time.Now().UnixMilli() - 2500 // 2.5s wall → share GH credible
+	rec.IssuedAt = time.Now().Unix() - 3
+	wm.active[k] = rec
+
+	_, reasonSub, payout, _, _ := wm.submit(submitWorkRequest{
+		WorkerID:    "w-pps",
+		BaseNonce:   base,
+		BatchSize:   size,
+		Attempts:    size,
+		Found:       false,
+		HashrateGHS: 500, // FORCE — must not drive pay or LastHashrate
+		ShareNonces: shares,
+	})
+	if reasonSub != "" {
+		t.Fatalf("submit: %s", reasonSub)
+	}
+	want := float64(len(shares)) * rewardPerShareAt(0.01, sm, mod)
+	if payout < want*0.99 || payout > want*1.01 {
+		t.Fatalf("PPS payout=%v want~%v", payout, want)
+	}
+	st := wm.worker["w-pps"]
+	if st.LastHashrateGHS >= 100 {
+		t.Fatalf("must not credit FORCE report, Last=%v", st.LastHashrateGHS)
+	}
+	// EMA may retain part of seeded 20 GH/s; raw must come from shares/wall not 500.
+	if st.LastHashrateGHS <= 0 {
+		t.Fatalf("expected share/wall GH credit, Last=%v", st.LastHashrateGHS)
+	}
+}
+
+func TestAdaptClaimBatchBootstrapsBlake3(t *testing.T) {
+	wm := &workManager{
+		defaultBatch:      1 << 22,
+		maxClaimBatch:     1 << 36,
+		leaseWorkSec:      3,
+		pohFormulaVersion: 3,
+		worker:            map[string]workerPayoutStat{},
+	}
+	got := wm.adaptClaimBatch("new-gpu", 1<<26)
+	if got < blake3BootstrapBatch {
+		t.Fatalf("bootstrap want>=%d got=%d", blake3BootstrapBatch, got)
+	}
+	wm.worker["hot"] = workerPayoutStat{LastHashrateGHS: 30}
+	got = wm.adaptClaimBatch("hot", 1<<26)
+	want := uint64(30 * 1e9 * 3)
+	if want > wm.maxClaimBatch {
+		want = wm.maxClaimBatch
+	}
+	if got != want {
+		t.Fatalf("adaptive from GH: got=%d want=%d", got, want)
 	}
 }

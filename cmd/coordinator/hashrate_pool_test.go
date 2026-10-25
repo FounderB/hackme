@@ -97,12 +97,14 @@ func TestSmoothWorkerHashrateGHSSnapsBlake3Cliff(t *testing.T) {
 	}
 }
 
-func TestSubmitPrefersReportedHashrateOverWallGH(t *testing.T) {
+func TestSubmitRecordsWallHashrateWithoutTrustingReport(t *testing.T) {
 	// Parent shells / desktop env must not force hybrid-strict on unit tests.
 	t.Setenv("HACKME_POOL_HYBRID_SIGNER_ENABLED", "")
 	t.Setenv("HACKME_POOL_HYBRID_SIGNER_STRICT", "")
+	t.Setenv("HACKME_COORDINATOR_SHARE_STRICT", "0")
 	wm := newWorkManagerFromEnv()
-	now := int64(1_800_000_000)
+	wm.shareStrict = false
+	wm.pohFormulaVersion = 1
 	base, batch, _, _, _, ok, _ := wm.claim("w-gh", 0)
 	if !ok {
 		t.Fatal("claim failed")
@@ -120,16 +122,17 @@ func TestSubmitPrefersReportedHashrateOverWallGH(t *testing.T) {
 	}
 	st := wm.worker["w-gh"]
 	if st.LastHashrateGHS < 10 {
-		t.Fatalf("coordinator should record reported GH/s, got %v", st.LastHashrateGHS)
+		t.Fatalf("pre-Blake3 should record reported GH/s, got %v", st.LastHashrateGHS)
 	}
-	_ = now
 }
 
-func TestBlake3SubmitDropsStickyPeakAndClampsFORCE(t *testing.T) {
+func TestBlake3SubmitIgnoresFORCEReport(t *testing.T) {
 	t.Setenv("HACKME_POOL_HYBRID_SIGNER_ENABLED", "")
 	t.Setenv("HACKME_POOL_HYBRID_SIGNER_STRICT", "")
 	wm := newAbuseTestWM()
 	wm.attemptRecheckPct = 0
+	wm.shareStrict = false // isolate GH path (no shares_required)
+	wm.shareDivisor = 0
 	wm.pohFormulaVersion = 3
 	wm.tipHeight = 500_000
 	wm.tipHash = testTipHash
@@ -147,6 +150,7 @@ func TestBlake3SubmitDropsStickyPeakAndClampsFORCE(t *testing.T) {
 	rec.FormulaVersion = 3
 	rec.PrevHash = wm.tipHash
 	rec.IssuedAt = now - 2
+	rec.IssuedAtMs = (now - 2) * 1000
 	rec.ExpiresAt = now + 60
 	wm.active[k] = rec
 
@@ -156,17 +160,17 @@ func TestBlake3SubmitDropsStickyPeakAndClampsFORCE(t *testing.T) {
 		BatchSize:   size,
 		Attempts:    size,
 		Found:       false,
-		HashrateGHS: 500, // FORCE_HASHRATE-style inflate
+		HashrateGHS: 500, // FORCE_HASHRATE-style inflate — must be ignored
 	})
 	if subReason != "" {
 		t.Fatalf("submit: %s", subReason)
 	}
 	st := wm.worker["w-force"]
-	// Wall for defaultBatch/2s ≈ 0.002 GH/s; must not keep FORCE/calib.
+	// Wall for defaultBatch/2s ≈ 0.002 GH/s; Blake3 must not keep FORCE/calib.
 	if st.LastHashrateGHS > 1 {
-		t.Fatalf("blake3 must clamp FORCE report to wall, Last=%v", st.LastHashrateGHS)
+		t.Fatalf("blake3 must ignore FORCE report, Last=%v", st.LastHashrateGHS)
 	}
-	if st.PeakHashrateGHS > st.LastHashrateGHS*1.01 {
+	if st.PeakHashrateGHS > st.LastHashrateGHS*1.01 && st.LastHashrateGHS > 0 {
 		t.Fatalf("sticky pre-Blake3 peak must drop, peak=%v last=%v", st.PeakHashrateGHS, st.LastHashrateGHS)
 	}
 }

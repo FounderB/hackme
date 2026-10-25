@@ -126,7 +126,8 @@ func (m *workManager) clampPaidAttempts(attempts, batch uint64) uint64 {
 	if m == nil || attempts == 0 {
 		return 0
 	}
-	// Lease ceiling (coordinator-issued). defaultBatch only if batch missing.
+	// Lease ceiling only — emission is bounded by share-PPS / reward_per_m / M retarget,
+	// not by clipping every GPU lease down to targetMod (that paid 64M and 4M alike).
 	cap := batch
 	if cap == 0 {
 		cap = m.defaultBatch
@@ -134,19 +135,13 @@ func (m *workManager) clampPaidAttempts(attempts, batch uint64) uint64 {
 	if m.maxClaimBatch > 0 && cap > m.maxClaimBatch {
 		cap = m.maxClaimBatch
 	}
-	// Economic cap: paying full 64M lease at M≈2M minted ~32 block-equivalents
-	// per submit. Always cap attempt-pay at targetMod when set (= one expected solve).
-	if m.targetMod > 0 && (cap == 0 || m.targetMod < cap) {
-		cap = m.targetMod
-	}
 	if cap > 0 && attempts > cap {
 		attempts = cap
 	}
 	return attempts
 }
 
-// maxSubmitHMCForBatch is the hard HMC ceiling for one accepted submit.
-// Attempt-pay is capped at targetMod, so ceiling tracks that (+ found bonus).
+// maxSubmitHMCForBatch is the hard HMC ceiling for one accepted submit (lease-sized).
 func (m *workManager) maxSubmitHMCForBatch(batch uint64) float64 {
 	if m == nil {
 		return 0
@@ -158,14 +153,18 @@ func (m *workManager) maxSubmitHMCForBatch(batch uint64) float64 {
 	if m.maxClaimBatch > 0 && payBatch > m.maxClaimBatch {
 		payBatch = m.maxClaimBatch
 	}
-	if m.targetMod > 0 && payBatch > m.targetMod {
-		payBatch = m.targetMod
-	}
 	ceil := (float64(payBatch)/1_000_000.0)*m.rewardPerM*1.05 + m.foundBonus*1.05
-	if m.rewardAuto && m.baseRewardHMC > 0 {
-		alt := m.baseRewardHMC*1.05 + m.foundBonus*1.05
-		if alt < ceil {
-			ceil = alt
+	if m.shareStrict && m.baseRewardHMC > 0 && m.shareDivisor >= 2 {
+		// PPS: honest full-lease ≈ targetShares × (base * shareMod / M) = base * batch / M.
+		// Cap at ~2 block rewards while pool M catches fleet hash (v2 uses a fixed block budget).
+		sm := shareModForLease(m.targetMod, m.shareDivisor, payBatch)
+		shareCeil := float64(targetSharesPerLease)*rewardPerShareAt(m.baseRewardHMC, sm, m.targetMod)*1.05 + m.foundBonus*1.05
+		blockCap := m.baseRewardHMC*2.0 + m.foundBonus*1.05
+		if shareCeil > blockCap {
+			shareCeil = blockCap
+		}
+		if shareCeil > 0 && shareCeil < ceil {
+			ceil = shareCeil
 		}
 	}
 	return ceil

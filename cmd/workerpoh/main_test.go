@@ -129,3 +129,19 @@ func TestSubmitHashrateBlake3OmitsStickyCalibEMA(t *testing.T) {
 		t.Fatalf("blake3 must omit FORCE/calib EMA and report wall, got %v", got)
 	}
 }
+
+func TestCollectShareNoncesStrideCoversLargeLease(t *testing.T) {
+	const shareMod = uint64(1_000_003)
+	base := uint64(0)
+	batch := uint64(16 << 20) // 16M
+	// Prefix-only scan of 256K would miss shares past the window; stride must find some.
+	out := collectShareNonces(base, batch, shareMod, 1, "", "", 8, 0, false, 256*1024)
+	if len(out) == 0 {
+		t.Fatal("stride harvest found no shares in 16M lease")
+	}
+	for _, n := range out {
+		if n < base || n >= base+batch {
+			t.Fatalf("nonce out of lease: %d", n)
+		}
+	}
+}

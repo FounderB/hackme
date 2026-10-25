@@ -135,24 +135,48 @@ live_jitter_int() {
 pick_live_batch() {
   local base="$BATCH_SIZE_BASE"
   local pct="${BATCH_JITTER_PCT:-0}"
+  # Cap at coordinator Blake3 max_claim_batch (64M) so wall GH can reach mid-class GPUs.
+  local hi_cap="${HACKME_WORKER_BATCH_MAX:-67108864}"
   if ! [[ "$pct" =~ ^[0-9]+$ ]] || (( pct <= 0 )); then
     echo "$base"
     return
   fi
-  python3 -c "import random; b=int('${base}'); p=int('${pct}');
-lo=max(262144, int(b*(100-p)/100)); hi=min(16777216, int(b*(100+p)/100));
-print(random.randint(lo, hi))"
+  python3 -c "import random; b=int('${base}'); p=int('${pct}'); hi_cap=int('${hi_cap}');
+lo=max(262144, int(b*(100-p)/100)); hi=min(hi_cap, int(b*(100+p)/100));
+print(random.randint(lo, max(lo, hi)))"
 }
 
 pick_live_gh() {
-  local base="${FORCE_HASHRATE_GHS:-$HASHRATE_GHS}"
+  # Prefer sticky Blake3 target (FORCE cleared after fv≥3) so jitter still works.
+  local base="${FORCE_HASHRATE_GHS:-${BLAKE3_TARGET_GHS:-$HASHRATE_GHS}}"
   local pct="${GH_JITTER_PCT:-0}"
-  if [[ -z "$FORCE_HASHRATE_GHS" ]] || ! [[ "$pct" =~ ^[0-9]+$ ]] || (( pct <= 0 )); then
+  if [[ -z "$base" ]] || ! [[ "$pct" =~ ^[0-9]+$ ]] || (( pct <= 0 )); then
     echo "$base"
     return
   fi
   python3 -c "import random; b=float('${base}'); p=int('${pct}');
-print(round(b*(1.0+random.uniform(-p,p)/100.0), 3))"
+print(round(b*(1.0+random.uniform(-p,p)/100.0), 4))"
+}
+
+# Sleep so claim→submit wall ≈ batch/(target_ghs·1e9). Cosmetic fleets stay Blake3-honest
+# without advertising pre-cliff FORCE numbers (coord clamps those anyway).
+pace_blake3_wall() {
+  local batch="$1"
+  local target="$2"
+  local start_ns="$3"
+  python3 -c "
+batch=float('${batch}'); target=float('${target}'); start_ns=int('${start_ns}')
+import time
+if batch<=0 or target<=0:
+  raise SystemExit(0)
+want=batch/(target*1e9)
+if want<0.05: want=0.05
+if want>45.0: want=45.0
+elapsed=(time.time_ns()-start_ns)/1e9
+remain=want-elapsed
+if remain>0.01:
+  time.sleep(remain)
+"
 }
 
 api_post() {
@@ -195,17 +219,18 @@ echo "[worker] start id=${WORKER_ID} coord=${COORD_URL} batch=${BATCH_SIZE}"
 if [[ "$SIGN_SUBMITS" == "1" ]]; then
   echo "[worker] hybrid signer: claims+submits carry miner_pubkey_ed25519; submits also miner_sig_ed25519 + submit_nonce (nonce file=${NONCE_FILE})"
 fi
-echo "[worker] note: HASHRATE_GHS env seeds EMA only; sustained GH/s ≈ batch_size / full claim+submit seconds (often ~0.002–0.02 GH/s), not GPU saturation."
+echo "[worker] note: HASHRATE_GHS env seeds EMA only; sustained GH/s ≈ batch_size / full claim+submit seconds (Blake3 class often ~0.02–0.4 GH/s/GPU)."
 if [[ -n "$FORCE_HASHRATE_GHS_REQUESTED" ]]; then
-  echo "[worker] FORCE_HASHRATE_GHS=${FORCE_HASHRATE_GHS_REQUESTED} requested (ignored automatically when claim poh_formula_version>=3 / Blake3)"
+  echo "[worker] FORCE_HASHRATE_GHS=${FORCE_HASHRATE_GHS_REQUESTED} → Blake3 wall-pace target when claim poh_formula_version>=3"
 fi
 force_ghs_blake3_logged=0
+BLAKE3_TARGET_GHS="${BLAKE3_TARGET_GHS:-$FORCE_HASHRATE_GHS_REQUESTED}"
 
 while true; do
   # Full claim→submit wall time matches credited batch throughput (pool GH/s / global TH/s).
   t_cycle_start="$(date +%s%N)"
   BATCH_SIZE="$(pick_live_batch)"
-  if [[ -n "$FORCE_HASHRATE_GHS" ]]; then
+  if [[ -n "$FORCE_HASHRATE_GHS" || -n "$BLAKE3_TARGET_GHS" ]]; then
     ema_hashrate_ghs="$(pick_live_gh)"
   fi
   if [[ "$SIGN_SUBMITS" == "1" && -n "$MINER_PUBKEY_HEX" ]]; then
@@ -237,15 +262,33 @@ while true; do
     sleep_backoff
     continue
   fi
-  # Blake3 PoW: never advertise algebraic/display FORCE GH/s in submits or logs.
-  if [[ "$claim_fv" =~ ^[0-9]+$ ]] && (( claim_fv >= 3 )) && [[ -n "$FORCE_HASHRATE_GHS" || -n "$FORCE_HASHRATE_GHS_REQUESTED" ]]; then
-    if [[ "$force_ghs_blake3_logged" == "0" ]]; then
-      echo "[worker] Blake3 fv=${claim_fv}: omitting FORCE_HASHRATE_GHS=${FORCE_HASHRATE_GHS_REQUESTED} (wall-timed hashrate_gh_s)"
-      force_ghs_blake3_logged=1
+  # Blake3 PoW: never advertise pre-cliff FORCE as reported GH/s. Pace wall time to a
+  # Blake3-class target so cosmetic fleets stay honest vs lease wall clamps.
+  if [[ "$claim_fv" =~ ^[0-9]+$ ]] && (( claim_fv >= 3 )); then
+    if [[ -z "$BLAKE3_TARGET_GHS" && -n "$FORCE_HASHRATE_GHS_REQUESTED" ]]; then
+      BLAKE3_TARGET_GHS="$FORCE_HASHRATE_GHS_REQUESTED"
     fi
-    FORCE_HASHRATE_GHS=""
-    # named_hybrid also seeds HASHRATE_GHS=FORCE; drop the pin so this submit is honest.
-    ema_hashrate_ghs="$MIN_HASHRATE_GHS"
+    if [[ -n "$FORCE_HASHRATE_GHS" || -n "$FORCE_HASHRATE_GHS_REQUESTED" || -n "$BLAKE3_TARGET_GHS" ]]; then
+      if [[ "$force_ghs_blake3_logged" == "0" ]]; then
+        echo "[worker] Blake3 fv=${claim_fv}: wall-pace target_ghs=${BLAKE3_TARGET_GHS:-$MIN_HASHRATE_GHS} (FORCE not reported)"
+        force_ghs_blake3_logged=1
+      fi
+      FORCE_HASHRATE_GHS=""
+      target_ghs="$(pick_live_gh)"
+      if [[ -z "$target_ghs" || "$target_ghs" == "0" ]]; then
+        target_ghs="$MIN_HASHRATE_GHS"
+      fi
+      pace_blake3_wall "$size" "$target_ghs" "$t_cycle_start"
+      # Report wall-timed GH after pace (matches batch/elapsed); keep near target.
+      t_paced="$(date +%s%N)"
+      ema_hashrate_ghs="$(awk -v attempts="${size}" -v ns="$((t_paced - t_cycle_start))" -v mn="${MIN_HASHRATE_GHS}" -v mx="${MAX_HASHRATE_GHS}" 'BEGIN{
+        if (ns < 1) ns = 1;
+        v = (attempts * 1.0) / ns;
+        if (v < mn) v = mn;
+        if (v > mx) v = mx;
+        printf "%.6f", v
+      }')"
+    fi
   fi
   ok_claims=$((ok_claims + 1))
   reset_backoff

@@ -248,40 +248,44 @@ func TestClampPaidAttemptsHonorsLeaseUpToMaxClaim(t *testing.T) {
 	}
 }
 
-func TestRewardAutoCapsAttemptPayAtTargetMod(t *testing.T) {
+func TestClampPaidAttemptsIsLeaseOnlyNotTargetMod(t *testing.T) {
 	wm := newAbuseTestWM()
 	wm.rewardAuto = true
 	wm.baseRewardHMC = 0.01
 	wm.targetMod = 2_000_000
 	wm.rewardPerM = (wm.baseRewardHMC * 1_000_000.0) / float64(wm.targetMod)
-	lease := wm.maxClaimBatch
-	base, size, _, _, _, ok, _ := wm.claim("w-econ", lease)
-	if !ok || size != lease {
-		t.Fatalf("claim: ok=%v size=%d", ok, size)
-	}
-	_, _, payout, _, _ := wm.submit(submitWorkRequest{
-		WorkerID: "w-econ", BaseNonce: base, BatchSize: size,
-		Attempts: size, Found: false, HashrateGHS: 30,
-	})
-	// ≤ ~1× baseReward (attempt-pay capped at M), not lease-sized hyperinflation.
-	max := wm.maxSubmitHMCForBatch(size)
-	if payout > max+1e-9 {
-		t.Fatalf("payout=%v > max=%v", payout, max)
-	}
-	if payout > wm.baseRewardHMC*1.06 {
-		t.Fatalf("attempt-pay exceeded ~1 block: payout=%v base=%v", payout, wm.baseRewardHMC)
-	}
+	lease := wm.maxClaimBatch // 16M > targetMod
 	got := wm.clampPaidAttempts(lease, lease)
-	if got != wm.targetMod {
-		t.Fatalf("clamp under reward_auto: got=%d want targetMod=%d", got, wm.targetMod)
+	if got != lease {
+		t.Fatalf("clamp must honor full lease (not targetMod): got=%d want=%d", got, lease)
+	}
+	if got == wm.targetMod {
+		t.Fatal("regression: targetMod pay cap returned")
 	}
 }
 
-func TestBlake3HashratePrefersReportedOverSecondWall(t *testing.T) {
-	// Same unix second → old path wall=0.05s → ~1.3 GH/s for 64M; must keep ~30.
+func TestBlake3HashrateHelperStillComputesReported(t *testing.T) {
+	// Helper retains reported path for pre-Blake3; submit path ignores it for fv≥3.
 	got := workerHashrateGHSForSubmitFormulaMs(30, 1<<26, 100, 100, 1000, 1050, 0, 3)
 	if got < 20 {
-		t.Fatalf("blake3 should trust reported burn, got %v", got)
+		t.Fatalf("helper reported path got %v", got)
+	}
+}
+
+func TestShareStrictMaxSubmitCapsNearBlockBudget(t *testing.T) {
+	wm := newAbuseTestWM()
+	wm.shareStrict = true
+	wm.shareDivisor = 1024
+	wm.baseRewardHMC = 0.01
+	wm.foundBonus = 0
+	wm.targetMod = 2_000_000
+	wm.rewardPerM = 1.0 // would hyperinflate on 16M lease without share ceiling
+	ceil := wm.maxSubmitHMCForBatch(wm.maxClaimBatch)
+	if ceil > wm.baseRewardHMC*2.1 {
+		t.Fatalf("share PPS ceil=%v exceeds ~2 block budget", ceil)
+	}
+	if ceil < wm.baseRewardHMC*0.5 {
+		t.Fatalf("share PPS ceil=%v unexpectedly tiny", ceil)
 	}
 }
 

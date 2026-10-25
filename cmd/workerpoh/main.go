@@ -168,8 +168,8 @@ func findHitCPUPoH(base, batch, mod uint64, formulaVersion int, prevHash, minerA
 }
 
 // collectShareNonces finds up to maxShares nonces in [base, base+batch) where work%shareMod==0.
-// Caps scan budget so GPU leases stay cheap on host (pseudo-share harvest).
-// maxScan from claim share_scan_max (0 → default 256K, must match coordinator soft expected).
+// Caps hash budget (maxScan from claim share_scan_max). Large leases use stride sampling
+// across the full range so PPS proofs are not stuck in the first 256K nonces.
 func collectShareNonces(base, batch, shareMod uint64, formulaVersion int, prevHash, minerAddr string, maxShares int, foundNonce uint64, found bool, maxScan uint64) []uint64 {
 	if shareMod == 0 || batch == 0 || maxShares <= 0 {
 		return nil
@@ -177,21 +177,26 @@ func collectShareNonces(base, batch, shareMod uint64, formulaVersion int, prevHa
 	if maxScan == 0 {
 		maxScan = uint64(256 * 1024)
 	}
-	scan := batch
-	if scan > maxScan {
-		scan = maxScan
+	stride := uint64(1)
+	if batch > maxScan {
+		stride = batch / maxScan
+		if stride < 1 {
+			stride = 1
+		}
 	}
 	out := make([]uint64, 0, maxShares)
 	seen := map[uint64]struct{}{}
-	if found && foundNonce >= base && foundNonce < base+batch {
-		out = append(out, foundNonce)
-		seen[foundNonce] = struct{}{}
-	}
-	end := base + scan
+	end := base + batch
 	if end < base {
 		end = ^uint64(0)
 	}
-	for n := base; n < end && len(out) < maxShares; n++ {
+	if found && foundNonce >= base && foundNonce < end {
+		out = append(out, foundNonce)
+		seen[foundNonce] = struct{}{}
+	}
+	scanned := uint64(0)
+	for n := base; n < end && len(out) < maxShares && scanned < maxScan; n += stride {
+		scanned++
 		if _, ok := seen[n]; ok {
 			continue
 		}
@@ -1080,7 +1085,7 @@ func main() {
 			HashrateGHS: ghs,
 		}
 		if cr.ShareMod > 0 {
-			out.ShareNonces = collectShareNonces(cr.BaseNonce, cr.BatchSize, cr.ShareMod, fv, cr.PrevHash, minerForPoH, 64, foundNonce, found, cr.ShareScanMax)
+			out.ShareNonces = collectShareNonces(cr.BaseNonce, cr.BatchSize, cr.ShareMod, fv, cr.PrevHash, minerForPoH, 128, foundNonce, found, cr.ShareScanMax)
 		}
 		if strings.TrimSpace(cr.OrderTaskID) != "" {
 			out.OrderTaskID = strings.TrimSpace(cr.OrderTaskID)
