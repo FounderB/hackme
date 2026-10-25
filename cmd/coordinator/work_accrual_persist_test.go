@@ -173,3 +173,154 @@ func TestWorkerAccrualPersistRoundTrip(t *testing.T) {
 		t.Fatalf("total after hydrate=%v", wm2.totalPayoutHMC)
 	}
 }
+
+func TestStalePersistCannotResurrectAfterRevoke(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "accrual-race.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	wm := &workManager{
+		worker:       map[string]workerPayoutStat{},
+		accrualEpoch: map[string]uint64{},
+		abuse:        map[string]workerAbuseState{},
+		ipAbuse:      map[string]workerAbuseState{},
+	}
+	wm.attachDedupDB(db)
+	wm.mu.Lock()
+	wm.worker["evil"] = workerPayoutStat{
+		AcceptedAtt: 5_000_000,
+		PayoutHMC:   3,
+	}
+	wm.mu.Unlock()
+
+	// Simulate TOCTOU: snap under lock, revoke, then finish persist (old path resurrected unpaid).
+	wm.mu.Lock()
+	st, ok := wm.worker["evil"]
+	epoch := wm.accrualEpochLocked("evil")
+	wm.mu.Unlock()
+	if !ok {
+		t.Fatal("expected worker before revoke")
+	}
+
+	out := wm.revokeWorker("evil", "9.9.9.9", true)
+	if ok, _ := out["ok"].(bool); !ok {
+		t.Fatalf("revoke: %+v", out)
+	}
+	if _, alive := wm.fetchDurableAccrual("evil"); alive {
+		t.Fatal("revoke must clear durable before stale write")
+	}
+
+	// Stale INSERT as the old goroutine would after unlock.
+	_, err = wm.dedupDB.Exec(`
+INSERT INTO worker_accrual (
+  worker_id, accepted_ranges, accepted_hits, accepted_attempts,
+  payout_hmc, payout_sup, payout_address, signed_submits,
+  last_ghs, peak_ghs, last_seen_unix, last_poh_seen_unix, last_fuzz_seen_unix, updated_at
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+ON CONFLICT(worker_id) DO UPDATE SET
+  accepted_attempts=excluded.accepted_attempts,
+  payout_hmc=excluded.payout_hmc,
+  updated_at=excluded.updated_at
+WHERE excluded.accepted_attempts >= worker_accrual.accepted_attempts
+`, "evil", st.AcceptedRanges, st.AcceptedHits, st.AcceptedAtt,
+		st.PayoutHMC, st.PayoutSUP, st.PayoutAddress, st.SignedSubmits,
+		st.LastHashrateGHS, st.PeakHashrateGHS, st.LastSeenUnix, st.LastPoHSeenUnix, st.LastFuzzSeenUnix, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, alive := wm.fetchDurableAccrual("evil"); !alive {
+		t.Fatal("stale INSERT should have resurrected row before epoch purge")
+	}
+
+	// Fixed persist post-check: epoch mismatch → purge.
+	wm.mu.Lock()
+	cur := wm.accrualEpochLocked("evil")
+	if cur == epoch {
+		t.Fatalf("revoke must bump accrual epoch (got %d)", cur)
+	}
+	wm.deleteWorkerAccrualLocked("evil")
+	wm.mu.Unlock()
+	if _, alive := wm.fetchDurableAccrual("evil"); alive {
+		t.Fatal("epoch mismatch must purge resurrected durable unpaid")
+	}
+
+	// End-to-end: persistWorkerAccrual after snap+revoke must also purge.
+	wm.mu.Lock()
+	wm.worker["evil2"] = workerPayoutStat{AcceptedAtt: 1000, PayoutHMC: 1}
+	wm.mu.Unlock()
+	started := make(chan struct{})
+	blocked := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		wm.mu.Lock()
+		_, ok := wm.worker["evil2"]
+		epoch2 := wm.accrualEpochLocked("evil2")
+		wm.mu.Unlock()
+		if !ok {
+			return
+		}
+		close(started)
+		<-blocked
+		// Finish like persistWorkerAccrual after unlock (force path without gap).
+		_, _ = wm.dedupDB.Exec(`
+INSERT INTO worker_accrual (
+  worker_id, accepted_ranges, accepted_hits, accepted_attempts,
+  payout_hmc, payout_sup, payout_address, signed_submits,
+  last_ghs, peak_ghs, last_seen_unix, last_poh_seen_unix, last_fuzz_seen_unix, updated_at
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+ON CONFLICT(worker_id) DO UPDATE SET
+  accepted_attempts=excluded.accepted_attempts,
+  payout_hmc=excluded.payout_hmc,
+  updated_at=excluded.updated_at
+`, "evil2", 0, 0, 1000, 1.0, 0.0, "", 0, 0.0, 0.0, 0, 0, 0, 2)
+		wm.mu.Lock()
+		if wm.accrualEpochLocked("evil2") != epoch2 {
+			wm.deleteWorkerAccrualLocked("evil2")
+		}
+		wm.mu.Unlock()
+	}()
+	<-started
+	_ = wm.revokeWorker("evil2", "1.2.3.4", true)
+	close(blocked)
+	<-done
+	if _, alive := wm.fetchDurableAccrual("evil2"); alive {
+		t.Fatal("stale persist after revoke must not leave durable unpaid")
+	}
+}
+
+func TestPruneDoesNotBumpAccrualEpoch(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "accrual-prune-epoch.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	wm := &workManager{worker: map[string]workerPayoutStat{}, accrualEpoch: map[string]uint64{}}
+	wm.attachDedupDB(db)
+	wm.mu.Lock()
+	wm.worker["keep"] = workerPayoutStat{AcceptedAtt: 100, PayoutHMC: 0.5, LastSeenUnix: 1}
+	wm.mu.Unlock()
+	wm.persistWorkerAccrual("keep", true)
+
+	wm.mu.Lock()
+	before := wm.accrualEpochLocked("keep")
+	wm.pruneStaleWorkersLocked("", 10, 1, false, true, 1_000_000)
+	after := wm.accrualEpochLocked("keep")
+	wm.mu.Unlock()
+	if before != after {
+		t.Fatalf("prune must not bump epoch (%d → %d)", before, after)
+	}
+	if _, ok := wm.fetchDurableAccrual("keep"); !ok {
+		t.Fatal("prune must leave durable unpaid")
+	}
+	// persist with worker gone must not delete durable
+	wm.persistWorkerAccrual("keep", true)
+	if _, ok := wm.fetchDurableAccrual("keep"); !ok {
+		t.Fatal("persist after prune must not wipe durable")
+	}
+}
