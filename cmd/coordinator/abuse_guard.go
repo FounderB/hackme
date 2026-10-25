@@ -205,6 +205,7 @@ func (m *workManager) revokeWorker(workerID, ipKey string, permaban bool) map[st
 	st, exists := m.worker[workerID]
 	if !exists {
 		// Ban/revoke after prune: still purge durable unpaid so settle cannot resurrect it.
+		m.bumpAccrualEpochLocked(workerID)
 		m.deleteWorkerAccrualLocked(workerID)
 		if !permaban {
 			return map[string]any{"ok": false, "reason": "worker_not_found", "worker_id": workerID}
@@ -250,6 +251,7 @@ func (m *workManager) revokeWorker(workerID, ipKey string, permaban bool) map[st
 		ipKey = st.LastClientIP
 	}
 	delete(m.worker, workerID)
+	m.bumpAccrualEpochLocked(workerID)
 	m.deleteWorkerAccrualLocked(workerID)
 	if permaban {
 		m.permabanWorkerLocked(workerID, ipKey)

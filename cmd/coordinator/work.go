@@ -85,6 +85,10 @@ type workManager struct {
 	active map[workKey]leaseRecord
 	// worker keeps reward/work counters per worker_id.
 	worker map[string]workerPayoutStat
+	// accrualEpoch bumps on revoke so a stale persistWorkerAccrual goroutine that
+	// snapped before revoke cannot INSERT durable unpaid after DELETE. UI prune
+	// deletes memory without bumping — durable accruals stay for settle/rehydrate.
+	accrualEpoch map[string]uint64
 	// acceptedResultHashes deduplicates useful submits globally.
 	acceptedResultHashes   map[string]struct{}
 	acceptedFoundNonces    map[uint64]struct{}
@@ -487,6 +491,7 @@ func newWorkManagerFromEnv() *workManager {
 		shareRateReject:          envShareRateReject(),
 		active:                   make(map[workKey]leaseRecord),
 		worker:                   make(map[string]workerPayoutStat),
+		accrualEpoch:             make(map[string]uint64),
 		acceptedResultHashes:     make(map[string]struct{}),
 		acceptedFoundNonces:      make(map[uint64]struct{}),
 		acceptedSubmitNonces:     make(map[string]struct{}),

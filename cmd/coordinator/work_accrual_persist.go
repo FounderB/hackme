@@ -207,6 +207,32 @@ func (m *workManager) deleteWorkerAccrualLocked(workerID string) {
 	accrualPersistMu.Unlock()
 }
 
+// bumpAccrualEpochLocked invalidates in-flight persist snapshots for workerID.
+// Caller must hold m.mu. Prune must NOT call this — durable unpaid must survive UI prune.
+func (m *workManager) bumpAccrualEpochLocked(workerID string) {
+	if m == nil {
+		return
+	}
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return
+	}
+	if m.accrualEpoch == nil {
+		m.accrualEpoch = map[string]uint64{}
+	}
+	m.accrualEpoch[workerID]++
+	if m.accrualEpoch[workerID] == 0 {
+		m.accrualEpoch[workerID] = 1
+	}
+}
+
+func (m *workManager) accrualEpochLocked(workerID string) uint64 {
+	if m == nil || m.accrualEpoch == nil {
+		return 0
+	}
+	return m.accrualEpoch[workerID]
+}
+
 func (m *workManager) persistWorkerAccrual(workerID string, force bool) {
 	if m == nil || m.dedupDB == nil {
 		return
@@ -229,10 +255,15 @@ func (m *workManager) persistWorkerAccrual(workerID string, force bool) {
 
 	m.mu.Lock()
 	st, ok := m.worker[workerID]
-	m.mu.Unlock()
 	if !ok {
+		m.mu.Unlock()
+		// Prune removed memory on purpose — leave durable unpaid alone.
 		return
 	}
+	epoch := m.accrualEpochLocked(workerID)
+	snap := st
+	m.mu.Unlock()
+
 	// Monotonic upsert: a delayed goroutine must not overwrite a newer accepted_attempts row.
 	_, err := m.dedupDB.Exec(`
 INSERT INTO worker_accrual (
@@ -255,12 +286,20 @@ ON CONFLICT(worker_id) DO UPDATE SET
   last_fuzz_seen_unix=excluded.last_fuzz_seen_unix,
   updated_at=excluded.updated_at
 WHERE excluded.accepted_attempts >= worker_accrual.accepted_attempts
-`, workerID, st.AcceptedRanges, st.AcceptedHits, st.AcceptedAtt,
-		st.PayoutHMC, st.PayoutSUP, strings.TrimSpace(st.PayoutAddress), st.SignedSubmits,
-		st.LastHashrateGHS, st.PeakHashrateGHS, st.LastSeenUnix, st.LastPoHSeenUnix, st.LastFuzzSeenUnix, now)
+`, workerID, snap.AcceptedRanges, snap.AcceptedHits, snap.AcceptedAtt,
+		snap.PayoutHMC, snap.PayoutSUP, strings.TrimSpace(snap.PayoutAddress), snap.SignedSubmits,
+		snap.LastHashrateGHS, snap.PeakHashrateGHS, snap.LastSeenUnix, snap.LastPoHSeenUnix, snap.LastFuzzSeenUnix, now)
 	if err != nil {
 		log.Printf("worker accrual persist id=%s err=%v", sanitizeLogToken(workerID), err)
 	}
+
+	// Revoke may have DELETE'd while we held the snapshot; purge any resurrection.
+	m.mu.Lock()
+	cur := m.accrualEpochLocked(workerID)
+	if cur != epoch {
+		m.deleteWorkerAccrualLocked(workerID)
+	}
+	m.mu.Unlock()
 }
 
 // flushAllWorkerAccruals force-persists every in-memory row (SIGTERM / graceful stop).
