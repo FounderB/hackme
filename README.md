@@ -226,7 +226,7 @@ Docs map: [docs/INDEX.md](docs/INDEX.md) · API: [docs/API.md](docs/API.md) · A
 
 <div align="center">
 
-**HackMe Network** — useful work, open code, honest scope.
+**HackMe Network** — Dig/Hunt useful fuzz + Blake3 share-PPS, open code, honest scope.
 
 <br/>
 

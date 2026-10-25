@@ -100,7 +100,7 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 			engine = hunt.EngineByte
 		}
 	}
-	return ClaimedWork{
+	work := ClaimedWork{
 		WorkID:               fmt.Sprintf("%s:%d", campaignID, itemID),
 		CampaignID:           campaignID,
 		ItemID:               itemID,
@@ -138,7 +138,13 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 		HuntEngine:           engine,
 		EngineLeaseSec:       leaseSec,
 		EngineProfile:        profile,
-	}, nil
+	}
+	if shouldInjectHuntCanary(campaignID, itemID, cfg) {
+		if err := s.applyHuntCanary(ctx, &work, cfg); err != nil {
+			_ = err // soft-fail: keep normal claim
+		}
+	}
+	return work, nil
 }
 
 // ApplyHuntEngineByteFallback rewrites a coverage-engine claim to legacy byte Hunt

@@ -206,9 +206,10 @@ func rewardPerShareAt(baseRewardHMC float64, shareMod, targetMod uint64) float64
 }
 
 // shareImpliedGHS estimates device GH/s from accepted shares and claim→submit wall.
-// wallSec < 0.5 is treated as RTT-noise and yields 0 (adaptive leases must grow first).
+// Very short walls (<50ms) are RTT noise; 50–500ms still credits GH so fast GPUs
+// can grow adaptive leases past bootstrap (finding: stuck at 512M).
 func shareImpliedGHS(nShares int, shareMod uint64, wallSec float64) float64 {
-	if nShares <= 0 || shareMod == 0 || wallSec < 0.5 {
+	if nShares <= 0 || shareMod == 0 || wallSec < 0.05 {
 		return 0
 	}
 	// One share on a multi-GB shareMod is Poisson noise (old CPU 4M stride harvest).
@@ -224,7 +225,7 @@ func shareImpliedGHS(nShares int, shareMod uint64, wallSec float64) float64 {
 // early-found batch as if the GPU burned every nonce (64G / 2s → fantasy 30 GH/s).
 // Credited hashes are capped to what prevGH (or a mid-GPU bootstrap) could do.
 func honestWallHashrateGHS(batch uint64, wallSec, prevGH float64) float64 {
-	if batch == 0 || wallSec < 0.5 {
+	if batch == 0 || wallSec < 0.05 {
 		return 0
 	}
 	w := wallSec

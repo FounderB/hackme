@@ -14,14 +14,19 @@ import (
 	"hackme/internal/sandbox"
 )
 
-// Dig canary / challenge shards: coordinator occasionally locks a known detector-hit
-// input so a worker that returns CLEAN without hitting it is rejected (canary_miss).
-// Honest workers that report the crash/finding take the normal full-replay path.
+// Dig / Hunt canary / challenge shards: coordinator occasionally locks a known
+// detector-hit (Dig) or known-crash (Hunt) input so a worker that returns CLEAN
+// without hitting it is rejected (canary_miss). Honest workers that report the
+// crash/finding take the normal full-replay path.
 //
 // Env:
 //
 //	HACKME_POOL_CANARY_PCT   percent of Dig claims to mark as canary (default 2; 0=off)
-//	HACKME_POOL_CANARY       0/false/off disables even when pct>0
+//	HACKME_HUNT_CANARY_PCT   percent of Hunt claims (default 2; 0=off; falls back to POOL)
+//	HACKME_POOL_CANARY       0/false/off disables Dig+Hunt even when pct>0
+//
+// Hunt also requires campaign config `canary_input_hex` or `hunt_canary_input_hex`
+// (hex of a known crashing seed). Without it, Hunt canaries stay off.
 
 func canaryEnabled() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_POOL_CANARY")))
@@ -41,6 +46,16 @@ func canaryPct() int {
 		return 0
 	}
 	return envIntClamped("HACKME_POOL_CANARY_PCT", 2, 0, 100)
+}
+
+func huntCanaryPct() int {
+	if !canaryEnabled() {
+		return 0
+	}
+	if v := strings.TrimSpace(os.Getenv("HACKME_HUNT_CANARY_PCT")); v != "" {
+		return envIntClamped("HACKME_HUNT_CANARY_PCT", 2, 0, 100)
+	}
+	return canaryPct()
 }
 
 // digCanaryPayload returns a pack-known detector-hit input, or nil if unavailable.
@@ -162,7 +177,68 @@ func (s *Service) applyDigCanary(ctx context.Context, work *ClaimedWork, cfg map
 	return nil
 }
 
+// huntCanaryPayload returns campaign-configured known-crash bytes for Hunt canaries.
+func huntCanaryPayload(cfg map[string]any) (u64 uint64, bytesIn []byte, ok bool) {
+	hexStr := strings.TrimSpace(jsonString(cfg["canary_input_hex"]))
+	if hexStr == "" {
+		hexStr = strings.TrimSpace(jsonString(cfg["hunt_canary_input_hex"]))
+	}
+	if hexStr == "" {
+		return 0, nil, false
+	}
+	b, err := hex.DecodeString(hexStr)
+	if err != nil || len(b) == 0 {
+		return 0, nil, false
+	}
+	return fuzzengine.PackInputBytesToU64(b), b, true
+}
+
+func shouldInjectHuntCanary(campaignID string, itemID int64, cfg map[string]any) bool {
+	if !IsHuntCampaign(cfg) || !poolDistributed(cfg) {
+		return false
+	}
+	pct := huntCanaryPct()
+	if pct <= 0 {
+		return false
+	}
+	if _, _, ok := huntCanaryPayload(cfg); !ok {
+		return false
+	}
+	return canarySampleHit(campaignID, itemID, pct)
+}
+
+// applyHuntCanary locks a known-crash seed onto the Hunt claim corpus.
+func (s *Service) applyHuntCanary(ctx context.Context, work *ClaimedWork, cfg map[string]any) error {
+	if work == nil {
+		return fmt.Errorf("poolfuzz: nil work")
+	}
+	u, b, ok := huntCanaryPayload(cfg)
+	if !ok {
+		return fmt.Errorf("poolfuzz: no hunt canary payload")
+	}
+	if err := s.storeExpectedInputs(ctx, work.CampaignID, work.ItemID, u, b); err != nil {
+		return err
+	}
+	work.ActualInput = u
+	work.InputBytes = append([]byte(nil), b...)
+	seed := fuzzengine.PoolCorpusSeed{Input: u, InputBytes: append([]byte(nil), b...), Energy: 1000}
+	seeds := append([]fuzzengine.PoolCorpusSeed{seed}, work.CorpusSeeds...)
+	if err := s.storeCorpusSnapshot(ctx, work.CampaignID, work.ItemID, seeds); err != nil {
+		return err
+	}
+	work.CorpusSeeds = seeds
+	if _, sha, err := fuzzengine.EncodeCorpusSnapshot(seeds); err == nil {
+		work.CorpusSnapshotSHA256 = sha
+	}
+	if err := s.markWorkCanary(ctx, work.CampaignID, work.ItemID); err != nil {
+		return err
+	}
+	work.IsCanary = true
+	return nil
+}
+
 // rejectCanaryMissIfNeeded rejects CLEAN hygiene when the locked canary input is a real hit.
+// Dig: WASM-prove the challenge. Hunt: CLEAN without a crash/sanitizer claim is a miss.
 func (s *Service) rejectCanaryMissIfNeeded(ctx context.Context, cfg map[string]any, req SubmitRequest, expectedU uint64, expectedB []byte) error {
 	isCanary, err := s.workItemIsCanary(ctx, req.CampaignID, req.ItemID)
 	if err != nil || !isCanary {
@@ -171,6 +247,13 @@ func (s *Service) rejectCanaryMissIfNeeded(ctx context.Context, cfg map[string]a
 	// Worker already claimed a finding/crash — handled on full-replay path.
 	if submitClaimsFinding(fuzzengine.ParseCheckSemantics(cfg), req) {
 		return nil
+	}
+	if IsHuntCampaign(cfg) {
+		trap := strings.TrimSpace(req.Trap)
+		if req.CheckResult != 0 && (strings.HasPrefix(trap, "hunt_crash:") || strings.HasPrefix(trap, "hunt_sanitizer:")) {
+			return nil
+		}
+		return fmt.Errorf("poolfuzz: canary_miss: Hunt CLEAN missed known crash seed")
 	}
 	wasmHex := wasmHexFromConfig(cfg)
 	if wasmHex == "" {

@@ -178,15 +178,23 @@ func BuildInventoryAFLHarness(ctx context.Context, repoRoot string, req HarnessB
 
 	buildCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(buildCtx, aflCC, args...)
-	cmd.Env = append(os.Environ(),
-		"AFL_USE_ASAN=1",
-		"AFL_QUIET=1",
-		"AFL_PATH="+filepath.Dir(aflCC),
-	)
+	binds := []string{tmpDir, req.Pin.Path, filepath.Dir(aflCC)}
+	binds = append(binds, plan.IncludeDirs...)
+	binds = append(binds, plan.CompanionAbs...)
 	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	err = RunBuildIsolated(buildCtx, BuildIsolateOpts{
+		Bin:  aflCC,
+		Args: args,
+		Env: append(ScrubBuildEnv(os.Environ()),
+			"AFL_USE_ASAN=1",
+			"AFL_QUIET=1",
+			"AFL_PATH="+filepath.Dir(aflCC),
+		),
+		ExtraBind: uniqueBindPaths(binds...),
+		Wall:      180 * time.Second,
+		Stderr:    &stderr,
+	})
+	if err != nil {
 		return "", fmt.Errorf("hunt afl inventory: %w (%s)", err, strings.TrimSpace(stderr.String()))
 	}
 	in, err := os.ReadFile(tmpBin)

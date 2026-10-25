@@ -28,7 +28,7 @@ Cold mid-tier CEX pitches are **deferred** while the desk and product deepen.
 | Name | HackMe Coin |
 | Max supply | 100,000,000 |
 | Decimals | 8 |
-| Consensus | Proof of History + WASM gate |
+| Consensus | Blake3 Proof of History (fv≥3); WASM on Dig/Hunt orders |
 | Block target | ~30s |
 | Address format | `HMC-` + 16 hex chars |
 | Signature | Ed25519 `transfer_v1` |
@@ -54,7 +54,7 @@ Cold mid-tier CEX pitches are **deferred** while the desk and product deepen.
 | Typical pool | HackMe |
 |--------------|--------|
 | Stratum TCP shares | HTTP coordinator + hybrid Ed25519 |
-| Blind hash grinding | WASM-gated useful segments + Dig/Hunt escrow |
+| Blind hash grinding | Dig/Hunt fuzz escrow (useful work); Blake3 = share-PPS |
 | Single revenue = block subsidy | Block subsidy + **B2B audit escrow** |
 | Opaque operator wallet | Public treasury + settlement timers |
 | GH/s scoreboard only | GH/s steers Dig priority; sanitizer work stays CPU |

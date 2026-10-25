@@ -12,20 +12,20 @@ func TestEnvUint64(t *testing.T) {
 		val  string
 		want uint64
 	}{
-		{name: "unset returns fallback", set: "", want: 4194304},
+		{name: "unset returns fallback", set: "", want: 1 << 24},
 		{name: "plain value", set: "GPU_CHUNK_TEST", val: "8388608", want: 8388608},
 		{name: "whitespace trimmed", set: "GPU_CHUNK_TEST", val: " 16777216 ", want: 16777216},
-		{name: "zero rejected", set: "GPU_CHUNK_TEST", val: "0", want: 4194304},
-		{name: "negative rejected", set: "GPU_CHUNK_TEST", val: "-1", want: 4194304},
-		{name: "garbage rejected", set: "GPU_CHUNK_TEST", val: "4M", want: 4194304},
-		{name: "overflow rejected", set: "GPU_CHUNK_TEST", val: "99999999999999999999999", want: 4194304},
+		{name: "zero rejected", set: "GPU_CHUNK_TEST", val: "0", want: 1 << 24},
+		{name: "negative rejected", set: "GPU_CHUNK_TEST", val: "-1", want: 1 << 24},
+		{name: "garbage rejected", set: "GPU_CHUNK_TEST", val: "4M", want: 1 << 24},
+		{name: "overflow rejected", set: "GPU_CHUNK_TEST", val: "99999999999999999999999", want: 1 << 24},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.set != "" {
 				t.Setenv(tc.set, tc.val)
 			}
-			if got := envUint64("GPU_CHUNK_TEST", 4194304); got != tc.want {
+			if got := envUint64("GPU_CHUNK_TEST", 1<<24); got != tc.want {
 				t.Fatalf("envUint64 = %d, want %d", got, tc.want)
 			}
 		})

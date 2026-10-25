@@ -2,16 +2,18 @@
 
 HackMe pool workers support **native CUDA** (NVIDIA) and **OpenCL** (AMD, Intel, and any CL1.2+ GPU). One coordinator; pick the backend that matches your hardware.
 
-## Verdict (production)
+## Verdict (production — Blake3 fv≥3 SHARE_STRICT)
 
-| Platform | Backend | Binary | Typical GH/s (PoH batch 4M) |
-|----------|---------|--------|-----------------------------|
-| **NVIDIA** (RTX 30/40/50) | **CUDA** (recommended) | `bin/workerpoh-cuda` | ~20–130 (device + driver) |
-| **AMD** (RX 6000/7000) | OpenCL | `bin/workerpoh-opencl` | ~2–15 (Mesa/ROCm) |
-| **Intel** (Arc / iGPU) | OpenCL | `bin/workerpoh-opencl` | ~0.5–8 |
-| CPU-only (VPS) | — | `workerpoh` / loop | ~0.02–0.35 |
+| Platform | Backend | Binary | Typical burn GH/s (Blake3) |
+|----------|---------|--------|----------------------------|
+| **NVIDIA** (RTX 30/40/50) | **CUDA** (required for real GH) | `bin/workerpoh-cuda` | ~5 (5060 Ti) … ~27 (5090); see [`BLAKE3_GPU_MATRIX.md`](BLAKE3_GPU_MATRIX.md) |
+| **AMD** (RX 580 / 6000 / 7000) | OpenCL | `bin/workerpoh-opencl` | **device** `poh_search_blake3` (burn TBD — pending AMD calib); host fallback if ICD/build fails |
+| **Intel** (Arc / iGPU) | OpenCL | `bin/workerpoh-opencl` | same OpenCL device path; calib TBD |
+| CPU-only (VPS) | — | `workerpoh` | ~0.05–0.3 (chunked full-lease scan) |
 
-**Your desktop (RTX 5060 Ti): CUDA is the correct choice.** OpenCL on the same card was ~9 GH/s mis-reported and slower; native CUDA with NVRTC `compute_120` reaches measured **~80–116 GH/s** on the public pool.
+**Desktop RTX 5060 Ti: use CUDA.** OpenCL also has a Blake3 device kernel (`poh_search.cl`), but CUDA remains the preferred NVIDIA path. Legacy “80–116 GH/s” figures were pre-cliff / wrong backend — do not cite them for Blake3 PPS.
+
+**Preferred GPU chunk for Blake3:** `GPU_CHUNK=2^24…2^26` (16M–64M). Default is **16M** (`1<<24`); older 4M defaults waste sync RTT.
 
 ## Why CUDA is ideal on NVIDIA
 
@@ -75,6 +77,8 @@ Logic:
 | `HACKME_GPU_CALIBRATE_MOD` | Modulus for startup calibration |
 | `HACKME_CUDA_VERBOSE` | `1` — CUDA init/search logs |
 | `HACKME_OPENCL_VERBOSE` | `1` — OpenCL search logs |
+| `HACKME_OPENCL_BLAKE3_HOST` | `1` — force host Blake3Search (skip device `poh_search_blake3`) |
+| `HACKME_CUDA_BLAKE3_HOST` | `1` — force host Blake3Search on CUDA |
 
 ## NVIDIA (CUDA)
 
@@ -90,6 +94,8 @@ Ubuntu 24.04: `cuda-toolkit-12-8`, driver ≥550 (580+ for RTX 50).
 
 ## AMD (OpenCL)
 
+**Status (2026-10-25):** algebraic + **Blake3 device** kernels ship in `internal/gpupoh/poh_search.cl` (`poh_search` / `poh_search_blake3`). Build `workerpoh-opencl`, set `HACKME_GPU_BACKEND=opencl`. If JIT fails, worker falls back to host Blake3 (log line). **Pool GH/s rows for AMD are still TBD** until an RX 580/RDNA host is calibrated on live SHARE_STRICT.
+
 **Debian/Ubuntu:**
 
 ```bash
@@ -104,11 +110,14 @@ clinfo | grep -E 'Device Type|Device Name'
 ```bash
 bash scripts/ops/build_gpu_workers.sh
 export HACKME_GPU_BACKEND=opencl
-export HACKME_WORKER_HASHRATE_GHS=5   # honest floor for RX-class
+# Do not declare fantasy GH/s — SHARE_STRICT ignores client hashrate for pay.
+export GPU_CHUNK=$((1<<24))
 bash scripts/ops/worker_autostart.sh
 ```
 
 **Windows:** install AMD Adrenalin + OpenCL ICD; build with `go build -tags opencl`.
+
+**RX 580 note:** same OpenCL Blake3 device path as RDNA; prioritize Mesa/ROCm ICD + `clinfo` + `GPU_CHUNK=$((1<<24))` when calibrating.
 
 ## Intel (OpenCL)
 
@@ -130,7 +139,7 @@ Arc discrete GPUs perform better than most iGPUs; set declared GH/s from a few m
 
 ```bash
 bash scripts/ops/apply_desktop_gpu_pool.sh
-# sets HACKME_GPU_BACKEND=cuda, batch 4194304, HASHRATE_GHS=20
+# sets HACKME_GPU_BACKEND=cuda; prefer BATCH/GPU_CHUNK ≥ 16M for Blake3
 ```
 
 ## Verify
@@ -138,11 +147,9 @@ bash scripts/ops/apply_desktop_gpu_pool.sh
 ```bash
 pgrep -af workerpoh
 tail -n 5 "$(ls -t logs/workerpoh-*.log | head -1)"
-# NVIDIA:  [CUDA compute_120] … ghs=80+
-# AMD/Intel: [OpenCL] … ghs= measured
-curl -fsS https://hackme.tech/pool/coordinator/api/work/stats \
-  -H "X-Hackme-Admin-Token: $(cat .secrets/hackme_coordinator_admin_token)" \
-  | jq .pool_hashrate_gh_s
+# NVIDIA:  [CUDA compute_…] … calibrated GH/s matches blake3bench order-of-magnitude
+# AMD/Intel Blake3: expect device kernel log + blake3bench burn (calib TBD)
+curl -fsS http://127.0.0.1:18083/api/work/stats | jq .pool_hashrate_gh_s
 ```
 
 ## MiningPoolStats / listing

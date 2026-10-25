@@ -7,7 +7,7 @@
 | | HMC (primary) | SUP (support) |
 |---|---------------|---------------|
 | Role | Block reward, pool settlement, transfers | Loyalty, network health, listing-grade alt |
-| Earn | Useful-PoW / coordinator attempts | **Only** while honestly mining HMC on official pool |
+| Earn | Blake3 PoH shares / coordinator attempts | **Only** while honestly mining HMC on official pool |
 | Supply | Chain emission (halving + tail) | **Separate** capped supply, own halving |
 | Easy to farm? | Work-based | **No** — quality gates + streaks + caps |
 

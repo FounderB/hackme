@@ -114,16 +114,15 @@ func BuildTargetAFL(ctx context.Context, repoRoot string, t Target) (binPath, cl
 
 	buildCtx, cancel := context.WithTimeout(ctx, buildTimeout(t))
 	defer cancel()
-	cmd := exec.CommandContext(buildCtx, aflCC, args...)
-	cmd.Env = append(os.Environ(),
+	env := append(ScrubBuildEnv(os.Environ()),
 		"AFL_USE_ASAN=1",
 		"AFL_QUIET=1",
 		"AFL_PATH="+filepath.Dir(aflCC),
 	)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return "", "", fmt.Errorf("afl-cc build %s: %w (%s)", t.ID, err, strings.TrimSpace(stderr.String()))
+	binds := []string{tmpDir, clonePath, driverDir, filepath.Dir(aflCC), repoRoot}
+	stderr, err := runBuildCmd(buildCtx, aflCC, args, env, "", binds, buildTimeout(t))
+	if err != nil {
+		return "", "", fmt.Errorf("afl-cc build %s: %w (%s)", t.ID, err, strings.TrimSpace(stderr))
 	}
 	in, err := os.ReadFile(tmpBin)
 	if err != nil {
@@ -228,11 +227,10 @@ func buildTargetCSanitize(ctx context.Context, repoRoot string, t Target, saniti
 
 	buildCtx, cancel := context.WithTimeout(ctx, buildTimeout(t))
 	defer cancel()
-	cmd := exec.CommandContext(buildCtx, "clang", args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return "", "", fmt.Errorf("clang build %s: %w (%s)", t.ID, err, strings.TrimSpace(stderr.String()))
+	binds := []string{tmpDir, clonePath, driverDir, repoRoot}
+	stderr, err := runBuildCmd(buildCtx, "clang", args, ScrubBuildEnv(os.Environ()), "", binds, buildTimeout(t))
+	if err != nil {
+		return "", "", fmt.Errorf("clang build %s: %w (%s)", t.ID, err, strings.TrimSpace(stderr))
 	}
 	in, err := os.ReadFile(tmpBin)
 	if err != nil {

@@ -241,13 +241,20 @@ func buildCargoFuzzHarness(ctx context.Context, plan *rustHarnessPlan) (binPath,
 	}
 	buildCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(buildCtx, "cargo", "+nightly", "fuzz", "build", fuzzTarget, "--sanitizer=address")
-	cmd.Dir = plan.CargoRoot
-	cmd.Env = append(os.Environ(), "RUSTFLAGS=-Zsanitizer=address", "CARGO_TERM_COLOR=never")
 	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	cmd.Stdout = &stderr
-	if err := cmd.Run(); err != nil {
+	sw := newSyncWriter(&stderr)
+	err = RunBuildIsolated(buildCtx, BuildIsolateOpts{
+		Bin:  "cargo",
+		Args: []string{"+nightly", "fuzz", "build", fuzzTarget, "--sanitizer=address"},
+		Dir:  plan.CargoRoot,
+		Env: append(ScrubBuildEnv(os.Environ()),
+			"RUSTFLAGS=-Zsanitizer=address", "CARGO_TERM_COLOR=never"),
+		ExtraBind: uniqueBindPaths(plan.CargoRoot),
+		Wall:      300 * time.Second,
+		Stdout:    sw,
+		Stderr:    sw,
+	})
+	if err != nil {
 		return "", "", fmt.Errorf("hunt rust cargo fuzz build %s: %w (%s)", fuzzTarget, err, strings.TrimSpace(stderr.String()))
 	}
 	candidates := []string{}
@@ -375,17 +382,23 @@ func compileRustStdinCrate(ctx context.Context, crateDir, note string) (binPath,
 	targetDir := filepath.Join(filepath.Dir(crateDir), "target")
 	buildCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(buildCtx, "cargo", "+nightly", "build", "--release", "--manifest-path", filepath.Join(crateDir, "Cargo.toml"))
-	cmd.Dir = crateDir
-	cmd.Env = append(os.Environ(),
-		"CARGO_TERM_COLOR=never",
-		"CARGO_TARGET_DIR="+targetDir,
-		"RUSTFLAGS=-Zsanitizer=address",
-	)
 	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	cmd.Stdout = &stderr
-	if err := cmd.Run(); err != nil {
+	sw := newSyncWriter(&stderr)
+	err = RunBuildIsolated(buildCtx, BuildIsolateOpts{
+		Bin:  "cargo",
+		Args: []string{"+nightly", "build", "--release", "--manifest-path", filepath.Join(crateDir, "Cargo.toml")},
+		Dir:  crateDir,
+		Env: append(ScrubBuildEnv(os.Environ()),
+			"CARGO_TERM_COLOR=never",
+			"CARGO_TARGET_DIR="+targetDir,
+			"RUSTFLAGS=-Zsanitizer=address",
+		),
+		ExtraBind: uniqueBindPaths(crateDir, targetDir, filepath.Dir(crateDir)),
+		Wall:      300 * time.Second,
+		Stdout:    sw,
+		Stderr:    sw,
+	})
+	if err != nil {
 		return "", "", fmt.Errorf("hunt rust cargo build: %w (%s)", err, strings.TrimSpace(stderr.String()))
 	}
 	bin := filepath.Join(targetDir, "release", rustStdinBin)

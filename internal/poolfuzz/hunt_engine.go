@@ -183,21 +183,49 @@ func DecideHuntEnginePay(provenEdges, seedsAccepted, crashesOK int, minerEdges i
 	return HuntEnginePayFloor, false
 }
 
+// huntEngineServerWallMS returns milliseconds since the work item was leased
+// (updated_at on claim). Fail-closed if the lease row is missing.
+func (s *Service) huntEngineServerWallMS(ctx context.Context, campaignID string, itemID int64, now int64) (int64, error) {
+	if s == nil || s.DB == nil {
+		return 0, fmt.Errorf("poolfuzz: hunt_engine_wall: no db")
+	}
+	var updatedAt int64
+	var status string
+	err := s.DB.QueryRowContext(ctx,
+		`SELECT status, updated_at FROM fuzz_work_items WHERE campaign_id=? AND id=?`,
+		campaignID, itemID).Scan(&status, &updatedAt)
+	if err != nil {
+		return 0, fmt.Errorf("poolfuzz: hunt_engine_wall: lease lookup: %w", err)
+	}
+	if strings.TrimSpace(status) != "leased" {
+		return 0, fmt.Errorf("poolfuzz: hunt_engine_wall: item not leased (status=%s)", status)
+	}
+	if updatedAt <= 0 || now < updatedAt {
+		return 0, nil
+	}
+	return (now - updatedAt) * 1000, nil
+}
+
 // checkHuntEngineWallFloor rejects coverage-engine CLEAN submits that never spent
-// the lease wall (legacy workers marking Ran=true after catalog TargetByID fail).
+// the lease wall. Wall is measured on the coordinator (serverWallMS = now − lease
+// updated_at). Miner DurationMS is ignored for the floor (forgeable).
 // Escape: HACKME_HUNT_ENGINE_MIN_WALL_MS=0. Default floor ≈ 75% of engine_lease_sec
-// (min 15s) so 1–2ms "success" cannot settle as CLEAN.
-func checkHuntEngineWallFloor(req SubmitRequest, cfg map[string]any) error {
+// (min 15s) so instant claim→submit cannot settle as CLEAN.
+func checkHuntEngineWallFloor(req SubmitRequest, cfg map[string]any, serverWallMS int64) error {
 	if !huntEngineSubmitMode(req) {
 		return nil
+	}
+	wallMS := serverWallMS
+	if wallMS < 0 {
+		wallMS = 0
 	}
 	if v := strings.TrimSpace(os.Getenv("HACKME_HUNT_ENGINE_MIN_WALL_MS")); v != "" {
 		if v == "0" || strings.EqualFold(v, "off") || strings.EqualFold(v, "false") {
 			return nil
 		}
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			if req.DurationMS < n {
-				return fmt.Errorf("poolfuzz: hunt_engine_wall_too_short duration_ms=%d want>=%d", req.DurationMS, n)
+			if wallMS < int64(n) {
+				return fmt.Errorf("poolfuzz: hunt_engine_wall_too_short server_wall_ms=%d want>=%d", wallMS, n)
 			}
 			return nil
 		}
@@ -206,12 +234,12 @@ func checkHuntEngineWallFloor(req SubmitRequest, cfg map[string]any) error {
 	if leaseSec < hunt.MinEngineLeaseSec {
 		leaseSec = hunt.MinEngineLeaseSec
 	}
-	minMS := leaseSec * 1000 * 3 / 4
-	if minMS < hunt.MinEngineLeaseSec*1000 {
-		minMS = hunt.MinEngineLeaseSec * 1000
+	minMS := int64(leaseSec * 1000 * 3 / 4)
+	if minMS < int64(hunt.MinEngineLeaseSec*1000) {
+		minMS = int64(hunt.MinEngineLeaseSec * 1000)
 	}
-	if req.DurationMS < minMS {
-		return fmt.Errorf("poolfuzz: hunt_engine_wall_too_short duration_ms=%d want>=%d (lease_sec=%d)", req.DurationMS, minMS, leaseSec)
+	if wallMS < minMS {
+		return fmt.Errorf("poolfuzz: hunt_engine_wall_too_short server_wall_ms=%d want>=%d (lease_sec=%d)", wallMS, minMS, leaseSec)
 	}
 	return nil
 }

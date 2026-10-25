@@ -19,6 +19,8 @@
 //
 //	HACKME_USE_CUDA=0       — force CPU PoH even when GPU build tags are on (same as before).
 //	HACKME_FORCE_OPENCL=1 — skip CUDA and use OpenCL only (when built with opencl).
+//	HACKME_OPENCL_BLAKE3_HOST=1 — force host Blake3Search (skip device poh_search_blake3).
+//	HACKME_CUDA_BLAKE3_HOST=1 — force host Blake3Search on CUDA (skip device kernel).
 //
 // CUDA requires CGO, a C compiler, NVIDIA driver, and CUDA toolkit (nvrtc).
 // OpenCL requires CGO, OpenCL ICD/headers (Khronos, vendor SDK, or CUDA toolkit include path).

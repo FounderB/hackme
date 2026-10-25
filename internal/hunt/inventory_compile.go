@@ -1,15 +1,14 @@
 package hunt
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -384,11 +383,10 @@ func compileInventoryObjects(ctx context.Context, plan *inventoryCompilePlan, wr
 			args = append(args, "-x", langX)
 		}
 		args = append(args, src)
-		cmd := exec.CommandContext(ctx, compiler, args...)
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		if err := cmd.Run(); err != nil {
-			return nil, fmt.Errorf("%s %s: %w (%s)", compiler, filepath.Base(src), err, strings.TrimSpace(stderr.String()))
+		binds := append([]string{tmpDir, filepath.Dir(src)}, plan.IncludeDirs...)
+		stderr, err := runCompilerBuild(ctx, compiler, args, binds, 180*time.Second)
+		if err != nil {
+			return nil, fmt.Errorf("%s %s: %w (%s)", compiler, filepath.Base(src), err, strings.TrimSpace(stderr))
 		}
 		objs = append(objs, obj)
 	}
@@ -402,11 +400,13 @@ func linkInventoryObjects(ctx context.Context, plan *inventoryCompilePlan, objs 
 		"-o", outBin,
 	}
 	args = append(args, objs...)
-	cmd := exec.CommandContext(ctx, plan.Compiler, args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s link: %w (%s)", plan.Compiler, err, strings.TrimSpace(stderr.String()))
+	binds := []string{filepath.Dir(outBin)}
+	for _, o := range objs {
+		binds = append(binds, filepath.Dir(o))
+	}
+	stderr, err := runCompilerBuild(ctx, plan.Compiler, args, binds, 180*time.Second)
+	if err != nil {
+		return fmt.Errorf("%s link: %w (%s)", plan.Compiler, err, strings.TrimSpace(stderr))
 	}
 	return nil
 }

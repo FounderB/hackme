@@ -92,18 +92,21 @@ path = "main.rs"
 	targetDir := filepath.Join(tmpDir, "target")
 	buildCtx, cancel := context.WithTimeout(ctx, buildTimeout(t))
 	defer cancel()
-	cmd := exec.CommandContext(buildCtx, "cargo", "+nightly", "build", "--release", "--manifest-path", filepath.Join(crateDir, "Cargo.toml"))
-	cmd.Dir = crateDir
-	cmd.Env = append(os.Environ(),
+	env := append(ScrubBuildEnv(os.Environ()),
 		"CARGO_TERM_COLOR=never",
 		"CARGO_TARGET_DIR="+targetDir,
 		"RUSTFLAGS=-Zsanitizer=address",
 	)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	cmd.Stdout = &stderr
-	if err := cmd.Run(); err != nil {
-		return "", "", fmt.Errorf("cargo rust build %s: %w (%s)", t.ID, err, strings.TrimSpace(stderr.String()))
+	binds := []string{tmpDir, crateDir, clonePath, targetDir}
+	var stderrBuf bytes.Buffer
+	runner := BuildRunner
+	if runner == nil {
+		runner = defaultBuildRunner
+	}
+	if err := runner(buildCtx, "cargo",
+		[]string{"+nightly", "build", "--release", "--manifest-path", filepath.Join(crateDir, "Cargo.toml")},
+		env, crateDir, binds, buildTimeout(t), &stderrBuf, &stderrBuf); err != nil {
+		return "", "", fmt.Errorf("cargo rust build %s: %w (%s)", t.ID, err, strings.TrimSpace(stderrBuf.String()))
 	}
 	tmpBin := filepath.Join(targetDir, "release", rustStdinBinName)
 	in, err := os.ReadFile(tmpBin)

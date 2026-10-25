@@ -10,8 +10,11 @@ func TestDetectRigProfileRX5802048SP(t *testing.T) {
 	if p.ID != "amd_rx580_2048sp" {
 		t.Fatalf("got %q", p.ID)
 	}
-	if p.Env["HACKME_WORKER_BATCH_SIZE"] != "1048576" {
+	if p.Env["HACKME_WORKER_BATCH_SIZE"] != "16777216" {
 		t.Fatalf("batch: %v", p.Env["HACKME_WORKER_BATCH_SIZE"])
+	}
+	if p.Env["GPU_CHUNK"] != "16777216" {
+		t.Fatalf("chunk: %v", p.Env["GPU_CHUNK"])
 	}
 }
 

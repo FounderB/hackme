@@ -474,11 +474,9 @@ func buildSubprocessLibFuzzer(ctx context.Context, repoRoot, outPath string) err
 	}
 	buildCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(buildCtx, "clang", args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("clang subprocess libfuzzer: %w (%s)", err, strings.TrimSpace(stderr.String()))
+	stderr, err := runCompilerBuild(buildCtx, "clang", args, []string{tmpDir, filepath.Dir(harness)}, 5*time.Minute)
+	if err != nil {
+		return fmt.Errorf("clang subprocess libfuzzer: %w (%s)", err, strings.TrimSpace(stderr))
 	}
 	in, err := os.ReadFile(tmpBin)
 	if err != nil {
@@ -538,11 +536,9 @@ func buildDedicatedLibFuzzer(ctx context.Context, repoRoot string, t fuzzupstrea
 	}
 	buildCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(buildCtx, "clang", args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("clang dedicated libfuzzer %s: %w (%s)", t.ID, err, strings.TrimSpace(stderr.String()))
+	stderr, err := runCompilerBuild(buildCtx, "clang", args, []string{tmpDir, clonePath, repoRoot}, 10*time.Minute)
+	if err != nil {
+		return fmt.Errorf("clang dedicated libfuzzer %s: %w (%s)", t.ID, err, strings.TrimSpace(stderr))
 	}
 	in, err := os.ReadFile(tmpBin)
 	if err != nil {

@@ -1,6 +1,6 @@
 # Blake3 PoH GPU matrix (LIVE fv≥3)
 
-**Status:** in progress — fill rows on Vast + desktop after soft-release CUDA path.  
+**Status:** CUDA soft-launch matrix filled through Pascal 10xx; **AMD OpenCL Blake3 device kernel shipped** (`poh_search.cl`) — burn numbers pending RX 580 / RDNA calibration.  
 **Do not compare Peak GH/s to the June 2026 algebraic table** — that was pre-cliff hybrid/v1 calib.
 
 Historical (pre-Blake3) matrix: [`archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.md`](archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.md) — kept as archive only.
@@ -14,68 +14,46 @@ Historical (pre-Blake3) matrix: [`archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.
 | **Burn GH/s** | Pure SearchPoH wall (`blake3bench` / calib maxBatch) — kernel truth |
 | **Pool GH/s** | **Only** from `GET /api/work/stats` → `active_rigs[].hashrate_gh_s` (coordinator credit). Never from worker `submit ok ghs=` logs. |
 | **Util %** | nvidia-smi during mining (often low even when burn is healthy) |
-| **HMC/h est** | Accrual Δ over ≥15 min from coordinator `total_payout_hmc` — not worker self-report |
-| **Settle** | On-chain settle observed from treasury in the run window (Y/N + note) |
-| **Backend** | `cuda` device / `opencl` device / `opencl→host` (Blake3 host fallback) |
+| **Backend** | `cuda` device / `opencl` device / `opencl→host` (host only if device build fails or `HACKME_OPENCL_BLAKE3_HOST=1`) |
 
-Method: tip ≥#485000, `pool_hashrate_kind=blake3_pow_ghs`, lease up to 64M, KEEP+Lemire+OOB-fix. Official `0.1.0-rc17.4` still lags kernel.
+Method: tip ≥#485000, `pool_hashrate_kind=blake3_pow_ghs`, SHARE_STRICT PPS, adaptive leases. Official `0.1.0-rc17.4` still lags kernel.
 
-**Economics (2026-10-25+):** Blake3 **share-PPS** (`SHARE_STRICT=1`): pay verified shares, adaptive leases ~`LEASE_WORK_SEC` (default 3s), pool GH/M from shares/wall — not client `hashrate_gh_s`. Soft attempt-pay remains only if `SHARE_STRICT=0`. Live `REWARD_AUTO=0` + `REWARD_PER_M=5e-5`, `found_bonus=0.0001`, `max_claim_batch` up to 64G.
+**Economics (2026-10-25+):** Blake3 **share-PPS** (`SHARE_STRICT=1`): pay verified shares; pool GH/M from shares/wall — not client `hashrate_gh_s`. Live `REWARD_AUTO=0` + `REWARD_PER_M=5e-5`, `found_bonus=0.0001`, `max_claim_batch` up to 64G. Useful customer work lives on **Dig/Hunt fuzz lanes**, not Blake3 PoH itself.
 
 ---
 
 ## Results matrix (Blake3)
 
-| Series | Config | Worker / rig | Burn GH/s | Pool GH/s | Util % | HMC/h est | Settle | Backend | Verdict | Notes |
-|--------|--------|--------------|-----------|-----------|--------|-----------|--------|---------|---------|-------|
-| **50xx** | 1× RTX 5060 Ti | `worker-kapa-pc` | **~5–7.8** | **~4–6** (`/api/work/stats`, post GH/s honesty) | ~15–30 | fleet ~1–3 HMC/h after rpm pin | Y | **cuda** | **PASS** | Desktop; OpenCL Blake3 = host ~0.25 |
-| **50xx** | 1× RTX 5090 | `vast-rtx5090-blake3-01` | **~26.8** (2²⁶) | ~0.7–1.3 pre-fix (hist) | ~0 | — | — | **cuda** | **PASS burn** | first Vast; instance gone |
-| **50xx** | **2× RTX 5090** | `vast-2x5090` (`-gpu0`+`-gpu1`) | **~26.3 + ~26.4** | **~29–38** merged (`/api/work/stats`) | ~0–2 | TBD ≥15m | — | **cuda** | **PASS** | direct `:35940`; Σ burn ~52.7; fleet merge strip `-gpuN`; RTT cheat clamp fixed |
-| **40xx** | 1× RTX 4090 | `vast-rtx4090-blake3-01` | **~17.1** (2²⁶) | **~20–25** (`/api/work/stats`) | ~0 | TBD ≥15m | — | **cuda** | **PASS** | direct `:38782`; calib 17.15; CC 8.9 |
-| **40xx** | 2× RTX 4070 Ti S | `vast-4070tis-az` (`-gpu0`+`-gpu1`) | **~11.9 + ~11.9** (2²⁶) | **~12.6** merged fleet | ~0–99 burst | ≥1.6 HMC / ~2 min | — | **cuda** | **PASS** | direct `:10073` / proxy `ssh3:26459`; need bundled NVRTC12 on CUDA13 images; fixed `impossible_found_rate` false ban |
-| **30xx** | 2× RTX 3060 Ti | — | TBD | TBD | TBD | TBD | — | cuda | — | multi-GPU |
-| **20xx** | 4× RTX 2080 Ti | — | TBD | TBD | TBD | TBD | — | cuda | — | **4-GPU rig** target |
-| **10xx** | 2× GTX 1080 Ti | — | TBD | TBD | TBD | TBD | — | opencl→host? | — | needs OpenCL Blake3 device |
-| **AMD** | RX 6800 / 7800 | — | TBD | TBD | TBD | TBD | — | opencl | — | blocked until `.cl` Blake3 |
+| Series | Config | Worker / rig | Burn GH/s | Pool GH/s | Util % | Backend | Verdict | Notes |
+|--------|--------|--------------|-----------|-----------|--------|---------|---------|-------|
+| **50xx** | 1× RTX 5060 Ti | `worker-kapa-pc` | **~5–7.8** | **~5–6.5** | ~15–30 | **cuda** | **PASS** | Desktop under SHARE_STRICT; prefer CUDA (OpenCL ICD also has device Blake3) |
+| **50xx** | 1× RTX 5090 | `vast-rtx5090-blake3-01` | **~26.8** (2²⁶) | **~20–27** (SHARE_STRICT era; ignore pre-fix ~1 GH hist) | ~0–2 | **cuda** | **PASS** | Burn locked; pool credit scales with PPS once leased (instance often gone) |
+| **50xx** | **2× RTX 5090** | `vast-2x5090` (`-gpu0`+`-gpu1`) | **~26.3 + ~26.4** | **~29–38** merged | ~0–2 | **cuda** | **PASS** | Σ burn ~52.7; fleet merge strip `-gpuN` |
+| **40xx** | 1× RTX 4090 | `vast-rtx4090-blake3-01` | **~17.1** (2²⁶) | **~17–25** | ~0 | **cuda** | **PASS** | CC 8.9 |
+| **40xx** | 2× RTX 4070 Ti S | `vast-4070tis-az` (`-gpu0`+`-gpu1`) | **~11.9 + ~11.9** (2²⁶) | **~12.6–27** merged | ~0–99 | **cuda** | **PASS** | NVRTC12 on CUDA13 images; `impossible_found_rate` false ban fixed |
+| **30xx** | 1× RTX 3060 Ti | `vast-3060ti-01` | **~4.83** (2²⁶) | **~4.9–5.1** | ~98 | **cuda** | **PASS** | ≈ desktop 5060 Ti class on Blake3 |
+| **30xx** | **2× RTX 3060 Ti** | `vast-2x3060ti` (`-gpu0`+`-gpu1`) | **~5.05 + ~4.85** (2²⁶) | **~10.9** merged | ~0–98 | **cuda** | **PASS** | Σ burn ≈ pool |
+| **20xx** | **4× RTX 2080 Ti** | `vast-4x2080ti` (`-gpu0…3`) | **~5.88+5.65+5.88+5.81** | **~19.4** merged (Σ burn ~23.2) | ~0–84 | **cuda** | **PASS** | nvidia sees **4**; fleet → one UI row; CC 7.5 |
+| **10xx** | **6× GTX 1070 Ti** | `vast-6x1070ti` (`-gpu0…5`) | **~2.00×6** (2²⁶) | **~16.2** merged (Σ burn ~12) | ~0–100 | **cuda** | **PASS** | Pascal CC 6.1; replaces 1080 Ti target |
+| **AMD** | RX 580 / 6800 / 7800 | — | **pending calibration** | TBD | TBD | **opencl device** | — | Device `poh_search_blake3` in `poh_search.cl`; no RX 580 SSH burn yet — do not invent GH/s |
 
 ---
 
-## Multi-GPU / rig checklist
+## Multi-GPU notes
 
-For **2× / 4×** configs also record:
-
-1. One UI row vs `-gpu0…N` split (fleet aggregate).  
-2. Σ burn ≈ sum of per-GPU burns (±10%).  
-3. Pool credit scales with GPUs (not stuck on 1×).  
-4. PSU / PCIe / thermals note (throttle → util drop).  
-5. Hybrid Dig/Hunt: `hybrid_workers_online` + `no_fuzz_work` when campaigns idle.
+- Inventory: `nvidia-smi -L` / `blake3bench -device N` → N devices.  
+- Mining: one `workerpoh-cuda` per GPU (`GPU_DEVICE` / `-gpu-device`, `WORKER_ID=…-gpuN`).  
+- Pool UI: fleet merge strips `-gpuN` → **one** row (Σ credit), not N rows.
 
 ---
 
-## Income note
+## Next fills
 
-HMC accrual ≠ chain block subsidy. Soft attempt-pay is treasury-backed; keep `reward_per_m` / M-cap aligned with ~`econ_expected_empty_hmc_hour` (~1.2). Historical inflated accrual (~3k HMC stock) remains until operator revoke/settle policy.
-
----
-
-## Next fills (order)
-
-1. **2× RTX 4070 Ti Super** — `bash scripts/vast/rent_blake3_matrix.sh search "RTX 4070 Ti Super" 2` (needs `VAST_API_KEY`).  
-2. Re-rent 5090 / 4090 under inline share-PPS + honest wall GH.  
-3. Multi-GPU: 2× then **4×** (one `workerpoh-cuda` per GPU, `WORKER_ID=…-gpuN`).  
-4. AMD after OpenCL Blake3 device kernel.  
-5. Windows CUDA/OpenCL smoke.
-
-### Operator pack
+1. **AMD calibrate** RX 580 / RDNA on live pool (device `.cl` ready; need SSH/host).  
+2. Windows CUDA/OpenCL smoke.
 
 ```bash
-# API key once:
-#   mkdir -p .secrets/vast && chmod 700 .secrets/vast
-#   printf '%s' "$VAST_API_KEY" > .secrets/vast/vast_api_key && chmod 600 .secrets/vast/vast_api_key
-
-bash scripts/vast/build_blake3_pack.sh
-bash scripts/vast/rent_blake3_matrix.sh search "RTX 4070 Ti Super" 2
-# rent <offer_id> … then scp dist/vast-blake3-pack.tar.gz + env.vast onto the box
+bash scripts/vast/build_blake3_pack.sh   # bundles libnvrtc.so.12 for CUDA13 images
 ```
 
-**Stability (2026-10-25):** shares harvested in-kernel; bootstrap lease 512M; lease deadline abort; do not submit block-found as share unless `work%share_mod==0`; over-cap shares no longer inflate `share_rejects`; worker host-verifies shares before submit; stats expose `share_reject_{dup,oor,bad_poh}` (residual rejects ≈ old clients’ bad PoH).
+**Stability:** in-kernel shares; host verify before submit; bootstrap 512M + short-wall lease grow; CPU Blake3 chunks full lease; Hunt CLEAN floor no longer full PayRun.

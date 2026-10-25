@@ -107,15 +107,8 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	if opts.Stdin != nil {
 		cmd.Stdin = opts.Stdin
 	}
-	if opts.Stdout != nil {
-		cmd.Stdout = opts.Stdout
-	}
 	var stderrBuf bytes.Buffer
-	if opts.Stderr != nil {
-		cmd.Stderr = io.MultiWriter(opts.Stderr, &stderrBuf)
-	} else {
-		cmd.Stderr = &stderrBuf
-	}
+	attachIsolatedStdio(cmd, opts.Stdout, opts.Stderr, &stderrBuf)
 	setProcessGroup(cmd)
 	allowBareFallback := !IsolateStrict() || opts.AllowBare
 	// Bare fallback only when bwrap fails to *launch* (Start error). Never after
@@ -237,12 +230,8 @@ func runBareIsolated(runCtx context.Context, opts IsolateOpts, env []string, wal
 	if opts.Stdin != nil {
 		cmd.Stdin = opts.Stdin
 	}
-	if opts.Stdout != nil {
-		cmd.Stdout = opts.Stdout
-	}
-	if opts.Stderr != nil {
-		cmd.Stderr = opts.Stderr
-	}
+	// Bare path: still serialize when stdout==stderr share one writer.
+	attachIsolatedStdio(cmd, opts.Stdout, opts.Stderr, nil)
 	setProcessGroup(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
@@ -258,6 +247,43 @@ func runBareIsolated(runCtx context.Context, opts IsolateOpts, env []string, wal
 	return err
 }
 
+// attachIsolatedStdio wires stdout/stderr. When both point at the same writer,
+// route through syncWriter so concurrent pipe pumps cannot race a bytes.Buffer.
+// When stderrTee is non-nil, stderr is also copied there (bwrap setup diagnostics).
+func attachIsolatedStdio(cmd *exec.Cmd, stdout, stderr io.Writer, stderrTee *bytes.Buffer) {
+	if cmd == nil {
+		return
+	}
+	same := stdout != nil && stderr != nil && stdout == stderr
+	if same {
+		sw, ok := stdout.(*syncWriter)
+		if !ok {
+			sw = newSyncWriter(stdout)
+		}
+		cmd.Stdout = sw
+		if stderrTee != nil {
+			cmd.Stderr = io.MultiWriter(sw, stderrTee)
+		} else {
+			cmd.Stderr = sw
+		}
+		return
+	}
+	if stdout != nil {
+		cmd.Stdout = stdout
+	}
+	if stderr != nil {
+		if stderrTee != nil {
+			cmd.Stderr = io.MultiWriter(stderr, stderrTee)
+		} else {
+			cmd.Stderr = stderr
+		}
+		return
+	}
+	if stderrTee != nil {
+		cmd.Stderr = stderrTee
+	}
+}
+
 func wrapBubblewrap(bin string, args []string, dir string, extraBind, extraRo []string) ([]string, bool) {
 	bwrap, err := exec.LookPath("bwrap")
 	if err != nil {
@@ -267,8 +293,12 @@ func wrapBubblewrap(bin string, args []string, dir string, extraBind, extraRo []
 	argv := []string{
 		bwrap,
 		"--die-with-parent",
+		"--new-session",
 		"--unshare-net",
 		"--unshare-pid",
+		"--unshare-ipc",
+		"--unshare-uts",
+		"--cap-drop", "ALL",
 		"--proc", "/proc",
 		"--dev", "/dev",
 		"--ro-bind", "/usr", "/usr",
@@ -305,6 +335,11 @@ func wrapBubblewrap(bin string, args []string, dir string, extraBind, extraRo []
 	argv = append(argv, args...)
 	return argv, true
 }
+
+// ScrubBuildEnv drops admin/settlement/API tokens from a process environment.
+// Use for customer harness builds (clang/cargo/afl-cc) so build.rs / proc-macros
+// cannot inherit hub secrets. Alias of the isolate scrub list.
+func ScrubBuildEnv(env []string) []string { return scrubIsolateEnv(env) }
 
 func scrubIsolateEnv(env []string) []string {
 	denyExact := map[string]bool{

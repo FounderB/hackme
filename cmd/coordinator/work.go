@@ -2108,6 +2108,21 @@ func (m *workManager) adaptClaimBatch(workerID string, batch uint64) uint64 {
 		} else if batch < blake3BootstrapBatch {
 			batch = blake3BootstrapBatch
 		}
+		// Fast GPU / low RTT: if still near bootstrap but we already have a GH sample
+		// from a short wall, grow ×2–4 toward target so leases escape 512M sticky floor.
+		if st.LastHashrateGHS >= 0.5 && batch <= blake3BootstrapBatch*2 {
+			grow := batch * 2
+			want := uint64(st.LastHashrateGHS * 1e9 * float64(workSec))
+			if want > grow*2 {
+				grow = batch * 4
+			}
+			if grow > batch {
+				batch = grow
+			}
+			if want > batch {
+				batch = want
+			}
+		}
 	}
 	if m.maxClaimBatch > 0 && batch > m.maxClaimBatch {
 		batch = m.maxClaimBatch
@@ -2618,8 +2633,12 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		if len(validShares) > 0 && sm > 0 {
 			rawGH = shareImpliedGHS(len(validShares), sm, wallSec)
 		}
-		if rawGH <= 0 && wallSec >= 1.0 && wallGH > 0 {
+		if rawGH <= 0 && wallSec >= 0.05 && wallGH > 0 {
 			rawGH = wallGH
+		}
+		// Short wall with no share GH yet: still seed adaptive leases (× batch/wall).
+		if rawGH <= 0 && wallSec >= 0.05 && wallSec < 0.5 && req.BatchSize >= blake3BootstrapBatch {
+			rawGH = clampWorkerHashrateGHS(float64(req.BatchSize) / wallSec / 1e9)
 		}
 		// Prefer device-reported only as an upper clamp when wall was capped (early found).
 		if reportedGH > 0 && rawGH > reportedGH*1.35 && reportedGH >= 0.5 {

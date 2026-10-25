@@ -43,15 +43,20 @@ static cl_program poh_build_program(cl_context ctx, cl_device_id dev, const char
 	return p;
 }
 
-static cl_kernel poh_create_kernel(cl_program p) {
+static cl_kernel poh_create_kernel_named(cl_program p, const char *name) {
 	cl_int err = 0;
-	return clCreateKernel(p, "poh_search", &err);
+	cl_kernel k = clCreateKernel(p, name, &err);
+	if (err != CL_SUCCESS || !k) {
+		return NULL;
+	}
+	return k;
 }
 */
 import "C"
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"strings"
@@ -64,45 +69,28 @@ import (
 	"github.com/pkg/errors"
 )
 
-const oclKernelSource = `
-// No cl_khr_int64_base_atomics: Mesa rusticl rejects ulong atom_cmpxchg; use int spinlock + plain ulong writes.
-__kernel void poh_search(
-	const ulong base,
-	const ulong count,
-	const ulong mod,
-	__global ulong *out_nonce,
-	volatile __global int *lock
-) {
-	size_t tid = get_global_id(0);
-	if (tid >= (size_t)count) {
-		return;
-	}
-	ulong n = base + (ulong)tid;
-	ulong v = n * 7UL + 13UL;
-	if (mod == 0UL) {
-		return;
-	}
-	if ((v % mod) != 0UL) {
-		return;
-	}
-	while (atomic_xchg(lock, 1) != 0) { }
-	ulong cur = *out_nonce;
-	if (n < cur) {
-		*out_nonce = n;
-	}
-	atomic_xchg(lock, 0);
-}
-`
+//go:embed poh_search.cl
+var oclKernelSource string
+
+// Must match BLAKE3_NONCES_PER_THREAD in poh_search.cl.
+const oclBlake3NoncesPerThread = 2
 
 type oclAccel struct {
-	devID   int
-	devName string
-	ctx     C.cl_context
-	queue   C.cl_command_queue
-	program C.cl_program
-	kernel  C.cl_kernel
-	memOut  C.cl_mem
-	memLock C.cl_mem
+	devID       int
+	devName     string
+	ctx         C.cl_context
+	queue       C.cl_command_queue
+	program     C.cl_program
+	kernel      C.cl_kernel
+	kernelB3    C.cl_kernel
+	memOut      C.cl_mem
+	memLock     C.cl_mem
+	memPrefix   C.cl_mem
+	memShareCnt C.cl_mem
+	memShares   C.cl_mem
+	shareCap    int
+	prefixN     int
+	haveB3      bool
 }
 
 func (a *oclAccel) DeviceIndex() int   { return a.devID }
@@ -112,6 +100,18 @@ func (a *oclAccel) Label() string      { return fmt.Sprintf("GPU #%d [OpenCL]", 
 func (a *oclAccel) Close() error       { return a.close() }
 
 func (a *oclAccel) close() error {
+	if a.memShares != nil {
+		_ = C.clReleaseMemObject(a.memShares)
+		a.memShares = nil
+	}
+	if a.memShareCnt != nil {
+		_ = C.clReleaseMemObject(a.memShareCnt)
+		a.memShareCnt = nil
+	}
+	if a.memPrefix != nil {
+		_ = C.clReleaseMemObject(a.memPrefix)
+		a.memPrefix = nil
+	}
 	if a.memLock != nil {
 		_ = C.clReleaseMemObject(a.memLock)
 		a.memLock = nil
@@ -119,6 +119,10 @@ func (a *oclAccel) close() error {
 	if a.memOut != nil {
 		_ = C.clReleaseMemObject(a.memOut)
 		a.memOut = nil
+	}
+	if a.kernelB3 != nil {
+		_ = C.clReleaseKernel(a.kernelB3)
+		a.kernelB3 = nil
 	}
 	if a.kernel != nil {
 		_ = C.clReleaseKernel(a.kernel)
@@ -136,6 +140,7 @@ func (a *oclAccel) close() error {
 		_ = C.clReleaseContext(a.ctx)
 		a.ctx = nil
 	}
+	a.haveB3 = false
 	return nil
 }
 
@@ -146,17 +151,347 @@ func (a *oclAccel) SearchPoH(ctx context.Context, req SearchRequest) (bool, uint
 
 func (a *oclAccel) SearchPoHCollect(ctx context.Context, req SearchRequest) (SearchResult, error) {
 	if req.FormulaVersion >= 3 {
-		oclBlake3HostOnce.Do(func() {
-			// OpenCL Blake3 device kernel is not wired yet — always announce host path once.
-			hotlog.Stderrf("gpupoh: OpenCL Blake3 uses host Blake3Search (no device kernel yet)")
-		})
+		forceHost := os.Getenv("HACKME_OPENCL_BLAKE3_HOST") == "1"
+		if a.haveB3 && !forceHost {
+			res, err := a.searchBlake3Device(ctx, req)
+			if err == nil {
+				return res, nil
+			}
+			oclBlake3DeviceErrOnce.Do(func() {
+				hotlog.Stderrf("gpupoh: opencl blake3 device error, host fallback: %v", err)
+			})
+			if os.Getenv("HACKME_OPENCL_VERBOSE") == "1" {
+				hotlog.VerboseStderrf("gpupoh: opencl blake3 device error, host fallback: %v", err)
+			}
+		} else if forceHost {
+			oclBlake3ForcedHostOnce.Do(func() {
+				hotlog.Stderrf("gpupoh: HACKME_OPENCL_BLAKE3_HOST=1; using host Blake3Search")
+			})
+		} else if !a.haveB3 {
+			oclBlake3MissingHostOnce.Do(func() {
+				hotlog.Stderrf("gpupoh: opencl blake3 device kernel missing; host Blake3Search fallback")
+			})
+		}
 		return Blake3SearchCollect(ctx, req)
 	}
 	ok, n, err := a.Search(ctx, req.Base, req.Count, req.Mod)
-	return SearchResult{Found: ok, Nonce: n}, err
+	return SearchResult{Found: ok, Nonce: n, Scanned: req.Count}, err
 }
 
-var oclBlake3HostOnce sync.Once
+var (
+	oclBlake3ForcedHostOnce  sync.Once
+	oclBlake3MissingHostOnce sync.Once
+	oclBlake3DeviceErrOnce   sync.Once
+	oclBlake3DeviceOKOnce    sync.Once
+)
+
+func oclDivUp(x, y int) int {
+	if y <= 0 {
+		return x
+	}
+	return (x + y - 1) / y
+}
+
+func (a *oclAccel) ensurePrefix(n int) error {
+	if n <= 0 {
+		return nil
+	}
+	if a.memPrefix != nil && a.prefixN >= n {
+		return nil
+	}
+	if a.memPrefix != nil {
+		_ = C.clReleaseMemObject(a.memPrefix)
+		a.memPrefix = nil
+		a.prefixN = 0
+	}
+	capN := n
+	if capN < 256 {
+		capN = 256
+	}
+	var err C.cl_int
+	mem := C.clCreateBuffer(a.ctx, C.CL_MEM_READ_ONLY, C.size_t(capN), nil, &err)
+	if mem == nil || err != C.CL_SUCCESS {
+		return fmt.Errorf("gpupoh ocl: CreateBuffer prefix %d", int(err))
+	}
+	a.memPrefix = mem
+	a.prefixN = capN
+	return nil
+}
+
+func (a *oclAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (SearchResult, error) {
+	var out SearchResult
+	total := req.Count
+	mod := req.Mod
+	if total == 0 || mod == 0 {
+		return out, nil
+	}
+	prev := strings.ToLower(strings.TrimSpace(req.PrevHash))
+	addr := strings.TrimSpace(req.MinerAddress)
+	prefix := append([]byte(prev), addr...)
+	if len(prefix) > 152 {
+		return out, fmt.Errorf("gpupoh: blake3 prefix len %d > 152 (device stack cap)", len(prefix))
+	}
+	select {
+	case <-ctx.Done():
+		return out, ctx.Err()
+	default:
+	}
+
+	div, ok := prepareBlake3ModDiv(mod)
+	if !ok {
+		return out, nil
+	}
+	shareMod := req.ShareMod
+	maxShares := req.MaxShares
+	if maxShares <= 0 {
+		maxShares = a.shareCap
+	}
+	if maxShares > a.shareCap {
+		maxShares = a.shareCap
+	}
+	var shareDiv blake3ModDiv
+	if shareMod > 0 {
+		shareDiv, ok = prepareBlake3ModDiv(shareMod)
+		if !ok {
+			shareMod = 0
+		}
+	}
+
+	if err := a.ensurePrefix(len(prefix)); err != nil {
+		return out, err
+	}
+	if len(prefix) > 0 {
+		errN := C.clEnqueueWriteBuffer(a.queue, a.memPrefix, C.CL_TRUE, 0, C.size_t(len(prefix)), unsafe.Pointer(&prefix[0]), 0, nil, nil)
+		if errN != C.CL_SUCCESS {
+			return out, fmt.Errorf("gpupoh ocl: WriteBuffer prefix %d", int(errN))
+		}
+	}
+
+	oclBlake3DeviceOKOnce.Do(func() {
+		hotlog.Stderrf("gpupoh: OpenCL Blake3 device kernel active (%s)", a.devName)
+	})
+
+	best := ^uint64(0)
+	var shareBuf []uint64
+	if shareMod > 0 && maxShares > 0 {
+		shareBuf = make([]uint64, 0, maxShares)
+	}
+	mergeShares := func(more []uint64) {
+		for _, s := range more {
+			if len(shareBuf) >= maxShares {
+				return
+			}
+			shareBuf = append(shareBuf, s)
+		}
+	}
+
+	remain := total
+	cur := req.Base
+	for remain > 0 {
+		select {
+		case <-ctx.Done():
+			out.Shares = shareBuf
+			out.Scanned = total - remain
+			if best != ^uint64(0) {
+				out.Found = true
+				out.Nonce = best
+			}
+			return out, ctx.Err()
+		default:
+		}
+		n := remain
+		if n > maxBatch {
+			n = maxBatch
+		}
+		chunk, err := a.launchBlake3Chunk(cur, n, mod, div, prefix, shareMod, shareDiv, maxShares)
+		if err != nil {
+			out.Shares = shareBuf
+			out.Scanned = total - remain
+			if best != ^uint64(0) {
+				out.Found = true
+				out.Nonce = best
+			}
+			return out, err
+		}
+		out.Scanned += n
+		if chunk.Found && chunk.Nonce < best {
+			best = chunk.Nonce
+		}
+		mergeShares(chunk.Shares)
+		cur += n
+		remain -= n
+		// PPS: keep scanning for shares even after a block hit (match host/CUDA worker loops).
+		if shareMod == 0 && best != ^uint64(0) {
+			break
+		}
+		if shareMod > 0 && len(shareBuf) >= maxShares && best != ^uint64(0) {
+			break
+		}
+	}
+	out.Shares = shareBuf
+	if best != ^uint64(0) {
+		out.Found = true
+		out.Nonce = best
+	}
+	return out, nil
+}
+
+func (a *oclAccel) launchBlake3Chunk(base, count, mod uint64, div blake3ModDiv, prefix []byte,
+	shareMod uint64, shareDiv blake3ModDiv, maxShares int) (SearchResult, error) {
+	var res SearchResult
+	if count == 0 || a.kernelB3 == nil {
+		return res, nil
+	}
+	t0 := time.Now()
+
+	var out uint64 = ^uint64(0)
+	errN := C.clEnqueueWriteBuffer(a.queue, a.memOut, C.CL_TRUE, 0, C.size_t(8), unsafe.Pointer(&out), 0, nil, nil)
+	if errN != C.CL_SUCCESS {
+		return res, fmt.Errorf("gpupoh ocl: EnqueueWriteBuffer init %d", int(errN))
+	}
+	var lockZero C.cl_int
+	errN = C.clEnqueueWriteBuffer(a.queue, a.memLock, C.CL_TRUE, 0, C.size_t(4), unsafe.Pointer(&lockZero), 0, nil, nil)
+	if errN != C.CL_SUCCESS {
+		return res, fmt.Errorf("gpupoh ocl: EnqueueWriteBuffer lock %d", int(errN))
+	}
+	var shareZero uint32
+	if a.memShareCnt != nil {
+		errN = C.clEnqueueWriteBuffer(a.queue, a.memShareCnt, C.CL_TRUE, 0, C.size_t(4), unsafe.Pointer(&shareZero), 0, nil, nil)
+		if errN != C.CL_SUCCESS {
+			return res, fmt.Errorf("gpupoh ocl: EnqueueWriteBuffer share_count %d", int(errN))
+		}
+	}
+
+	b := C.cl_ulong(base)
+	c := C.cl_ulong(count)
+	m := C.cl_ulong(mod)
+	inv := C.cl_ulong(div.Inv)
+	lim := C.cl_ulong(div.Lim)
+	tz := C.cl_uint(div.Tz)
+	plen := C.cl_int(len(prefix))
+	smod := C.cl_ulong(shareMod)
+	sinv := C.cl_ulong(shareDiv.Inv)
+	slim := C.cl_ulong(shareDiv.Lim)
+	stz := C.cl_uint(shareDiv.Tz)
+	ms := C.cl_uint(maxShares)
+	if shareMod == 0 {
+		ms = 0
+	}
+
+	setArg := func(idx int, sz uintptr, ptr unsafe.Pointer) error {
+		e := C.clSetKernelArg(a.kernelB3, C.cl_uint(idx), C.size_t(sz), ptr)
+		if e != C.CL_SUCCESS {
+			return fmt.Errorf("gpupoh ocl: SetKernelArg blake3 %d: %d", idx, int(e))
+		}
+		return nil
+	}
+	if err := setArg(0, unsafe.Sizeof(b), unsafe.Pointer(&b)); err != nil {
+		return res, err
+	}
+	if err := setArg(1, unsafe.Sizeof(c), unsafe.Pointer(&c)); err != nil {
+		return res, err
+	}
+	if err := setArg(2, unsafe.Sizeof(m), unsafe.Pointer(&m)); err != nil {
+		return res, err
+	}
+	if err := setArg(3, unsafe.Sizeof(inv), unsafe.Pointer(&inv)); err != nil {
+		return res, err
+	}
+	if err := setArg(4, unsafe.Sizeof(lim), unsafe.Pointer(&lim)); err != nil {
+		return res, err
+	}
+	if err := setArg(5, unsafe.Sizeof(tz), unsafe.Pointer(&tz)); err != nil {
+		return res, err
+	}
+	if err := setArg(6, unsafe.Sizeof(a.memPrefix), unsafe.Pointer(&a.memPrefix)); err != nil {
+		return res, err
+	}
+	if err := setArg(7, unsafe.Sizeof(plen), unsafe.Pointer(&plen)); err != nil {
+		return res, err
+	}
+	if err := setArg(8, unsafe.Sizeof(a.memOut), unsafe.Pointer(&a.memOut)); err != nil {
+		return res, err
+	}
+	if err := setArg(9, unsafe.Sizeof(a.memLock), unsafe.Pointer(&a.memLock)); err != nil {
+		return res, err
+	}
+	if err := setArg(10, unsafe.Sizeof(smod), unsafe.Pointer(&smod)); err != nil {
+		return res, err
+	}
+	if err := setArg(11, unsafe.Sizeof(sinv), unsafe.Pointer(&sinv)); err != nil {
+		return res, err
+	}
+	if err := setArg(12, unsafe.Sizeof(slim), unsafe.Pointer(&slim)); err != nil {
+		return res, err
+	}
+	if err := setArg(13, unsafe.Sizeof(stz), unsafe.Pointer(&stz)); err != nil {
+		return res, err
+	}
+	if err := setArg(14, unsafe.Sizeof(a.memShareCnt), unsafe.Pointer(&a.memShareCnt)); err != nil {
+		return res, err
+	}
+	if err := setArg(15, unsafe.Sizeof(a.memShares), unsafe.Pointer(&a.memShares)); err != nil {
+		return res, err
+	}
+	if err := setArg(16, unsafe.Sizeof(ms), unsafe.Pointer(&ms)); err != nil {
+		return res, err
+	}
+
+	npt := oclBlake3NoncesPerThread
+	if npt < 1 {
+		npt = 1
+	}
+	global := C.size_t(oclDivUp(int(count), npt))
+	if global < 1 {
+		global = 1
+	}
+	errN = C.clEnqueueNDRangeKernel(a.queue, a.kernelB3, 1, nil, &global, nil, 0, nil, nil)
+	if errN != C.CL_SUCCESS {
+		return res, fmt.Errorf("gpupoh ocl: NDRangeKernel blake3 %d", int(errN))
+	}
+	errN = C.clFinish(a.queue)
+	if errN != C.CL_SUCCESS {
+		return res, fmt.Errorf("gpupoh ocl: Finish blake3 %d", int(errN))
+	}
+	kernelSec := time.Since(t0).Seconds()
+	recordOCLKernelDuration(kernelSec)
+	if os.Getenv("HACKME_OPENCL_VERBOSE") == "1" {
+		ghs := float64(count) / kernelSec / 1e9
+		hotlog.VerboseStderrf("gpupoh: opencl blake3 search count=%d elapsed=%s ~%.2f GH/s",
+			count, time.Duration(kernelSec*float64(time.Second)).Round(time.Millisecond), ghs)
+	}
+
+	errN = C.clEnqueueReadBuffer(a.queue, a.memOut, C.CL_TRUE, 0, C.size_t(8), unsafe.Pointer(&out), 0, nil, nil)
+	if errN != C.CL_SUCCESS {
+		return res, fmt.Errorf("gpupoh ocl: ReadBuffer blake3 %d", int(errN))
+	}
+	if shareMod > 0 && a.memShareCnt != nil && a.memShares != nil && maxShares > 0 {
+		var nShare uint32
+		errN = C.clEnqueueReadBuffer(a.queue, a.memShareCnt, C.CL_TRUE, 0, C.size_t(4), unsafe.Pointer(&nShare), 0, nil, nil)
+		if errN != C.CL_SUCCESS {
+			return res, fmt.Errorf("gpupoh ocl: ReadBuffer share_count %d", int(errN))
+		}
+		ns := int(nShare)
+		if ns > maxShares {
+			ns = maxShares
+		}
+		if ns > 0 {
+			buf := make([]uint64, ns)
+			errN = C.clEnqueueReadBuffer(a.queue, a.memShares, C.CL_TRUE, 0, C.size_t(ns*8), unsafe.Pointer(&buf[0]), 0, nil, nil)
+			if errN != C.CL_SUCCESS {
+				return res, fmt.Errorf("gpupoh ocl: ReadBuffer shares %d", int(errN))
+			}
+			res.Shares = buf
+		}
+	}
+	maxU := ^uint64(0)
+	if out != maxU {
+		res.Found = true
+		res.Nonce = out
+	}
+	res.Scanned = count
+	return res, nil
+}
 
 func (a *oclAccel) Search(ctx context.Context, base, count, mod uint64) (found bool, nonce uint64, err error) {
 	if count == 0 || mod == 0 {
@@ -271,15 +606,28 @@ func newOCLAccelerator(globalIndex int, dev C.cl_device_id) (Accelerator, error)
 		}
 		return nil, errors.New(msg)
 	}
-	kern := C.poh_create_kernel(prog)
+	cname := C.CString("poh_search")
+	kern := C.poh_create_kernel_named(prog, cname)
+	C.free(unsafe.Pointer(cname))
 	if kern == nil {
 		_ = C.clReleaseProgram(prog)
 		_ = C.clReleaseCommandQueue(queue)
 		_ = C.clReleaseContext(ctx)
 		return nil, errors.New("gpupoh ocl: CreateKernel poh_search")
 	}
+	cnameB3 := C.CString("poh_search_blake3")
+	kernB3 := C.poh_create_kernel_named(prog, cnameB3)
+	C.free(unsafe.Pointer(cnameB3))
+	haveB3 := kernB3 != nil
+	if !haveB3 {
+		hotlog.Stderrf("gpupoh: opencl blake3 kernel unavailable; host Blake3Search fallback")
+	}
+
 	memOut := C.clCreateBuffer(ctx, C.CL_MEM_READ_WRITE, C.size_t(8), nil, &err)
 	if memOut == nil || err != C.CL_SUCCESS {
+		if kernB3 != nil {
+			_ = C.clReleaseKernel(kernB3)
+		}
 		_ = C.clReleaseKernel(kern)
 		_ = C.clReleaseProgram(prog)
 		_ = C.clReleaseCommandQueue(queue)
@@ -289,25 +637,79 @@ func newOCLAccelerator(globalIndex int, dev C.cl_device_id) (Accelerator, error)
 	memLock := C.clCreateBuffer(ctx, C.CL_MEM_READ_WRITE, C.size_t(4), nil, &err)
 	if memLock == nil || err != C.CL_SUCCESS {
 		_ = C.clReleaseMemObject(memOut)
+		if kernB3 != nil {
+			_ = C.clReleaseKernel(kernB3)
+		}
 		_ = C.clReleaseKernel(kern)
 		_ = C.clReleaseProgram(prog)
 		_ = C.clReleaseCommandQueue(queue)
 		_ = C.clReleaseContext(ctx)
 		return nil, fmt.Errorf("gpupoh ocl: CreateBuffer lock %d", int(err))
 	}
+	shareCap := DefaultMaxShares
+	memShareCnt := C.clCreateBuffer(ctx, C.CL_MEM_READ_WRITE, C.size_t(4), nil, &err)
+	if memShareCnt == nil || err != C.CL_SUCCESS {
+		_ = C.clReleaseMemObject(memLock)
+		_ = C.clReleaseMemObject(memOut)
+		if kernB3 != nil {
+			_ = C.clReleaseKernel(kernB3)
+		}
+		_ = C.clReleaseKernel(kern)
+		_ = C.clReleaseProgram(prog)
+		_ = C.clReleaseCommandQueue(queue)
+		_ = C.clReleaseContext(ctx)
+		return nil, fmt.Errorf("gpupoh ocl: CreateBuffer share_count %d", int(err))
+	}
+	memShares := C.clCreateBuffer(ctx, C.CL_MEM_READ_WRITE, C.size_t(shareCap*8), nil, &err)
+	if memShares == nil || err != C.CL_SUCCESS {
+		_ = C.clReleaseMemObject(memShareCnt)
+		_ = C.clReleaseMemObject(memLock)
+		_ = C.clReleaseMemObject(memOut)
+		if kernB3 != nil {
+			_ = C.clReleaseKernel(kernB3)
+		}
+		_ = C.clReleaseKernel(kern)
+		_ = C.clReleaseProgram(prog)
+		_ = C.clReleaseCommandQueue(queue)
+		_ = C.clReleaseContext(ctx)
+		return nil, fmt.Errorf("gpupoh ocl: CreateBuffer shares %d", int(err))
+	}
+	// Always keep a non-nil prefix buffer — OpenCL rejects NULL __global args even when plen=0.
+	memPrefix := C.clCreateBuffer(ctx, C.CL_MEM_READ_ONLY, C.size_t(256), nil, &err)
+	if memPrefix == nil || err != C.CL_SUCCESS {
+		_ = C.clReleaseMemObject(memShares)
+		_ = C.clReleaseMemObject(memShareCnt)
+		_ = C.clReleaseMemObject(memLock)
+		_ = C.clReleaseMemObject(memOut)
+		if kernB3 != nil {
+			_ = C.clReleaseKernel(kernB3)
+		}
+		_ = C.clReleaseKernel(kern)
+		_ = C.clReleaseProgram(prog)
+		_ = C.clReleaseCommandQueue(queue)
+		_ = C.clReleaseContext(ctx)
+		return nil, fmt.Errorf("gpupoh ocl: CreateBuffer prefix %d", int(err))
+	}
 	name := strings.TrimSpace(oclDeviceName(dev))
 	if name == "" {
 		name = fmt.Sprintf("OpenCL device %d", globalIndex)
 	}
 	return &oclAccel{
-		devID:   globalIndex,
-		devName: name,
-		ctx:     ctx,
-		queue:   queue,
-		program: prog,
-		kernel:  kern,
-		memOut:  memOut,
-		memLock: memLock,
+		devID:       globalIndex,
+		devName:     name,
+		ctx:         ctx,
+		queue:       queue,
+		program:     prog,
+		kernel:      kern,
+		kernelB3:    kernB3,
+		memOut:      memOut,
+		memLock:     memLock,
+		memPrefix:   memPrefix,
+		memShareCnt: memShareCnt,
+		memShares:   memShares,
+		shareCap:    shareCap,
+		prefixN:     256,
+		haveB3:      haveB3,
 	}, nil
 }
 
@@ -353,8 +755,13 @@ func OpenCLAcceleratorInitDiagnostics() []string {
 			lines = append(lines, fmt.Sprintf("%s: %v", name, err))
 			continue
 		}
+		oa, ok := acc.(*oclAccel)
+		b3 := "blake3=missing"
+		if ok && oa.haveB3 {
+			b3 = "blake3=ok"
+		}
 		_ = acc.Close()
-		lines = append(lines, fmt.Sprintf("%s: kernel init ok", name))
+		lines = append(lines, fmt.Sprintf("%s: kernel init ok (%s)", name, b3))
 	}
 	return lines
 }

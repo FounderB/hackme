@@ -889,8 +889,8 @@ func main() {
 		coordURL        = flag.String("coord", strings.TrimSpace(os.Getenv("COORD_URL")), "coordinator base URL")
 		token           = flag.String("token", strings.TrimSpace(os.Getenv("COORD_TOKEN")), "coordinator admin token")
 		workerID        = flag.String("worker", strings.TrimSpace(os.Getenv("WORKER_ID")), "worker id")
-		batch           = flag.Uint64("batch", 1<<22, "claim batch size")
-		gpuChunk        = flag.Uint64("gpu-chunk", envUint64("GPU_CHUNK", 1<<22), "GPU chunk size per Search() call (env GPU_CHUNK)")
+		batch           = flag.Uint64("batch", 1<<24, "claim batch size")
+		gpuChunk        = flag.Uint64("gpu-chunk", envUint64("GPU_CHUNK", 1<<24), "GPU chunk size per Search() call (env GPU_CHUNK; Blake3 prefer 2^24–2^26)")
 		searchTimeoutMS = flag.Int("search-timeout-ms", envIntPositive("SEARCH_TIMEOUT_MS", 2500), "Search() timeout per GPU chunk (ms) (env SEARCH_TIMEOUT_MS)")
 		gpuBackend      = flag.String("gpu-backend", strings.TrimSpace(os.Getenv("HACKME_GPU_BACKEND")), "preferred GPU backend: auto|opencl|cuda")
 		gpuDevice       = flag.Int("gpu-device", -1, "preferred accelerator device index (-1 = auto)")
@@ -1164,7 +1164,10 @@ func main() {
 			res, sec, err := srch.SearchPoHCollect(0, searchReq(cr.BaseNonce, cr.BatchSize))
 			_ = err
 			elapsed = sec
-			searched = cr.BatchSize
+			searched = res.Scanned
+			if searched == 0 {
+				searched = cr.BatchSize
+			}
 			found, foundNonce = res.Found, res.Nonce
 			mergeShares(res.Shares)
 		}
@@ -1199,7 +1202,7 @@ func main() {
 			BaseNonce:   cr.BaseNonce,
 			BatchSize:   cr.BatchSize,
 			WorkID:      cr.WorkID,
-			Attempts:    cr.BatchSize,
+			Attempts:    hashBatch, // honest: only nonces actually hashed (CPU chunk / lease abort)
 			Found:       found,
 			FoundNonce:  foundNonce,
 			HashrateGHS: ghs,

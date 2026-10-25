@@ -39,7 +39,7 @@
 
 ## Differentiation (one paragraph)
 
-HackMe combines **useful Proof-of-History mining** (WASM-gated work), a **coordinator-backed fair pool** (hybrid PoH + fuzz, Ed25519 submit — not blind Stratum shares), and a **B2B security-audit layer** (`hackme-fuzzing wizard` Dig packs + **Hunt** ASAN via published `harness_hash` — customer git stays on the local node; pool miners run the harness binary, escrow + `fuzz_report_v2` / Hunt reports). HMC is the settlement rail; SUP rewards long-horizon honest miners; HMS extends the same stack to storage economics.
+HackMe combines **Blake3 PoH share-PPS mining** (honest wall/share credit, not “useful PoW” by itself), a **coordinator-backed fair pool** (hybrid PoH + Dig/Hunt fuzz, Ed25519 submit — not blind Stratum shares), and a **B2B security-audit layer** (`hackme-fuzzing wizard` Dig packs + **Hunt** ASAN via published `harness_hash` — customer git stays on the local node; pool miners run the harness binary, escrow + `fuzz_report_v2` / Hunt reports). **Useful customer work lives on Dig/Hunt fuzz lanes**; Blake3 PoH pays verified shares. HMC is the settlement rail; SUP rewards long-horizon honest miners; HMS extends the same stack to storage economics.
 
 ## Listing readiness (honest)
 

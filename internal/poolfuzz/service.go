@@ -1204,7 +1204,11 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 	if isHunt {
 		engineMode := huntEngineSubmitMode(req)
 		if engineMode {
-			if err := checkHuntEngineWallFloor(req, cfg); err != nil {
+			serverWallMS, errWall := s.huntEngineServerWallMS(ctx, req.CampaignID, req.ItemID, now)
+			if errWall != nil {
+				return SubmitOutcome{}, errWall
+			}
+			if err := checkHuntEngineWallFloor(req, cfg, serverWallMS); err != nil {
 				return SubmitOutcome{}, err
 			}
 		}
@@ -1239,6 +1243,12 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 			if recordFinding {
 				kind, fullPay = HuntEnginePayCrash, true
 			}
+			// Canary: CLEAN without crash claim after known-crash seed → reject.
+			if pass && !recordFinding {
+				if err := s.rejectCanaryMissIfNeeded(ctx, cfg, req, expectedU, expectedB); err != nil {
+					return SubmitOutcome{}, err
+				}
+			}
 			noteHuntEnginePay(kind, fullPay)
 			if err := s.finalizeHuntSubmit(ctx, finalizeHuntSubmitParams{
 				req: req, cfg: cfg, inputN: inputN, expectedU: expectedU, expectedB: expectedB,
@@ -1249,6 +1259,11 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 				return SubmitOutcome{}, err
 			}
 			return SubmitOutcome{ReplayStatus: huntReplayStatusDone}, nil
+		}
+		if pass && !recordFinding {
+			if err := s.rejectCanaryMissIfNeeded(ctx, cfg, req, expectedU, expectedB); err != nil {
+				return SubmitOutcome{}, err
+			}
 		}
 		if err := s.finalizeHuntSubmit(ctx, finalizeHuntSubmitParams{
 			req: req, cfg: cfg, inputN: inputN, expectedU: expectedU, expectedB: expectedB,

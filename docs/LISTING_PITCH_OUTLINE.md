@@ -6,7 +6,7 @@ Markdown source for PDF/Google Slides export. One deck for the **network**; appe
 
 ## Slide 1 — Title
 
-**HackMe Network** — Useful Proof-of-History infrastructure  
+**HackMe Network** — Blake3 PoH share-PPS + Dig/Hunt useful-compute pool  
 HMC · SUP · HMS ecosystem · hackme.tech  
 *Not investment advice*
 

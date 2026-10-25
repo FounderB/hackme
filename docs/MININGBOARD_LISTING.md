@@ -58,7 +58,7 @@ Checklist:
 | **Detailed work API** | https://hackme.tech/pool/coordinator/api/work/stats |
 | Explorer | https://hackme.tech/pool/explorer |
 | Downloads | https://hackme.tech/downloads.html |
-| Algorithm | Useful PoW / PoH + WASM task gates (GPU: CUDA/OpenCL **workerpoh**) — **not** SHA256/Scrypt |
+| Algorithm | Blake3 PoH (SHARE_STRICT PPS) + Dig/Hunt fuzz lanes (useful customer work) — GPU: CUDA/OpenCL **workerpoh** — **not** SHA256/Scrypt |
 | Connection | **HTTP coordinator + worker** — **NOT Stratum TCP** |
 | Pool fee | **0%** (operator-funded settlement; no pool skim on shares) |
 | Min payout | **0.0001 HMC** accrual threshold; on-chain settlement ~every 90s when treasury funded |
@@ -75,7 +75,7 @@ Checklist:
 HackMe is NOT a Stratum pool. Miners run hackme-node + workerpoh and talk to an HTTP
 coordinator at /pool/coordinator. Public JSON stats are at /pool/coordinator/api/pool/stats
 and /pool/coordinator/api/work/stats (hashrate_gh_s per worker). Please list as
-"Custom / HTTP coordinator" — algorithm is useful-GPU-PoW (not SHA256/Scrypt).
+"Custom / HTTP coordinator" — algorithm is Blake3 share-PPS PoH + Dig/Hunt fuzz (useful on fuzz only) (not SHA256/Scrypt).
 ```
 
 ## Suggested form fields (Submit a pool)
@@ -87,7 +87,7 @@ Use whatever the form exposes; map our values:
 | Pool name | HackMe Official Pool |
 | Pool URL | https://hackme.tech |
 | Coin / ticker | HMC (HackMe) |
-| Algorithm | Other / Custom — *Useful PoW / WASM PoH (GPU)* |
+| Algorithm | Other / Custom — *Blake3 PoH share-PPS (GPU) + Dig/Hunt useful fuzz* |
 | Fee % | 0 |
 | Payout | Other / Custom (HTTP accrual + on-chain settlement) |
 | Min payout | 0.0001 HMC |
@@ -132,7 +132,7 @@ ANN:        https://bitcointalk.org/index.php?topic=5583373.0
 Important:
 - NOT a Stratum pool (HTTP coordinator + open-source workerpoh).
 - HMC may be a new coin on your directory — happy with a directory listing
-  and/or adding coin HMC as Custom / useful PoW (PoH + WASM).
+  and/or adding coin HMC as Custom (Blake3 PoH + Dig/Hunt fuzz).
 - Fee 0%. No Stratum endpoints to publish.
 
 If the first submission was rejected for schema reasons, please re-check the new feed.

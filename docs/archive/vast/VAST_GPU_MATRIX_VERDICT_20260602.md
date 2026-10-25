@@ -1,3 +1,5 @@
+> **ARCHIVE (pre-Blake3 algebraic / OpenCL).** Do not cite GH/s here for current listing. Live Blake3 CUDA matrix: [`docs/BLAKE3_GPU_MATRIX.md`](../../BLAKE3_GPU_MATRIX.md) (5090 ~27 GH/s CUDA, not ~140).
+
 # GPU Matrix Field Test — Final Verdict (2026-06-02)
 
 > **HISTORICAL (pre-Blake3).** Peak GH/s here is algebraic/hybrid-era calib — **not** comparable to Blake3 LIVE wall-rate.  

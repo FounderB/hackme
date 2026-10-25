@@ -134,21 +134,22 @@ func compileLinkInventoryLibFuzzer(ctx context.Context, plan *inventoryCompilePl
 			args = append(args, "-x", langX)
 		}
 		args = append(args, src)
-		cmd := exec.CommandContext(ctx, compiler, args...)
-		var stderr strings.Builder
-		cmd.Stderr = &stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("%s %s: %w (%s)", compiler, filepath.Base(src), err, strings.TrimSpace(stderr.String()))
+		binds := append([]string{filepath.Dir(outBin), filepath.Dir(src)}, plan.IncludeDirs...)
+		stderr, err := runCompilerBuild(ctx, compiler, args, binds, 180*time.Second)
+		if err != nil {
+			return fmt.Errorf("%s %s: %w (%s)", compiler, filepath.Base(src), err, strings.TrimSpace(stderr))
 		}
 		objs = append(objs, obj)
 	}
 	args := []string{sanitize, "-g", "-O1", "-o", outBin}
 	args = append(args, objs...)
-	cmd := exec.CommandContext(ctx, plan.Compiler, args...)
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s link: %w (%s)", plan.Compiler, err, strings.TrimSpace(stderr.String()))
+	binds := []string{filepath.Dir(outBin)}
+	for _, o := range objs {
+		binds = append(binds, filepath.Dir(o))
+	}
+	stderr, err := runCompilerBuild(ctx, plan.Compiler, args, binds, 180*time.Second)
+	if err != nil {
+		return fmt.Errorf("%s link: %w (%s)", plan.Compiler, err, strings.TrimSpace(stderr))
 	}
 	return nil
 }
