@@ -1,6 +1,6 @@
 # Blake3 PoH GPU matrix (LIVE fv≥3)
 
-**Status:** CUDA soft-launch matrix filled through Pascal 10xx; **AMD OpenCL Blake3 device burn locked on RX 580 2048SP (~0.8 GH/s rusticl)** — RDNA + pool PPS rows still open.  
+**Status:** CUDA soft-launch matrix filled through Pascal 10xx; **AMD RX 580 2048SP OpenCL device PASS** (burn ~0.8 · pool ~0.94 SHARE_STRICT) — RDNA still open.  
 **Do not compare Peak GH/s to the June 2026 algebraic table** — that was pre-cliff hybrid/v1 calib.
 
 Historical (pre-Blake3) matrix: [`archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.md`](archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.md) — kept as archive only.
@@ -49,9 +49,8 @@ Method: tip ≥#485000, `pool_hashrate_kind=blake3_pow_ghs`, SHARE_STRICT PPS, a
 
 ## Next fills
 
-1. **AMD pool PPS** — upgrade LAN RX580 workers to device-kernel `workerpoh-opencl` (docker `/hm` still rc15-era); fill Pool GH/s.  
-2. RDNA (6800/7800) burn fill.  
-3. Windows CUDA/OpenCL smoke.
+1. RDNA (6800/7800) burn + pool fill.  
+2. Windows CUDA/OpenCL smoke.
 
 ```bash
 bash scripts/vast/build_blake3_pack.sh   # bundles libnvrtc.so.12 for CUDA13 images
