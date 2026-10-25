@@ -147,11 +147,20 @@ func expectedSharesForMod(attempts, shareMod uint64) float64 {
 	return float64(attempts) / float64(shareMod)
 }
 
+// shareRejectKind counts why submitted share_nonces failed validation.
+type shareRejectKind struct {
+	Dup        int
+	OutOfRange int
+	BadPoH     int
+}
+
+func (s shareRejectKind) Total() int { return s.Dup + s.OutOfRange + s.BadPoH }
+
 // validateShareNonces checks each nonce is in [base, base+batch) and satisfies
-// PoH work % shareMod == 0. Dedupes, caps at maxSharesPerSubmit. Returns accepted count.
-func validateShareNonces(shares []uint64, base, batch, shareMod uint64, formulaVersion int, prevHash, minerAddress string) (accepted []uint64, rejected int) {
+// PoH work % shareMod == 0. Dedupes, caps at maxSharesPerSubmit.
+func validateShareNonces(shares []uint64, base, batch, shareMod uint64, formulaVersion int, prevHash, minerAddress string) (accepted []uint64, rej shareRejectKind) {
 	if shareMod == 0 || batch == 0 || len(shares) == 0 {
-		return nil, 0
+		return nil, shareRejectKind{}
 	}
 	seen := make(map[uint64]struct{}, len(shares))
 	end := base + batch
@@ -164,21 +173,21 @@ func validateShareNonces(shares []uint64, base, batch, shareMod uint64, formulaV
 			break
 		}
 		if _, ok := seen[n]; ok {
-			rejected++
+			rej.Dup++
 			continue
 		}
 		seen[n] = struct{}{}
 		if n < base || n >= end {
-			rejected++
+			rej.OutOfRange++
 			continue
 		}
 		if !validFoundNoncePoH(n, shareMod, formulaVersion, prevHash, minerAddress) {
-			rejected++
+			rej.BadPoH++
 			continue
 		}
 		accepted = append(accepted, n)
 	}
-	return accepted, rejected
+	return accepted, rej
 }
 
 func rewardPerShare(baseRewardHMC float64, divisor uint64) float64 {

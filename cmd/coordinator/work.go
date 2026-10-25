@@ -68,6 +68,9 @@ type workManager struct {
 	shareRateReject      bool
 	shareAccepts         uint64
 	shareRejects         uint64
+	shareRejectDup       uint64
+	shareRejectOOR       uint64
+	shareRejectBadPoH    uint64
 	sharePaidSubmits     uint64
 	shareRateLowFlags    uint64
 	shareRateLowRejects  uint64
@@ -2477,10 +2480,13 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	}
 	var validShares []uint64
 	if sm > 0 && len(req.ShareNonces) > 0 {
-		var rej int
+		var rej shareRejectKind
 		validShares, rej = validateShareNonces(req.ShareNonces, req.BaseNonce, req.BatchSize, sm, fvShare, leasePrevShare, leaseAddrShare)
 		m.shareAccepts += uint64(len(validShares))
-		m.shareRejects += uint64(rej)
+		m.shareRejects += uint64(rej.Total())
+		m.shareRejectDup += uint64(rej.Dup)
+		m.shareRejectOOR += uint64(rej.OutOfRange)
+		m.shareRejectBadPoH += uint64(rej.BadPoH)
 	}
 	if shareDiv >= 2 && m.shareStrict && len(validShares) == 0 && !req.Found {
 		m.rejectedSubmits++
@@ -3222,6 +3228,9 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 		"share_rate_reject":            m.shareRateReject,
 		"share_accepts":                m.shareAccepts,
 		"share_rejects":                m.shareRejects,
+		"share_reject_dup":             m.shareRejectDup,
+		"share_reject_oor":             m.shareRejectOOR,
+		"share_reject_bad_poh":         m.shareRejectBadPoH,
 		"share_paid_submits":           m.sharePaidSubmits,
 		"share_rate_low_flags":         m.shareRateLowFlags,
 		"share_rate_low_rejects":       m.shareRateLowRejects,

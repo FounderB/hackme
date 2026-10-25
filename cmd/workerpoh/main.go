@@ -192,8 +192,16 @@ func collectShareNonces(base, batch, shareMod uint64, formulaVersion int, prevHa
 		end = ^uint64(0)
 	}
 	if found && foundNonce >= base && foundNonce < end {
-		out = append(out, foundNonce)
-		seen[foundNonce] = struct{}{}
+		var fwork uint64
+		if formulaVersion >= 3 {
+			fwork = chain.PohWorkBlake3(prevHash, minerAddr, foundNonce)
+		} else {
+			fwork = chain.PohEval(foundNonce)
+		}
+		if fwork%shareMod == 0 {
+			out = append(out, foundNonce)
+			seen[foundNonce] = struct{}{}
+		}
 	}
 	scanned := uint64(0)
 	for n := base; n < end && len(out) < maxShares && scanned < maxScan; n += stride {
@@ -212,6 +220,43 @@ func collectShareNonces(base, batch, shareMod uint64, formulaVersion int, prevHa
 		}
 		out = append(out, n)
 		seen[n] = struct{}{}
+	}
+	return out
+}
+
+// filterVerifiedShares drops GPU/host false positives before submit so the pool
+// never sees share_nonces that fail PoH % shareMod (keeps share_rejects near zero).
+func filterVerifiedShares(shares []uint64, base, batch, shareMod uint64, formulaVersion int, prevHash, minerAddr string, maxShares int) []uint64 {
+	if shareMod == 0 || batch == 0 || maxShares <= 0 || len(shares) == 0 {
+		return nil
+	}
+	end := base + batch
+	if end < base {
+		end = ^uint64(0)
+	}
+	out := make([]uint64, 0, maxShares)
+	seen := make(map[uint64]struct{}, len(shares))
+	for _, n := range shares {
+		if len(out) >= maxShares {
+			break
+		}
+		if _, ok := seen[n]; ok {
+			continue
+		}
+		if n < base || n >= end {
+			continue
+		}
+		seen[n] = struct{}{}
+		var work uint64
+		if formulaVersion >= 3 {
+			work = chain.PohWorkBlake3(prevHash, minerAddr, n)
+		} else {
+			work = chain.PohEval(n)
+		}
+		if work%shareMod != 0 {
+			continue
+		}
+		out = append(out, n)
 	}
 	return out
 }
@@ -1162,23 +1207,13 @@ func main() {
 		if cr.ShareMod > 0 {
 			// Prefer shares from the main hash pass. Never submit a block-found nonce as a
 			// share unless it also satisfies share_mod (otherwise share_rejects inflate).
+			// Re-verify on host before submit so GPU false positives never inflate share_rejects.
 			if len(collectedShares) > 0 {
-				if len(collectedShares) > 128 {
-					collectedShares = collectedShares[:128]
-				}
-				out.ShareNonces = collectedShares
+				out.ShareNonces = filterVerifiedShares(collectedShares, cr.BaseNonce, cr.BatchSize, cr.ShareMod, fv, cr.PrevHash, minerForPoH, 128)
 			} else if cr.ShareScanMax > 0 {
 				out.ShareNonces = collectShareNonces(cr.BaseNonce, cr.BatchSize, cr.ShareMod, fv, cr.PrevHash, minerForPoH, 128, foundNonce, found, cr.ShareScanMax)
 			} else if found {
-				var work uint64
-				if fv >= 3 {
-					work = chain.PohWorkBlake3(cr.PrevHash, minerForPoH, foundNonce)
-				} else {
-					work = chain.PohEval(foundNonce)
-				}
-				if work%cr.ShareMod == 0 {
-					out.ShareNonces = []uint64{foundNonce}
-				}
+				out.ShareNonces = filterVerifiedShares([]uint64{foundNonce}, cr.BaseNonce, cr.BatchSize, cr.ShareMod, fv, cr.PrevHash, minerForPoH, 1)
 			}
 		}
 		if strings.TrimSpace(cr.OrderTaskID) != "" {

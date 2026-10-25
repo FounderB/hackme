@@ -78,4 +78,4 @@ bash scripts/vast/rent_blake3_matrix.sh search "RTX 4070 Ti Super" 2
 # rent <offer_id> … then scp dist/vast-blake3-pack.tar.gz + env.vast onto the box
 ```
 
-**Stability (2026-10-25):** shares harvested in-kernel; bootstrap lease 512M; lease deadline abort; do not submit block-found as share unless `work%share_mod==0`; over-cap shares no longer inflate `share_rejects`.
+**Stability (2026-10-25):** shares harvested in-kernel; bootstrap lease 512M; lease deadline abort; do not submit block-found as share unless `work%share_mod==0`; over-cap shares no longer inflate `share_rejects`; worker host-verifies shares before submit; stats expose `share_reject_{dup,oor,bad_poh}` (residual rejects ≈ old clients’ bad PoH).

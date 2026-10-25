@@ -28,10 +28,10 @@ func TestValidateShareNoncesV1(t *testing.T) {
 	}
 	ok, rej := validateShareNonces([]uint64{hit, hit, base + batch + 1, hit + 1}, base, batch, sm, 1, "", "")
 	if len(ok) != 1 || ok[0] != hit {
-		t.Fatalf("accepted=%v rej=%d", ok, rej)
+		t.Fatalf("accepted=%v rej=%+v", ok, rej)
 	}
-	if rej < 1 {
-		t.Fatalf("expected rejects, got %d", rej)
+	if rej.Total() < 1 || rej.Dup < 1 || rej.OutOfRange < 1 || rej.BadPoH < 1 {
+		t.Fatalf("expected dup+oor+bad_poh rejects, got %+v", rej)
 	}
 }
 
@@ -53,8 +53,8 @@ func TestValidateShareNoncesCapDoesNotInflateRejects(t *testing.T) {
 	if len(ok) != maxSharesPerSubmit {
 		t.Fatalf("accepted=%d want %d", len(ok), maxSharesPerSubmit)
 	}
-	if rej != 0 {
-		t.Fatalf("cap drop must not count as PoH rejects, got rej=%d", rej)
+	if rej.Total() != 0 {
+		t.Fatalf("cap drop must not count as PoH rejects, got rej=%+v", rej)
 	}
 }
 
