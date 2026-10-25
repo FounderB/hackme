@@ -19,6 +19,31 @@ type Accelerator interface {
 	Close() error
 }
 
+// ShareSearcher optionally collects PPS shares during the same hash pass.
+type ShareSearcher interface {
+	SearchPoHCollect(ctx context.Context, req SearchRequest) (SearchResult, error)
+}
+
+// SearchCollect runs PoH search and returns shares when req.ShareMod > 0.
+// Prefers device ShareSearcher; falls back to host Blake3SearchCollect.
+func SearchCollect(ctx context.Context, acc Accelerator, req SearchRequest) (SearchResult, error) {
+	if req.FormulaVersion >= 3 {
+		if ss, ok := acc.(ShareSearcher); ok {
+			return ss.SearchPoHCollect(ctx, req)
+		}
+		if req.ShareMod > 0 {
+			return Blake3SearchCollect(ctx, req)
+		}
+		ok, n, err := Blake3Search(ctx, req.Base, req.Count, req.Mod, req.PrevHash, req.MinerAddress)
+		return SearchResult{Found: ok, Nonce: n}, err
+	}
+	if acc == nil {
+		return SearchResult{}, ErrNoGPU
+	}
+	ok, n, err := acc.Search(ctx, req.Base, req.Count, req.Mod)
+	return SearchResult{Found: ok, Nonce: n}, err
+}
+
 // ErrNoGPU is returned when no GPU backend could be initialized.
 var ErrNoGPU = errors.New("gpupoh: no GPU accelerators available")
 

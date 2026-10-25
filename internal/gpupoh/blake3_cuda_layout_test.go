@@ -32,6 +32,9 @@ func TestBlake3CUDAKernelSourceMatchesHostEncoding(t *testing.T) {
 		"miner_address_utf8",
 		"digest[0]",
 		"atomicMin(out_nonce",
+		"atomicAdd(out_share_count",
+		"out_shares[i] = n",
+		"share_mod",
 	} {
 		if !strings.Contains(src, want) {
 			t.Fatalf("poh_search.cu missing %q (Blake3 device contract drift)", want)

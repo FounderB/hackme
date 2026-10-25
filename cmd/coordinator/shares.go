@@ -202,6 +202,11 @@ func shareImpliedGHS(nShares int, shareMod uint64, wallSec float64) float64 {
 	if nShares <= 0 || shareMod == 0 || wallSec < 0.5 {
 		return 0
 	}
+	// One share on a multi-GB shareMod is Poisson noise (old CPU 4M stride harvest).
+	// Ignore for pool M / GH until we have a stable multi-share sample.
+	if nShares < 2 && shareMod >= (1<<28) {
+		return 0
+	}
 	hashes := float64(nShares) * float64(shareMod)
 	return clampWorkerHashrateGHS(hashes / wallSec / 1e9)
 }

@@ -543,7 +543,7 @@
 		.mine-calc-bar-fill {
 			height: 100%;
 			border-radius: 999px;
-			transition: width 0.45s ease;
+			transition: width 0.2s ease;
 		}
 		.mine-calc-preset {
 			font-size: 9px;
@@ -1015,37 +1015,55 @@
 			transition: width 0.4s ease;
 		}
 		/* Dark thin scrollbars everywhere — kill the default white “pipe” column */
-		html {
+		html, body, #app, #main, .panel, .card, .overflow-auto, .overflow-y-auto, .overflow-x-auto {
 			scrollbar-width: thin;
-			scrollbar-color: rgba(0, 209, 255, 0.4) rgba(2, 3, 4, 0.95);
+			scrollbar-color: rgba(0, 209, 255, 0.45) rgba(2, 3, 4, 0.98);
 		}
 		* {
 			scrollbar-width: thin;
-			scrollbar-color: rgba(0, 209, 255, 0.4) rgba(2, 3, 4, 0.95);
+			scrollbar-color: rgba(0, 209, 255, 0.4) rgba(2, 3, 4, 0.98);
 		}
 		*::-webkit-scrollbar {
 			width: 8px;
 			height: 8px;
+			background: rgba(2, 3, 4, 0.98);
 		}
 		*::-webkit-scrollbar-button {
-			display: none;
-			width: 0;
-			height: 0;
+			display: none !important;
+			width: 0 !important;
+			height: 0 !important;
+			background: transparent !important;
+			border: 0 !important;
+		}
+		*::-webkit-scrollbar-button:start:decrement,
+		*::-webkit-scrollbar-button:end:increment,
+		*::-webkit-scrollbar-button:vertical:start:decrement,
+		*::-webkit-scrollbar-button:vertical:end:increment,
+		*::-webkit-scrollbar-button:horizontal:start:decrement,
+		*::-webkit-scrollbar-button:horizontal:end:increment {
+			display: none !important;
+			width: 0 !important;
+			height: 0 !important;
 		}
 		*::-webkit-scrollbar-track {
-			background: rgba(2, 3, 4, 0.95);
+			background: rgba(2, 3, 4, 0.98);
 			border-radius: 8px;
+			box-shadow: none;
+		}
+		*::-webkit-scrollbar-track-piece {
+			background: rgba(2, 3, 4, 0.98);
 		}
 		*::-webkit-scrollbar-thumb {
-			background: linear-gradient(180deg, rgba(0, 209, 255, 0.4), rgba(57, 255, 20, 0.28));
+			background: linear-gradient(180deg, rgba(0, 209, 255, 0.45), rgba(57, 255, 20, 0.3));
 			border-radius: 8px;
-			border: 2px solid rgba(2, 3, 4, 0.95);
+			border: 2px solid rgba(2, 3, 4, 0.98);
+			min-height: 28px;
 		}
 		*::-webkit-scrollbar-thumb:hover {
-			background: linear-gradient(180deg, rgba(0, 209, 255, 0.55), rgba(57, 255, 20, 0.4));
+			background: linear-gradient(180deg, rgba(0, 209, 255, 0.6), rgba(57, 255, 20, 0.42));
 		}
 		*::-webkit-scrollbar-corner {
-			background: rgba(2, 3, 4, 0.95);
+			background: rgba(2, 3, 4, 0.98);
 		}
 		#mining-log {
 			border-color: rgba(0, 209, 255, 0.12);
@@ -2850,6 +2868,7 @@
 											<div class="text-[10px] text-gray-500 uppercase tracking-wider mb-2">PoH progress model</div>
 											<div class="flex justify-between text-[10px] mb-1"><span class="text-gray-500">ETA to solve</span><span id="mine-calc-out-eta" class="text-white font-mono">—</span></div>
 											<div class="flex justify-between text-[10px] mb-2"><span class="text-gray-500">Expected found bonus / day</span><span id="mine-calc-out-found-day" class="text-matrix font-mono">—</span></div>
+											<div class="flex justify-between text-[9px] text-gray-600 mb-1"><span>Your share of pool GH</span><span id="mine-calc-bar-label" class="font-mono">—</span></div>
 											<div class="mine-calc-bar-track"><div id="mine-calc-bar-poh" class="mine-calc-bar-fill bg-gradient-to-r from-neon/80 to-matrix/80" style="width:0%"></div></div>
 											<p id="mine-calc-poh-note" class="text-[9px] text-gray-600 mt-2"></p>
 										</div>
@@ -8612,12 +8631,14 @@
 			if ((!mineCalcHmcUsdExplicit || !(hmcUsd > 0)) && liveHmcUsdPrice() > 0) {
 				hmcUsd = liveHmcUsdPrice();
 			}
+			const kwhRaw = Number((mineCalcEl('mine-calc-kwh') || {}).value);
+			const powerRaw = Number((mineCalcEl('mine-calc-power') || {}).value);
 			return {
 				hashrateGh: gh > 0 ? gh : 0,
 				rigCount: Math.max(1, Math.floor(Number((mineCalcEl('mine-calc-rigs') || {}).value || 1))),
 				poolSharePct: Number((mineCalcEl('mine-calc-share') || {}).value || 100),
-				powerW: Math.max(0, Number((mineCalcEl('mine-calc-power') || {}).value || 0)),
-				kwhUsd: Math.max(0, Number((mineCalcEl('mine-calc-kwh') || {}).value || 0)),
+				powerW: Math.max(0, Number.isFinite(powerRaw) ? powerRaw : 180),
+				kwhUsd: Math.max(0, Number.isFinite(kwhRaw) && kwhRaw >= 0 ? kwhRaw : 0.12),
 				hmcUsd: hmcUsd > 0 ? hmcUsd : 0,
 				hwCostUsd: Math.max(0, Number((mineCalcEl('mine-calc-hw-cost') || {}).value || 0)),
 				uptimePct: Number.isFinite(uptimePct) ? uptimePct : 95,
@@ -8674,24 +8695,58 @@
 			return x;
 		}
 
-		/** Pool work: slider GH/s drives estimate; live Δ is reference only (never ignore the slider). */
-		function mineCalcPoolDisplayHour(inputs, net) {
-			const fleetGh = Math.max(0, Number(inputs.hashrateGh) || 0) * Math.max(1, Math.floor(Number(inputs.rigCount) || 1));
-			const poolGh = Math.max(0, Number(net.poolGh) || 0);
-			const rpm = Math.max(0, Number(net.rewardPerM) || 0);
+		/** Share-PPS ceiling matching coordinator maxSubmitHMCForBatch (≈ 2× base_reward / lease). */
+		function mineCalcTheoSharePpsHour(fleetGh, net, share) {
+			const gh = Math.max(0, Number(fleetGh) || 0);
 			const baseReward = Math.max(0, Number(net.baseRewardHmc) || 0);
 			const targetMod = Math.max(POOL_TARGET_MOD_FLOOR, Number(net.targetMod) || POOL_TARGET_MOD_FLOOR);
+			const leaseSec = Math.max(1, Number(net.leaseWorkSec) || 3);
+			const div = Math.max(2, Number(net.shareDivisor) || 1024);
+			const maxClaim = Math.max(1, Number(net.maxClaimBatch) || (64 * Math.pow(2, 30)));
+			const defaultBatch = Math.max(1, Number(net.defaultBatch) || (4 * Math.pow(2, 20)));
+			const foundBonus = Math.max(0, Number(net.foundBonus) || 0);
+			const sh = Math.max(0.01, Math.min(1, Number(share) || 1));
+			if (!(gh > 0 && baseReward > 0 && targetMod > 0)) return 0;
+			const hashes = gh * 1e9 * leaseSec;
+			const batch = Math.min(maxClaim, Math.max(hashes, defaultBatch));
+			const smDiv = Math.max(1, Math.floor(targetMod / div));
+			const smLease = Math.max(1, Math.floor(batch / 32));
+			const sm = Math.max(smDiv, smLease);
+			const shares = Math.min(128, hashes / sm);
+			const payPerShare = baseReward * sm / targetMod;
+			const blockCap = baseReward * 2 + foundBonus * 1.05;
+			const payLease = Math.min(Math.max(0, shares * payPerShare), blockCap);
+			return payLease * (3600 / leaseSec) * sh;
+		}
+
+		/**
+		 * Pool work estimate — slider must always move HMC/h.
+		 * Live path: accrual Δ × (slider GH / live worker GH). Old bug set scaleGh=workerGh → ratio 1.
+		 * Fallback: share-PPS lease model (block-capped) or soft reward/M.
+		 */
+		function mineCalcPoolDisplayHour(inputs, net) {
+			const fleetGh = Math.max(0, Number(inputs.hashrateGh) || 0) * Math.max(1, Math.floor(Number(inputs.rigCount) || 1));
+			const rpm = Math.max(0, Number(net.rewardPerM) || 0);
 			const sharePct = Math.max(0.01, Math.min(100, Number(inputs.poolSharePct) || 100));
 			const share = sharePct / 100;
-			const effGh = poolGh > 0 ? Math.min(fleetGh, poolGh) : fleetGh;
-			if (!(effGh > 0)) return 0;
-			// Share-PPS / economic model: ~ baseReward × (hashes/h) / M
-			if (baseReward > 0 && targetMod > 0) {
-				return Math.max(0, baseReward * (effGh * 1e9 * 3600) / targetMod * share);
+			if (!(fleetGh > 0)) return 0;
+			const obs = Math.max(0, Number(net.observedPayoutPerHour) || 0);
+			const workerGh = Math.max(0, Number(net.workerGh) || 0);
+			if (obs > 0 && workerGh >= 0.05) {
+				// obs is already this worker's accrual Δ — do not also multiply by Share %.
+				return Math.max(0, obs * (fleetGh / workerGh));
 			}
-			// Soft attempt-pay: reward_per_m × millions of attempts / hour
+			if (net.shareStrict) {
+				const theo = mineCalcTheoSharePpsHour(fleetGh, net, share);
+				if (theo > 0) return theo;
+			}
 			if (rpm > 0) {
-				return Math.max(0, (effGh * 1e9 / 1e6) * rpm * 3600 * share);
+				return Math.max(0, (fleetGh * 1e9 / 1e6) * rpm * 3600 * share);
+			}
+			const baseReward = Math.max(0, Number(net.baseRewardHmc) || 0);
+			const targetMod = Math.max(POOL_TARGET_MOD_FLOOR, Number(net.targetMod) || POOL_TARGET_MOD_FLOOR);
+			if (baseReward > 0 && targetMod > 0) {
+				return Math.max(0, baseReward * (fleetGh * 1e9 * 3600) / targetMod * share);
 			}
 			return 0;
 		}
@@ -8778,6 +8833,10 @@
 				0,
 				Number(workerDerived.attemptsPerSec || workerDerived.acceptedAttemptsPerSec5s || 0)
 			);
+			const leaseWorkSec = Math.max(1, Number(ws.lease_work_sec || m.lease_work_sec || 3));
+			const shareDivisor = Math.max(2, Number(ws.share_divisor || 1024));
+			const maxClaimBatch = Math.max(1, Number(ws.max_claim_batch || (64 * Math.pow(2, 30))));
+			const defaultBatch = Math.max(1, Number(ws.default_batch || (4 * Math.pow(2, 20))));
 			return {
 				targetMod,
 				rewardPerM,
@@ -8797,6 +8856,10 @@
 				observedPayoutPerHour,
 				poolAttemptsPerSec,
 				workerAttemptsPerSec,
+				leaseWorkSec,
+				shareDivisor,
+				maxClaimBatch,
+				defaultBatch,
 				loadHint: loadTel.loadHint,
 				loadCapped: loadTel.loadCapped,
 				targetModMin: loadTel.minM,
@@ -8847,8 +8910,9 @@
 			const totalHmcDay = totalHmcHour * 24;
 			const totalHmcMonth = totalHmcDay * 30;
 			const etaSec = poolWork ? -1 : (effAps > 0 ? targetMod / effAps : -1);
+			// Pool: bar = your share of pool GH (stable); solo: Poisson solve progress.
 			const pohProgress = poolWork
-				? (effAps > 0 ? Math.min(0.85, effAps / (targetMod * 500)) : 0)
+				? (poolGhLive > 0 ? Math.min(1, Math.max(0, Math.min(fleetGh, poolGhLive) / poolGhLive)) : 0)
 				: (effAps > 0 ? Math.min(0.995, 1 - Math.exp(-effAps / targetMod)) : 0);
 			const powerTotalW = Math.max(0, Number(inputs.powerW) || 0) * rigs;
 			const kwhDay = (powerTotalW / 1000) * 24 * uptime;
@@ -8861,13 +8925,12 @@
 			const poolShareOfTotal = Number(net.poolGh) > 0 ? Math.min(100, (Math.min(fleetGh, Number(net.poolGh)) / Number(net.poolGh)) * 100) : 0;
 			const theoreticalHmcHour = poolHmcHour;
 			let scaledObservedHour = 0;
-			if (observedPayoutPerHour > 0 && workerGhLive > 0 && fleetGh > 0) {
-				const scaleGh = workerGhLive > 0
-					? workerGhLive
-					: Math.min(fleetGh, poolGhLive > 0 ? poolGhLive : fleetGh);
-				scaledObservedHour = observedPayoutPerHour * (scaleGh / workerGhLive) * (share / Math.max(0.01, (net.mySharePct || 100) / 100));
+			if (observedPayoutPerHour > 0 && workerGhLive >= 0.05 && fleetGh > 0) {
+				scaledObservedHour = observedPayoutPerHour * (fleetGh / workerGhLive);
 			}
 			let displayHmcHour = poolHmcHour;
+			const theoCapHour = (poolWork && net.shareStrict) ? mineCalcTheoSharePpsHour(fleetGh, net, share) : 0;
+			const ppsSaturated = theoCapHour > 0 && displayHmcHour > theoCapHour * 1.08;
 			const ghCapped = poolGhLive > 0 && fleetGh > poolGhLive * 1.02;
 			const displayHmcDay = displayHmcHour * 24;
 			let breakEven = '—';
@@ -8884,7 +8947,7 @@
 				foundBonusDay, etaSec, pohProgress, powerTotalW, kwhDay, costDay,
 				revDay: revDayDisp, netDay: netDayDisp, breakEven,
 				chainHour, poolShareOfTotal, solvesPerSec, observedPayoutPerHour, scaledObservedHour, poolWork,
-				theoreticalUncappedHour, ghCapped, effGh, impliedPoolSharePct,
+				theoreticalUncappedHour, ghCapped, effGh, impliedPoolSharePct, theoCapHour, ppsSaturated,
 			};
 		}
 
@@ -8903,9 +8966,6 @@
 			const net = getMineCalcNetworkParams();
 			if (!mineCalcGhTouched && !(inputs.hashrateGh > 0) && net.workerGh > 0) {
 				setMineCalcGhValue(net.workerGh, { skipRender: true });
-				if (!mineCalcShareTouched && net.mySharePct > 0 && net.mySharePct < 100 && mineCalcEl('mine-calc-share')) {
-					mineCalcEl('mine-calc-share').value = String(fmt(net.mySharePct, 2));
-				}
 				inputs = readMineCalcInputs();
 			}
 			const coin = MINE_CALC_COINS.find((c) => c.id === mineCalcCoinId) || MINE_CALC_COINS[0];
@@ -8958,15 +9018,21 @@
 				}
 				if (out.poolWork) {
 					if (displayHmcHour > 0) {
-						parts.push(net.shareStrict
-							? ('~' + fmt(displayHmcHour, 4) + ' HMC/h @ ' + fmt(inputs.hashrateGh, 2) + ' GH/s (share-PPS model)')
-							: ('~' + fmt(displayHmcHour, 4) + ' HMC/h @ ' + fmt(inputs.hashrateGh, 2) + ' GH/s (reward/M)'));
+						const liveScaled = Number(net.observedPayoutPerHour || 0) > 0 && Number(net.workerGh || 0) >= 0.05;
+						parts.push(liveScaled
+							? ('~' + fmt(displayHmcHour, 4) + ' HMC/h @ ' + fmt(inputs.hashrateGh, 2) + ' GH/s (live Δ × GH ratio)')
+							: (net.shareStrict
+								? ('~' + fmt(displayHmcHour, 4) + ' HMC/h @ ' + fmt(inputs.hashrateGh, 2) + ' GH/s (share-PPS)')
+								: ('~' + fmt(displayHmcHour, 4) + ' HMC/h @ ' + fmt(inputs.hashrateGh, 2) + ' GH/s (reward/M)')));
 					} else {
-						parts.push('set hashrate — estimate scales with the slider');
+						parts.push('drag Your hashrate — HMC/h scales with the slider');
 					}
 					const obs = Number(net.observedPayoutPerHour || 0);
-					if (obs > 0 && Math.abs(obs - displayHmcHour) / Math.max(displayHmcHour, 0.001) > 0.35) {
-						parts.push('live accrual ~' + fmt(obs, 3) + ' HMC/h (reference only)');
+					if (obs > 0 && Math.abs(obs - displayHmcHour) / Math.max(displayHmcHour, 0.001) > 0.12) {
+						parts.push('live accrual @ rig ~' + fmt(obs, 3) + ' HMC/h');
+					}
+					if (out.ppsSaturated && out.theoCapHour > 0) {
+						parts.push('PPS lease ceiling ~' + fmt(out.theoCapHour, 2) + ' HMC/h — extra GH mostly helps found-hit odds');
 					}
 				} else if (displayHmcHour > 0) {
 					parts.push('model ~' + fmt(displayHmcHour, 4) + ' HMC/h');
@@ -9001,20 +9067,32 @@
 					: fmt(out.foundBonusDay, 6);
 			}
 			setMineCalcBar('mine-calc-bar-poh', out.pohProgress * 100);
+			if (mineCalcEl('mine-calc-bar-label')) {
+				mineCalcEl('mine-calc-bar-label').textContent = out.poolWork
+					? (fmt(out.pohProgress * 100, 1) + '%')
+					: (fmt(out.pohProgress * 100, 1) + '% solve odds');
+			}
 			if (mineCalcEl('mine-calc-poh-note')) {
-				const poolNote = net.poolWork
-					? (net.shareStrict
-						? 'Share-PPS: estimate ≈ base_reward × (your GH/s×10⁹×3600) / M. Found bonus is rare — not averaged into HMC/h.'
-						: 'Pool work pays per accepted attempt (reward/M); found bonus is rare — not included in HMC/h estimate.')
-					: '';
-				mineCalcEl('mine-calc-poh-note').textContent =
-					(poolNote ? poolNote + ' ' : '') +
-					(!net.poolWork && out.solvesPerSec > 0
-						? ('Poisson model: P(solve within 1 mod window) ≈ ' + fmt(out.pohProgress * 100, 1) + '% · scheduler ' + net.schedulerMode +
-							(' · ~' + fmt(out.solvesPerSec * 3600, 4) + ' solves/h fleet-wide'))
-						: (net.poolWork
-							? 'Drag Your hashrate — HMC/h scales with the slider. Live accrual Δ is shown only as a reference.'
-							: ('ETA order-of-magnitude: M / (GH/s×10⁹) · scheduler ' + net.schedulerMode)));
+				if (net.poolWork) {
+					const sharePctBar = out.pohProgress * 100;
+					const bits = [
+						net.shareStrict
+							? 'Share-PPS: HMC/h from live accrual Δ × (your GH / live rig GH). Per-submit ceiling ≈ 2× base_reward.'
+							: 'Pool work pays per accepted attempt (reward/M); found bonus is rare — not in HMC/h.',
+						'Bar = your GH as % of pool (~' + fmt(sharePctBar, 1) + '%). Drag Your hashrate — HMC/h tracks the slider.',
+					];
+					if (out.ppsSaturated && out.theoCapHour > 0) {
+						bits.push('Near PPS lease ceiling (~' + fmt(out.theoCapHour, 2) + ' HMC/h theoretical).');
+					}
+					mineCalcEl('mine-calc-poh-note').textContent = bits.join(' ');
+				} else if (out.solvesPerSec > 0) {
+					mineCalcEl('mine-calc-poh-note').textContent =
+						'Poisson model: P(solve within 1 mod window) ≈ ' + fmt(out.pohProgress * 100, 1) + '% · scheduler ' + net.schedulerMode +
+						(' · ~' + fmt(out.solvesPerSec * 3600, 4) + ' solves/h fleet-wide');
+				} else {
+					mineCalcEl('mine-calc-poh-note').textContent =
+						'ETA order-of-magnitude: M / (GH/s×10⁹) · scheduler ' + net.schedulerMode;
+				}
 			}
 			if (mineCalcEl('mine-calc-out-power-total')) mineCalcEl('mine-calc-out-power-total').textContent = fmt(out.powerTotalW, 0) + ' W';
 			if (mineCalcEl('mine-calc-out-cost-day')) mineCalcEl('mine-calc-out-cost-day').textContent = inputs.kwhUsd > 0 ? ('$' + fmt(out.costDay, 2)) : '—';
@@ -9080,7 +9158,9 @@
 			}
 			if (kind === 'live' && net.workerGh > 0) {
 				setMineCalcGhValue(net.workerGh, { skipRender: true });
-				if (shareEl) shareEl.value = String(fmt(Math.max(0.01, Math.min(100, net.mySharePct || 100)), 2));
+				// Live accrual Δ is already per-worker — keep Share % at 100 for display weight.
+				if (shareEl) shareEl.value = '100';
+				mineCalcShareTouched = false;
 			}
 			renderMineCalc();
 		}

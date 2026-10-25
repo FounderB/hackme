@@ -140,14 +140,20 @@ func (a *oclAccel) close() error {
 }
 
 func (a *oclAccel) SearchPoH(ctx context.Context, req SearchRequest) (bool, uint64, error) {
+	res, err := a.SearchPoHCollect(ctx, req)
+	return res.Found, res.Nonce, err
+}
+
+func (a *oclAccel) SearchPoHCollect(ctx context.Context, req SearchRequest) (SearchResult, error) {
 	if req.FormulaVersion >= 3 {
 		oclBlake3HostOnce.Do(func() {
 			// OpenCL Blake3 device kernel is not wired yet — always announce host path once.
 			hotlog.Stderrf("gpupoh: OpenCL Blake3 uses host Blake3Search (no device kernel yet)")
 		})
-		return Blake3Search(ctx, req.Base, req.Count, req.Mod, req.PrevHash, req.MinerAddress)
+		return Blake3SearchCollect(ctx, req)
 	}
-	return a.Search(ctx, req.Base, req.Count, req.Mod)
+	ok, n, err := a.Search(ctx, req.Base, req.Count, req.Mod)
+	return SearchResult{Found: ok, Nonce: n}, err
 }
 
 var oclBlake3HostOnce sync.Once

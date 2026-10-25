@@ -279,6 +279,7 @@ type searcher interface {
 	Label() string
 	Search(ctxTimeout time.Duration, base, count, mod uint64) (found bool, nonce uint64, elapsedSec float64, err error)
 	SearchPoH(ctxTimeout time.Duration, req gpupoh.SearchRequest) (found bool, nonce uint64, elapsedSec float64, err error)
+	SearchPoHCollect(ctxTimeout time.Duration, req gpupoh.SearchRequest) (res gpupoh.SearchResult, elapsedSec float64, err error)
 }
 
 type cpuSearcher struct{}
@@ -290,6 +291,10 @@ func (cpuSearcher) Search(ctxTimeout time.Duration, base, count, mod uint64) (bo
 	return found, nonce, time.Since(t0).Seconds(), nil
 }
 func (cpuSearcher) SearchPoH(ctxTimeout time.Duration, req gpupoh.SearchRequest) (bool, uint64, float64, error) {
+	res, sec, err := (cpuSearcher{}).SearchPoHCollect(ctxTimeout, req)
+	return res.Found, res.Nonce, sec, err
+}
+func (cpuSearcher) SearchPoHCollect(ctxTimeout time.Duration, req gpupoh.SearchRequest) (gpupoh.SearchResult, float64, error) {
 	t0 := time.Now()
 	if req.FormulaVersion >= 3 {
 		ctx := context.Background()
@@ -298,11 +303,11 @@ func (cpuSearcher) SearchPoH(ctxTimeout time.Duration, req gpupoh.SearchRequest)
 			ctx, cancel = context.WithTimeout(ctx, ctxTimeout)
 			defer cancel()
 		}
-		found, nonce, err := gpupoh.Blake3Search(ctx, req.Base, req.Count, req.Mod, req.PrevHash, req.MinerAddress)
-		return found, nonce, time.Since(t0).Seconds(), err
+		res, err := gpupoh.Blake3SearchCollect(ctx, req)
+		return res, time.Since(t0).Seconds(), err
 	}
 	found, nonce := findHitCPU(req.Base, req.Count, req.Mod)
-	return found, nonce, time.Since(t0).Seconds(), nil
+	return gpupoh.SearchResult{Found: found, Nonce: nonce}, time.Since(t0).Seconds(), nil
 }
 
 type gpuSearcher struct {
@@ -447,6 +452,10 @@ func (g gpuSearcher) Search(ctxTimeout time.Duration, base, count, mod uint64) (
 	return g.SearchPoH(ctxTimeout, gpupoh.SearchRequest{Base: base, Count: count, Mod: mod, FormulaVersion: 1})
 }
 func (g gpuSearcher) SearchPoH(ctxTimeout time.Duration, req gpupoh.SearchRequest) (bool, uint64, float64, error) {
+	res, sec, err := g.SearchPoHCollect(ctxTimeout, req)
+	return res.Found, res.Nonce, sec, err
+}
+func (g gpuSearcher) SearchPoHCollect(ctxTimeout time.Duration, req gpupoh.SearchRequest) (gpupoh.SearchResult, float64, error) {
 	t0 := time.Now()
 	ctx := context.Background()
 	var cancel context.CancelFunc
@@ -454,7 +463,7 @@ func (g gpuSearcher) SearchPoH(ctxTimeout time.Duration, req gpupoh.SearchReques
 		ctx, cancel = context.WithTimeout(ctx, ctxTimeout)
 		defer cancel()
 	}
-	found, nonce, err := g.acc.SearchPoH(ctx, req)
+	res, err := gpupoh.SearchCollect(ctx, g.acc, req)
 	sec := time.Since(t0).Seconds()
 	if req.FormulaVersion < 3 {
 		switch strings.ToLower(strings.TrimSpace(g.acc.Backend())) {
@@ -467,8 +476,10 @@ func (g gpuSearcher) SearchPoH(ctxTimeout time.Duration, req gpupoh.SearchReques
 				sec = k
 			}
 		}
+	} else if k := lastGPUKernelSeconds(); k > 0 {
+		sec = k
 	}
-	return found, nonce, sec, err
+	return res, sec, err
 }
 
 func pickSearcher(preferredBackend string, preferredDevice int, disableGPU bool) (searcher, func(), string) {
@@ -1005,9 +1016,31 @@ func main() {
 			return gpupoh.SearchRequest{
 				Base: base, Count: count, Mod: cr.TargetMod,
 				FormulaVersion: fv, PrevHash: cr.PrevHash, MinerAddress: minerForPoH,
+				ShareMod: cr.ShareMod, MaxShares: 128,
+			}
+		}
+		var collectedShares []uint64
+		mergeShares := func(more []uint64) {
+			if len(more) == 0 {
+				return
+			}
+			seen := map[uint64]struct{}{}
+			for _, s := range collectedShares {
+				seen[s] = struct{}{}
+			}
+			for _, s := range more {
+				if len(collectedShares) >= 128 {
+					return
+				}
+				if _, ok := seen[s]; ok {
+					continue
+				}
+				seen[s] = struct{}{}
+				collectedShares = append(collectedShares, s)
 			}
 		}
 		// Chunked search: for GPU we keep each call bounded; for CPU this is one pass.
+		// Shares are harvested during the same hash pass (GPU kernel / host Blake3SearchCollect).
 		if mode == "gpu" {
 			remain := cr.BatchSize
 			cur := cr.BaseNonce
@@ -1020,33 +1053,52 @@ func main() {
 				if n > remain {
 					n = remain
 				}
-				f, nonce, sec, err := srch.SearchPoH(time.Duration(*searchTimeoutMS)*time.Millisecond, searchReq(cur, n))
+				res, sec, err := srch.SearchPoHCollect(time.Duration(*searchTimeoutMS)*time.Millisecond, searchReq(cur, n))
 				elapsed += sec
 				searched += n
+				mergeShares(res.Shares)
 				if err != nil {
 					// On transient GPU errors, fallback to CPU for this claim (preserve session; log for coordinator tail).
 					class := gputune.ClassifyGPUFailure(err)
 					if gputune.ShouldCPUFallback(class) {
 						hotlog.Stderrf("workerpoh: %s", gputune.FormatWorkerGPUEvent(*workerID, workerGPUBackend, class, err))
 					}
-					f2, nonce2 := findHitCPUPoH(cur, n, cr.TargetMod, fv, cr.PrevHash, minerForPoH)
-					if f2 {
-						found, foundNonce = true, nonce2
+					fb, errFB := gpupoh.Blake3SearchCollect(context.Background(), searchReq(cur, n))
+					if errFB == nil {
+						mergeShares(fb.Shares)
+						if fb.Found {
+							found, foundNonce = true, fb.Nonce
+							// Keep scanning remaining chunks when ShareMod set so PPS reflects work.
+							if cr.ShareMod == 0 {
+								break
+							}
+						}
+					} else {
+						f2, nonce2 := findHitCPUPoH(cur, n, cr.TargetMod, fv, cr.PrevHash, minerForPoH)
+						if f2 {
+							found, foundNonce = true, nonce2
+							if cr.ShareMod == 0 {
+								break
+							}
+						}
+					}
+				} else if res.Found {
+					found, foundNonce = true, res.Nonce
+					// Soft / no shares: stop early. Strict PPS: finish lease for share proofs.
+					if cr.ShareMod == 0 {
 						break
 					}
-				}
-				if f {
-					found, foundNonce = true, nonce
-					break
 				}
 				cur += n
 				remain -= n
 			}
 		} else {
-			var err error
-			found, foundNonce, elapsed, err = srch.SearchPoH(0, searchReq(cr.BaseNonce, cr.BatchSize))
+			res, sec, err := srch.SearchPoHCollect(0, searchReq(cr.BaseNonce, cr.BatchSize))
 			_ = err
+			elapsed = sec
 			searched = cr.BatchSize
+			found, foundNonce = res.Found, res.Nonce
+			mergeShares(res.Shares)
 		}
 		hashBatch := cr.BatchSize
 		if searched > 0 && searched < hashBatch {
@@ -1085,7 +1137,15 @@ func main() {
 			HashrateGHS: ghs,
 		}
 		if cr.ShareMod > 0 {
-			out.ShareNonces = collectShareNonces(cr.BaseNonce, cr.BatchSize, cr.ShareMod, fv, cr.PrevHash, minerForPoH, 128, foundNonce, found, cr.ShareScanMax)
+			// Prefer shares from the main hash pass. Legacy CPU stride only if none found
+			// and coordinator still advertises a soft scan budget (share_scan_max > 0).
+			if len(collectedShares) > 0 {
+				out.ShareNonces = collectedShares
+			} else if cr.ShareScanMax > 0 {
+				out.ShareNonces = collectShareNonces(cr.BaseNonce, cr.BatchSize, cr.ShareMod, fv, cr.PrevHash, minerForPoH, 128, foundNonce, found, cr.ShareScanMax)
+			} else if found {
+				out.ShareNonces = []uint64{foundNonce}
+			}
 		}
 		if strings.TrimSpace(cr.OrderTaskID) != "" {
 			out.OrderTaskID = strings.TrimSpace(cr.OrderTaskID)

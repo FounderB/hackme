@@ -398,6 +398,9 @@ func TestAdaptClaimBatchBootstrapsBlake3(t *testing.T) {
 	if got < blake3BootstrapBatch {
 		t.Fatalf("bootstrap want>=%d got=%d", blake3BootstrapBatch, got)
 	}
+	if got > blake3BootstrapBatch*2 {
+		t.Fatalf("cold bootstrap too large got=%d (CPU would expire lease)", got)
+	}
 	wm.worker["hot"] = workerPayoutStat{LastHashrateGHS: 30}
 	got = wm.adaptClaimBatch("hot", 1<<26)
 	want := uint64(30 * 1e9 * 3)
@@ -406,5 +409,22 @@ func TestAdaptClaimBatchBootstrapsBlake3(t *testing.T) {
 	}
 	if got != want {
 		t.Fatalf("adaptive from GH: got=%d want=%d", got, want)
+	}
+	// Slow CPU: size to ~leaseWorkSec of measured GH, not sticky 8G.
+	wm.worker["cpu"] = workerPayoutStat{LastHashrateGHS: 0.1}
+	got = wm.adaptClaimBatch("cpu", 1<<22)
+	wantCPU := uint64(0.1 * 1e9 * 3)
+	if got != wantCPU {
+		t.Fatalf("slow CPU adaptive: got=%d want=%d", got, wantCPU)
+	}
+}
+
+func TestShareImpliedGHSIgnoresSingleHugeShare(t *testing.T) {
+	sm := uint64(2 << 30) // 2G — old stride harvest noise
+	if g := shareImpliedGHS(1, sm, 3.0); g != 0 {
+		t.Fatalf("single huge-share sample must be ignored, got %v", g)
+	}
+	if g := shareImpliedGHS(8, sm, 3.0); g <= 0 {
+		t.Fatalf("multi-share sample should credit GH, got %v", g)
 	}
 }

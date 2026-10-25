@@ -1556,26 +1556,41 @@ html {
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
+  background: rgba(8, 12, 18, 0.98);
 }
 *::-webkit-scrollbar-button {
-  display: none;
-  width: 0;
-  height: 0;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+*::-webkit-scrollbar-button:start:decrement,
+*::-webkit-scrollbar-button:end:increment,
+*::-webkit-scrollbar-button:vertical:start:decrement,
+*::-webkit-scrollbar-button:vertical:end:increment {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 *::-webkit-scrollbar-track {
-  background: rgba(8, 12, 18, 0.95);
+  background: rgba(8, 12, 18, 0.98);
   border-radius: 8px;
+}
+*::-webkit-scrollbar-track-piece {
+  background: rgba(8, 12, 18, 0.98);
 }
 *::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, rgba(77, 228, 255, 0.45), rgba(57, 255, 20, 0.28));
   border-radius: 8px;
-  border: 2px solid rgba(8, 12, 18, 0.95);
+  border: 2px solid rgba(8, 12, 18, 0.98);
+  min-height: 28px;
 }
 *::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, rgba(77, 228, 255, 0.65), rgba(57, 255, 20, 0.4));
 }
 *::-webkit-scrollbar-corner {
-  background: rgba(8, 12, 18, 0.95);
+  background: rgba(8, 12, 18, 0.98);
 }
 .nav-more-menu::-webkit-scrollbar {
   width: 6px;

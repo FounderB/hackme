@@ -224,6 +224,9 @@ __device__ static int work_divisible_mod(unsigned long long work, unsigned long 
 // 64B block into shared CV; others only hash suffix||nonce — cuts ~½ compress work
 // and avoids re-reading the tip bytes from shared mem per nonce.
 // mod_inv / mod_lim / mod_tz: host prepareBlake3ModDiv(mod) — exact % without GPU udiv.
+// share_mod==0 disables share harvest. Otherwise every nonce whose work is
+// divisible by share_mod is appended to out_shares (capped by max_shares) via
+// atomicAdd — same hashes as the block search, no separate CPU rescan.
 extern "C" __global__ void poh_search_blake3(
     unsigned long long base,
     unsigned long long count,
@@ -233,7 +236,14 @@ extern "C" __global__ void poh_search_blake3(
     unsigned int mod_tz,
     const unsigned char* prefix,
     int prefix_len,
-    unsigned long long* out_nonce)
+    unsigned long long* out_nonce,
+    unsigned long long share_mod,
+    unsigned long long share_inv,
+    unsigned long long share_lim,
+    unsigned int share_tz,
+    unsigned int* out_share_count,
+    unsigned long long* out_shares,
+    unsigned int max_shares)
 {
     __shared__ unsigned char sprefix[960];
     __shared__ unsigned int scv[8];
@@ -351,6 +361,14 @@ extern "C" __global__ void poh_search_blake3(
                 ((unsigned long long)digest[5] << 40) |
                 ((unsigned long long)digest[6] << 48) |
                 ((unsigned long long)digest[7] << 56);
+        }
+        if (share_mod != 0ULL && out_shares != 0 && out_share_count != 0 && max_shares > 0u) {
+            if (work_divisible_mod(work, share_inv, share_lim, share_tz)) {
+                unsigned int i = atomicAdd(out_share_count, 1u);
+                if (i < max_shares) {
+                    out_shares[i] = n;
+                }
+            }
         }
         if (work_divisible_mod(work, mod_inv, mod_lim, mod_tz)) {
             atomicMin(out_nonce, n);

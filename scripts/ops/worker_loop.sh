@@ -225,9 +225,58 @@ if [[ -n "$FORCE_HASHRATE_GHS_REQUESTED" ]]; then
 fi
 force_ghs_blake3_logged=0
 BLAKE3_TARGET_GHS="${BLAKE3_TARGET_GHS:-$FORCE_HASHRATE_GHS_REQUESTED}"
+# Blake3 SHARE_STRICT fleets: claim only while holding a harvest CPU slot so the
+# lease wall is real work (not flock queue) → higher share-implied GH/s + fewer expired leases.
+EXPECT_SHARE_STRICT="${HACKME_EXPECT_SHARE_STRICT:-1}"
+if [[ -z "${SHAREHARVEST_BIN:-}" ]]; then
+  if [[ -x "${ROOT_DIR}/bin/shareharvest" ]]; then
+    SHAREHARVEST_BIN="${ROOT_DIR}/bin/shareharvest"
+  elif command -v shareharvest >/dev/null 2>&1; then
+    SHAREHARVEST_BIN="$(command -v shareharvest)"
+  fi
+fi
+HARVEST_LOCK_FD=""
+acquire_harvest_slot() {
+  local parallel="${HACKME_SHAREHARVEST_PARALLEL:-4}"
+  local lock_dir="${HACKME_SHAREHARVEST_LOCK_DIR:-$ROOT_DIR/logs/test-named-fleet}"
+  local wait_sec="${HACKME_SHAREHARVEST_LOCK_WAIT_SEC:-90}"
+  local s f fd
+  mkdir -p "$lock_dir"
+  release_harvest_slot
+  for ((s=0; s<parallel; s++)); do
+    f="$lock_dir/shareharvest.${s}.lock"
+    eval "exec {fd}<>\"$f\""
+    if flock -n "$fd" 2>/dev/null; then
+      HARVEST_LOCK_FD=$fd
+      return 0
+    fi
+    eval "exec ${fd}>&-"
+  done
+  f="$lock_dir/shareharvest.0.lock"
+  eval "exec {fd}<>\"$f\""
+  if flock -w "$wait_sec" "$fd" 2>/dev/null; then
+    HARVEST_LOCK_FD=$fd
+    return 0
+  fi
+  eval "exec ${fd}>&-"
+  return 1
+}
+release_harvest_slot() {
+  if [[ -n "${HARVEST_LOCK_FD:-}" ]]; then
+    eval "exec ${HARVEST_LOCK_FD}>&-" 2>/dev/null || true
+    HARVEST_LOCK_FD=""
+  fi
+}
 
 while true; do
-  # Full claim→submit wall time matches credited batch throughput (pool GH/s / global TH/s).
+  if [[ "$EXPECT_SHARE_STRICT" == "1" || "$EXPECT_SHARE_STRICT" == "true" ]]; then
+    if ! acquire_harvest_slot; then
+      echo "[worker] harvest slot busy — retry"
+      sleep 2
+      continue
+    fi
+  fi
+  # Wall clock starts after CPU slot — shareImpliedGHS uses claim→submit elapsed.
   t_cycle_start="$(date +%s%N)"
   BATCH_SIZE="$(pick_live_batch)"
   if [[ -n "$FORCE_HASHRATE_GHS" || -n "$BLAKE3_TARGET_GHS" ]]; then
@@ -248,6 +297,7 @@ while true; do
     reason="$(printf '%s' "$claim" | jq -r '.reason // "claim_failed"' 2>/dev/null || echo "claim_failed")"
     last_reason="$reason"
     echo "[worker] claim fail reason=${reason} backoff=${backoff_sec}s"
+    release_harvest_slot
     sleep_backoff
     continue
   fi
@@ -258,55 +308,63 @@ while true; do
   claim_fv="$(printf '%s' "$claim" | jq -r '.poh_formula_version // .formula_version // 0' 2>/dev/null || echo "0")"
   share_mod="$(printf '%s' "$claim" | jq -r '.share_mod // 0' 2>/dev/null || echo "0")"
   share_strict="$(printf '%s' "$claim" | jq -r '.share_strict // false' 2>/dev/null || echo "false")"
-  share_scan_max="$(printf '%s' "$claim" | jq -r '.share_scan_max // 0' 2>/dev/null || echo "0")"
   claim_prev="$(printf '%s' "$claim" | jq -r '.prev_hash // empty' 2>/dev/null || echo "")"
   claim_addr="$(printf '%s' "$claim" | jq -r '.miner_address // empty' 2>/dev/null || echo "")"
   if [[ -z "$base" || -z "$size" || -z "$work_id" ]]; then
     last_reason="claim_parse_error"
     echo "[worker] claim parse error backoff=${backoff_sec}s"
+    release_harvest_slot
     sleep_backoff
     continue
   fi
-  # SHARE_STRICT: harvest verified share_nonces (same stride budget as workerpoh).
+  # SHARE_STRICT: verified share_nonces. More shares / shorter wall ⇒ higher shareImpliedGHS.
   share_nonces_json='[]'
+  share_count=0
   if [[ "$share_strict" == "true" || "$share_strict" == "1" ]] && [[ "$share_mod" =~ ^[1-9][0-9]*$ ]]; then
     if [[ -z "${SHAREHARVEST_BIN:-}" ]]; then
-      if [[ -x "${ROOT_DIR}/bin/shareharvest" ]]; then
-        SHAREHARVEST_BIN="${ROOT_DIR}/bin/shareharvest"
-      elif command -v shareharvest >/dev/null 2>&1; then
-        SHAREHARVEST_BIN="$(command -v shareharvest)"
+      if [[ "${SHAREHARVEST_WARNED:-0}" == "0" ]]; then
+        echo "[worker] WARN: share_strict but shareharvest missing (go build -o bin/shareharvest ./cmd/shareharvest)" >&2
+        SHAREHARVEST_WARNED=1
       fi
+      release_harvest_slot
+      sleep_backoff
+      continue
     fi
-    if [[ -n "${SHAREHARVEST_BIN:-}" ]]; then
-      scan_arg=4194304
-      if [[ "$share_scan_max" =~ ^[1-9][0-9]*$ ]]; then
-        scan_arg="$share_scan_max"
-      fi
-      sh_out="$("$SHAREHARVEST_BIN" -base "$base" -batch "$size" -mod "$share_mod" -fv "${claim_fv:-1}" -prev "$claim_prev" -addr "$claim_addr" -max 128 -scan "$scan_arg" 2>/dev/null || true)"
-      share_nonces_json="$(printf '%s' "$sh_out" | jq -c '.share_nonces // []' 2>/dev/null || echo '[]')"
-    elif [[ "${SHAREHARVEST_WARNED:-0}" == "0" ]]; then
-      echo "[worker] WARN: share_strict but shareharvest missing (go build -o bin/shareharvest ./cmd/shareharvest)" >&2
-      SHAREHARVEST_WARNED=1
+    share_max="${HACKME_SHAREHARVEST_MAX:-2}"
+    share_workers="${HACKME_SHAREHARVEST_WORKERS:-4}"
+    sh_out="$("$SHAREHARVEST_BIN" -base "$base" -batch "$size" -mod "$share_mod" \
+      -fv "${claim_fv:-3}" -prev "$claim_prev" -addr "$claim_addr" \
+      -max "$share_max" -workers "$share_workers" 2>/dev/null || true)"
+    share_nonces_json="$(printf '%s' "$sh_out" | jq -c '.share_nonces // []' 2>/dev/null || echo '[]')"
+    share_count="$(printf '%s' "$share_nonces_json" | jq 'length' 2>/dev/null || echo 0)"
+    if [[ "${share_count:-0}" == "0" ]]; then
+      echo "[worker] shareharvest empty mod=${share_mod} scanned=$(printf '%s' "$sh_out" | jq -r '.scanned // 0') — retry"
+      release_harvest_slot
+      sleep_backoff
+      continue
     fi
-  fi
-  # Blake3 PoW: never advertise pre-cliff FORCE as reported GH/s. Pace wall time to a
-  # Blake3-class target so cosmetic fleets stay honest vs lease wall clamps.
-  if [[ "$claim_fv" =~ ^[0-9]+$ ]] && (( claim_fv >= 3 )); then
+    if [[ "$force_ghs_blake3_logged" == "0" ]]; then
+      echo "[worker] Blake3 fv=${claim_fv} SHARE_STRICT: harvested ${share_count} shares (slot held through claim)"
+      force_ghs_blake3_logged=1
+    fi
+    FORCE_HASHRATE_GHS=""
+    ema_hashrate_ghs="$MIN_HASHRATE_GHS"
+  elif [[ "$claim_fv" =~ ^[0-9]+$ ]] && (( claim_fv >= 3 )); then
+    # Soft Blake3 path: wall-pace to target (no shares required).
+    FORCE_HASHRATE_GHS=""
     if [[ -z "$BLAKE3_TARGET_GHS" && -n "$FORCE_HASHRATE_GHS_REQUESTED" ]]; then
       BLAKE3_TARGET_GHS="$FORCE_HASHRATE_GHS_REQUESTED"
     fi
-    if [[ -n "$FORCE_HASHRATE_GHS" || -n "$FORCE_HASHRATE_GHS_REQUESTED" || -n "$BLAKE3_TARGET_GHS" ]]; then
+    if [[ -n "$FORCE_HASHRATE_GHS_REQUESTED" || -n "$BLAKE3_TARGET_GHS" ]]; then
       if [[ "$force_ghs_blake3_logged" == "0" ]]; then
-        echo "[worker] Blake3 fv=${claim_fv}: wall-pace target_ghs=${BLAKE3_TARGET_GHS:-$MIN_HASHRATE_GHS} (FORCE not reported)"
+        echo "[worker] Blake3 fv=${claim_fv}: wall-pace target_ghs=${BLAKE3_TARGET_GHS:-$MIN_HASHRATE_GHS}"
         force_ghs_blake3_logged=1
       fi
-      FORCE_HASHRATE_GHS=""
       target_ghs="$(pick_live_gh)"
       if [[ -z "$target_ghs" || "$target_ghs" == "0" ]]; then
         target_ghs="$MIN_HASHRATE_GHS"
       fi
       pace_blake3_wall "$size" "$target_ghs" "$t_cycle_start"
-      # Report wall-timed GH after pace (matches batch/elapsed); keep near target.
       t_paced="$(date +%s%N)"
       ema_hashrate_ghs="$(awk -v attempts="${size}" -v ns="$((t_paced - t_cycle_start))" -v mn="${MIN_HASHRATE_GHS}" -v mx="${MAX_HASHRATE_GHS}" 'BEGIN{
         if (ns < 1) ns = 1;
@@ -337,17 +395,20 @@ while true; do
 		  --arg ph "" \
 		  '{worker_id:$wid,base_nonce:$base,batch_size:$size,work_id:$wid_work,attempts:$attempts,found:$found,found_nonce:$found_nonce,result_hash:$rh,proof_hash:$ph}' 2>/dev/null)" || {
 			echo "[worker] jq partial build failed backoff=${backoff_sec}s"
+			release_harvest_slot
 			sleep_backoff
 			continue
 		}
 		extras="$(printf '%s\n' "$partial" | env HACKME_MINER_ED25519_SEED_HEX="$HACKME_MINER_ED25519_SEED_HEX" "$MINERSIGN_BIN" --nonce-file "$NONCE_FILE")" || {
 			echo "[worker] minersign failed backoff=${backoff_sec}s"
+			release_harvest_slot
 			sleep_backoff
 			continue
 		}
 		submit_body="$(jq -n --argjson p "$partial" --argjson x "$extras" --argjson gh "$ema_hashrate_ghs" --argjson shares "$share_nonces_json" \
 		  '$p + $x + {hashrate_gh_s:$gh, share_nonces:$shares}' 2>/dev/null)" || {
 			echo "[worker] jq submit merge failed (check minersign JSON) backoff=${backoff_sec}s"
+			release_harvest_slot
 			sleep_backoff
 			continue
 		}
@@ -361,18 +422,24 @@ while true; do
       --argjson shares "$share_nonces_json" \
       '{worker_id:$wid, base_nonce:$base, batch_size:$size, work_id:$work_id, attempts:$size, found:false, hashrate_gh_s:$gh, share_nonces:$shares}' 2>/dev/null)" || {
       echo "[worker] jq unsigned submit failed backoff=${backoff_sec}s"
+      release_harvest_slot
       sleep_backoff
       continue
     }
   fi
   submit="$(api_post "/api/work/submit" "$submit_body" 2>/dev/null || true)"
+  # Release CPU slot before cooldown sleep so other units can harvest.
+  release_harvest_slot
   submit_ok="$(printf '%s' "$submit" | jq -r '.ok // false' 2>/dev/null || echo "false")"
   accepted="$(printf '%s' "$submit" | jq -r '.accepted // false' 2>/dev/null || echo "false")"
   reason="$(printf '%s' "$submit" | jq -r '.reason // ""' 2>/dev/null || echo "")"
   payout="$(printf '%s' "$submit" | jq -r '.payout_hmc // 0' 2>/dev/null || echo "0")"
+  resp_ghs="$(printf '%s' "$submit" | jq -r '.hashrate_gh_s // empty' 2>/dev/null || echo "")"
 
   if [[ "$submit_ok" == "true" || "$accepted" == "true" ]]; then
-    if [[ -n "$FORCE_HASHRATE_GHS" ]]; then
+    if [[ -n "$resp_ghs" && "$resp_ghs" != "null" ]]; then
+      ema_hashrate_ghs="$resp_ghs"
+    elif [[ -n "$FORCE_HASHRATE_GHS" ]]; then
       if [[ -z "${GH_JITTER_PCT:-}" || "${GH_JITTER_PCT}" == "0" ]]; then
         ema_hashrate_ghs="$FORCE_HASHRATE_GHS"
       fi
@@ -382,8 +449,15 @@ while true; do
       if (( elapsed_ns < 1 )); then
         elapsed_ns=1
       fi
-      inst_hashrate="$(awk -v attempts="${size}" -v ns="${elapsed_ns}" 'BEGIN{v=(attempts*1.0)/(ns*1.0); if(v<0)v=0; print v}')"
-      # Exponential moving average smooths jitter over successful claim→submit rounds only.
+      # Prefer share-implied style estimate when we have shares: shares*mod/wall.
+      if [[ "${share_count:-0}" -gt 0 && "$share_mod" =~ ^[1-9][0-9]*$ ]]; then
+        inst_hashrate="$(awk -v ns="${elapsed_ns}" -v sh="${share_count}" -v mod="${share_mod}" 'BEGIN{
+          sec=ns/1e9; if(sec<0.5)sec=0.5;
+          v=(sh*mod)/(sec*1e9); if(v<0)v=0; print v
+        }')"
+      else
+        inst_hashrate="$(awk -v attempts="${size}" -v ns="${elapsed_ns}" 'BEGIN{v=(attempts*1.0)/(ns*1.0); if(v<0)v=0; print v}')"
+      fi
       ema_hashrate_ghs="$(awk -v prev="${ema_hashrate_ghs}" -v inst="${inst_hashrate}" -v a="${EMA_ALPHA}" -v mn="${MIN_HASHRATE_GHS}" -v mx="${MAX_HASHRATE_GHS}" 'BEGIN{
         if (a < 0.01) a = 0.01;
         if (a > 1.0) a = 1.0;
@@ -400,7 +474,7 @@ while true; do
     push_work_snapshot "${ema_hashrate_ghs}" "true" "${ok_submits}"
     last_reason=""
     reset_backoff
-    echo "[worker] submit ok claims=${ok_claims} submits=${ok_submits} accepted=${accepted_hits} payout=${payout} hashrate_gh_s=${ema_hashrate_ghs}"
+    echo "[worker] submit ok claims=${ok_claims} submits=${ok_submits} accepted=${accepted_hits} payout=${payout} shares=${share_count:-0} hashrate_gh_s=${ema_hashrate_ghs}"
     if [[ "${CLAIM_COOLDOWN_MS}" =~ ^[0-9]+$ ]] && (( CLAIM_COOLDOWN_MS > 0 )); then
       jitter_ms="$(live_jitter_int "${CLAIM_COOLDOWN_JITTER_MS:-0}")"
       sleep "$(awk -v ms="${CLAIM_COOLDOWN_MS}" -v j="${jitter_ms}" 'BEGIN{printf "%.3f", (ms+j)/1000.0}')"
@@ -414,7 +488,6 @@ while true; do
     reason="submit_failed"
   fi
   last_reason="$reason"
-  # Treat transient coordinator protections as recoverable.
   case "$reason" in
     claim_rate_limited|submit_rate_limited|worker_temporarily_banned|lease_expired|unknown_or_already_closed_range)
       echo "[worker] submit transient reason=${reason} rejected=${rejected} backoff=${backoff_sec}s"

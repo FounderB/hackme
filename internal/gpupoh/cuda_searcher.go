@@ -113,20 +113,23 @@ func compilePTXOnce(arch string) (ptx string, kname, knameB3 string, err error) 
 }
 
 type cudaAccel struct {
-	devID    int
-	devName  string
-	arch     string
-	ctx      cu.CUContext
-	mod      cu.Module
-	kernel   cu.Function
-	kernelB3 cu.Function
-	dOut     cu.DevicePtr
-	dPrefix  cu.DevicePtr
-	prefixN  int64
-	blockSz  int
-	haveCtx  bool
-	haveMod  bool
-	haveB3   bool
+	devID       int
+	devName     string
+	arch        string
+	ctx         cu.CUContext
+	mod         cu.Module
+	kernel      cu.Function
+	kernelB3    cu.Function
+	dOut        cu.DevicePtr
+	dPrefix     cu.DevicePtr
+	dShareCount cu.DevicePtr
+	dShares     cu.DevicePtr
+	shareCap    int
+	prefixN     int64
+	blockSz     int
+	haveCtx     bool
+	haveMod     bool
+	haveB3      bool
 }
 
 func newCUDAAccelerator(devID int) (Accelerator, error) {
@@ -173,19 +176,38 @@ func newCUDAAccelerator(devID int) (Accelerator, error) {
 		_ = ctx.Destroy()
 		return nil, errors.Wrap(err, "gpupoh: MemAlloc")
 	}
+	shareCap := DefaultMaxShares
+	dShareCount, err := cu.MemAlloc(4)
+	if err != nil {
+		_ = cu.MemFree(dOut)
+		_ = mod.Unload()
+		_ = ctx.Destroy()
+		return nil, errors.Wrap(err, "gpupoh: MemAlloc share_count")
+	}
+	dShares, err := cu.MemAlloc(int64(shareCap * 8))
+	if err != nil {
+		_ = cu.MemFree(dShareCount)
+		_ = cu.MemFree(dOut)
+		_ = mod.Unload()
+		_ = ctx.Destroy()
+		return nil, errors.Wrap(err, "gpupoh: MemAlloc shares")
+	}
 	return &cudaAccel{
-		devID:    devID,
-		devName:  name,
-		arch:     usedArch,
-		ctx:      ctx,
-		mod:      mod,
-		kernel:   fn,
-		kernelB3: fnB3,
-		dOut:     dOut,
-		blockSz:  envCUDABlockThreads(),
-		haveCtx:  true,
-		haveMod:  true,
-		haveB3:   haveB3,
+		devID:       devID,
+		devName:     name,
+		arch:        usedArch,
+		ctx:         ctx,
+		mod:         mod,
+		kernel:      fn,
+		kernelB3:    fnB3,
+		dOut:        dOut,
+		dShareCount: dShareCount,
+		dShares:     dShares,
+		shareCap:    shareCap,
+		blockSz:     envCUDABlockThreads(),
+		haveCtx:     true,
+		haveMod:     true,
+		haveB3:      haveB3,
 	}, nil
 }
 
@@ -209,6 +231,18 @@ func (a *cudaAccel) close() error {
 		a.dPrefix = 0
 		a.prefixN = 0
 	}
+	if a.dShares != 0 {
+		if err := cu.MemFree(a.dShares); err != nil && first == nil {
+			first = err
+		}
+		a.dShares = 0
+	}
+	if a.dShareCount != 0 {
+		if err := cu.MemFree(a.dShareCount); err != nil && first == nil {
+			first = err
+		}
+		a.dShareCount = 0
+	}
 	if a.dOut != 0 {
 		if err := cu.MemFree(a.dOut); err != nil && first == nil {
 			first = err
@@ -231,14 +265,18 @@ func (a *cudaAccel) close() error {
 }
 
 func (a *cudaAccel) SearchPoH(ctx context.Context, req SearchRequest) (bool, uint64, error) {
+	res, err := a.SearchPoHCollect(ctx, req)
+	return res.Found, res.Nonce, err
+}
+
+func (a *cudaAccel) SearchPoHCollect(ctx context.Context, req SearchRequest) (SearchResult, error) {
 	if req.FormulaVersion >= 3 {
 		forceHost := os.Getenv("HACKME_CUDA_BLAKE3_HOST") == "1"
 		if a.haveB3 && !forceHost {
-			found, nonce, err := a.searchBlake3Device(ctx, req)
+			res, err := a.searchBlake3Device(ctx, req)
 			if err == nil {
-				return found, nonce, nil
+				return res, nil
 			}
-			// One-shot always-on notice; VERBOSE keeps per-call detail without flood.
 			cudaBlake3DeviceErrOnce.Do(func() {
 				hotlog.Stderrf("gpupoh: cuda blake3 device error, host fallback: %v", err)
 			})
@@ -254,10 +292,10 @@ func (a *cudaAccel) SearchPoH(ctx context.Context, req SearchRequest) (bool, uin
 				hotlog.Stderrf("gpupoh: blake3 device kernel missing; host Blake3Search fallback")
 			})
 		}
-		// Host path matches chain.PohWorkBlake3 exactly (correctness lock + NVRTC escape hatch).
-		return Blake3Search(ctx, req.Base, req.Count, req.Mod, req.PrevHash, req.MinerAddress)
+		return Blake3SearchCollect(ctx, req)
 	}
-	return a.Search(ctx, req.Base, req.Count, req.Mod)
+	ok, n, err := a.Search(ctx, req.Base, req.Count, req.Mod)
+	return SearchResult{Found: ok, Nonce: n}, err
 }
 
 var (
@@ -294,11 +332,12 @@ func (a *cudaAccel) ensurePrefix(n int) error {
 	return nil
 }
 
-func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (bool, uint64, error) {
+func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (SearchResult, error) {
+	var res SearchResult
 	count := req.Count
 	mod := req.Mod
 	if count == 0 || mod == 0 {
-		return false, 0, nil
+		return res, nil
 	}
 	if count > maxBatch {
 		count = maxBatch
@@ -308,16 +347,16 @@ func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (
 	prefix := append([]byte(prev), addr...)
 	// Device kernel stack msg[160] = prefix + 8-byte nonce (see poh_search.cu).
 	if len(prefix) > 152 {
-		return false, 0, fmt.Errorf("gpupoh: blake3 prefix len %d > 152 (device stack cap)", len(prefix))
+		return res, fmt.Errorf("gpupoh: blake3 prefix len %d > 152 (device stack cap)", len(prefix))
 	}
 	select {
 	case <-ctx.Done():
-		return false, 0, ctx.Err()
+		return res, ctx.Err()
 	default:
 	}
 	if a.haveCtx {
 		if err := a.ctx.Lock(); err != nil {
-			return false, 0, errors.Wrap(err, "gpupoh: ctx.Lock")
+			return res, errors.Wrap(err, "gpupoh: ctx.Lock")
 		}
 		defer func() { _ = a.ctx.Unlock() }()
 	}
@@ -330,20 +369,41 @@ func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (
 
 	maxU := ^uint64(0)
 	if err := cu.MemcpyHtoD(a.dOut, unsafe.Pointer(&maxU), 8); err != nil {
-		return false, 0, errors.Wrap(err, "gpupoh: MemcpyHtoD init")
+		return res, errors.Wrap(err, "gpupoh: MemcpyHtoD init")
+	}
+	zeroU32 := uint32(0)
+	if a.dShareCount != 0 {
+		if err := cu.MemcpyHtoD(a.dShareCount, unsafe.Pointer(&zeroU32), 4); err != nil {
+			return res, errors.Wrap(err, "gpupoh: MemcpyHtoD share_count")
+		}
 	}
 	if err := a.ensurePrefix(len(prefix)); err != nil {
-		return false, 0, err
+		return res, err
 	}
 	if len(prefix) > 0 {
 		if err := cu.MemcpyHtoD(a.dPrefix, unsafe.Pointer(&prefix[0]), int64(len(prefix))); err != nil {
-			return false, 0, errors.Wrap(err, "gpupoh: MemcpyHtoD prefix")
+			return res, errors.Wrap(err, "gpupoh: MemcpyHtoD prefix")
 		}
 	}
 
 	div, ok := prepareBlake3ModDiv(mod)
 	if !ok {
-		return false, 0, nil
+		return res, nil
+	}
+	shareMod := req.ShareMod
+	maxShares := req.MaxShares
+	if maxShares <= 0 {
+		maxShares = a.shareCap
+	}
+	if maxShares > a.shareCap {
+		maxShares = a.shareCap
+	}
+	var shareDiv blake3ModDiv
+	if shareMod > 0 {
+		shareDiv, ok = prepareBlake3ModDiv(shareMod)
+		if !ok {
+			shareMod = 0
+		}
 	}
 	b := req.Base
 	c := count
@@ -354,6 +414,16 @@ func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (
 	plen := int32(len(prefix))
 	dptr := a.dOut
 	pptr := a.dPrefix
+	smod := shareMod
+	sinv := shareDiv.Inv
+	slim := shareDiv.Lim
+	stz := shareDiv.Tz
+	scptr := a.dShareCount
+	sptr := a.dShares
+	ms := uint32(maxShares)
+	if shareMod == 0 {
+		ms = 0
+	}
 	args := []unsafe.Pointer{
 		unsafe.Pointer(&b),
 		unsafe.Pointer(&c),
@@ -364,6 +434,13 @@ func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (
 		unsafe.Pointer(&pptr),
 		unsafe.Pointer(&plen),
 		unsafe.Pointer(&dptr),
+		unsafe.Pointer(&smod),
+		unsafe.Pointer(&sinv),
+		unsafe.Pointer(&slim),
+		unsafe.Pointer(&stz),
+		unsafe.Pointer(&scptr),
+		unsafe.Pointer(&sptr),
+		unsafe.Pointer(&ms),
 	}
 
 	npt := blake3NoncesPerThread
@@ -376,10 +453,10 @@ func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (
 	}
 
 	if err := a.kernelB3.Launch(grid, 1, 1, bt, 1, 1, 0, cu.Stream{}, args); err != nil {
-		return false, 0, errors.Wrap(err, "gpupoh: Launch poh_search_blake3")
+		return res, errors.Wrap(err, "gpupoh: Launch poh_search_blake3")
 	}
 	if err := cu.Synchronize(); err != nil {
-		return false, 0, errors.Wrap(err, "gpupoh: Synchronize blake3")
+		return res, errors.Wrap(err, "gpupoh: Synchronize blake3")
 	}
 	kernelSec := time.Since(t0).Seconds()
 	recordCUDAKernelDuration(kernelSec)
@@ -390,12 +467,31 @@ func (a *cudaAccel) searchBlake3Device(ctx context.Context, req SearchRequest) (
 
 	var out uint64
 	if err := cu.MemcpyDtoH(unsafe.Pointer(&out), a.dOut, 8); err != nil {
-		return false, 0, errors.Wrap(err, "gpupoh: MemcpyDtoH blake3")
+		return res, errors.Wrap(err, "gpupoh: MemcpyDtoH blake3")
+	}
+	if shareMod > 0 && a.dShareCount != 0 && a.dShares != 0 && maxShares > 0 {
+		var nShare uint32
+		if err := cu.MemcpyDtoH(unsafe.Pointer(&nShare), a.dShareCount, 4); err != nil {
+			return res, errors.Wrap(err, "gpupoh: MemcpyDtoH share_count")
+		}
+		n := int(nShare)
+		if n > maxShares {
+			n = maxShares
+		}
+		if n > 0 {
+			buf := make([]uint64, n)
+			if err := cu.MemcpyDtoH(unsafe.Pointer(&buf[0]), a.dShares, int64(n*8)); err != nil {
+				return res, errors.Wrap(err, "gpupoh: MemcpyDtoH shares")
+			}
+			res.Shares = buf
+		}
 	}
 	if out == maxU {
-		return false, 0, nil
+		return res, nil
 	}
-	return true, out, nil
+	res.Found = true
+	res.Nonce = out
+	return res, nil
 }
 
 func (a *cudaAccel) Search(ctx context.Context, base, count, mod uint64) (found bool, nonce uint64, err error) {

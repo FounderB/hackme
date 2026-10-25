@@ -79,3 +79,35 @@ func TestBlake3SearchEmptyModOrCount(t *testing.T) {
 		t.Fatalf("mod=0: ok=%v err=%v", ok, err)
 	}
 }
+
+func TestBlake3SearchCollectSharesDuringMainPass(t *testing.T) {
+	prev := "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
+	addr := "HMC-sharecollect"
+	const shareMod = uint64(1024)
+	const mod = uint64(1_000_003) // rare block hits; shares still frequent
+	const count = uint64(200_000)
+	res, err := Blake3SearchCollect(context.Background(), SearchRequest{
+		Base: 0, Count: count, Mod: mod, FormulaVersion: 3,
+		PrevHash: prev, MinerAddress: addr,
+		ShareMod: shareMod, MaxShares: 64,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Shares) < 8 {
+		t.Fatalf("expected multiple shares from main pass, got %d", len(res.Shares))
+	}
+	for _, n := range res.Shares {
+		if pohWorkBlake3Mirror(prev, addr, n)%shareMod != 0 {
+			t.Fatalf("share nonce %d failed share_mod check", n)
+		}
+		if n >= count {
+			t.Fatalf("share nonce %d out of range", n)
+		}
+	}
+	// Share count should track hashes/shareMod (Poisson); not a fixed CPU stride budget.
+	approx := float64(count) / float64(shareMod)
+	if float64(len(res.Shares)) > approx*1.5+8 {
+		t.Fatalf("too many shares %d for ~%.0f expected (cap leak?)", len(res.Shares), approx)
+	}
+}

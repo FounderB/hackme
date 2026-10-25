@@ -2071,9 +2071,9 @@ func (m *workManager) validateHybridSignature(req submitWorkRequest) (ok bool, r
 	return true, "", derivedAddr
 }
 
-// blake3BootstrapBatch: first Blake3 leases without credited GH/s — ~8G so wall
-// is measurable after RTT and share-implied GH can grow subsequent claims.
-const blake3BootstrapBatch = uint64(1 << 33)
+// blake3BootstrapBatch: cold-start Blake3 lease without credited GH/s.
+// 512M ≈ a few seconds on mid-CPU (0.1–0.2 GH/s); old 8G expired under lease_sec=90.
+const blake3BootstrapBatch = uint64(1 << 29)
 
 // adaptClaimBatch grows Blake3 leases toward ~leaseWorkSec of last credited GH/s
 // so claim→submit wall reflects real work, not RTT.
@@ -2093,8 +2093,12 @@ func (m *workManager) adaptClaimBatch(workerID string, batch uint64) uint64 {
 	fv := m.resolvedPoHFormulaVersionLocked()
 	m.mu.Unlock()
 	if fv >= 3 {
-		if st.LastHashrateGHS >= 0.5 {
-			want := uint64(st.LastHashrateGHS * 1e9 * workSec)
+		if st.LastHashrateGHS >= 0.01 {
+			// Size to ~leaseWorkSec of measured speed (CPU 0.07 GH and GPU 30 GH alike).
+			want := uint64(st.LastHashrateGHS * 1e9 * float64(workSec))
+			if want < m.defaultBatch {
+				want = m.defaultBatch
+			}
 			if want > batch {
 				batch = want
 			}
@@ -2490,7 +2494,11 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	// Share-rate check: expected = scanned / shareMod (lease-scaled safe).
 	if shareDiv >= 2 && sm > 0 && !req.Found {
 		ws := m.worker[req.WorkerID]
-		scanned := softShareScanAttempts(attemptsPre, m.shareStrict)
+		// Strict: shares come from the full lease hash pass (GPU/CPU), not a 4M stride.
+		scanned := attemptsPre
+		if !m.shareStrict {
+			scanned = softShareScanAttempts(attemptsPre, false)
+		}
 		ws.ShareExpected += expectedSharesForMod(scanned, sm)
 		ws.ShareAccepted += uint64(len(validShares))
 		if m.shareRateMin > 0 && ws.ShareExpected >= m.shareRateMinExpected {
@@ -3598,10 +3606,10 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 			resp["share_divisor"] = wm.shareDivisor
 			resp["share_mod"] = smOut
 			resp["share_strict"] = wm.shareStrict
-			// Advertise harvest budget; strict uses stride sampling up to shareHashBudget.
+			// Soft: optional CPU stride budget. Strict: 0 = collect shares during main search only.
 			scanMax := shareHarvestScanCap
 			if wm.shareStrict {
-				scanMax = shareHashBudget
+				scanMax = 0
 			}
 			resp["share_scan_max"] = scanMax
 		}

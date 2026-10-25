@@ -118,6 +118,25 @@
     .worker-off { color: #5a6a82; }
     @media (max-width: 1200px) { .row { grid-template-columns: 1fr 1fr; } .grid3 { grid-template-columns: 1fr; } }
     @media (max-width: 980px) { .grid2 { grid-template-columns: 1fr; } }
+    /* Dark thin scrollbars — kill default white pipe + arrow buttons */
+    html, body {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(127, 231, 255, 0.45) rgba(5, 7, 11, 0.98);
+    }
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(127, 231, 255, 0.4) rgba(5, 7, 11, 0.98);
+    }
+    *::-webkit-scrollbar { width: 8px; height: 8px; background: rgba(5, 7, 11, 0.98); }
+    *::-webkit-scrollbar-button { display: none !important; width: 0 !important; height: 0 !important; }
+    *::-webkit-scrollbar-track, *::-webkit-scrollbar-track-piece { background: rgba(5, 7, 11, 0.98); }
+    *::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(127, 231, 255, 0.45), rgba(147, 255, 177, 0.28));
+      border-radius: 8px;
+      border: 2px solid rgba(5, 7, 11, 0.98);
+      min-height: 28px;
+    }
+    *::-webkit-scrollbar-corner { background: rgba(5, 7, 11, 0.98); }
   </style>
 </head>
 <body>
