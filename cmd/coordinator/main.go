@@ -251,8 +251,10 @@ func main() {
 	}
 	log.Printf("Work coordinator: batch=%d target_mod=%d lease=%ds reward_per_m=%.6f found_bonus=%.6f payout_found_only=%v",
 		wm.defaultBatch, wm.targetMod, wm.leaseSec, wm.rewardPerM, wm.foundBonus, wm.payoutFoundOnly)
-	if !wm.payoutFoundOnly {
-		log.Printf("security note: payout_found_only=0 — attempt accrual trusts client attempts/hashrate (caps+hybrid mitigate; set HACKME_COORDINATOR_PAYOUT_FOUND_ONLY=1 for hit-only)")
+	if wm.shareStrict {
+		log.Printf("work accounting: SHARE_STRICT PPS (pay verified shares; GH/s from shares/wall; adaptive leases ~%.0fs)", wm.leaseWorkSec)
+	} else if !wm.payoutFoundOnly {
+		log.Printf("security note: payout_found_only=0 + soft shares — attempt accrual trusts client attempts/hashrate (set SHARE_STRICT=1 for Blake3 PPS)")
 	}
 	log.Printf("Work anti-abuse: claim_per_min=%d submit_per_min=%d bad_strikes_to_ban=%d ban_sec=%d",
 		wm.claimPerMin, wm.submitPerMin, wm.badStrikesToBan, wm.banSec)

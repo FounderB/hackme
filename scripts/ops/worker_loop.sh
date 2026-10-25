@@ -256,11 +256,38 @@ while true; do
 	size="$(printf '%s' "$claim" | jq -r '.batch_size // empty' 2>/dev/null || echo "")"
 	work_id="$(printf '%s' "$claim" | jq -r '.work_id // empty' 2>/dev/null || echo "")"
   claim_fv="$(printf '%s' "$claim" | jq -r '.poh_formula_version // .formula_version // 0' 2>/dev/null || echo "0")"
+  share_mod="$(printf '%s' "$claim" | jq -r '.share_mod // 0' 2>/dev/null || echo "0")"
+  share_strict="$(printf '%s' "$claim" | jq -r '.share_strict // false' 2>/dev/null || echo "false")"
+  share_scan_max="$(printf '%s' "$claim" | jq -r '.share_scan_max // 0' 2>/dev/null || echo "0")"
+  claim_prev="$(printf '%s' "$claim" | jq -r '.prev_hash // empty' 2>/dev/null || echo "")"
+  claim_addr="$(printf '%s' "$claim" | jq -r '.miner_address // empty' 2>/dev/null || echo "")"
   if [[ -z "$base" || -z "$size" || -z "$work_id" ]]; then
     last_reason="claim_parse_error"
     echo "[worker] claim parse error backoff=${backoff_sec}s"
     sleep_backoff
     continue
+  fi
+  # SHARE_STRICT: harvest verified share_nonces (same stride budget as workerpoh).
+  share_nonces_json='[]'
+  if [[ "$share_strict" == "true" || "$share_strict" == "1" ]] && [[ "$share_mod" =~ ^[1-9][0-9]*$ ]]; then
+    if [[ -z "${SHAREHARVEST_BIN:-}" ]]; then
+      if [[ -x "${ROOT_DIR}/bin/shareharvest" ]]; then
+        SHAREHARVEST_BIN="${ROOT_DIR}/bin/shareharvest"
+      elif command -v shareharvest >/dev/null 2>&1; then
+        SHAREHARVEST_BIN="$(command -v shareharvest)"
+      fi
+    fi
+    if [[ -n "${SHAREHARVEST_BIN:-}" ]]; then
+      scan_arg=4194304
+      if [[ "$share_scan_max" =~ ^[1-9][0-9]*$ ]]; then
+        scan_arg="$share_scan_max"
+      fi
+      sh_out="$("$SHAREHARVEST_BIN" -base "$base" -batch "$size" -mod "$share_mod" -fv "${claim_fv:-1}" -prev "$claim_prev" -addr "$claim_addr" -max 128 -scan "$scan_arg" 2>/dev/null || true)"
+      share_nonces_json="$(printf '%s' "$sh_out" | jq -c '.share_nonces // []' 2>/dev/null || echo '[]')"
+    elif [[ "${SHAREHARVEST_WARNED:-0}" == "0" ]]; then
+      echo "[worker] WARN: share_strict but shareharvest missing (go build -o bin/shareharvest ./cmd/shareharvest)" >&2
+      SHAREHARVEST_WARNED=1
+    fi
   fi
   # Blake3 PoW: never advertise pre-cliff FORCE as reported GH/s. Pace wall time to a
   # Blake3-class target so cosmetic fleets stay honest vs lease wall clamps.
@@ -318,7 +345,8 @@ while true; do
 			sleep_backoff
 			continue
 		}
-		submit_body="$(jq -n --argjson p "$partial" --argjson x "$extras" --argjson gh "$ema_hashrate_ghs" '$p + $x + {hashrate_gh_s:$gh}' 2>/dev/null)" || {
+		submit_body="$(jq -n --argjson p "$partial" --argjson x "$extras" --argjson gh "$ema_hashrate_ghs" --argjson shares "$share_nonces_json" \
+		  '$p + $x + {hashrate_gh_s:$gh, share_nonces:$shares}' 2>/dev/null)" || {
 			echo "[worker] jq submit merge failed (check minersign JSON) backoff=${backoff_sec}s"
 			sleep_backoff
 			continue
@@ -330,7 +358,8 @@ while true; do
       --argjson base "$base" \
       --argjson size "$size" \
       --argjson gh "$ema_hashrate_ghs" \
-      '{worker_id:$wid, base_nonce:$base, batch_size:$size, work_id:$work_id, attempts:$size, found:false, hashrate_gh_s:$gh}' 2>/dev/null)" || {
+      --argjson shares "$share_nonces_json" \
+      '{worker_id:$wid, base_nonce:$base, batch_size:$size, work_id:$work_id, attempts:$size, found:false, hashrate_gh_s:$gh, share_nonces:$shares}' 2>/dev/null)" || {
       echo "[worker] jq unsigned submit failed backoff=${backoff_sec}s"
       sleep_backoff
       continue

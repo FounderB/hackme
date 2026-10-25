@@ -20,7 +20,7 @@ Historical (pre-Blake3) matrix: [`archive/vast/VAST_GPU_MATRIX_VERDICT_20260602.
 
 Method: tip ≥#485000, `pool_hashrate_kind=blake3_pow_ghs`, lease up to 64M, KEEP+Lemire+OOB-fix. Official `0.1.0-rc17.4` still lags kernel.
 
-**Economics (2026-10-25):** attempt-pay capped at `target_mod` (≤1 solve-equivalent / submit); `found_bonus=0.0001`; live `REWARD_AUTO=0` + `REWARD_PER_M=5e-5` so fleet accrual ≈ few HMC/h (was thousands after raw 64M lease pay). Blake3 UI GH/s trusts device report on fast leases (ms wall).
+**Economics (2026-10-25+):** Blake3 **share-PPS** (`SHARE_STRICT=1`): pay verified shares, adaptive leases ~`LEASE_WORK_SEC` (default 3s), pool GH/M from shares/wall — not client `hashrate_gh_s`. Soft attempt-pay remains only if `SHARE_STRICT=0`. Live `REWARD_AUTO=0` + `REWARD_PER_M=5e-5`, `found_bonus=0.0001`, `max_claim_batch` up to 64G.
 
 ---
 
