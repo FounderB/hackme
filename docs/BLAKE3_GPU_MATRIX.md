@@ -32,7 +32,7 @@ Method: tip ≥#485000, `pool_hashrate_kind=blake3_pow_ghs`, lease up to 64M, KE
 | **50xx** | 1× RTX 5090 | `vast-rtx5090-blake3-01` | **~26.8** (2²⁶) | ~0.7–1.3 pre-fix (hist) | ~0 | — | — | **cuda** | **PASS burn** | first Vast; instance gone |
 | **50xx** | **2× RTX 5090** | `vast-2x5090` (`-gpu0`+`-gpu1`) | **~26.3 + ~26.4** | **~29–38** merged (`/api/work/stats`) | ~0–2 | TBD ≥15m | — | **cuda** | **PASS** | direct `:35940`; Σ burn ~52.7; fleet merge strip `-gpuN`; RTT cheat clamp fixed |
 | **40xx** | 1× RTX 4090 | `vast-rtx4090-blake3-01` | **~17.1** (2²⁶) | **~20–25** (`/api/work/stats`) | ~0 | TBD ≥15m | — | **cuda** | **PASS** | direct `:38782`; calib 17.15; CC 8.9 |
-| **40xx** | 2× RTX 4070 Ti S | — | TBD | TBD | TBD | TBD | — | cuda | — | multi-GPU agg |
+| **40xx** | 2× RTX 4070 Ti S | `vast-4070tis-az` (`-gpu0`+`-gpu1`) | **~11.9 + ~11.9** (2²⁶) | **~12.6** merged fleet | ~0–99 burst | ≥1.6 HMC / ~2 min | — | **cuda** | **PASS** | direct `:10073` / proxy `ssh3:26459`; need bundled NVRTC12 on CUDA13 images; fixed `impossible_found_rate` false ban |
 | **30xx** | 2× RTX 3060 Ti | — | TBD | TBD | TBD | TBD | — | cuda | — | multi-GPU |
 | **20xx** | 4× RTX 2080 Ti | — | TBD | TBD | TBD | TBD | — | cuda | — | **4-GPU rig** target |
 | **10xx** | 2× GTX 1080 Ti | — | TBD | TBD | TBD | TBD | — | opencl→host? | — | needs OpenCL Blake3 device |

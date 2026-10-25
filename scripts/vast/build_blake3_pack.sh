@@ -23,15 +23,34 @@ cat >"$OUT/README.md" <<'EOF'
 # HackMe Blake3 Vast pack
 
 1. `cp examples/env.vast.example env.vast` and fill `COORD_TOKEN` + `HACKME_MINER_ED25519_SEED_HEX`
-   (`./bin/minersign -gen-seed`).
-2. Burn calib: `./bin/blake3bench -backend cuda -batch $((1<<26)) -samples 3`
-3. Pool: `ENV_FILE=./env.vast bash scripts/01_run_pool_worker.sh`
-4. Record Pool GH/s only from coordinator `/api/work/stats` (never worker self-log).
+   (`./bin/minersign -gen-seed` or `python3 -c 'import secrets;print(secrets.token_hex(32))'`).
+2. If `libnvrtc.so.12` is missing (CUDA 13-only images): `export LD_LIBRARY_PATH=$PWD/lib`
+   or `./run_with_libs.sh ./bin/blake3bench …`.
+3. Burn calib: `./bin/blake3bench -backend cuda -batch $((1<<26)) -samples 3`
+4. Pool: `ENV_FILE=./env.vast bash scripts/01_run_pool_worker.sh`
+   (multi-GPU: one process per device, `GPU_DEVICE=0/1`, `WORKER_ID=…-gpu0/gpu1`).
+5. Record Pool GH/s only from coordinator `/api/work/stats` (never worker self-log).
 
 SHARE_STRICT PPS: shares are collected in-kernel during the main Blake3 pass.
 EOF
 
+# Bundle NVRTC 12 for Vast images that only ship CUDA 13 (worker links libnvrtc.so.12).
+mkdir -p "$OUT/lib"
+if [[ -d "$ROOT/.deps/cuda-lib" ]]; then
+  cp -a "$ROOT/.deps/cuda-lib"/libnvrtc.so* "$OUT/lib/" 2>/dev/null || true
+  cp -a "$ROOT/.deps/cuda-lib"/libnvrtc-builtins.so* "$OUT/lib/" 2>/dev/null || true
+fi
+# Wrapper so LD_LIBRARY_PATH is set without operator fuss
+cat >"$OUT/run_with_libs.sh" <<'WRAP'
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export LD_LIBRARY_PATH="$ROOT/lib:${LD_LIBRARY_PATH:-}"
+exec "$@"
+WRAP
+chmod 755 "$OUT/run_with_libs.sh"
+
 chmod 755 "$OUT/bin/"* "$OUT/scripts/"*.sh
 (cd "$(dirname "$OUT")" && tar -czf "$(basename "$OUT").tar.gz" "$(basename "$OUT")")
 echo "[vast-pack] ready: $OUT and ${OUT}.tar.gz"
-ls -lah "$OUT/bin"
+ls -lah "$OUT/bin" "$OUT/lib" 2>/dev/null | head -30

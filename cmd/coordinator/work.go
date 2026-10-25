@@ -2279,12 +2279,19 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		if prev.AcceptedRanges > 0 {
 			avgAtt = prev.AcceptedAtt / prev.AcceptedRanges
 		}
-		// 100% found with inflated attempts/range (hdssh-style), not fast GPU on easy M.
+		// 100% found + huge attempts/range used to catch fake attempt-pay.
+		// Skip when avg lease is ≥ M/2: Blake3 adaptive leases (≫ M) legitimately
+		// find nearly every range — ban here was false-positive on 4070/5090 rigs.
+		modForExpect := m.targetMod
+		if rec.TargetMod > 0 {
+			modForExpect = rec.TargetMod
+		}
+		expectOK := modForExpect > 0 && avgAtt >= modForExpect/2
 		suspiciousAvg := m.defaultBatch * 2
 		if m.maxClaimBatch > 0 && m.maxClaimBatch*2 < suspiciousAvg {
 			suspiciousAvg = m.maxClaimBatch * 2
 		}
-		if prev.AcceptedRanges >= 10 && prev.AcceptedHits >= prev.AcceptedRanges &&
+		if !expectOK && prev.AcceptedRanges >= 10 && prev.AcceptedHits >= prev.AcceptedRanges &&
 			avgAtt > suspiciousAvg {
 			delete(m.active, k)
 			m.rejectedSubmits++
