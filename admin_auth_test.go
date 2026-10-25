@@ -137,6 +137,12 @@ func TestDesktopMutatingOriginOK(t *testing.T) {
 	if desktopMutatingOriginOK(req) {
 		t.Fatal("cross-site must be rejected")
 	}
+	// Cross-port localhost is same-site in Chromium — must not authorize spend.
+	req.Header.Set("Sec-Fetch-Site", "same-site")
+	req.Header.Set("Origin", "http://127.0.0.1:9999")
+	if desktopMutatingOriginOK(req) {
+		t.Fatal("same-site (cross-port) must be rejected")
+	}
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
 	req.Header.Set("Origin", "http://evil.example")
 	if desktopMutatingOriginOK(req) {
@@ -145,6 +151,15 @@ func TestDesktopMutatingOriginOK(t *testing.T) {
 	req.Header.Set("Origin", "http://127.0.0.1:8080")
 	if !desktopMutatingOriginOK(req) {
 		t.Fatal("same-origin Origin must pass")
+	}
+	// Origin port mismatch even when Sec-Fetch-Site claims same-origin (defense in depth).
+	req.Header.Set("Origin", "http://127.0.0.1:9999")
+	if desktopMutatingOriginOK(req) {
+		t.Fatal("Origin port mismatch must be rejected")
+	}
+	req.Header.Set("Origin", "http://localhost:8080")
+	if !desktopMutatingOriginOK(req) {
+		t.Fatal("localhost ↔ 127.0.0.1 alias on same port must pass")
 	}
 	// DNS rebind: Origin matches Host but Host is not a loopback literal.
 	req.Host = "evil.example"

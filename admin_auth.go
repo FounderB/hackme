@@ -148,15 +148,18 @@ func requireDesktopLoopbackMutating(w http.ResponseWriter, r *http.Request) bool
 	return false
 }
 
-// desktopMutatingOriginOK rejects cross-site browser POSTs (CSRF-01).
+// desktopMutatingOriginOK rejects cross-site / same-site browser POSTs (CSRF-01).
+// Chromium marks different ports on the same host as Sec-Fetch-Site=same-site; that
+// must not authorize spend (cross-port localhost CSRF → simpleSign / Orders fund).
 // Non-browser clients (no Sec-Fetch-Site / Origin) are allowed when already loopback-authed.
-// When Origin is present, Host must be a loopback literal (DNS-rebind defense for spend paths).
+// When Origin is present, Host must be a loopback literal and Origin host+port must match
+// the request Host (localhost ↔ 127.0.0.1 / ::1 aliases allowed on the same port).
 func desktopMutatingOriginOK(r *http.Request) bool {
 	if r == nil {
 		return false
 	}
 	site := strings.ToLower(strings.TrimSpace(r.Header.Get("Sec-Fetch-Site")))
-	if site == "cross-site" {
+	if site == "cross-site" || site == "same-site" {
 		return false
 	}
 	origin := strings.TrimSpace(r.Header.Get("Origin"))
@@ -170,17 +173,58 @@ func desktopMutatingOriginOK(r *http.Request) bool {
 	if err != nil || ou == nil {
 		return false
 	}
-	oh := strings.ToLower(strings.TrimSpace(ou.Hostname()))
-	rh := strings.ToLower(strings.TrimSpace(r.Host))
-	if h, _, err := net.SplitHostPort(rh); err == nil {
-		rh = h
-	}
-	rh = strings.Trim(rh, "[]")
+	oh, op := originHostPort(ou)
+	rh, rp := requestHostPort(r)
 	if oh == "" || rh == "" {
 		return false
 	}
-	return oh == rh || (oh == "localhost" && (rh == "127.0.0.1" || rh == "::1")) ||
-		(rh == "localhost" && (oh == "127.0.0.1" || oh == "::1"))
+	if !loopbackHostAlias(oh, rh) {
+		return false
+	}
+	// Port must match when both sides have one. Host without a port (rare) only
+	// matches Origin default http/80 or https/443.
+	if rp == "" {
+		return op == "80" || op == "443"
+	}
+	return op == rp
+}
+
+func originHostPort(u *url.URL) (host, port string) {
+	if u == nil {
+		return "", ""
+	}
+	host = strings.ToLower(strings.TrimSpace(u.Hostname()))
+	host = strings.Trim(host, "[]")
+	port = u.Port()
+	if port == "" {
+		switch strings.ToLower(u.Scheme) {
+		case "https":
+			port = "443"
+		default:
+			port = "80"
+		}
+	}
+	return host, port
+}
+
+func requestHostPort(r *http.Request) (host, port string) {
+	if r == nil {
+		return "", ""
+	}
+	rh := strings.ToLower(strings.TrimSpace(r.Host))
+	h, p, err := net.SplitHostPort(rh)
+	if err != nil {
+		return strings.Trim(rh, "[]"), ""
+	}
+	return strings.Trim(h, "[]"), p
+}
+
+func loopbackHostAlias(a, b string) bool {
+	if a == b {
+		return true
+	}
+	return (a == "localhost" && (b == "127.0.0.1" || b == "::1")) ||
+		(b == "localhost" && (a == "127.0.0.1" || a == "::1"))
 }
 
 // coordinatorWorkerTokenFromSecrets loads the pool miner/worker token (not admin).
