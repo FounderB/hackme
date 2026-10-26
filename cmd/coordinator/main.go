@@ -23,7 +23,7 @@ import (
 	"hackme/internal/logsafe"
 	"hackme/internal/logsetup"
 	"hackme/internal/poolfuzz"
-	"hackme/internal/sandbox"
+	_ "hackme/internal/sandbox" // wasm-validate child init
 	"hackme/internal/store"
 )
 
@@ -53,10 +53,7 @@ const maxCoordinatorPushWorkBodyBytes = 1 << 20
 var peerFlusher *peerPersistFlusher
 
 func main() {
-	if sandbox.IsValidateChildArg(os.Args) {
-		sandbox.RunValidateChildMain()
-		return
-	}
+	// -hackme-wasm-validate is handled in sandbox.init (any linked binary).
 	logsetup.ConfigureFromEnv("HACKME_COORDINATOR")
 	dbPath := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_DB"))
 	if dbPath == "" {

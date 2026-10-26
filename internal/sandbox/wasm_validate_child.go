@@ -15,27 +15,33 @@ import (
 )
 
 const (
-	// Go's runtime reserves large virtual address space; RLIMIT_AS below ~1 GiB
-	// aborts the child before wazero runs ("failed to reserve page summary memory").
-	// Concurrent children also need headroom for pthread stacks — default 2048 MiB
-	// still stops multi-GiB LEB prealloc bombs while surviving pool submit bursts.
-	defaultWasmValidateASMB   = 2048
-	minWasmValidateASMB       = 1024
-	maxWasmValidateASMB       = 2048
-	defaultWasmValidateWallMS = 3000
-	wasmValidateArg           = "-hackme-wasm-validate"
-	wasmValidateOK            = "OK\n"
+	// Parent hard ceiling for RLIMIT_AS (second line of defense after the
+	// child's self-limit). Absolute caps below ~1 GiB abort Go before wazero.
+	defaultWasmValidateASMB = 2048
+	minWasmValidateASMB     = 1024
+	maxWasmValidateASMB     = 2048
+	// Extra RSS/VAS budget above the child's already-reserved VmSize for a
+	// legitimate CompileModule. Multi-GiB LEB bombs still OOM the child.
+	defaultWasmValidateChildBudgetMB = 384
+	minWasmValidateChildBudgetMB     = 128
+	maxWasmValidateChildBudgetMB     = 1024
+	defaultWasmValidateWallMS        = 3000
+	wasmValidateArg                  = "-hackme-wasm-validate"
+	wasmValidateOK                   = "OK\n"
 )
 
-// Cap concurrent RLIMIT children — many parallel re-execs under AS exhaust
-// pthread_create ("Resource temporarily unavailable") and false-quarantine good gates.
-var wasmValidateChildSem = make(chan struct{}, 1)
+// Cap concurrent RLIMIT children — unbounded parallel re-execs exhaust AS /
+// pthread slots and false-quarantine good gates under pool load.
+var wasmValidateChildSem = make(chan struct{}, 2)
 
-// RunValidateChildMain is the early-process entry for node/coordinator when
-// argv contains -hackme-wasm-validate. Reads WASM from stdin, runs hostile
-// section filter + CompileModule, prints OK or an error, exits 0/1.
-// Must not re-enter child mode (no nested spawn).
+// RunValidateChildMain is the validate-child entry (via package init, or an
+// explicit call from main). Reads WASM from stdin, applies a self RLIMIT_AS
+// of VmSize+budget, runs hostile filter + CompileModule, prints OK or error.
 func RunValidateChildMain() {
+	// First action: pin AS relative to this process's already-warm Go runtime.
+	// Parent prlimit-after-Start races mallocinit; self-limit does not.
+	_ = applySelfWasmValidateASLimit(wasmValidateChildBudgetMB())
+
 	maxBytes := MaxCheckWasmBytes()
 	if maxBytes < 1024 {
 		maxBytes = 1024
@@ -100,6 +106,24 @@ func wasmValidateASMB() int {
 	return n
 }
 
+func wasmValidateChildBudgetMB() int {
+	v := strings.TrimSpace(os.Getenv("HACKME_WASM_VALIDATE_CHILD_BUDGET_MB"))
+	if v == "" {
+		return defaultWasmValidateChildBudgetMB
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return defaultWasmValidateChildBudgetMB
+	}
+	if n < minWasmValidateChildBudgetMB {
+		return minWasmValidateChildBudgetMB
+	}
+	if n > maxWasmValidateChildBudgetMB {
+		return maxWasmValidateChildBudgetMB
+	}
+	return n
+}
+
 func wasmValidateWall() time.Duration {
 	v := strings.TrimSpace(os.Getenv("HACKME_WASM_VALIDATE_WALL_MS"))
 	if v == "" {
@@ -117,6 +141,8 @@ func wasmValidateWall() time.Duration {
 
 // wasmValidateChildDisabled skips the RLIMIT child (desk/tests that already
 // exercise CompileModule in-process). Production keeps the child ON.
+// Explicit HACKME_WASM_VALIDATE_CHILD=1 forces the child even under go test
+// (positive soak / regression tests).
 func wasmValidateChildDisabled() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_WASM_VALIDATE_CHILD")))
 	if v == "0" || v == "false" || v == "off" || v == "no" {
@@ -125,8 +151,6 @@ func wasmValidateChildDisabled() bool {
 	if v == "1" || v == "true" || v == "on" || v == "yes" {
 		return false
 	}
-	// go test / delve binaries have no -hackme-wasm-validate main unless TestMain
-	// wires it — default to in-process there; production binaries keep child ON.
 	for _, a := range os.Args {
 		if strings.HasPrefix(a, "-test.") {
 			return true
@@ -180,11 +204,18 @@ func validateWasmInChild(ctx context.Context, wasm []byte) error {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Env = append(os.Environ(), "GOMAXPROCS=1")
+	cmd.Env = append(os.Environ(),
+		"GOMAXPROCS=1",
+		// Child applies VmSize+budget itself; do not inherit a desk CHILD=0.
+		"HACKME_WASM_VALIDATE_CHILD=1",
+	)
 	setWasmValidateChildAttr(cmd)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("sandbox: start wasm-validate child: %w", err)
 	}
+	// Second line: absolute ceiling (generous). Child has already lowered to
+	// VmSize+budget when it enters RunValidateChildMain; if we win the race
+	// first, we only set the high ceiling so mallocinit can finish.
 	_ = setWasmValidateASLimit(cmd.Process.Pid, wasmValidateASMB())
 	waitErr := cmd.Wait()
 	if runCtx.Err() == context.DeadlineExceeded {
@@ -195,7 +226,6 @@ func validateWasmInChild(ctx context.Context, wasm []byte) error {
 		if msg == "" {
 			msg = waitErr.Error()
 		}
-		// OOM / signal kills look like exit errors — treat as reject.
 		return fmt.Errorf("sandbox: wasm-validate child failed: %s", msg)
 	}
 	if !strings.HasPrefix(stdout.String(), "OK") {

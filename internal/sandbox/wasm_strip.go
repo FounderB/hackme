@@ -35,10 +35,11 @@ func stripWasmCustomSections(wasm []byte) ([]byte, error) {
 		}
 		pos = end
 	}
-	if !kept && len(out) == 8 {
-		// Header-only after strip is useless; keep original so callers get a
-		// clear compile error rather than a silent empty module.
-		return wasm, nil
+	if !kept {
+		// Module was only custom sections (e.g. inflated name). Returning the
+		// original would re-expose decodeFunctionNames OOM when the child path
+		// is disabled — fail closed.
+		return nil, errors.New("sandbox: wasm has no non-custom sections")
 	}
 	return out, nil
 }

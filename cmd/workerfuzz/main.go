@@ -17,16 +17,12 @@ import (
 	"strings"
 	"syscall"
 
-	"hackme/internal/sandbox"
 	"hackme/internal/workerfuzzloop"
 	"hackme/internal/workerlock"
 )
 
 func main() {
-	// Must run before flag.Parse: ValidateCheckWasm re-execs this binary under RLIMIT_AS.
-	if sandbox.IsValidateChildArg(os.Args) {
-		sandbox.RunValidateChildMain()
-	}
+	// -hackme-wasm-validate is handled in sandbox.init before flag.Parse.
 	coordURL := flag.String("coord", strings.TrimSpace(os.Getenv("COORD_URL")), "coordinator base URL")
 	token := flag.String("token", strings.TrimSpace(os.Getenv("COORD_TOKEN")), "coordinator worker or admin token")
 	workerID := flag.String("worker", strings.TrimSpace(os.Getenv("WORKER_ID")), "worker id")

@@ -39,7 +39,7 @@ import (
 	"hackme/internal/nodecrypto"
 	"hackme/internal/p2p"
 	"hackme/internal/poolsync"
-	"hackme/internal/sandbox"
+	_ "hackme/internal/sandbox" // wasm-validate child init
 	"hackme/internal/store"
 	"hackme/internal/workerid"
 	"hackme/internal/workerlock"
@@ -369,10 +369,7 @@ func (a *app) readCanonicalWalletCache(addr string) (float64, uint64, uint64, ui
 }
 
 func main() {
-	if sandbox.IsValidateChildArg(os.Args) {
-		sandbox.RunValidateChildMain()
-		return
-	}
+	// -hackme-wasm-validate is handled in sandbox.init (any linked binary).
 	ensureStableWorkingDir()
 	loadHackmeDotEnv()
 	applyRigProfileAtStartup()

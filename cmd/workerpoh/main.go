@@ -882,10 +882,7 @@ func sanitizeWorkerHostname(host string) string {
 }
 
 func main() {
-	// Must run before flag.Parse: hybrid fuzz ValidateCheckWasm re-execs under RLIMIT_AS.
-	if sandbox.IsValidateChildArg(os.Args) {
-		sandbox.RunValidateChildMain()
-	}
+	// -hackme-wasm-validate is handled in sandbox.init before flag.Parse.
 	// #1: never let AV/disk stalls on the log fd freeze Search/submit.
 	hotlog.Install()
 
