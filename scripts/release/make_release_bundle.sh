@@ -114,7 +114,8 @@ assert_worker_fresh() {
   assert_bin_markers "$bin" "-hackme-wasm-validate" "share_scan_max" || return 1
   if command -v go >/dev/null 2>&1; then
     local vcs
-    vcs="$(go version -m "$bin" 2>/dev/null | awk '/vcs.revision/ {print $NF; exit}')"
+    # go version -m lines look like: $'\t'build$'\t'vcs.revision=<hash>
+    vcs="$(go version -m "$bin" 2>/dev/null | sed -n 's/.*vcs\.revision=//p' | head -n1 | tr -d '[:space:]')"
     if [[ -n "$vcs" && -n "${COMMIT_SHA}" && "${COMMIT_SHA}" != "nogit" ]]; then
       # COMMIT_SHA may be short; accept prefix match either way.
       if [[ "$vcs" != "${COMMIT_SHA}"* && "${COMMIT_SHA}" != "$vcs"* ]]; then
