@@ -81,6 +81,8 @@ jobs:
       - name: Language static (manifest lint + WASM ABI + rollup)
         env:
           RUN_ID: ci-${{ github.run_id }}
+          # Same as WASM pack: trusted CI modules, avoid go-run child reexec.
+          HACKME_WASM_VALIDATE_CHILD: "0"
         run: MODE=lang_static bash scripts/tests/run_daily.sh
 
   coordinator-unit:
