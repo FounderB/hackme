@@ -46,7 +46,8 @@ func TestValidateCheckWasmPeakMemoryChild(t *testing.T) {
 		t.Skip("set HACKME_WASM_MEM_SOAK=1 for child RSS soak")
 	}
 	t.Setenv("HACKME_WASM_VALIDATE_CHILD", "1")
-	t.Setenv("HACKME_WASM_VALIDATE_AS_MB", "256")
+	// Floor is minWasmValidateASMB (Go VAS); bombs must still be rejected fast.
+	t.Setenv("HACKME_WASM_VALIDATE_AS_MB", "1024")
 	bombs := [][]byte{
 		func() []byte {
 			body := appendLEB([]byte{0x01, 0x60}, 80_000_000)

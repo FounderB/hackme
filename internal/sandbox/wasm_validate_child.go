@@ -15,7 +15,13 @@ import (
 )
 
 const (
-	defaultWasmValidateASMB   = 384
+	// Go's runtime reserves large virtual address space; RLIMIT_AS below ~1 GiB
+	// aborts the child before wazero runs ("failed to reserve page summary memory").
+	// 1536 MiB still stops multi-GiB LEB prealloc bombs (2–9 GiB) while letting
+	// legitimate CompileModule finish.
+	defaultWasmValidateASMB   = 1536
+	minWasmValidateASMB       = 1024
+	maxWasmValidateASMB       = 2048
 	defaultWasmValidateWallMS = 3000
 	wasmValidateArg           = "-hackme-wasm-validate"
 	wasmValidateOK            = "OK\n"
@@ -78,11 +84,14 @@ func wasmValidateASMB() int {
 		return defaultWasmValidateASMB
 	}
 	n, err := strconv.Atoi(v)
-	if err != nil || n < 64 {
+	if err != nil {
 		return defaultWasmValidateASMB
 	}
-	if n > 2048 {
-		return 2048
+	if n < minWasmValidateASMB {
+		return minWasmValidateASMB
+	}
+	if n > maxWasmValidateASMB {
+		return maxWasmValidateASMB
 	}
 	return n
 }
