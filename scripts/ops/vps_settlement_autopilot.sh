@@ -38,6 +38,8 @@ export CATCHUP_TOPUP_HMC="${CATCHUP_TOPUP_HMC:-180}"
 export CATCHUP_UNPAID_TRIGGER_HMC="${CATCHUP_UNPAID_TRIGGER_HMC:-20}"
 export GENESIS_RESERVE_HMC="${GENESIS_RESERVE_HMC:-30000}"
 export GENESIS_CATCHUP_RESERVE_HMC="${GENESIS_CATCHUP_RESERVE_HMC:-10000}"
+# Default OFF: no genesis→settlement top-ups while economy is redesigned (override with =0).
+export DISABLE_TREASURY_TOPUP="${DISABLE_TREASURY_TOPUP:-1}"
 export HACKME_ADMIN_TOKEN=""
 if [[ -f "${DEPLOY}/.env.vps" ]]; then
   # shellcheck disable=SC1090
@@ -93,13 +95,22 @@ if python3 -c "import sys; sys.exit(0 if float(sys.argv[1])>=float(sys.argv[2]) 
   export ADMIN_TOKEN="${ADMIN_TOKEN:-${HACKME_ADMIN_TOKEN:-}}"
   if [[ -n "${ADMIN_TOKEN:-}" ]]; then
   set +e
-  sudo -u hackme env ADMIN_TOKEN="$ADMIN_TOKEN" \
-    COORD_ADMIN_TOKEN="$(tr -d '\r\n' <"${DEPLOY}/.secrets/hackme_coordinator_admin_token" 2>/dev/null || true)" \
-    WORKER_PAYOUT_MAP="${WORKER_PAYOUT_MAP:-}" \
-    MIN_SETTLE_HMC="${MIN_SETTLE_HMC:-}" \
-    MAX_SETTLE_HMC="${MAX_SETTLE_HMC:-}" \
-    CLEAR_PENDING_HMC="${CLEAR_PENDING_HMC:-0}" \
-    bash "${DEPLOY}/scripts/ops/settle_worker_payouts.sh" 2>&1 | tail -8
+  # Env file (not argv): sudo/journal must not log settle tokens on the command line.
+  _settle_env="$(mktemp "${TMPDIR:-/tmp}/hackme-settle-env.XXXXXX")"
+  {
+    printf 'ADMIN_TOKEN=%s\n' "${ADMIN_TOKEN}"
+    printf 'COORD_ADMIN_TOKEN=%s\n' "$(tr -d '\r\n' <"${DEPLOY}/.secrets/hackme_coordinator_admin_token" 2>/dev/null || true)"
+    printf 'WORKER_PAYOUT_MAP=%s\n' "${WORKER_PAYOUT_MAP:-}"
+    printf 'MIN_SETTLE_HMC=%s\n' "${MIN_SETTLE_HMC:-}"
+    printf 'MAX_SETTLE_HMC=%s\n' "${MAX_SETTLE_HMC:-}"
+    printf 'CLEAR_PENDING_HMC=%s\n' "${CLEAR_PENDING_HMC:-0}"
+  } >"${_settle_env}"
+  chmod 600 "${_settle_env}"
+  chown hackme:hackme "${_settle_env}" 2>/dev/null || true
+  sudo -u hackme bash -c 'set -a; # shellcheck disable=SC1090
+    source "$1"; set +a; shift; exec bash "$@"' bash "${_settle_env}" \
+    "${DEPLOY}/scripts/ops/settle_worker_payouts.sh" 2>&1 | tail -8
+  rm -f "${_settle_env}"
   set -e
   fi
 fi

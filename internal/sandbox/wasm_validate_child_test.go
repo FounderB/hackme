@@ -3,6 +3,8 @@ package sandbox
 import (
 	"context"
 	"encoding/hex"
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -48,5 +50,49 @@ func TestStripWasmCustomOnlyErrors(t *testing.T) {
 	}
 	if _, err := stripWasmCustomSections(mod); err == nil {
 		t.Fatal("custom-only module must error, not return original")
+	}
+}
+
+func TestWasmValidateChildEnvOmitsSecrets(t *testing.T) {
+	t.Setenv("HACKME_ADMIN_TOKEN", "secret-should-not-leak")
+	t.Setenv("ADMIN_TOKEN", "also-secret")
+	t.Setenv("HACKME_WASM_VALIDATE_AS_MB", "2048")
+	t.Setenv("HACKME_WASM_VALIDATE_CHILD", "0") // must not pass through as 0
+	env := wasmValidateChildEnv()
+	joined := strings.Join(env, "\n")
+	if strings.Contains(joined, "secret-should-not-leak") || strings.Contains(joined, "also-secret") {
+		t.Fatalf("child env leaked secrets: %q", joined)
+	}
+	foundChild := false
+	for _, e := range env {
+		if strings.HasPrefix(e, "HACKME_WASM_VALIDATE_CHILD=") {
+			foundChild = true
+			if e != "HACKME_WASM_VALIDATE_CHILD=1" {
+				t.Fatalf("child must force VALIDATE_CHILD=1, got %q", e)
+			}
+		}
+		if strings.HasPrefix(e, "HACKME_ADMIN_TOKEN=") || strings.HasPrefix(e, "ADMIN_TOKEN=") {
+			t.Fatalf("unexpected secret key in child env: %q", e)
+		}
+	}
+	if !foundChild {
+		t.Fatal("missing HACKME_WASM_VALIDATE_CHILD=1")
+	}
+	_ = os.Getenv("PATH") // keep import used on windows-less paths
+}
+
+func TestCompileInstantiateValidateCheckMinimalGate(t *testing.T) {
+	raw, err := hex.DecodeString(MinimalGateWasmHex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stripped, err := stripWasmCustomSections(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := compileInstantiateValidateCheck(ctx, stripped); err != nil {
+		t.Fatalf("minimal gate must pass interpreter instantiate+exports: %v", err)
 	}
 }

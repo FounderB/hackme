@@ -17,9 +17,18 @@ if "!ADMIN!"=="" (
 )
 echo ADMIN_SET=!ADMIN:~0,4!...
 echo POOL_SET=!POOL:~0,4!...
-tasklist /FI "IMAGENAME eq hackme.exe" 2>nul | findstr hackme
-tasklist /FI "IMAGENAME eq workerpoh.exe" 2>nul | findstr workerpoh
+tasklist /FI "IMAGENAME eq hackme.exe" 2>nul | findstr /I "hackme.exe"
+tasklist /FI "IMAGENAME eq workerpoh.exe" 2>nul | findstr /I "workerpoh"
+tasklist /FI "IMAGENAME eq workerpoh-opencl.exe" 2>nul | findstr /I "workerpoh-opencl"
 curl -fsS -m 5 -H "X-Hackme-Admin-Token: !ADMIN!" http://127.0.0.1:8080/api/worker/metrics 2>nul
+set "EC_METRICS=!ERRORLEVEL!"
 echo.
 curl -fsS -m 5 -H "X-Hackme-Admin-Token: !ADMIN!" http://127.0.0.1:8080/api/status 2>nul
+set "EC_STATUS=!ERRORLEVEL!"
 echo.
+if not "!EC_STATUS!"=="0" (
+  echo ERR: node_down_or_unauthorized ^(status curl=!EC_STATUS! metrics=!EC_METRICS!^)
+  exit /b 2
+)
+exit /b 0
+

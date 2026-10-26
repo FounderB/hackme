@@ -117,16 +117,22 @@ func Policy() PolicySnapshot {
 	}
 }
 
+// newCheckRuntimeConfig is the single wazero config for check-wasm validation
+// and execution (hub parent + wasm-validate child). Interpreter avoids
+// executable mmap and matches the IR path the hub uses after the child OK.
+func newCheckRuntimeConfig() wazero.RuntimeConfig {
+	return wazero.NewRuntimeConfigInterpreter().
+		WithMemoryLimitPages(maxMemoryLimitPages()).
+		WithCloseOnContextDone(true)
+}
+
 func ensureCheckRuntime() wazero.Runtime {
 	checkRuntimeMu.Lock()
 	defer checkRuntimeMu.Unlock()
 	if checkRuntime != nil {
 		return checkRuntime
 	}
-	checkRuntime = wazero.NewRuntimeWithConfig(context.Background(),
-		wazero.NewRuntimeConfigInterpreter().
-			WithMemoryLimitPages(maxMemoryLimitPages()).
-			WithCloseOnContextDone(true))
+	checkRuntime = wazero.NewRuntimeWithConfig(context.Background(), newCheckRuntimeConfig())
 	return checkRuntime
 }
 

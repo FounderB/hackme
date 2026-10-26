@@ -25,10 +25,6 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Build security WASM pack (poolfuzz / coordinator tests)
-        env:
-          # Trusted CI artifacts: skip RLIMIT child (go run / ephemeral bins).
-          # Production node/coordinator/workerfuzz keep child ON.
-          HACKME_WASM_VALIDATE_CHILD: "0"
         run: |
           rustup target add wasm32-unknown-unknown
           bash scripts/build_security_task_pack.sh
@@ -81,10 +77,7 @@ jobs:
       - name: Language static (manifest lint + WASM ABI + rollup)
         env:
           RUN_ID: ci-${{ github.run_id }}
-          # Same as WASM pack: trusted CI modules, avoid go-run child reexec.
-          HACKME_WASM_VALIDATE_CHILD: "0"
         run: MODE=lang_static bash scripts/tests/run_daily.sh
-
   coordinator-unit:
     runs-on: ubuntu-latest
     steps:

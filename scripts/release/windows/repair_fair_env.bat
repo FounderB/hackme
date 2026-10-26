@@ -7,10 +7,10 @@ if "%HACKME_DIR:~-1%"=="\" set "HACKME_DIR=%HACKME_DIR:~0,-1%"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%HACKME_DIR%\write_hackme_env.ps1" -InstallDir "%HACKME_DIR%" -RepairOnly -NonInteractive
 if errorlevel 1 (
   echo ERROR: could not repair hackme.env
-  pause
+  if /I not "%HACKME_SETUP_NONINTERACTIVE%"=="1" pause
   exit /b 1
 )
 echo.
 echo Done. Restart: start_hackme_miner.bat
-pause
+if /I not "%HACKME_SETUP_NONINTERACTIVE%"=="1" pause
 exit /b 0

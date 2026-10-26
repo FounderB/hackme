@@ -19,6 +19,8 @@ MAX_GENESIS_TOPUP_24H_HMC="${MAX_GENESIS_TOPUP_24H_HMC:-25}"
 CATCHUP_TOPUP_HMC="${CATCHUP_TOPUP_HMC:-180}"
 CATCHUP_UNPAID_TRIGGER_HMC="${CATCHUP_UNPAID_TRIGGER_HMC:-20}"
 SKIP_GENESIS_TOPUP_GUARD="${SKIP_GENESIS_TOPUP_GUARD:-0}"
+# Economy freeze / RCF prep: never mint from genesis→settlement unless explicitly re-enabled.
+DISABLE_TREASURY_TOPUP="${DISABLE_TREASURY_TOPUP:-1}"
 MIN_SETTLE_HMC="${MIN_SETTLE_HMC:-0.0001}"
 DATA_DIR="${HACKME_DATA_DIR:-${DATA_DIR:-$ROOT/logs/desktop/data}}"
 TREASURY_FUND_SEED_HEX="${TREASURY_FUND_SEED_HEX:-${ROOT}/.secrets/hackme_treasury_ed25519_seed.hex}"
@@ -144,9 +146,14 @@ if awk -v n="$need" 'BEGIN{exit !(n>0)}'; then
   fi
 fi
 if awk -v n="$need" 'BEGIN{exit !(n>0)}'; then
-  echo "[treasury-float] treasury=${TREASURY_ADDR} balance=${bal_hmc} HMC fleet_unpaid=${fleet_unpaid_hmc} — topup ${need} HMC"
-  send_topup "$need" || true
-  bal_hmc="$(treasury_balance_hmc || echo "$bal_hmc")"
+  if [[ "$DISABLE_TREASURY_TOPUP" == "1" ]]; then
+    echo "[treasury-float] SKIP topup need=${need} HMC (DISABLE_TREASURY_TOPUP=1) treasury=${TREASURY_ADDR} balance=${bal_hmc} fleet_unpaid=${fleet_unpaid_hmc}" >&2
+    need="0"
+  else
+    echo "[treasury-float] treasury=${TREASURY_ADDR} balance=${bal_hmc} HMC fleet_unpaid=${fleet_unpaid_hmc} — topup ${need} HMC"
+    send_topup "$need" || true
+    bal_hmc="$(treasury_balance_hmc || echo "$bal_hmc")"
+  fi
 fi
 
 if awk -v b="$bal_hmc" -v m="$MIN_FLOAT_HMC" 'BEGIN{exit !(b>=m)}'; then

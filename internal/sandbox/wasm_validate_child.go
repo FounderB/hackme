@@ -28,6 +28,12 @@ const (
 	defaultWasmValidateWallMS        = 3000
 	wasmValidateArg                  = "-hackme-wasm-validate"
 	wasmValidateOK                   = "OK\n"
+
+	// Child process exit codes (prefer over attacker-controlled stderr text).
+	wasmValidateExitOK        = 0
+	wasmValidateExitRejected  = 1 // hostile / invalid module — safe to quarantine
+	wasmValidateExitBadInput  = 2 // size/read — treat as reject
+	wasmValidateExitTransient = 3 // capacity / runtime — do not quarantine
 )
 
 // Cap concurrent RLIMIT children — unbounded parallel re-execs exhaust AS /
@@ -36,7 +42,8 @@ var wasmValidateChildSem = make(chan struct{}, 2)
 
 // RunValidateChildMain is the validate-child entry (via package init, or an
 // explicit call from main). Reads WASM from stdin, applies a self RLIMIT_AS
-// of VmSize+budget, runs hostile filter + CompileModule, prints OK or error.
+// of VmSize+budget, runs the same interpreter path as the hub (compile +
+// instantiate + check-export probe), prints OK or error.
 func RunValidateChildMain() {
 	// First action: pin AS relative to this process's already-warm Go runtime.
 	// Parent prlimit-after-Start races mallocinit; self-limit does not.
@@ -49,33 +56,47 @@ func RunValidateChildMain() {
 	raw, err := io.ReadAll(io.LimitReader(os.Stdin, int64(maxBytes)+1))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "sandbox: read wasm: %v\n", err)
-		os.Exit(2)
+		os.Exit(wasmValidateExitBadInput)
 	}
 	if len(raw) == 0 || len(raw) > maxBytes {
 		fmt.Fprintf(os.Stderr, "sandbox: wasm size\n")
-		os.Exit(2)
+		os.Exit(wasmValidateExitBadInput)
 	}
 	if err := rejectWasmHostileSections(raw); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		os.Exit(wasmValidateExitRejected)
 	}
 	stripped, err := stripWasmCustomSections(raw)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		os.Exit(wasmValidateExitRejected)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	rt := wazero.NewRuntime(ctx)
+	if err := compileInstantiateValidateCheck(ctx, stripped); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(wasmValidateExitRejected)
+	}
+	_, _ = os.Stdout.WriteString(wasmValidateOK)
+	os.Exit(wasmValidateExitOK)
+}
+
+// compileInstantiateValidateCheck runs the hub check-wasm path: interpreter
+// CompileModule + InstantiateModule + validateCheckExports (probe call).
+func compileInstantiateValidateCheck(ctx context.Context, stripped []byte) error {
+	rt := wazero.NewRuntimeWithConfig(ctx, newCheckRuntimeConfig())
 	defer rt.Close(ctx)
 	compiled, err := rt.CompileModule(ctx, stripped)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "sandbox: compile wasm: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("sandbox: compile wasm: %w", err)
 	}
-	_ = compiled.Close(ctx)
-	_, _ = os.Stdout.WriteString(wasmValidateOK)
-	os.Exit(0)
+	defer compiled.Close(ctx)
+	mod, err := rt.InstantiateModule(ctx, compiled, wazero.NewModuleConfig().WithName("chk-child"))
+	if err != nil {
+		return fmt.Errorf("sandbox: instantiate wasm: %w", err)
+	}
+	defer mod.Close(ctx)
+	return validateCheckExports(ctx, mod, mod.ExportedFunctionDefinitions())
 }
 
 // IsValidateChildArg reports whether argv requests the wasm-validate child mode.
@@ -204,11 +225,7 @@ func validateWasmInChild(ctx context.Context, wasm []byte) error {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Env = append(os.Environ(),
-		"GOMAXPROCS=1",
-		// Child applies VmSize+budget itself; do not inherit a desk CHILD=0.
-		"HACKME_WASM_VALIDATE_CHILD=1",
-	)
+	cmd.Env = wasmValidateChildEnv()
 	setWasmValidateChildAttr(cmd)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("sandbox: start wasm-validate child: %w", err)
@@ -222,6 +239,14 @@ func validateWasmInChild(ctx context.Context, wasm []byte) error {
 		return fmt.Errorf("sandbox: wasm-validate child wall exceeded")
 	}
 	if waitErr != nil {
+		exitCode := -1
+		if ee, ok := waitErr.(*exec.ExitError); ok {
+			exitCode = ee.ExitCode()
+		}
+		// Prefer exit code over attacker-influenced stderr for quarantine policy.
+		if exitCode == wasmValidateExitTransient {
+			return fmt.Errorf("sandbox: wasm-validate child: resource temporarily unavailable")
+		}
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = waitErr.Error()
@@ -234,17 +259,42 @@ func validateWasmInChild(ctx context.Context, wasm []byte) error {
 	return nil
 }
 
-// validateWasmInProcess compiles without a child (lab / child-disabled path).
+// wasmValidateChildEnv is a minimal environment for the RLIMIT child — no hub
+// secrets. Pass-through only PATH / Windows roots and HACKME_WASM_* /
+// HACKME_SANDBOX_* knobs that affect MaxCheckWasmBytes / budgets.
+func wasmValidateChildEnv() []string {
+	env := []string{
+		"GOMAXPROCS=1",
+		// Child applies VmSize+budget itself; do not inherit a desk CHILD=0.
+		"HACKME_WASM_VALIDATE_CHILD=1",
+	}
+	if p := strings.TrimSpace(os.Getenv("PATH")); p != "" {
+		env = append(env, "PATH="+p)
+	}
+	for _, e := range os.Environ() {
+		switch {
+		case strings.HasPrefix(e, "HACKME_WASM_"),
+			strings.HasPrefix(e, "HACKME_SANDBOX_"),
+			strings.HasPrefix(e, "SystemRoot="),
+			strings.HasPrefix(e, "SYSTEMROOT="),
+			strings.HasPrefix(e, "WINDIR="),
+			strings.HasPrefix(e, "windir="):
+			// Skip inherited CHILD=0/false so production path stays forced on.
+			if strings.HasPrefix(e, "HACKME_WASM_VALIDATE_CHILD=") {
+				continue
+			}
+			env = append(env, e)
+		}
+	}
+	return env
+}
+
+// validateWasmInProcess validates without a child (lab / child-disabled path)
+// using the same interpreter + instantiate + export probe as the hub/child.
 func validateWasmInProcess(ctx context.Context, wasm []byte) error {
 	stripped, err := stripWasmCustomSections(wasm)
 	if err != nil {
 		return err
 	}
-	rt := wazero.NewRuntime(ctx)
-	defer rt.Close(ctx)
-	compiled, err := rt.CompileModule(ctx, stripped)
-	if err != nil {
-		return fmt.Errorf("sandbox: compile wasm: %w", err)
-	}
-	return compiled.Close(ctx)
+	return compileInstantiateValidateCheck(ctx, stripped)
 }

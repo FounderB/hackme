@@ -75,10 +75,13 @@ HACKME_WORKER_HEARTBEAT_STALE_SEC=180
 HACKME_WORKER_HEARTBEAT_GRACE_SEC=120
 # Worker pool token is not hub admin — keep settle pull off (parity with Windows write_hackme_env.ps1).
 HACKME_FUZZ_SETTLE_PULL=0
-# GPU desktop: prefer direct coordinator for pool sync/settle (avoid CF timeouts).
+# Stock hybrid: PoH + Dig/Hunt fuzz in one desktop process (parity with Windows write_hackme_env.ps1).
+HACKME_WORKER_HYBRID_FUZZ=1
+HACKME_WORKER_HYBRID_FUZZ_MODE=inline
+HACKME_WORKER_SIGN_SUBMITS=1
+# GPU desktop: prefer public coordinator (no hardcoded LAN IP — Vast/fresh installs must work OOTB).
 HACKME_DESKTOP_GPU_POOL=1
-HACKME_POOL_DIRECT=1
-HACKME_POOL_DIRECT_URL=http://132.243.112.100:18083
+HACKME_POOL_COORDINATOR_URL=https://hackme.tech/pool/coordinator
 HACKME_DATA_DIR=${INSTALL_DIR}/data
 DESKTOP_PROFILE=worker
 EOF
