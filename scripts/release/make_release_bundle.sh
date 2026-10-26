@@ -464,9 +464,12 @@ if [[ -f "${DIST_DIR}/${ISO_LEGACY}" && ! -f "${DIST_DIR}/${ISO_OS}" ]]; then
   echo "[release] ISO: symlink ${ISO_OS} → ${ISO_LEGACY}"
 fi
 if [[ -f "${DIST_DIR}/${ISO_OS}" ]]; then
+  # Drop stale root-owned checksum files from prior ISO builds so release can rewrite.
+  rm -f "${DIST_DIR}/SHA256SUMS-iso.txt" 2>/dev/null || true
   (cd "${DIST_DIR}" && sha256sum "$(basename "${ISO_OS}")" > SHA256SUMS-iso.txt)
   echo "[release] HackMe OS ISO: ${ISO_OS} ($(du -h "${DIST_DIR}/${ISO_OS}" | awk '{print $1}'))"
 elif [[ -f "${DIST_DIR}/${ISO_LEGACY}" ]]; then
+  rm -f "${DIST_DIR}/SHA256SUMS-iso.txt" 2>/dev/null || true
   (cd "${DIST_DIR}" && sha256sum "$(basename "${ISO_LEGACY}")" > SHA256SUMS-iso.txt)
   echo "[release] HackMe OS ISO (legacy name): ${ISO_LEGACY}"
 else
