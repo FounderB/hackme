@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -172,11 +173,11 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 		// Missing bwrap: AllowBare or non-STRICT → bare; else fail closed.
 		return runBareIsolated(runCtx, opts, env, wall)
 	}
-	cmdPath, err := allowlistedExecPath(argv[0])
+	safeArgv, err := allowlistedIsolateArgv(argv)
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(runCtx, cmdPath, argv[1:]...)
+	cmd := exec.CommandContext(runCtx, safeArgv[0], safeArgv[1:]...)
 	cmd.Env = env
 	if opts.Stdin != nil {
 		cmd.Stdin = opts.Stdin
@@ -270,11 +271,16 @@ func harnessLikelyRanInCage(stderr string) bool {
 // bareIsolatedCommand execs the harness with no_new_privs when setpriv(1) is available
 // (Go 1.26+ removed syscall.SysProcAttr.NoNewPrivs).
 func bareIsolatedCommand(ctx context.Context, bin string, args []string) *exec.Cmd {
+	argv := append([]string{bin}, args...)
 	if sp, err := exec.LookPath("setpriv"); err == nil {
-		argv := append([]string{"--nnp", "--", bin}, args...)
-		return exec.CommandContext(ctx, sp, argv...)
+		argv = append([]string{sp, "--nnp", "--"}, argv...)
 	}
-	return exec.CommandContext(ctx, bin, args...)
+	safe, err := allowlistedIsolateArgv(argv)
+	if err != nil || len(safe) == 0 {
+		// Fall back to a guaranteed-failing command rather than exec tainted argv.
+		return exec.CommandContext(ctx, "/bin/false")
+	}
+	return exec.CommandContext(ctx, safe[0], safe[1:]...)
 }
 
 func runBareIsolated(runCtx context.Context, opts IsolateOpts, env []string, wall time.Duration) error {
@@ -348,24 +354,48 @@ func attachIsolatedStdio(cmd *exec.Cmd, stdout, stderr io.Writer, stderrTee *byt
 	}
 }
 
-// allowlistedExecPath returns an absolute executable path only when it matches
-// the Hunt abs-path allowlist (CodeQL command-injection barrier via FindString).
-func allowlistedExecPath(p string) (string, error) {
-	p = filepath.Clean(strings.TrimSpace(p))
-	if p == "" {
-		return "", fmt.Errorf("hunt isolate: empty command path")
+// reIsolateArgToken is the CodeQL FindString barrier for non-absolute argv tokens
+// (flags, relative sources). Absolute paths use reSafeAbsPath / reSafeAbsPathWin.
+var reIsolateArgToken = regexp.MustCompile(`^[A-Za-z0-9._+=,@%/~:-]+$`)
+
+// allowlistedIsolateArgv rebuilds argv so every element flows through FindString
+// (CodeQL command-injection barrier for exec.Command sinks).
+func allowlistedIsolateArgv(argv []string) ([]string, error) {
+	if len(argv) == 0 {
+		return nil, fmt.Errorf("hunt isolate: empty argv")
 	}
-	if abs, err := filepath.Abs(p); err == nil {
-		p = abs
+	out := make([]string, 0, len(argv))
+	for i, raw := range argv {
+		a := strings.TrimSpace(raw)
+		if a == "" {
+			return nil, fmt.Errorf("hunt isolate: empty argv element")
+		}
+		needAbs := i == 0 || filepath.IsAbs(a) || strings.HasPrefix(a, "/")
+		if needAbs {
+			cleaned := filepath.Clean(a)
+			if i == 0 {
+				if abs, err := filepath.Abs(cleaned); err == nil {
+					cleaned = abs
+				}
+			}
+			if m := reSafeAbsPath.FindString(cleaned); m != "" && m == cleaned {
+				out = append(out, m)
+				continue
+			}
+			slash := filepath.ToSlash(cleaned)
+			if m := reSafeAbsPathWin.FindString(slash); m != "" {
+				out = append(out, cleaned)
+				continue
+			}
+			return nil, fmt.Errorf("hunt isolate: path rejected by allowlist")
+		}
+		if m := reIsolateArgToken.FindString(a); m != "" && m == a {
+			out = append(out, m)
+			continue
+		}
+		return nil, fmt.Errorf("hunt isolate: arg rejected by allowlist")
 	}
-	if m := reSafeAbsPath.FindString(p); m != "" && m == p {
-		return m, nil
-	}
-	slash := filepath.ToSlash(p)
-	if m := reSafeAbsPathWin.FindString(slash); m != "" {
-		return p, nil
-	}
-	return "", fmt.Errorf("hunt isolate: command path rejected by allowlist")
+	return out, nil
 }
 
 func wrapBubblewrap(bin string, args []string, dir string, extraBind, extraRo []string) ([]string, bool) {
