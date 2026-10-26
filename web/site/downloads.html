@@ -3,18 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HackMe Downloads · 0.1.0-rc17.4</title>
-  <meta name="description" content="HackMe 0.1.0-rc17.4 LIVE — Win/Linux/deb/ISO with SHA256SUMS. Verify SHA256." />
+  <title>HackMe Downloads · 0.1.0-rc18</title>
+  <meta name="description" content="HackMe 0.1.0-rc18 LIVE — Win/Linux/deb/ISO with SHA256SUMS. Verify SHA256." />
   <link rel="canonical" href="https://hackme.tech/downloads.html" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://hackme.tech/downloads.html" />
-  <meta property="og:title" content="HackMe Downloads · 0.1.0-rc17.4" />
+  <meta property="og:title" content="HackMe Downloads · 0.1.0-rc18" />
   <meta property="og:description" content="Installers LIVE — Win/Linux/deb/ISO. Verify SHA256SUMS before install." />
   <meta property="og:image" content="https://hackme.tech/assets/og-share-1200x630.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="HackMe Downloads · 0.1.0-rc17.4" />
+  <meta name="twitter:title" content="HackMe Downloads · 0.1.0-rc18" />
   <meta name="twitter:description" content="Installers LIVE — Win/Linux/deb/ISO. Verify SHA256SUMS before install." />
   <meta name="twitter:image" content="https://hackme.tech/assets/og-share-1200x630.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -147,9 +147,9 @@
       <p class="kicker">Downloads</p>
       <h1>Get the miner</h1>
       <p class="hero-copy">
-        Channel <strong id="dl-release-ver">0.1.0-rc17.4</strong>
+        Channel <strong id="dl-release-ver">0.1.0-rc18</strong>
         · always verify SHA256 ·
-        <a id="dl-github-release" href="https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.4" target="_blank" rel="noreferrer">GitHub 0.1.0-rc17.4</a>
+        <a id="dl-github-release" href="https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18" target="_blank" rel="noreferrer">GitHub 0.1.0-rc18</a>
       </p>
 
       <div class="dl-steps" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:1.25rem" aria-label="Three steps">
@@ -171,13 +171,13 @@
       </div>
 
       <div class="dl-meta-row" aria-label="Release facts">
-        <span class="dl-chip">Channel <strong>rc17.4</strong></span>
-        <span class="dl-chip">Installers <strong>rc17.4</strong></span>
+        <span class="dl-chip">Channel <strong>rc18</strong></span>
+        <span class="dl-chip">Installers <strong>rc18</strong></span>
         <span class="dl-chip">Self-update <strong>on</strong></span>
         <span class="dl-chip">Apt <strong>hackme-node</strong></span>
       </div>
       <p id="dl-artifact-note" class="subtle" style="margin-top:0.55rem;max-width:40rem">
-        Installers are published for <strong>0.1.0-rc17.4</strong> — verify SHA256SUMS before install. Apt, pool token, and checksums are below.
+        Installers are published for <strong>0.1.0-rc18</strong> — verify SHA256SUMS before install. Apt, pool token, and checksums are below.
       </p>
 
       <div class="dl-pick">
@@ -285,6 +285,37 @@ bash /opt/hackme/hackme_desktop_launch.sh
         Also accepted: <code>~/Downloads/pool.miner.token</code> · paste in dashboard worker start ·
         release path <code>/dist/release_&lt;ver&gt;/linux/pool.miner.token</code>
       </p>
+    </section>
+
+    <section class="panel glass dl-section-tight" id="hardware">
+      <div class="panel-head">
+        <p class="kicker" style="color:#6effad">GPU · drivers</p>
+        <h2>Hardware &amp; driver requirements</h2>
+        <p class="subtle">Blake3 PoH share-PPS on the public pool. Speeds below are live-matrix burn/pool GH/s — full table: <a href="https://github.com/jokeez/hackme/blob/main/docs/BLAKE3_GPU_MATRIX.md" target="_blank" rel="noreferrer">BLAKE3_GPU_MATRIX.md</a>.</p>
+      </div>
+      <ul class="list" style="margin-top:0.85rem">
+        <li><strong>NVIDIA</strong> — CUDA worker (<code>workerpoh-cuda</code>). Toolkit/driver with NVRTC; <strong>RTX 50</strong> needs CUDA <strong>≥12.8</strong> (compute_120).</li>
+        <li><strong>AMD</strong> — OpenCL device Blake3 (in-matrix: RX 580 2048SP PASS). Install a working ICD; host fallback is slower.</li>
+        <li><strong>CPU</strong> — always available; lower GH/s than GPU class above.</li>
+        <li><strong>Hunt</strong> — coverage engines (libFuzzer / AFL++) need <strong>Linux + bubblewrap</strong>. Windows ships Dig/Orders; Hunt isolation is not a Windows path today.</li>
+      </ul>
+      <p class="table-scroll-hint muted">Swipe table on mobile</p>
+      <div class="table-wrap table-wrap--scroll" style="margin-top:0.75rem">
+        <table class="pool-table pool-table--wrap">
+          <thead>
+            <tr><th>Series</th><th>Config</th><th>Burn GH/s</th><th>Pool GH/s</th><th>Backend</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>50xx</td><td>1× RTX 5060 Ti</td><td>~5–7.8</td><td>~5–6.5</td><td>cuda</td></tr>
+            <tr><td>50xx</td><td>1× RTX 5090</td><td>~26.8</td><td>~20–27</td><td>cuda</td></tr>
+            <tr><td>40xx</td><td>1× RTX 4090</td><td>~17.1</td><td>~17–25</td><td>cuda</td></tr>
+            <tr><td>30xx</td><td>1× RTX 3060 Ti</td><td>~4.83</td><td>~4.9–5.1</td><td>cuda</td></tr>
+            <tr><td>20xx</td><td>4× RTX 2080 Ti</td><td>~23.2 Σ</td><td>~19.4</td><td>cuda</td></tr>
+            <tr><td>10xx</td><td>6× GTX 1070 Ti</td><td>~12 Σ</td><td>~16.2</td><td>cuda</td></tr>
+            <tr><td>AMD</td><td>1× RX 580 2048SP</td><td>~0.80–0.84</td><td>~0.94</td><td>opencl</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section class="panel glass dl-section-tight" id="local-node">

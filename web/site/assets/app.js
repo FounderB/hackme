@@ -449,11 +449,17 @@
         0
     );
     const tip = String((global && global.chain && global.chain.tip_hash) || "");
-    let poolTH = Number(global && global.network && global.network.global_hashrate_th_s);
+    const kind = String((work && work.pool_hashrate_kind) || "");
+    const ghPow = Number(work && work.pool_hashrate_gh_s);
+    let poolTH = NaN;
     const mock = !!(global && global.network && global.network.global_mock === true);
-    if ((!Number.isFinite(poolTH) || poolTH <= 0) && work) {
-      const gh = Number(work.pool_hashrate_gh_s);
-      if (Number.isFinite(gh) && gh > 0) poolTH = gh / 1000;
+    if (kind === "blake3_pow_ghs" && Number.isFinite(ghPow) && ghPow > 0) {
+      poolTH = ghPow / 1000;
+    } else {
+      poolTH = Number(global && global.network && global.network.global_hashrate_th_s);
+    }
+    if ((!Number.isFinite(poolTH) || poolTH <= 0) && Number.isFinite(ghPow) && ghPow > 0) {
+      poolTH = ghPow / 1000;
     }
     heightEl.textContent = Number.isFinite(height) && height > 0 ? Math.floor(height).toLocaleString("en-US") : "—";
     if (tipEl) {
@@ -743,23 +749,22 @@
       return;
     }
 
+    // Prefer coordinator blake3_pow_ghs (signed/wall window) — avoid mixing network TH/s,
+    // hashrate_hs, and worker Σ into three different public numbers.
     let poolTH = NaN;
     let poolMock = false;
-    if (global && global.network) {
+    const workBlob = work || (global && global.work) || null;
+    const kind = String((workBlob && workBlob.pool_hashrate_kind) || "");
+    const ghPow = Number(workBlob && workBlob.pool_hashrate_gh_s);
+    if (kind === "blake3_pow_ghs" && Number.isFinite(ghPow) && ghPow > 0) {
+      poolTH = ghPow / 1000;
+    }
+    if ((!Number.isFinite(poolTH) || poolTH <= 0) && global && global.network) {
       poolTH = Number(global.network.global_hashrate_th_s);
       poolMock = global.network.global_mock === true;
     }
-    if ((!Number.isFinite(poolTH) || poolTH <= 0) && global && global.work) {
-      const gh = Number(global.work.pool_hashrate_gh_s);
-      if (Number.isFinite(gh) && gh > 0) poolTH = gh / 1000;
-    }
-    if ((!Number.isFinite(poolTH) || poolTH <= 0) && work) {
-      const hs = Number(work.hashrate || work.hashrate_hs || 0);
-      if (hs > 0) poolTH = hs / 1e12;
-      const ghDirect = Number(work.pool_hashrate_gh_s);
-      if ((!Number.isFinite(poolTH) || poolTH <= 0) && Number.isFinite(ghDirect) && ghDirect > 0) {
-        poolTH = ghDirect / 1000;
-      }
+    if ((!Number.isFinite(poolTH) || poolTH <= 0) && Number.isFinite(ghPow) && ghPow > 0) {
+      poolTH = ghPow / 1000;
     }
 
     let hashText = "—";
@@ -768,7 +773,9 @@
       hashText = fmtPoolHashrateTHS(poolTH, poolMock);
       hashTitle = poolMock
         ? "Simulated totals (HACKME_NETWORK_MOCK)."
-        : "Live coordinator aggregate (sub-1 TH/s shown as GH/s).";
+        : kind === "blake3_pow_ghs"
+          ? "Coordinator blake3_pow_ghs (shares/wall · ~5–10m window)."
+          : "Live coordinator aggregate (sub-1 TH/s shown as GH/s).";
     }
 
     let tipHeight = NaN;

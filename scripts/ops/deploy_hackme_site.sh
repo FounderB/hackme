@@ -109,6 +109,20 @@ json.dump({"items": slim, "feed": "display"}, open(archive_path, "w", encoding="
 json.dump({"chunks": chunks, "total": len(slim)}, open(assets / "news-display-index.json", "w", encoding="utf-8"), indent=2)
 print(f"[deploy-hackme-site] news-feed={len(items[:12])} display={len(slim)} chunks={len(chunks)}")
 PY
+  echo "[deploy-hackme-site] generate news.xml RSS from news-display.json"
+  python3 "$ROOT_DIR/scripts/ops/generate_news_rss.py" || true
+  # Keep sitemap lastmod current on each deploy
+  python3 - <<'PY' "$ROOT_DIR/web/site/sitemap.xml"
+import re, sys
+from datetime import date
+from pathlib import Path
+p = Path(sys.argv[1])
+if p.exists():
+    today = date.today().isoformat()
+    text = re.sub(r"<lastmod>[^<]+</lastmod>", f"<lastmod>{today}</lastmod>", p.read_text(encoding="utf-8"))
+    p.write_text(text, encoding="utf-8")
+    print(f"[deploy-hackme-site] sitemap lastmod={today}")
+PY
 fi
 
 echo "[deploy-hackme-site] rsync web/site -> ${NODE_SSH}:${NODE_DEPLOY_DIR}/web/site/"

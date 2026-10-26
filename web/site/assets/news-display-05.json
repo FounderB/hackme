@@ -1,6 +1,21 @@
 {
   "items": [
     {
+      "id": "2026-05-21-coordinator-stress-bct",
+      "date": "2026-05-21",
+      "title": "Coordinator stress test passed · Bitcointalk update · MiningPoolStats listing",
+      "summary": "10-minute mega stress: 100 virtual workers, 0% hard errors, no coordinator crash, RAM stable (~12→20 MB), halving at block 2,102,401 verified (0.01→0.005 HMC). Malformed ingress and chaos disconnects handled cleanly. Public pool on hackme.tech — HTTP coordinator (not Stratum). Bitcointalk ANN updated; MiningPoolStats submission in progress.",
+      "impact": "Miners can trust coordinator stability under load; follow the official ANN thread for setup. OpenCL Windows builds (rc11g) and live pool stats unchanged.",
+      "action": "Read the update on Bitcointalk: https://bitcointalk.org/index.php?topic=5583373.0 · Pool stats: https://hackme.tech/pool/coordinator/api/pool/stats · Downloads: https://hackme.tech/downloads.html · Stress harness in repo: scripts/tests/coordinator_mega_stress.sh",
+      "tags": [
+        "infrastructure",
+        "pool",
+        "security",
+        "mining"
+      ],
+      "status": "published"
+    },
+    {
       "id": "2026-05-21-windows-opencl-rc11g",
       "date": "2026-05-21",
       "title": "Release 0.1.0-rc11g: Windows OpenCL worker (AMD RX 580 full GPU)",
@@ -114,7 +129,7 @@
       "date": "2026-05-19",
       "title": "Bitcointalk ANN is live — official pool thread",
       "summary": "The HackMe pool announcement is published on Bitcoin Forum (Pools / Altcoins): topic 5583373. Links to hackme.tech, downloads, GitHub source, economics, and miner quick start.",
-      "impact": "Miners can discuss setup, WORKER_PAYOUT_MAP, and economics in the official thread. Site Contacts now links to the live forum URL.",
+      "impact": "Miners can discuss setup and economics in the official thread. Site Contacts now links to the live forum URL.",
       "action": "Thread: https://bitcointalk.org/index.php?topic=5583373.0 — join mining via https://hackme.tech/downloads.html",
       "tags": [
         "community",
@@ -130,7 +145,7 @@
       "title": "Public pool economics: fair attempt-based accrual for all miners",
       "summary": "Official pool policy updated: payout_found_only=0 with reward_auto and hybrid signer strict — miners accrue HMC for accepted work (capped per batch), not only on rare found hits. Settlement loop verified; see economics-model.html and docs/MINER_POOL_ECONOMICS.md.",
       "impact": "New and existing miners see Unpaid worker accrual grow with hashrate/submits. Found bonus still applies. Block subsidy remains on the producing node wallet; pool paycheck = coordinator accrual + settlement.",
-      "action": "Set WORKER_PAYOUT_MAP=your-worker-id=HMC-your-address. Read https://hackme.tech/economics-model.html — verify SHA256 on Downloads. GitHub: https://github.com/jokeez/hackme",
+      "action": "Read https://hackme.tech/economics-model.html — verify SHA256 on Downloads. GitHub: https://github.com/jokeez/hackme",
       "tags": [
         "economics",
         "mining",
@@ -242,20 +257,6 @@
         "docs",
         "fuzz",
         "security",
-        "release"
-      ],
-      "status": "published"
-    },
-    {
-      "id": "2026-05-07-operator-final-checklist",
-      "date": "2026-05-07",
-      "title": "Operator Final Checklist (Repo + Site)",
-      "summary": "Added docs/OPERATOR_FINAL_CHECKLIST.md and public operator-checklist.html linking predeploy/fuzz gates, deploy commands, settlement scripts, and troubleshooting flow.",
-      "impact": "Operators have one path for pre-final verification without hunting scattered runbooks.",
-      "action": "Open /operator-checklist.html after deploy; keep fuzz_release_gate green on release candidates.",
-      "tags": [
-        "docs",
-        "ops",
         "release"
       ],
       "status": "published"

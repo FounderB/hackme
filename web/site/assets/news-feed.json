@@ -1,10 +1,40 @@
 {
   "items": [
     {
+      "id": "2026-10-26-rc18-live",
+      "date": "2026-10-26",
+      "title": "0.1.0-rc18 — Blake3 share-PPS LIVE · CUDA/OpenCL · ISO channel",
+      "summary": "Current release channel is 0.1.0-rc18. Public pool runs SHARE_STRICT share-PPS: verified Blake3 share_nonces (work % (M/1024) == 0) pay. Pool hashrate kind is blake3_pow_ghs (shares/wall). NVIDIA CUDA and AMD OpenCL Blake3 miners are supported (see BLAKE3_GPU_MATRIX). Dig/Hunt remain useful-work lanes; Hunt needs Linux+bwrap. Legacy soft-mode copy is retired.",
+      "impact": "Upgrade workers/installers to 0.1.0-rc18. Dashboard What's new + miner notices match share-PPS. Historical rc17.x notes stay in the archive below.",
+      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18 · Economics: https://hackme.tech/economics-model.html",
+      "tags": [
+        "release",
+        "rc18",
+        "blake3",
+        "pps",
+        "shares",
+        "cuda",
+        "opencl"
+      ],
+      "status": "published",
+      "featured": true,
+      "social": {
+        "lead": "0.1.0-rc18 channel · share-PPS · blake3_pow_ghs.",
+        "bullets": [
+          "SHARE_STRICT PPS",
+          "Verified shares M/1024",
+          "CUDA + OpenCL Blake3"
+        ],
+        "body": "**HackMe 0.1.0-rc18**\n\n• Blake3 @ **#485000** LIVE\n• Pool: **share-PPS** (verified shares)\n• GH/s = **blake3_pow_ghs**\n• NVIDIA CUDA · AMD OpenCL\n\nhttps://hackme.tech/downloads.html",
+        "headline": "0.1.0-rc18 — share-PPS LIVE",
+        "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18"
+      }
+    },
+    {
       "id": "2026-10-24-blake3-live",
       "date": "2026-10-24",
       "title": "Blake3 PoH LIVE — tip ≥ #485000 · honest ~few GH/s wall-rate",
-      "summary": "Mainnet crossed the Blake3 gate at height 485000. Pool formula is blake3_v3(prev‖miner‖nonce_le)%M==0. Soft attempt-pay continues (shares = verified stats until SHARE_STRICT). Real PoW GH/s is wall-timed Blake3 throughput (~few GH/s fleet class) — not the pre-cliff hybrid algebraic calib. Dig/Hunt leases remain live. Economics v2 (emission lock, pool-from-emission, burn-on-orders) is upcoming RFC — not live numbers as gospel.",
+      "summary": "Mainnet crossed the Blake3 gate at height 485000. Pool formula is blake3_v3(prev‖miner‖nonce_le)%M==0. Pool runs share-PPS (SHARE_STRICT): verified shares at M/1024; GH/s from shares/wall. Real PoW GH/s is wall-timed Blake3 throughput (~few GH/s fleet class) — not the pre-cliff hybrid algebraic calib. Dig/Hunt leases remain live. Economics v2 (emission lock, pool-from-emission, burn-on-orders) is upcoming RFC — not live numbers as gospel.",
       "impact": "Dashboard/site must show blake3_pow_ghs. Rebuild workerpoh so submit ghs= matches wall rate. Soft 429/no-work on fuzz is OK. Exchange: own paper desk D0 + listing pack ready; no foreign CEX listing claimed.",
       "action": "Downloads: https://hackme.tech/downloads.html · Listing: https://hackme.tech/listing.html · Pool: https://hackme.tech/pool/explorer",
       "tags": [
@@ -17,10 +47,10 @@
       "status": "published",
       "telegram": {
         "headline": "Blake3 @ #485000 — LIVE",
-        "lead": "Gate activated. Soft attempt-pay continues; GH/s cliff is real PoW.",
+        "lead": "Gate activated. Share-PPS (verified shares); GH/s cliff is real PoW.",
         "bullets": [
           "Blake3 PoH live at tip ≥ 485000",
-          "Soft shares / attempt-pay still",
+          "Share-PPS / verified shares",
           "Fleet GH/s now Blake3 wall-rate (~few GH/s class)",
           "Dig/Hunt working",
           "Economics v2 RFC next (not live yet)"
@@ -29,7 +59,7 @@
       },
       "discord": {
         "title": "Blake3 LIVE @ #485000",
-        "body": "**Blake3 PoH activated**\n\n• Tip ≥ **#485000** — formula `blake3_v3`\n• Soft pool: **attempt-pay** (shares = stats)\n• Honest GH/s cliff (wall-rate, not hybrid calib)\n• Dig/Hunt live\n• Economics v2 = upcoming RFC\n\nhttps://hackme.tech/downloads.html",
+        "body": "**Blake3 PoH activated**\n\n• Tip ≥ **#485000** — formula `blake3_v3`\n• Pool: **share-PPS** (verified shares)\n• Honest GH/s cliff (wall-rate, not hybrid calib)\n• Dig/Hunt live\n• Economics v2 = upcoming RFC\n\nhttps://hackme.tech/downloads.html",
         "ping": "#announcements"
       },
       "links": {
@@ -42,9 +72,9 @@
     {
       "id": "2026-10-22-rc17.4-live",
       "date": "2026-10-22",
-      "title": "0.1.0-rc17.4 — Blake3 gate @ 485k · soft attempt-pay · ISO · settle fix",
-      "summary": "Released the Blake3 PoH gate at height 485000 (was 500000). Soft pool mode always attempt-pays; verified share_nonces (M/1024) are stats/rate-check only until SHARE_STRICT. Settlement SQLite export no longer rolls back settled_sup. HackMe OS ISO + SHA256SUMS-iso on GitHub and hackme.tech/dist. GH/s dropped ~100–200× after activation (expected). RTX 50: CUDA ≥12.8 for compute_120.",
-      "impact": "Historical release note — gate is now LIVE (see 2026-10-24 item). Soft share-pay underpay bug fixed (attempt-pay restored).",
+      "title": "0.1.0-rc17.4 — Blake3 gate @ 485k · share-PPS · ISO · settle fix",
+      "summary": "Released the Blake3 PoH gate at height 485000 (was 500000). SHARE_STRICT share-PPS pays verified share_nonces (M/1024); pool GH/s from shares/wall. Settlement SQLite export no longer rolls back settled_sup. HackMe OS ISO + SHA256SUMS-iso on GitHub and hackme.tech/dist. GH/s dropped ~100–200× after activation (expected). RTX 50: CUDA ≥12.8 for compute_120.",
+      "impact": "Historical release note — gate is now LIVE (see 2026-10-24 item). Share-PPS path live (SHARE_STRICT); historical soft-mode underpay note archived.",
       "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.4 · Notices: /api/miner/notices",
       "tags": [
         "release",
@@ -58,10 +88,10 @@
       "status": "published",
       "telegram": {
         "headline": "0.1.0-rc17.4 — Blake3 @ 485k + ISO",
-        "lead": "Update miners before height 485000. Soft pool = attempt-pay; shares are proofs/stats. ISO published.",
+        "lead": "Update miners before height 485000. Share-PPS; shares are verified proofs that pay. ISO published.",
         "bullets": [
           "Blake3 gate 485000 (update workerpoh)",
-          "Soft mode: attempt-pay (shares stats-only)",
+          "Share-PPS: verified shares pay",
           "HackMe OS ISO + SHA256SUMS-iso live",
           "Settle: SUP watermark no longer wiped by HMC export",
           "GH/s cliff after Blake3 is expected"
@@ -70,7 +100,7 @@
       },
       "discord": {
         "title": "0.1.0-rc17.4 LIVE",
-        "body": "**HackMe 0.1.0-rc17.4**\n\n• Blake3 @ **#485000** — update workers\n• Soft pool: **attempt-pay** (shares = stats)\n• **HackMe OS ISO** published\n• Settle SUP/HMC clobber **fixed**\n• Expect GH/s drop after Blake3\n\nhttps://hackme.tech/downloads.html",
+        "body": "**HackMe 0.1.0-rc17.4**\n\n• Blake3 @ **#485000** — update workers\n• Pool: **share-PPS** (verified shares)\n• **HackMe OS ISO** published\n• Settle SUP/HMC clobber **fixed**\n• Expect GH/s drop after Blake3\n\nhttps://hackme.tech/downloads.html",
         "ping": "#announcements"
       },
       "links": {
@@ -85,7 +115,7 @@
       "date": "2026-10-15",
       "title": "0.1.0-rc17.3 LIVE — Miner | Orders installers · Linux Orders · full Win/Linux/deb/ISO",
       "summary": "Channel cut published: Windows Setup chooses Miner or B2B Orders; Linux tar/deb ship start_hackme_orders.sh + hackme-fuzzing; Hunt engine auto-install on Linux update; HTTPS pool allowlist includes corpus_delta; SHA256SUMS + HackMe OS ISO on hackme.tech and GitHub.",
-      "impact": "Upgrade via Downloads / self-update / apt. Verify SHA256SUMS before install. Orders customers: Win → Orders profile, Linux → bash start_hackme_orders.sh.",
+      "impact": "Historical release note — current channel is 0.1.0-rc18 (share-PPS). Upgrade via Downloads / self-update / apt. Verify SHA256SUMS before install. Orders customers: Win → Orders profile, Linux → bash start_hackme_orders.sh.",
       "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.3 · Orders path: https://hackme.tech/orders.html",
       "tags": [
         "release",
@@ -162,7 +192,7 @@
       "date": "2026-09-25",
       "title": "0.1.0-rc17.2 LIVE — Hunt deep-havoc v2.8 · full Win/Linux/ISO bundle",
       "summary": "Full channel cut: runtime + installers + ISO on 0.1.0-rc17.2. Hunt deep-havoc v2.8 (opt-in), deeper shard budgets, fuzz release/capability harden, workerpoh GPU_CHUNK honor.",
-      "impact": "Upgrade via downloads / self-update / apt. Verify SHA256SUMS before install. Legacy Hunt campaigns without havoc_deep_v28 keep prior replay bytes.",
+      "impact": "Historical release note — current channel is 0.1.0-rc18 (share-PPS). Upgrade via downloads / self-update / apt. Verify SHA256SUMS before install. Legacy Hunt campaigns without havoc_deep_v28 keep prior replay bytes.",
       "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.2"
     },
     {
@@ -170,7 +200,7 @@
       "date": "2026-09-22",
       "title": "0.1.0-rc17.2 — worker lifecycle + claim-identity hotpatch",
       "summary": "Runtime/UI channel bumped to 0.1.0-rc17.2: orphan lock reap, settlement Windows flock, escrow ErrNoRows honesty, hybrid claim pubkey required. Superseded by 0.1.0-rc17.2 full bundle (2026-09-25).",
-      "impact": "Hub/source builds report 0.1.0-rc17.2. Superseded: installers/ISO now on 0.1.0-rc17.2.",
+      "impact": "Historical release note — current channel is 0.1.0-rc18 (share-PPS). Hub/source builds report 0.1.0-rc17.2. Superseded: installers/ISO now on 0.1.0-rc17.2.",
       "action": "Channel notes: https://hackme.tech/downloads.html · Bug bounty: https://github.com/jokeez/hackme/blob/main/docs/BUG_BOUNTY.md",
       "tags": [
         "release",
@@ -205,7 +235,7 @@
       "date": "2026-09-15",
       "title": "0.1.0-rc17 LIVE — paper Exchange · SUP · Hunt · Dig · installers published",
       "summary": "rc17 download channel is live: Windows installer, Linux tarball, signed apt deb, Dig/Hunt fuzz CLI, and HackMe OS ISO with SHA256SUMS. Paper Exchange desk on exchange.hackme.tech; hub #exchange + SUP activity on the public pool. Hunt Watch 12/12 ledger published.",
-      "impact": "Miners and operators should verify SHA256SUMS before upgrade. Installers now resolve to 0.1.0-rc17 (supersedes rc16 as published channel). Hub runtime already on rc17 from cutover.",
+      "impact": "Historical release note — current channel is 0.1.0-rc18 (share-PPS). Miners and operators should verify SHA256SUMS before upgrade. Installers now resolve to 0.1.0-rc17 (supersedes rc16 as published channel). Hub runtime already on rc17 from cutover.",
       "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17 · Exchange: https://exchange.hackme.tech/ · Hunt ledger: https://hackme.tech/reports/hunt-watch-2026sep/",
       "tags": [
         "release",
@@ -282,7 +312,7 @@
       "date": "2026-09-14",
       "title": "0.1.0-rc17 — cutover channel (superseded — installers now on rc17)",
       "summary": "Historical cutover-day note (2026-09-14): hub UI bumped to rc17 for paper Exchange desk (D0), SUP wallet send/activity routes, Hunt ASAN escrow pool, Dig customer-first. Superseded: installers are now published on 0.1.0-rc17 (see 2026-09-15 LIVE release).",
-      "impact": "Installers now resolve to 0.1.0-rc17 — upgrade via downloads / self-update / apt. This item records the cutover window only; do not stay on rc16.",
+      "impact": "Historical release note — current channel is 0.1.0-rc18 (share-PPS). Installers now resolve to 0.1.0-rc17 — upgrade via downloads / self-update / apt. This item records the cutover window only; do not stay on rc16.",
       "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17 · Cutover plan (historical): https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/RC17_CUTOVER.md",
       "tags": [
         "release",
@@ -393,47 +423,6 @@
         "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc15",
         "news": "https://hackme.tech/news.html",
         "sha": "https://hackme.tech/dist/release_0.1.0-rc15/SHA256SUMS-iso.txt"
-      }
-    },
-    {
-      "id": "2026-08-22-release-rc15-b2b-fuzz-phase2",
-      "date": "2026-08-22",
-      "title": "0.1.0-rc15 LIVE — B2B fuzz Phase 2, pool anticheat, mining dashboard refresh",
-      "summary": "rc15 is the production cut for customer fuzz on the public pool: wizard packs (secrets, script_bounds, filter_utf8, parser_expat), Scan/Audit/Deep tiers with honest byte ceilings (256 / 1K / 4K), dynamic worker leases, exec cap 64 per unit, and coverage bitmap @ WASM offset 8192. The libheif OSS research series is archived CLEAN (~2.57B exec); the #mining dashboard now prioritizes live B2B bootstrap campaigns.",
-      "impact": "Operators and miners: hub node 0.1.0-rc15 is live on hackme.tech. Pool fuzz anticheat is tighter (segment replay fail-closed). Customer marketplace orders from bootstrap B2B node rotate light parser targets onto the pool with PoH attach — visible on #mining. Win/Linux/fuzz SHA256SUMS match GitHub; HackMe OS ISO was security-rebuilt 2026-08-27 (see newer news item).",
-      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc15 · Verify SHA256SUMS.txt · News: https://hackme.tech/news.html",
-      "tags": [
-        "release",
-        "rc15",
-        "fuzzing",
-        "B2B",
-        "pool",
-        "mining",
-        "pre-exchange"
-      ],
-      "status": "published",
-      "telegram": {
-        "headline": "0.1.0-rc15 LIVE — B2B fuzz Phase 2",
-        "lead": "Production cut for customer fuzz on the public pool: wizard packs, honest byte tiers, pool anticheat, libheif archived → B2B campaigns first.",
-        "bullets": [
-          "Wizard packs: secrets · script_bounds · filter_utf8 · parser_expat — Scan/Audit/Deep tiers",
-          "Byte ceilings honest: 256 / 1K / 4K · input @ WASM+8 · coverage bitmap @ 8192",
-          "Pool anticheat: dynamic leases · exec cap 64/unit · segment replay fail-closed",
-          "#mining dashboard: libheif OSS series archived CLEAN (~2.57B exec) · live bootstrap orders prioritized",
-          "Hub live 0.1.0-rc15 · verify SHA256SUMS before run/flash"
-        ],
-        "footer": "hackme.tech/downloads.html · GitHub 0.1.0-rc15 · not financial advice"
-      },
-      "discord": {
-        "title": "0.1.0-rc15 LIVE — B2B fuzz Phase 2",
-        "body": "**HackMe 0.1.0-rc15 is LIVE on hackme.tech**\n\n• **B2B fuzz Phase 2** — wizard packs (`secrets`, `script_bounds`, `filter_utf8`, `parser_expat`)\n• **Honest tiers** — Scan/Audit/Deep with byte ceilings 256 / 1K / **4K max**\n• **Pool anticheat** — dynamic worker leases, exec cap 64/unit, segment replay fail-closed\n• **#mining** — libheif OSS series archived **CLEAN** (~2.57B exec); live bootstrap B2B campaigns on marketplace\n• **Verify** SHA256SUMS before run/flash\n\nDownloads: https://hackme.tech/downloads.html\nGitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc15\nNews: https://hackme.tech/news.html",
-        "ping": "#announcements"
-      },
-      "links": {
-        "downloads": "https://hackme.tech/downloads.html",
-        "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc15",
-        "news": "https://hackme.tech/news.html",
-        "research": "https://hackme.tech/research.html"
       }
     }
   ],

@@ -3,14 +3,15 @@
 # Source:  source /opt/hackme/scripts/release/iso/hackme-os-ui.sh
 set -euo pipefail
 
-HACKME_UI_VERSION="${HACKME_UI_VERSION:-$(tr -d ' \n\r' <"$(dirname "$0")/../CURRENT_ISO_VERSION" 2>/dev/null || echo 0.1.0-rc11l)}"
-HACKME_UI_NEON="${HACKME_UI_NEON:-#00ff66}"
+HACKME_UI_VERSION="${HACKME_UI_VERSION:-$(tr -d ' \n\r' <"$(dirname "$0")/../CURRENT_ISO_VERSION" 2>/dev/null || echo 0.1.0-rc18)}"
+# Match local dashboard (127.0.0.1:8080): neon cyan + matrix green
+HACKME_UI_NEON="${HACKME_UI_NEON:-#00d1ff}"
 
 if [[ -t 1 ]] && [[ "${NO_COLOR:-}" != "1" ]]; then
   HM_RST=$'\033[0m'
   HM_BOLD=$'\033[1m'
   HM_DIM=$'\033[2m'
-  HM_NEON=$'\033[38;2;0;255;102m'
+  HM_NEON=$'\033[38;2;0;209;255m'
   HM_MATRIX=$'\033[38;2;57;255;20m'
   HM_WARN=$'\033[38;5;214m'
   HM_CRIT=$'\033[1;38;5;196m'
@@ -211,7 +212,8 @@ hackme_ui_status_dashboard() {
   IFS='|' read -r conn gh att pay pool_gh < <(hackme_ui_pool_worker_stats "$coord_url" "$worker_id")
   hackme_ui_box_row "Pool link" "$conn"
   hackme_ui_box_row "Your GH/s" "${gh}"
-  hackme_ui_box_row "Pool GH/s" "${pool_gh}"
+  hackme_ui_box_row "Pool GH/s" "${pool_gh} (blake3_pow_ghs)"
+  hackme_ui_box_row "Pay mode" "share-PPS (verified shares)"
   hackme_ui_box_row "Attempts" "${att}"
   hackme_ui_box_row "Payout HMC" "${pay}"
 

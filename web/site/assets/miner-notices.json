@@ -1,29 +1,29 @@
 {
   "version": 1,
-  "updated_unix": 1792856620,
+  "updated_unix": 1793022000,
   "notices": [
     {
-      "id": "poh-v3-blake3-rc174",
+      "id": "rc18-share-pps",
       "severity": "info",
-      "title": "PoH v3 Blake3 LIVE @ height \u2265 485000",
-      "body": "Blake3 PoH is LIVE (activated at #485000 \u00b7 rc17.4). Work = Blake3(prev_hash || miner_address || nonce_le) % M == 0. Reported GH/s is Blake3 wall-rate (~0.3 GH/s/GPU class) \u2014 not pre-cliff hybrid calib. Rebuild workerpoh if submit logs still show sticky ghs= \u226b inst_ghs=. RTX 50: CUDA toolkit \u226512.8 for compute_120.",
+      "title": "0.1.0-rc18 \u2014 Blake3 share-PPS \u00b7 CUDA/OpenCL",
+      "body": "Channel 0.1.0-rc18: Blake3 PoH LIVE (tip \u2265 #485000). Pool pays verified shares (SHARE_STRICT PPS at M/1024). Pool GH/s is blake3_pow_ghs (shares/wall). NVIDIA: CUDA worker (RTX 50 needs CUDA \u226512.8). AMD: OpenCL device Blake3 (RX 580 2048SP in-matrix). Hunt = Linux + bubblewrap (not Windows).",
       "cta_label": "Downloads",
       "cta_href": "/downloads.html"
     },
     {
-      "id": "pseudo-shares-rc174",
+      "id": "share-pps-live",
       "severity": "info",
-      "title": "Pseudo-shares (stats / soft attempt-pay)",
-      "body": "Public pool accepts share_nonces: each share is a PoH nonce with work % (M/1024) == 0, verified by the coordinator. Soft mode (default) always attempt-pays \u2014 shares are for stats and share-rate checks only (SHARE_RATE_REJECT off until GPU full-batch harvest). SHARE_STRICT=1 later enables share-pay. Updated workerpoh harvests shares automatically.",
-      "cta_label": "Pool docs",
-      "cta_href": "/docs.html"
+      "title": "Share-PPS (verified shares)",
+      "body": "Each share_nonce is a PoH hit with work % (M/1024) == 0, verified by the coordinator. SHARE_STRICT pays those shares; client hashrate_gh_s is not the paycheck. Dig/Hunt remain the useful-work / bounty lanes.",
+      "cta_label": "Economics",
+      "cta_href": "/economics-model.html"
     },
     {
-      "id": "attempt-recheck-h1",
+      "id": "found-recheck",
       "severity": "info",
-      "title": "Attempt-pay sampled recheck",
-      "body": "On the soft attempt-pay path, the coordinator samples ~1% of found=false submits and rejects missed_found_unreported if the lease prefix contains a valid PoH hit you did not report.",
-      "cta_label": "Pool security",
+      "title": "Found-hit recheck",
+      "body": "Coordinator samples found=false submits and rejects missed_found_unreported if the lease prefix contains a valid PoH hit you did not report.",
+      "cta_label": "Docs",
       "cta_href": "/docs.html"
     }
   ]

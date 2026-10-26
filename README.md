@@ -13,7 +13,7 @@
 
 **Your computer finds real security bugs. You get paid for it.**
 
-HackMe is a mining network where rigs run fuzzing jobs ordered by developers — and earn HMC for every hour of work, plus a bounty share when they find a crash.
+HackMe is a mining network where rigs run fuzzing jobs ordered by developers — and earn HMC for verified pool shares (share-PPS) and Dig/Hunt useful work, plus a bounty share when they find a crash.
 
 <br/>
 
@@ -40,7 +40,7 @@ HackMe is a mining network where rigs run fuzzing jobs ordered by developers —
 
 | Lane | You get |
 |------|---------|
-| **Mine** | Public HTTP pool · CUDA / OpenCL / CPU · hybrid Ed25519 submits · **HMC** for work hours · **SUP** loyalty |
+| **Mine** | Public HTTP pool · CUDA / OpenCL / CPU · hybrid Ed25519 submits · **HMC** share-PPS · **SUP** loyalty |
 | **Dig** | Customer packs (Scan / Audit / Deep) · pool workers · report + CI gate · unused bounty refunded |
 | **Hunt** | Coverage-guided fleet (libFuzzer · AFL++ Heavy) · Lite / Standard / Heavy · report + escrow |
 | **Exchange** | Early access desk at [exchange.hackme.tech](https://exchange.hackme.tech/) — live matching + HMC/SUP custody; not a CEX listing |

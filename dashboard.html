@@ -1949,7 +1949,7 @@
 						<span id="hdr-ui-mode" class="hidden sm:inline text-[9px] px-2 py-0.5 rounded border border-white/20 text-gray-300 uppercase tracking-widest" title="UI rendering mode">ui: full</span>
 						<span class="hidden sm:inline text-[10px] px-2 py-0.5 rounded border border-neon/25 text-neon/90 bg-neon/5">WASM</span>
 						<span id="chain-id-pill" class="tag-pill text-matrix/90 border-matrix/30">hackme-dev-mainnet</span>
-						<span id="hdr-node-version" class="text-[9px] px-2 py-0.5 rounded border border-white/10 text-neon/80 font-mono max-w-[280px] truncate hidden sm:inline-block" title="Node version · commit · build date from /api/status">0.1.0-rc17.4 · …</span>
+						<span id="hdr-node-version" class="text-[9px] px-2 py-0.5 rounded border border-white/10 text-neon/80 font-mono max-w-[280px] truncate hidden sm:inline-block" title="Node version · commit · build date from /api/status">0.1.0-rc18 · …</span>
 						<button type="button" id="btn-check-updates" class="inline text-[9px] px-2 py-0.5 rounded border border-neon/30 text-neon/90 hover:bg-neon/10 uppercase tracking-wider" title="Compare to hackme.tech/dist/latest.json">Updates</button>
 						<span id="hdr-update-pill" class="hidden text-[9px] px-2 py-0.5 rounded border border-warn/40 text-warn uppercase tracking-widest" title="Newer release published">update</span>
 					</div>
@@ -2031,8 +2031,8 @@
 				<div id="dashboard-whats-new" class="hidden mb-4 max-w-[1600px] mx-auto rounded-lg border border-neon/30 bg-gradient-to-r from-neon/[0.08] via-matrix/[0.06] to-transparent px-4 py-3.5 text-[11px] leading-relaxed shadow-[0_0_28px_rgba(0,209,255,0.08)]" role="status">
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div class="min-w-0 flex-1">
-							<p class="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-neon mb-1.5">What&apos;s new · <span id="dashboard-whats-new-ver">0.1.0-rc17.4</span></p>
-							<p id="dashboard-whats-new-body" class="text-gray-200/95"><strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> <strong class="text-matrix">LIVE</strong> · soft <strong class="text-white/90">attempt-pay</strong> (shares = stats) · HackMe OS ISO · settle SUP/HMC fix. Pool GH/s is Blake3 wall-rate (not pre-cliff hybrid calib). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.</p>
+							<p class="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-neon mb-1.5">What&apos;s new · <span id="dashboard-whats-new-ver">0.1.0-rc18</span></p>
+							<p id="dashboard-whats-new-body" class="text-gray-200/95"><strong class="text-white/90">rc18</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> <strong class="text-matrix">LIVE</strong> · <strong class="text-white/90">share-PPS</strong> (verified shares) · HackMe OS ISO. Pool GH/s is <code class="text-neon/80">blake3_pow_ghs</code> (shares/wall). Channel <code class="text-neon/80">0.1.0-rc18</code>.</p>
 						</div>
 						<button type="button" id="dashboard-whats-new-dismiss" class="shrink-0 text-[10px] px-2 py-1 rounded border border-white/15 text-gray-400 hover:text-gray-200 uppercase tracking-wider">Dismiss</button>
 					</div>
@@ -2053,7 +2053,7 @@
 							<div class="flex flex-wrap gap-2 text-[10px] font-mono">
 								<span class="px-2 py-1 rounded border border-matrix/35 text-matrix">live pools: <span id="eco-live-count">—</span></span>
 								<span class="px-2 py-1 rounded border border-neon/35 text-neon">Σ hash: <span id="eco-total-hash">—</span></span>
-								<span class="px-2 py-1 rounded border border-warn/30 text-warn" title="Published installer channel">channel · rc17.4</span>
+								<span class="px-2 py-1 rounded border border-warn/30 text-warn" title="Published installer channel">channel · rc18</span>
 								<button type="button" id="btn-eco-refresh" class="px-3 py-1.5 rounded border border-neon/30 text-neon hover:bg-neon/10 uppercase tracking-wider">Refresh</button>
 							</div>
 						</div>
@@ -2603,7 +2603,7 @@
 					<div id="mining-fuzz-rc15-banner" class="card card-glow rounded-lg p-4 md:p-5 border-neon/40 bg-gradient-to-r from-neon/12 via-black/45 to-matrix/[0.06]">
 						<div class="flex flex-wrap items-start justify-between gap-3 mb-2">
 							<div class="max-w-3xl">
-								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">B2B fuzz · Coverage Hunt · 0.1.0-rc17.4</p>
+								<p class="font-display text-[10px] tracking-[0.35em] text-neon uppercase mb-1">B2B fuzz · Coverage Hunt · 0.1.0-rc18</p>
 								<h3 class="font-display text-sm font-semibold text-white tracking-wide">Dig · Hunt · customer campaigns first</h3>
 								<p class="text-[11px] text-gray-400 leading-relaxed mt-1"><strong class="text-neon/90">Dig</strong> WASM packs · smoke <strong class="text-white/85">20/80</strong> · Deep <strong class="text-white/85">40/60</strong>. <strong class="text-matrix">Hunt</strong> ASAN · <strong class="text-white/85">50/50</strong> escrow. Place orders on <strong class="text-neon/80">#orders</strong>.</p>
 								<div class="fuzz-sku-pills" aria-label="SKU escrow">
@@ -2613,7 +2613,7 @@
 									<span class="fuzz-sku-pill">LF fleet · AFL++ Deep</span>
 								</div>
 							</div>
-							<span class="tag-pill border-neon/40 text-neon shrink-0">rc17.4</span>
+							<span class="tag-pill border-neon/40 text-neon shrink-0">rc18</span>
 						</div>
 						<div class="flex flex-wrap gap-2 mt-2">
 							<button type="button" class="text-[10px] px-3 py-1.5 rounded border border-neon/40 text-neon uppercase tracking-wider hover:bg-neon/10" data-goto-tab="orders">Run B2B audit (#orders)</button>
@@ -3745,7 +3745,7 @@
 								<p class="text-sm text-gray-400 max-w-xl">HMC · SUP · roadmap lanes · mine on Ecosystem pools.</p>
 							</div>
 							<div class="flex flex-wrap gap-2 text-[10px] font-mono items-center">
-								<span class="px-2 py-1 rounded border border-matrix/35 text-matrix">portfolio: <span id="wallet-portfolio-total">—</span></span>
+								<span class="px-2 py-1 rounded border border-matrix/35 text-matrix">portfolio (ref/paper price): <span id="wallet-portfolio-total">—</span></span>
 								<span id="wallet-spot-chip" class="price-chip stale" title="Live HMC/USDT from exchange.hackme.tech"><span class="px-dot"></span><span id="wallet-spot-label">HMC $—</span></span>
 								<span class="px-2 py-1 rounded border border-neon/35 text-neon">live: <span id="wallet-portfolio-live-count">1</span></span>
 								<span id="wallet-build-strip" class="px-2 py-1 rounded border border-white/10 text-gray-500 max-w-[280px] truncate" title="Dashboard UI + node build">ui — · node —</span>
@@ -4179,8 +4179,8 @@
 		try {
 		// Enable JS-driven tab behavior (single active panel view).
 		document.body.classList.add('js-ui');
-		const DASHBOARD_UI_VER = '0.1.0-rc17.4';
-		const DASHBOARD_WHATS_NEW_HTML = '<strong class="text-white/90">rc17.4</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> <strong class="text-matrix">LIVE</strong> · soft <strong class="text-white/90">attempt-pay</strong> (shares = stats) · HackMe OS ISO · settle SUP/HMC fix. Pool GH/s is Blake3 wall-rate (not pre-cliff hybrid calib). Channel <code class="text-neon/80">0.1.0-rc17.4</code>.';
+		const DASHBOARD_UI_VER = '0.1.0-rc18';
+		const DASHBOARD_WHATS_NEW_HTML = '<strong class="text-white/90">rc18</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> <strong class="text-matrix">LIVE</strong> · <strong class="text-white/90">share-PPS</strong> (verified shares) · CUDA/OpenCL · HackMe OS ISO. Pool GH/s is <code class="text-neon/80">blake3_pow_ghs</code>. Channel <code class="text-neon/80">0.1.0-rc18</code>';
 		function updateUIModeBadge() {
 			const el = document.getElementById('hdr-ui-mode');
 			if (!el) return;
@@ -5608,7 +5608,7 @@
 		function initDashboardWhatsNew() {
 			const wrap = $('dashboard-whats-new');
 			if (!wrap) return;
-			const dismissKey = 'hackme_notice_dismiss:dashboard-whats-new-rc17.4';
+			const dismissKey = 'hackme_notice_dismiss:dashboard-whats-new-rc18';
 			try {
 				if (localStorage.getItem(dismissKey) === '1') {
 					wrap.classList.add('hidden');
@@ -11885,14 +11885,20 @@
 				if (nums.localH !== nums.canonH) {
 					const delta = nums.canonH > nums.localH ? (nums.canonH - nums.localH) : (nums.localH - nums.canonH);
 					const lagBehind = nums.canonH > nums.localH;
+					const desktopPool = nums.net && !(latestStatus && (latestStatus.chain_leader_local_poh || latestStatus.local_solo_allowed));
 					sub.textContent = lagBehind
-						? ('Canonical height · this node: ' + fmtUInt(nums.localH) +
-							' (behind by ' + fmtUInt(delta) + ') — pool tip is authoritative · Chain')
+						? (desktopPool
+							? ('Following pool tip #' + fmtUInt(nums.canonH) + ' · local #' + fmtUInt(nums.localH) +
+								' (Δ' + fmtUInt(delta) + ') — normal for desktop pool mode · Chain')
+							: ('Canonical height · this node: ' + fmtUInt(nums.localH) +
+								' (behind by ' + fmtUInt(delta) + ') — pool tip is authoritative · Chain'))
 						: ('Canonical height ' + fmtUInt(nums.canonH) + ' · this node ' + fmtUInt(nums.localH) +
 							' (ahead by ' + fmtUInt(delta) + ' — check stale snapshot) · Chain');
-					sub.className = nums.net
+					sub.className = (nums.net && !desktopPool)
 						? 'text-[10px] text-warn/85 mt-1 font-mono leading-snug'
-						: 'text-[10px] text-neon/80 mt-1 font-mono leading-snug';
+						: desktopPool
+							? 'text-[10px] text-gray-500 mt-1 font-mono leading-snug'
+							: 'text-[10px] text-neon/80 mt-1 font-mono leading-snug';
 				} else {
 					const poolOnly = nums.net && !(latestStatus && (latestStatus.chain_leader_local_poh || latestStatus.local_solo_allowed));
 					sub.textContent = poolOnly

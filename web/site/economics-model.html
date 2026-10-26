@@ -28,7 +28,7 @@
       <h1>Chain rewards, coordinator payouts, and orders</h1>
       <p class="hero-copy">
         HackMe is <strong>not</strong> classic pooled PoW where every share maps to a block fraction.
-        Three layers: <strong>on-chain PoH</strong> (Blake3 @ #485000 <strong>LIVE</strong>), <strong>coordinator accounting</strong> (soft attempt-pay), and <strong>paid audit orders</strong>.
+        Three layers: <strong>on-chain PoH</strong> (Blake3 @ #485000 <strong>LIVE</strong>), <strong>coordinator accounting</strong> (share-PPS / verified shares under SHARE_STRICT), and <strong>paid audit orders</strong>.
         Companion coins (<a href="./coin-sup.html">SUP</a>, <a href="./coin-hms.html">HMS</a>) use separate rules — see <a href="./coins.html">ecosystem registry</a>.
         Economics <strong>v2</strong> (emission lock · pool-from-emission · burn-on-orders) is an upcoming RFC — not live parameters.
       </p>
@@ -89,11 +89,10 @@
     <section class="panel glass">
       <div class="panel-head"><h2>Public pool payout (fair mode)</h2></div>
       <div class="formula-box">
-        accrual ≈ (attempts / 1,000,000) × reward_per_m + found_bonus<br />
-        reward_per_m ≈ base_reward × 1,000,000 / target_mod
+        Blake3 share-PPS: pay verified shares (work % (M/1024) == 0)<br />
+        Pool GH/s = blake3_pow_ghs (shares / wall) · found_bonus on accepted PoH hits
       </div>
       <ul class="list" style="margin-top:0.75rem">
-        <li>Set <code>WORKER_PAYOUT_MAP</code> before expecting settlement.</li>
         <li>Dashboard accrual is the paycheck story; on-chain balance updates after settlement.</li>
         <li>Hybrid Ed25519 signing + per-worker caps keep the pool fair.</li>
         <li><strong>SUP</strong> accrual runs in parallel (quality-gated) — see <a href="./coin-sup.html">SUP page</a>.</li>

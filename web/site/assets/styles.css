@@ -2569,13 +2569,29 @@ html {
   table,
   .table-wrap,
   .formula-box,
-  .code-block {
+  .code-block,
+  .table-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    max-width: 100%;
   }
-  .table-wrap {
+  .table-wrap,
+  .table-scroll {
     width: 100%;
     max-width: 100%;
+  }
+  pre, .code-block code {
+    white-space: pre;
+    word-break: normal;
+  }
+  /* Report pages often ship wide tables without site shell classes */
+  .wrap table,
+  .wrap pre,
+  article table,
+  article pre {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
   }
   img,
   svg,

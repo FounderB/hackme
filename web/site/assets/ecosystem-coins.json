@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14",
+  "updated": "2026-10-26",
   "primary": "hmc",
   "coins": [
     {
@@ -7,12 +7,12 @@
       "symbol": "HMC",
       "name": "HackMe Coin",
       "status": "live",
-      "tagline": "Pays miners for work · customers pay for security scans",
+      "tagline": "Pays miners for work \u00b7 customers pay for security scans",
       "algorithm": "Blake3 PoH LIVE + order gate",
       "icon": "./assets/logo-hex.png",
       "iconType": "image",
-      "listing": "Official pool live · OSS CVE Watch · CEX after summer traction",
-      "earn": "Mine on the official coordinator · on-chain after VPS settlement",
+      "listing": "Official pool live \u00b7 OSS CVE Watch \u00b7 CEX after summer traction",
+      "earn": "Mine on the official coordinator \u00b7 on-chain after VPS settlement",
       "trade": "On-chain transfers live on hackme.tech chain",
       "links": {
         "profile": "https://hackme.tech/coin-hmc.html",
@@ -27,17 +27,17 @@
       "symbol": "SUP",
       "name": "HackMe Support",
       "status": "live",
-      "tagline": "Companion coin — on-chain mint live, CEX after HMC lists",
+      "tagline": "Companion coin \u2014 on-chain mint live, CEX after HMC lists",
       "algorithm": "Earned via HMC pool (quality-gated accrual)",
       "icon": "./assets/coin-sup.svg",
       "iconType": "image",
       "listing": "Companion listing after primary HMC on CEX",
       "earn": "Hybrid-signed HMC pool work + quality gates",
-      "trade": "On-chain SUP transfers · GET /api/sup/economics",
+      "trade": "On-chain SUP transfers \u00b7 GET /api/sup/economics",
       "highlights": [
-        "Max 21M · no faucet",
-        "Base ≤8% of HMC attempt value",
-        "72h streak bonus · fleet daily cap",
+        "Max 21M \u00b7 no faucet",
+        "Base \u22648% of HMC attempt value",
+        "72h streak bonus \u00b7 fleet daily cap",
         "Utility: audit discounts, pool priority"
       ],
       "links": {
@@ -51,18 +51,18 @@
       "symbol": "HMS",
       "name": "HackMe Storage",
       "status": "prelaunch",
-      "tagline": "Encrypted storage + hourly manifest seal — disk & ASIC lanes",
+      "tagline": "Encrypted storage + hourly manifest seal \u2014 disk & ASIC lanes",
       "algorithm": "Proof-of-Storage (disk) + SHA256 Seal (ASIC/CPU)",
       "icon": "./assets/coin-hms.svg",
       "iconType": "image",
       "listing": "Exchange submission only after lane genesis",
-      "earn": "Allocate disk quota (PoSt) and/or run seal worker — preview only today",
+      "earn": "Allocate disk quota (PoSt) and/or run seal worker \u2014 preview only today",
       "trade": "Not tradable until Amsterdam heavy VPS lane is live",
       "highlights": [
-        "Max 21M · 0.5% genesis treasury float",
+        "Max 21M \u00b7 0.5% genesis treasury float",
         "Client-side AES-GCM ciphertext",
         "~12 HMS/day base at 1h epochs",
-        "Dedicated VPS — hub stays lean"
+        "Dedicated VPS \u2014 hub stays lean"
       ],
       "links": {
         "profile": "https://hackme.tech/coin-hms.html",
@@ -77,12 +77,12 @@
       "status": "live",
       "tagline": "Paid security-audit & fuzz escrow mining",
       "algorithm": "Paid Dig/Hunt orders on the pool",
-      "iconLetter": "◇",
+      "iconLetter": "\u25c7",
       "iconType": "letter",
       "accent": "amber",
       "listing": "Live (escrow orders)",
-      "earn": "Mine open paid orders via pool coordinator (WASM gate)",
-      "trade": "—"
+      "earn": "Mine open Dig/Hunt orders (WASM gate) for HMC escrow share",
+      "trade": "Not a separate ticker \u2014 escrow settles in HMC"
     },
     {
       "id": "shd",
@@ -91,12 +91,12 @@
       "status": "planned",
       "tagline": "Horizontally scaled coordinators",
       "algorithm": "Scaled coordinators / PoH",
-      "iconLetter": "⬡",
+      "iconLetter": "\u2b21",
       "iconType": "letter",
       "accent": "cyan",
       "listing": "Planned",
-      "earn": "—",
-      "trade": "—"
+      "earn": "Planned \u2014 scaled coordinator shards (not live)",
+      "trade": "Not tradable (roadmap lane)"
     }
   ]
 }

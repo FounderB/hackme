@@ -1,185 +1,291 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
-  <channel>
-    <title>HackMe Network News</title>
-    <link>https://hackme.tech/news.html</link>
-    <description>Official HackMe Network release, infrastructure, economics, and security updates.</description>
-    <language>en-us</language>
-    <lastBuildDate>Tue, 09 Jun 2026 13:30:00 GMT</lastBuildDate>
-    <item>
-      <title>Release 0.1.0-rc11n — hub stability, transfers &amp; payments E2E</title>
-      <link>https://hackme.tech/news.html#2026-06-09-rc11n-stability-payments</link>
-      <guid>https://hackme.tech/news.html#2026-06-09-rc11n-stability-payments</guid>
-      <pubDate>Tue, 09 Jun 2026 13:30:00 GMT</pubDate>
-      <description>rc11n: VPS node HTTP watchdog, canonical transfer nonce for desktop nodes, payments E2E pack. Win/Linux downloads updated; HackMe OS ISO stays rc11l.</description>
-    </item>
-    <item>
-      <title>Release 0.1.0-rc11m — wallet treasury &amp; canonical balance fix</title>
-      <link>https://hackme.tech/news.html#2026-06-08-rc11m-wallet-treasury</link>
-      <guid>https://hackme.tech/news.html#2026-06-08-rc11m-wallet-treasury</guid>
-      <pubDate>Sun, 08 Jun 2026 17:30:00 GMT</pubDate>
-      <description>Desktop wallet shows real on-chain HMC and SUP from hackme.tech; treasury columns for on-chain, pool accrual, and orders debit.</description>
-    </item>
-    <item>
-      <title>HackMe OS 0.1.0-rc11l — live USB overlay boot fix</title>
-      <link>https://hackme.tech/news.html#2026-06-04-rc11l-iso-live-boot</link>
-      <guid>https://hackme.tech/news.html#2026-06-04-rc11l-iso-live-boot</guid>
-      <pubDate>Wed, 04 Jun 2026 12:00:00 GMT</pubDate>
-      <description>rc11l fixes initramfs overlay panic on physical USB — modules in casper-premount. Current downloads on hackme.tech.</description>
-    </item>
-    <item>
-      <title>Release 0.1.0-rc11k — launch candidate (production miner)</title>
-      <link>https://hackme.tech/news.html#2026-06-03-rc11k-launch-candidate</link>
-      <guid>https://hackme.tech/news.html#2026-06-03-rc11k-launch-candidate</guid>
-      <pubDate>Tue, 03 Jun 2026 12:00:00 GMT</pubDate>
-      <description>Production download channel: /api/status fix, coordinator telemetry, rc11k Windows Setup, Linux bundle, HackMe OS ISO on hackme.tech/downloads.html.</description>
-    </item>
-    <item>
-      <title>Release 0.1.0-rc11j — GPU matrix final (CUDA fallback, ISO, Windows Setup)</title>
-      <link>https://hackme.tech/news.html#2026-06-02-rc11j-gpu-matrix-final</link>
-      <guid>https://hackme.tech/news.html#2026-06-02-rc11j-gpu-matrix-final</guid>
-      <pubDate>Mon, 02 Jun 2026 22:00:00 GMT</pubDate>
-      <description>Miner release after GPU matrix: CUDA→OpenCL auto-fallback, multi-GPU pool UI, Vast pack, rc11j Windows/Linux/ISO downloads.</description>
-    </item>
-    <item>
-      <title>GPU Matrix complete — Pascal through Blackwell on live HMC pool</title>
-      <link>https://hackme.tech/news.html#2026-06-02-gpu-matrix-field-test</link>
-      <guid>https://hackme.tech/news.html#2026-06-02-gpu-matrix-field-test</guid>
-      <pubDate>Mon, 02 Jun 2026 16:45:00 GMT</pubDate>
-      <description>Field-tested 1080 Ti through RTX 5090 on production pool; multi-GPU one worker row; OpenCL fallback on CUDA 13 hosts. Full verdict on hackme.tech/docs.</description>
-    </item>
-    <item>
-      <title>HackMe OS ISO published (956 MB) · SHA256 verified</title>
-      <link>https://hackme.tech/news.html#2026-05-22-hackme-os-iso-published</link>
-      <guid>https://hackme.tech/news.html#2026-05-22-hackme-os-iso-published</guid>
-      <pubDate>Fri, 22 May 2026 12:10:00 GMT</pubDate>
-      <description>Bootable HackMe-OS-0.1.0-rc11g-amd64.iso: Zero-Knowledge Start, pool token embedded, full QA pass. SHA256 1b7bd70e… on downloads.</description>
-    </item>
-    <item>
-      <title>Zero-Knowledge Start · HackMe OS on downloads · Windows worker watchdog</title>
-      <link>https://hackme.tech/news.html#2026-05-22-zero-knowledge-start-downloads</link>
-      <guid>https://hackme.tech/news.html#2026-05-22-zero-knowledge-start-downloads</guid>
-      <pubDate>Fri, 22 May 2026 12:00:00 GMT</pubDate>
-      <description>Flash HackMe OS USB — auto wallet + recovery phrase, zero config mining. Downloads page ISO section. Windows watchdog keeps pool worker online.</description>
-    </item>
-    <item>
-      <title>Ecosystem dashboard · nightly chaos guard · HackMe OS miner ISO</title>
-      <link>https://hackme.tech/news.html#2026-05-22-ecosystem-chaos-hackme-os</link>
-      <guid>https://hackme.tech/news.html#2026-05-22-ecosystem-chaos-hackme-os</guid>
-      <pubDate>Fri, 22 May 2026 08:00:00 GMT</pubDate>
-      <description>Ecosystem home UI for HMC pool mining. Nightly chaos guard: ledger 5000×, replay 403, init-worker.ini. HackMe OS ISO pipeline with CPU/GPU tuning for fair pool workers.</description>
-    </item>
-    <item>
-      <title>Coordinator stress test passed · Bitcointalk update · MiningPoolStats listing</title>
-      <link>https://hackme.tech/news.html#2026-05-21-coordinator-stress-bct</link>
-      <guid>https://hackme.tech/news.html#2026-05-21-coordinator-stress-bct</guid>
-      <pubDate>Thu, 21 May 2026 14:30:00 GMT</pubDate>
-      <description>10-min stress: 100 workers, 0% hard errors, stable RAM, halving block 2,102,401 verified. Public pool hackme.tech (HTTP coordinator). Bitcointalk ANN updated; MPS listing in progress.</description>
-    </item>
-    <item>
-      <title>Release 0.1.0-rc11g: Windows OpenCL worker for AMD RX 580</title>
-      <link>https://hackme.tech/news.html#2026-05-21-windows-opencl-rc11g</link>
-      <guid>https://hackme.tech/news.html#2026-05-21-windows-opencl-rc11g</guid>
-      <pubDate>Thu, 21 May 2026 10:00:00 GMT</pubDate>
-      <description>workerpoh-opencl.exe ships in Windows installer; AMD GPU mining ~0.12+ GH/s vs CPU ~0.02 GH/s. HackMe-Setup-0.1.0-rc11g.exe on downloads.</description>
-    </item>
-    <item>
-      <title>Release 0.1.0-rc11f: Windows CP1251 fix + pool token repair</title>
-      <link>https://hackme.tech/news.html#2026-05-21-windows-installer-rc11f</link>
-      <guid>https://hackme.tech/news.html#2026-05-21-windows-installer-rc11f</guid>
-      <pubDate>Thu, 21 May 2026 04:00:00 GMT</pubDate>
-      <description>ASCII-only PowerShell for Russian Windows; hackme.env auto-repair from pool.miner.token; RX 580 2048SP rig profile. HackMe-Setup-0.1.0-rc11f.exe on hackme.tech/downloads.html</description>
-    </item>
-    <item>
-      <title>Release 0.1.0-rc11e: Windows installer + GPU wizard + pool token fix</title>
-      <link>https://hackme.tech/news.html#2026-05-20-windows-installer-rc11e</link>
-      <guid>https://hackme.tech/news.html#2026-05-20-windows-installer-rc11e</guid>
-      <pubDate>Wed, 20 May 2026 19:00:00 GMT</pubDate>
-      <description>Official HackMe-Setup.exe (Inno Setup): Program Files install, GPU wizard (Auto/CUDA/OpenCL/CPU), preconfigured pool token, RX 580 2048SP rig profile. Downloads: hackme.tech/downloads.html</description>
-    </item>
-    <item>
-      <title>Open source: HackMe stack on GitHub (Apache-2.0)</title>
-      <link>https://hackme.tech/news.html#2026-05-18-open-source-github</link>
-      <guid>https://hackme.tech/news.html#2026-05-18-open-source-github</guid>
-      <pubDate>Sat, 18 May 2026 12:00:00 GMT</pubDate>
-      <description>Full public pool stack published at github.com/jokeez/hackme under Apache-2.0. Verify binaries on hackme.tech/downloads.html.</description>
-    </item>
-    <item>
-      <title>RC7 Release Pack + Hybrid Anti-Replay Hardening</title>
-      <link>https://hackme.tech/news.html#2026-05-05-rc7-security-hardening-and-release-pack</link>
-      <guid>https://hackme.tech/news.html#2026-05-05-rc7-security-hardening-and-release-pack</guid>
-      <pubDate>Tue, 05 May 2026 00:00:00 GMT</pubDate>
-      <description>RC7 Linux/Windows bundles were rebuilt and Hybrid signer anti-replay/duplicate protections were hardened for coordinator submit flow.</description>
-    </item>
-    <item>
-      <title>Auto-Settlement Timers are Live</title>
-      <link>https://hackme.tech/news.html#2026-05-05-auto-settlement-timers-live</link>
-      <guid>https://hackme.tech/news.html#2026-05-05-auto-settlement-timers-live</guid>
-      <pubDate>Tue, 05 May 2026 00:00:00 GMT</pubDate>
-      <description>Systemd timers for worker payout settlement and settlement healthcheck are now active on the canonical VPS.</description>
-    </item>
-    <item>
-      <title>V3 Worker Settlement Bridge Added</title>
-      <link>https://hackme.tech/news.html#2026-05-05-v3-worker-settlement-bridge</link>
-      <guid>https://hackme.tech/news.html#2026-05-05-v3-worker-settlement-bridge</guid>
-      <pubDate>Tue, 05 May 2026 00:00:00 GMT</pubDate>
-      <description>New settlement script bridges coordinator accrual to on-chain payouts with nonce-safe transfer submission and self-pay protection.</description>
-    </item>
-    <item>
-      <title>Hybrid Signer v2 Dark Launch (Safe Fallback Active)</title>
-      <link>https://hackme.tech/news.html#2026-05-05-hybrid-signer-v2-dark-launch</link>
-      <guid>https://hackme.tech/news.html#2026-05-05-hybrid-signer-v2-dark-launch</guid>
-      <pubDate>Tue, 05 May 2026 00:00:00 GMT</pubDate>
-      <description>Coordinator supports optional miner-signed submits with replay protection and deterministic rejects while unsigned fallback remains active.</description>
-    </item>
-    <item>
-      <title>Predeploy Gate Added, Canonical Ops Pass Confirmed</title>
-      <link>https://hackme.tech/news.html#2026-05-05-predeploy-gate-and-canonical-ops-pass</link>
-      <guid>https://hackme.tech/news.html#2026-05-05-predeploy-gate-and-canonical-ops-pass</guid>
-      <pubDate>Tue, 05 May 2026 00:00:00 GMT</pubDate>
-      <description>One-command predeploy gate is now live with canonical proxy parity and worker health checks; public stack deployment passed and is online.</description>
-    </item>
-    <item>
-      <title>Telegram Channel Bot is Live</title>
-      <link>https://hackme.tech/news.html#2026-05-04-telegram-channel-bot-live</link>
-      <guid>https://hackme.tech/news.html#2026-05-04-telegram-channel-bot-live</guid>
-      <pubDate>Mon, 04 May 2026 00:00:00 GMT</pubDate>
-      <description>Official channel automation is active: News entries now publish directly to Telegram with status, impact, action, and deep links.</description>
-    </item>
-    <item>
-      <title>Canonical Consistency Upgrade for Follower Nodes</title>
-      <link>https://hackme.tech/news.html#2026-05-04-canonical-consistency-upgrade</link>
-      <guid>https://hackme.tech/news.html#2026-05-04-canonical-consistency-upgrade</guid>
-      <pubDate>Mon, 04 May 2026 00:00:00 GMT</pubDate>
-      <description>Follower-mode APIs now mirror canonical chain responses for transfer pool, address lookups, transaction lookups, and status economics.</description>
-    </item>
-    <item>
-      <title>Simple Send Nonce Auto-Sync</title>
-      <link>https://hackme.tech/news.html#2026-05-04-simple-send-nonce-sync</link>
-      <guid>https://hackme.tech/news.html#2026-05-04-simple-send-nonce-sync</guid>
-      <pubDate>Mon, 04 May 2026 00:00:00 GMT</pubDate>
-      <description>Simple wallet transfers now auto-resolve nonce against canonical address state before submission in network mode.</description>
-    </item>
-    <item>
-      <title>VPS Sweep Behavior Clarified</title>
-      <link>https://hackme.tech/news.html#2026-05-04-vps-sweep-visibility</link>
-      <guid>https://hackme.tech/news.html#2026-05-04-vps-sweep-visibility</guid>
-      <pubDate>Mon, 04 May 2026 00:00:00 GMT</pubDate>
-      <description>Automated sweep-to-primary keeps miner wallet near reserve while consolidating balances to the primary policy wallet.</description>
-    </item>
-    <item>
-      <title>Release Candidate 0.1.0-rc6 Published</title>
-      <link>https://hackme.tech/news.html#2026-05-03-release-rc6</link>
-      <guid>https://hackme.tech/news.html#2026-05-03-release-rc6</guid>
-      <pubDate>Sun, 03 May 2026 00:00:00 GMT</pubDate>
-      <description>RC6 release bundles, checksums, and deployment automation refreshed for stable operations.</description>
-    </item>
-    <item>
-      <title>Security Hardening Pack Extended</title>
-      <link>https://hackme.tech/news.html#2026-05-02-security-hardening-pack</link>
-      <guid>https://hackme.tech/news.html#2026-05-02-security-hardening-pack</guid>
-      <pubDate>Sat, 02 May 2026 00:00:00 GMT</pubDate>
-      <description>Expanded WASM validation gates and fail-closed controls integrated into daily and ultimate validation packs.</description>
-    </item>
-  </channel>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<title>HackMe Network News</title>
+<link>https://hackme.tech/news.html</link>
+<description>Official HackMe pool, release, and research notices.</description>
+<lastBuildDate>Mon, 26 Oct 2026 14:51:02 +0000</lastBuildDate>
+<atom:link href="https://hackme.tech/news.xml" rel="self" type="application/rss+xml"/>
+<language>en-us</language>
+<item>
+<title>0.1.0-rc18 — Blake3 share-PPS LIVE · CUDA/OpenCL · ISO channel</title>
+<link>https://hackme.tech/news.html#2026-10-26-rc18-live</link>
+<guid isPermaLink="false">2026-10-26-rc18-live</guid>
+<pubDate>Mon, 26 Oct 2026 00:00:00 +0000</pubDate>
+<description>Current release channel is 0.1.0-rc18. Public pool runs SHARE_STRICT share-PPS: verified Blake3 share_nonces (work % (M/1024) == 0) pay. Pool hashrate kind is blake3_pow_ghs (shares/wall). NVIDIA CUDA and AMD OpenCL Blake3 miners are supported (see BLAKE3_GPU_MATRIX). Dig/Hunt remain useful-work lanes; Hunt needs Linux+bwrap. Legacy soft-mode copy is retired.</description>
+</item>
+<item>
+<title>Blake3 PoH LIVE — tip ≥ #485000 · honest ~few GH/s wall-rate</title>
+<link>https://hackme.tech/news.html#2026-10-24-blake3-live</link>
+<guid isPermaLink="false">2026-10-24-blake3-live</guid>
+<pubDate>Sat, 24 Oct 2026 00:00:00 +0000</pubDate>
+<description>Mainnet crossed the Blake3 gate at height 485000. Pool formula is blake3_v3(prev‖miner‖nonce_le)%M==0. Pool runs share-PPS (SHARE_STRICT): verified shares at M/1024; GH/s from shares/wall. Real PoW GH/s is wall-timed Blake3 throughput (~few GH/s fleet class) — not the pre-cliff hybrid algebraic calib. Dig/Hunt leases remain live. Economics v2 (emission lock, pool-from-emission, burn-on-orders) is upcoming RFC — not live numbers as gospel.</description>
+</item>
+<item>
+<title>0.1.0-rc17.4 — Blake3 gate @ 485k · share-PPS · ISO · settle fix</title>
+<link>https://hackme.tech/news.html#2026-10-22-rc17.4-live</link>
+<guid isPermaLink="false">2026-10-22-rc17.4-live</guid>
+<pubDate>Thu, 22 Oct 2026 00:00:00 +0000</pubDate>
+<description>Released the Blake3 PoH gate at height 485000 (was 500000). SHARE_STRICT share-PPS pays verified share_nonces (M/1024); pool GH/s from shares/wall. Settlement SQLite export no longer rolls back settled_sup. HackMe OS ISO + SHA256SUMS-iso on GitHub and hackme.tech/dist. GH/s dropped ~100–200× after activation (expected). RTX 50: CUDA ≥12.8 for compute_120.</description>
+</item>
+<item>
+<title>0.1.0-rc17.3 LIVE — Miner | Orders installers · Linux Orders · full Win/Linux/deb/ISO</title>
+<link>https://hackme.tech/news.html#2026-10-15-rc17.3-live</link>
+<guid isPermaLink="false">2026-10-15-rc17.3-live</guid>
+<pubDate>Thu, 15 Oct 2026 00:00:00 +0000</pubDate>
+<description>Channel cut published: Windows Setup chooses Miner or B2B Orders; Linux tar/deb ship start_hackme_orders.sh + hackme-fuzzing; Hunt engine auto-install on Linux update; HTTPS pool allowlist includes corpus_delta; SHA256SUMS + HackMe OS ISO on hackme.tech and GitHub.</description>
+</item>
+<item>
+<title>Coverage Hunt LIVE — libFuzzer fleet · AFL++ Deep · auto-install engines</title>
+<link>https://hackme.tech/news.html#2026-10-11-coverage-hunt-live</link>
+<guid isPermaLink="false">2026-10-11-coverage-hunt-live</guid>
+<pubDate>Sun, 11 Oct 2026 00:00:00 +0000</pubDate>
+<description>Product Hunt is coverage-guided on the public pool: libFuzzer fleet default, AFL++ for Deep, coordinator ASAN + afl-showmap prove. Dig stays WASM; hybrid workers keep earning. Fresh 90s bench: standalone LF still leads raw exec/s; Hunt LF lease grew cjson corpus +85 — old byte 100-vs-700 charts are retired. Linux clang/AFL++/bubblewrap auto-install ships in 0.1.0-rc17.3.</description>
+</item>
+<item>
+<title>0.1.0-rc17.2 LIVE — Hunt deep-havoc v2.8 · full Win/Linux/ISO bundle</title>
+<link>https://hackme.tech/news.html#20260925-rc17.2-live</link>
+<guid isPermaLink="false">20260925-rc17.2-live</guid>
+<pubDate>Fri, 25 Sep 2026 00:00:00 +0000</pubDate>
+<description>Full channel cut: runtime + installers + ISO on 0.1.0-rc17.2. Hunt deep-havoc v2.8 (opt-in), deeper shard budgets, fuzz release/capability harden, workerpoh GPU_CHUNK honor.</description>
+</item>
+<item>
+<title>0.1.0-rc17.2 — worker lifecycle + claim-identity hotpatch</title>
+<link>https://hackme.tech/news.html#2026-09-22-rc17-1-hotpatch</link>
+<guid isPermaLink="false">2026-09-22-rc17-1-hotpatch</guid>
+<pubDate>Tue, 22 Sep 2026 00:00:00 +0000</pubDate>
+<description>Runtime/UI channel bumped to 0.1.0-rc17.2: orphan lock reap, settlement Windows flock, escrow ErrNoRows honesty, hybrid claim pubkey required. Superseded by 0.1.0-rc17.2 full bundle (2026-09-25).</description>
+</item>
+<item>
+<title>0.1.0-rc17 LIVE — paper Exchange · SUP · Hunt · Dig · installers published</title>
+<link>https://hackme.tech/news.html#2026-09-15-release-rc17-live</link>
+<guid isPermaLink="false">2026-09-15-release-rc17-live</guid>
+<pubDate>Tue, 15 Sep 2026 00:00:00 +0000</pubDate>
+<description>rc17 download channel is live: Windows installer, Linux tarball, signed apt deb, Dig/Hunt fuzz CLI, and HackMe OS ISO with SHA256SUMS. Paper Exchange desk on exchange.hackme.tech; hub #exchange + SUP activity on the public pool. Hunt Watch 12/12 ledger published.</description>
+</item>
+<item>
+<title>Hunt Watch 12/12 · ~192.5M Hunt Standard · public ledger</title>
+<link>https://hackme.tech/news.html#2026-09-14-hunt-watch-2026sep-finale</link>
+<guid isPermaLink="false">2026-09-14-hunt-watch-2026sep-finale</guid>
+<pubDate>Mon, 14 Sep 2026 00:00:00 +0000</pubDate>
+<description>The 12-day Hunt Watch (2026sep) is closed: 50 target runs, 192,507,336 iterations on Hunt Standard (ASAN+UBSan subprocess — not libFuzzer). Verdicts: 43 CLEAN · 2 CVE_CANDIDATE · 5 INFORMATIONAL. Honest product-lane ledger — separate from the nghttp2/libheif OSS CVE Watch series.</description>
+</item>
+<item>
+<title>0.1.0-rc17 — cutover channel (superseded — installers now on rc17)</title>
+<link>https://hackme.tech/news.html#2026-09-14-rc17-cutover-channel</link>
+<guid isPermaLink="false">2026-09-14-rc17-cutover-channel</guid>
+<pubDate>Mon, 14 Sep 2026 00:00:00 +0000</pubDate>
+<description>Historical cutover-day note (2026-09-14): hub UI bumped to rc17 for paper Exchange desk (D0), SUP wallet send/activity routes, Hunt ASAN escrow pool, Dig customer-first. Superseded: installers are now published on 0.1.0-rc17 (see 2026-09-15 LIVE release).</description>
+</item>
+<item>
+<title>0.1.0-rc16 — self-update channel + signed apt + branded Linux menu</title>
+<link>https://hackme.tech/news.html#2026-08-27-release-rc16-update-channel</link>
+<guid isPermaLink="false">2026-08-27-release-rc16-update-channel</guid>
+<pubDate>Thu, 27 Aug 2026 00:00:00 +0000</pubDate>
+<description>rc16 ships miner self-update (latest.json + update_hackme_miner for Linux/Windows/HackMe OS), signed apt package hackme-node on hackme.tech/apt, branded Linux app menu, and a Windows update banner in the dashboard. ISO: HackMe-OS-0.1.0-rc16-amd64.iso SHA256 9e1c0850… — verify SHA256SUMS-iso.txt before flash.</description>
+</item>
+<item>
+<title>HackMe OS ISO rebuilt — ZK recovery phrase no longer in /var/log</title>
+<link>https://hackme.tech/news.html#2026-08-27-iso-zk-phrase-log-fix</link>
+<guid isPermaLink="false">2026-08-27-iso-zk-phrase-log-fix</guid>
+<pubDate>Thu, 27 Aug 2026 00:00:00 +0000</pubDate>
+<description>Security rebuild of HackMe-OS-0.1.0-rc15-amd64.iso: the Zero-Knowledge Start recovery phrase is no longer appended to world-readable /var/log. Display logging uses /var/lib/hackme/zk-wallet-display.log (0600); the phrase is shown on local TTYs for photography only. SHA256 94590a5b… supersedes the 2026-08-22 ISO (9158109d…). Win/Linux/fuzz binaries are unchanged; hub audit hardenings (task auth, fuzz rate limits, settle fail-closed, trusted XFF, CORS) are live on hackme.tech.</description>
+</item>
+<item>
+<title>0.1.0-rc15 LIVE — B2B fuzz Phase 2, pool anticheat, mining dashboard refresh</title>
+<link>https://hackme.tech/news.html#2026-08-22-release-rc15-b2b-fuzz-phase2</link>
+<guid isPermaLink="false">2026-08-22-release-rc15-b2b-fuzz-phase2</guid>
+<pubDate>Sat, 22 Aug 2026 00:00:00 +0000</pubDate>
+<description>rc15 is the production cut for customer fuzz on the public pool: wizard packs (secrets, script_bounds, filter_utf8, parser_expat), Scan/Audit/Deep tiers with honest byte ceilings (256 / 1K / 4K), dynamic worker leases, exec cap 64 per unit, and coverage bitmap @ WASM offset 8192. The libheif OSS research series is archived CLEAN (~2.57B exec); the #mining dashboard now prioritizes live B2B bootstrap campaigns.</description>
+</item>
+<item>
+<title>rc14x hotfix shipped — honest fuzz report/gate + depth evidence visible</title>
+<link>https://hackme.tech/news.html#2026-08-19-release-rc14x-fuzz-report-honesty</link>
+<guid isPermaLink="false">2026-08-19-release-rc14x-fuzz-report-honesty</guid>
+<pubDate>Wed, 19 Aug 2026 00:00:00 +0000</pubDate>
+<description>rc14x makes the fuzz customer reporting plane more truthful: reports now carry explicit `evidence_window` scope (fetched-window vs full-history) and disclose raw vs grouped counters (raw_findings_total, grouped_rows_visible/hidden) without changing gate/coordinator behavior.</description>
+</item>
+<item>
+<title>HackMe 0.1.0-rc14 is live — pool fuzz customer-first priority</title>
+<link>https://hackme.tech/news.html#2026-08-11-release-rc14-pool-fuzz-customer-first</link>
+<guid isPermaLink="false">2026-08-11-release-rc14-pool-fuzz-customer-first</guid>
+<pubDate>Tue, 11 Aug 2026 00:00:00 +0000</pubDate>
+<description>E2E customer order flow on Aug 11: rc14 reduced claim latency from seconds to milliseconds and improved pool throughput for real customer orders. Customer order completed 256/256 in ~26 minutes; hybrid dig is ON on customer campaigns; escrow 20/80 unchanged.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif series FINALE · Day 14/14 · ~2.57B exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-08-07-oss-cve-watch-libheif-day14-libfuzzer</link>
+<guid isPermaLink="false">2026-08-07-oss-cve-watch-libheif-day14-libfuzzer</guid>
+<pubDate>Fri, 07 Aug 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 14/14 closes the series: 316,619,059 exec in ~39.5h (~2,228/s), corpus 3215, 7509 edges, ASAN=0. Days 1–14: ~2.57B libFuzzer exec · ~325h ASAN depth · 14/14 CLEAN — not a CVE claim, a public ledger.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 13/14 · 194.25M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-08-06-oss-cve-watch-libheif-day13-libfuzzer</link>
+<guid isPermaLink="false">2026-08-06-oss-cve-watch-libheif-day13-libfuzzer</guid>
+<pubDate>Thu, 06 Aug 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 13: 23.6h libFuzzer, 194,251,153 exec at ~2,283/s. Corpus 3079, 7296 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 12/14 · 303.19M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-08-05-oss-cve-watch-libheif-day12-libfuzzer</link>
+<guid isPermaLink="false">2026-08-05-oss-cve-watch-libheif-day12-libfuzzer</guid>
+<pubDate>Wed, 05 Aug 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 12: 36.4h libFuzzer, 303,192,096 exec at ~2,316/s. Corpus 3155, 7383 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 11/14 · 140.36M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-08-04-oss-cve-watch-libheif-day11-libfuzzer</link>
+<guid isPermaLink="false">2026-08-04-oss-cve-watch-libheif-day11-libfuzzer</guid>
+<pubDate>Tue, 04 Aug 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 11: 16.1h libFuzzer, 140,357,572 exec at ~2,428/s. Corpus 3005, 7290 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 10/14 · 198.55M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-08-03-oss-cve-watch-libheif-day10-libfuzzer</link>
+<guid isPermaLink="false">2026-08-03-oss-cve-watch-libheif-day10-libfuzzer</guid>
+<pubDate>Mon, 03 Aug 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 10: 23.6h libFuzzer, 198,550,711 exec at ~2,338/s. Corpus 2975, 7255 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 9/14 · 192.77M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-08-02-oss-cve-watch-libheif-day09-libfuzzer</link>
+<guid isPermaLink="false">2026-08-02-oss-cve-watch-libheif-day09-libfuzzer</guid>
+<pubDate>Sun, 02 Aug 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 9: 23.6h libFuzzer, 192,769,931 exec at ~2,265/s. Corpus 2939, 7251 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 8/14 · 178.64M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-08-01-oss-cve-watch-libheif-day08-libfuzzer</link>
+<guid isPermaLink="false">2026-08-01-oss-cve-watch-libheif-day08-libfuzzer</guid>
+<pubDate>Sat, 01 Aug 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 8: 23.1h libFuzzer, 178,639,548 exec at ~2,147/s. Corpus 2996, 7274 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 7/14 · 228.61M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-28-oss-cve-watch-libheif-day07-libfuzzer</link>
+<guid isPermaLink="false">2026-07-28-oss-cve-watch-libheif-day07-libfuzzer</guid>
+<pubDate>Tue, 28 Jul 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 7: 27.1h libFuzzer, 228,614,810 exec at ~2,342/s. Corpus 2901, 7243 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 6/14 · 194.43M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-27-oss-cve-watch-libheif-day06-libfuzzer</link>
+<guid isPermaLink="false">2026-07-27-oss-cve-watch-libheif-day06-libfuzzer</guid>
+<pubDate>Mon, 27 Jul 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 6: 23.6h libFuzzer, 194,431,138 exec at ~2,287/s. Corpus 2793, 7189 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 5/14 · 189.55M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-26-oss-cve-watch-libheif-day05-libfuzzer</link>
+<guid isPermaLink="false">2026-07-26-oss-cve-watch-libheif-day05-libfuzzer</guid>
+<pubDate>Sun, 26 Jul 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 5: ~23.6h libFuzzer across 40 sessions, 189,546,715 exec at ~2,233/s. Corpus 2718, 7107 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 4/14 · 175.71M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-25-oss-cve-watch-libheif-day04-libfuzzer</link>
+<guid isPermaLink="false">2026-07-25-oss-cve-watch-libheif-day04-libfuzzer</guid>
+<pubDate>Sat, 25 Jul 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 4: ~23.4h libFuzzer across 54 sessions, 175,710,789 exec at ~2,085/s. Corpus 2589, 7073 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 3/14 · 139.61M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-24-oss-cve-watch-libheif-day03-libfuzzer</link>
+<guid isPermaLink="false">2026-07-24-oss-cve-watch-libheif-day03-libfuzzer</guid>
+<pubDate>Fri, 24 Jul 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 3: ~19.1h libFuzzer across 42 sessions, 139,612,677 exec at ~2,035/s. Corpus 2421, 7038 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 2/14 · 114.29M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-23-oss-cve-watch-libheif-day02-libfuzzer</link>
+<guid isPermaLink="false">2026-07-23-oss-cve-watch-libheif-day02-libfuzzer</guid>
+<pubDate>Thu, 23 Jul 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 2: 14.8h libFuzzer, 114,294,923 exec at ~2,148/s. Corpus 2071, 6785 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>Overnight pool win — 2000/2000 cjson + jsmn catch-up settled</title>
+<link>https://hackme.tech/news.html#2026-07-23-overnight-pool-customer-success</link>
+<guid isPermaLink="false">2026-07-23-overnight-pool-customer-success</guid>
+<pubDate>Thu, 23 Jul 2026 00:00:00 +0000</pubDate>
+<description>Customer bootstrap path held through the night: overnight cjson Audit finished 2000/2000 with escrow closed clean; jsmn recovered from a frozen ~1421 settle tip to full catch-up (~22.6k runs paid). Distributed workerfuzz + PoH auto-switch kept the marketplace honest without fake CVE theater.</description>
+</item>
+<item>
+<title>B2B audits that CI can trust — crash-first reports · honest Scan/Audit/Deep</title>
+<link>https://hackme.tech/news.html#2026-07-22-b2b-customer-crash-first-report</link>
+<guid isPermaLink="false">2026-07-22-b2b-customer-crash-first-report</guid>
+<pubDate>Wed, 22 Jul 2026 00:00:00 +0000</pubDate>
+<description>Customer path is productized: register → wizard (Scan · Audit · Deep) → status → HTML report + CI gate. Crash-first triage means detector noise never fails the gate. Escrow 20/80 stays transparent; PoH miners auto-switch to orders while workerfuzz fleets dig pool fuzz. Example: HackMe Bootstrap Audit · cjson — runs progressing, gate crash-first, clean / no critical crash-class.</description>
+</item>
+<item>
+<title>HackMe 0.1.0-rc12w — wallet Activity · security hardening · miners &amp; devs</title>
+<link>https://hackme.tech/news.html#2026-07-22-github-release-rc12w</link>
+<guid isPermaLink="false">2026-07-22-github-release-rc12w</guid>
+<pubDate>Wed, 22 Jul 2026 00:00:00 +0000</pubDate>
+<description>New download channel: wallet Activity tab (counterparty rollup, In/Out filter, CSV export, address labels), cleaner HMC/SUP/Transfer/Earnings UX, audit remediation on hub (dual-ledger, payout lock, admin bind, Stratum HMAC). Win/Linux + fuzz CLI + HackMe OS ISO rebuilt; SHA256 on GitHub + hackme.tech.</description>
+</item>
+<item>
+<title>OSS CVE Watch · libheif Day 1/14 · 2.11M libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-22-oss-cve-watch-libheif-day01-libfuzzer</link>
+<guid isPermaLink="false">2026-07-22-oss-cve-watch-libheif-day01-libfuzzer</guid>
+<pubDate>Wed, 22 Jul 2026 00:00:00 +0000</pubDate>
+<description>libheif Day 1: 8.0h libFuzzer, 2,107,814 exec at ~73/s. Corpus 1935, 7529 coverage edges. ASAN=0 — CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch Day 14/14 · nghttp2 · 3.03B libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-20-oss-cve-watch-day14-nghttp2-libfuzzer</link>
+<guid isPermaLink="false">2026-07-20-oss-cve-watch-day14-nghttp2-libfuzzer</guid>
+<pubDate>Mon, 20 Jul 2026 00:00:00 +0000</pubDate>
+<description>Day 14 on nghttp2: 17.0h libFuzzer depth, 3,029,631,004 executions at ~49,622 exec/s. Corpus 420 (305KB), 467 coverage edges. ASAN heap crashes: 0 — verdict CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch Day 13/14 · nghttp2 · 0.36B libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-19-oss-cve-watch-day13-nghttp2-libfuzzer</link>
+<guid isPermaLink="false">2026-07-19-oss-cve-watch-day13-nghttp2-libfuzzer</guid>
+<pubDate>Sun, 19 Jul 2026 00:00:00 +0000</pubDate>
+<description>Day 13 on nghttp2: 4.3h libFuzzer depth, 355,230,313 executions at ~23,081 exec/s. Corpus 419 (293KB), 467 coverage edges. ASAN heap crashes: 0 — verdict CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch Day 12/14 · nghttp2 · 2.39B libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-19-oss-cve-watch-day12-nghttp2-libfuzzer</link>
+<guid isPermaLink="false">2026-07-19-oss-cve-watch-day12-nghttp2-libfuzzer</guid>
+<pubDate>Sun, 19 Jul 2026 00:00:00 +0000</pubDate>
+<description>Day 12 on nghttp2: 14.2h libFuzzer depth, 2,387,073,360 executions at ~46,706 exec/s. Corpus 410 (307KB), 467 coverage edges. ASAN heap crashes: 0 — verdict CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch Day 11/14 · nghttp2 · 0.15B libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-18-oss-cve-watch-day11-nghttp2-libfuzzer</link>
+<guid isPermaLink="false">2026-07-18-oss-cve-watch-day11-nghttp2-libfuzzer</guid>
+<pubDate>Sat, 18 Jul 2026 00:00:00 +0000</pubDate>
+<description>Day 11 on nghttp2: 1.9h libFuzzer depth, 146,318,620 executions at ~21,708 exec/s. Corpus 414 (296KB), 467 coverage edges. ASAN heap crashes: 0 — verdict CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch Day 10/14 · nghttp2 · 0.38B libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-17-oss-cve-watch-day10-nghttp2-libfuzzer</link>
+<guid isPermaLink="false">2026-07-17-oss-cve-watch-day10-nghttp2-libfuzzer</guid>
+<pubDate>Fri, 17 Jul 2026 00:00:00 +0000</pubDate>
+<description>Day 10 on nghttp2: 5.0h libFuzzer depth, 384,015,656 executions at ~21,333 exec/s. Corpus 415 (297KB), 467 coverage edges. ASAN heap crashes: 0 — verdict CLEAN.</description>
+</item>
+<item>
+<title>OSS CVE Watch Day 9/14 · nghttp2 · 0.31B libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-16-oss-cve-watch-day09-nghttp2-libfuzzer</link>
+<guid isPermaLink="false">2026-07-16-oss-cve-watch-day09-nghttp2-libfuzzer</guid>
+<pubDate>Thu, 16 Jul 2026 00:00:00 +0000</pubDate>
+<description>Day 9 on nghttp2: 4.0h libFuzzer depth, 313,781,660 executions at ~21,788 exec/s. Corpus 413 (303KB), 467 coverage edges. ASAN heap crashes: 0 — verdict CLEAN.</description>
+</item>
+<item>
+<title>Public pool · miner IP privacy · hub polish</title>
+<link>https://hackme.tech/news.html#2026-07-16-pool-privacy-site-hub</link>
+<guid isPermaLink="false">2026-07-16-pool-privacy-site-hub</guid>
+<pubDate>Thu, 16 Jul 2026 00:00:00 +0000</pubDate>
+<description>Unauthenticated coordinator stats and by-wallet no longer expose last_client_ip. Research hub updated to OSS CVE Watch Day 8/14. Security rewards page + footer link; home Live pool shows workers online.</description>
+</item>
+<item>
+<title>OSS CVE Watch Day 8/14 · nghttp2 · 1.02B libFuzzer exec · CLEAN</title>
+<link>https://hackme.tech/news.html#2026-07-15-oss-cve-watch-day08-nghttp2-libfuzzer</link>
+<guid isPermaLink="false">2026-07-15-oss-cve-watch-day08-nghttp2-libfuzzer</guid>
+<pubDate>Wed, 15 Jul 2026 00:00:00 +0000</pubDate>
+<description>Eighth day on nghttp2: 8h libFuzzer depth session, 1,015,266,765 executions at ~35.3k exec/s. Corpus 418 inputs (326KB), 467 coverage edges. Zero ASAN heap crashes — eighth honest CLEAN day.</description>
+</item>
+</channel>
 </rss>

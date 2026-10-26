@@ -1,6 +1,6 @@
-# HackMe OS — GRUB2 theme (black + neon #00ff66)
+# HackMe OS — GRUB2 theme (black + dashboard neon cyan #00d1ff / matrix #39ff14)
 title-text: ""
-desktop-color: "#000000"
+desktop-color: "#05080f"
 terminal-font: "DejaVu Sans Mono Regular 12"
 terminal-box: "terminal_box_*.png"
 
@@ -10,10 +10,10 @@ terminal-box: "terminal_box_*.png"
   top = 42%
   height = 42%
   item_font = "DejaVu Sans Regular 14"
-  item_color = "#00ff66"
-  item_bg_color = "#000000"
-  selected_item_color = "#000000"
-  selected_item_bg_color = "#00ff66"
+  item_color = "#00d1ff"
+  item_bg_color = "#05080f"
+  selected_item_color = "#05080f"
+  selected_item_bg_color = "#00d1ff"
   item_height = 32
   item_padding = 10
   item_spacing = 6
@@ -25,8 +25,8 @@ terminal-box: "terminal_box_*.png"
   left = 0
   width = 100%
   align = "center"
-  text = "HACKME BARE-METAL KERNEL LOADING..."
-  color = "#00ff66"
+  text = "HACKME OS · 0.1.0-rc18 · BARE-METAL KERNEL LOADING..."
+  color = "#00d1ff"
   font = "DejaVu Sans Bold 18"
 }
 
@@ -35,8 +35,8 @@ terminal-box: "terminal_box_*.png"
   left = 0
   width = 100%
   align = "center"
-  text = ">>> useful proof-of-work · public pool · hackme.tech <<<"
-  color = "#008844"
+  text = ">>> Blake3 share-PPS · public pool · hackme.tech <<<"
+  color = "#39ff14"
   font = "DejaVu Sans Regular 12"
 }
 
@@ -45,8 +45,8 @@ terminal-box: "terminal_box_*.png"
   left = 0
   width = 100%
   align = "center"
-  text = "┌ neon rig OS ─ isolcpus · GPU max perf · zero-knowledge wallet ┐"
-  color = "#004422"
+  text = "┌ dashboard-parity neon ─ isolcpus · GPU max · zero-knowledge wallet ┐"
+  color = "#4de4ff"
   font = "DejaVu Sans Regular 11"
 }
 
@@ -56,6 +56,6 @@ terminal-box: "terminal_box_*.png"
   width = 100%
   align = "center"
   text = "Recommended = fast USB boot · Safe = nomodeset · Max = toram (8GB+ RAM)"
-  color = "#006633"
+  color = "#6d8099"
   font = "DejaVu Sans Regular 10"
 }
