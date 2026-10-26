@@ -86,6 +86,8 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
     echo "[deploy-hackme-node] go build workersettlectl (HMC settle SQLite ledger)"
     mkdir -p bin
     go build -trimpath -ldflags "-s -w" -o bin/workersettlectl ./cmd/workersettlectl
+    echo "[deploy-hackme-node] go build workerfuzz (dig pool; wasm-validate child entry)"
+    go build -trimpath -ldflags "-s -w" -o bin/workerfuzz ./cmd/workerfuzz
   fi
 fi
 
@@ -126,6 +128,7 @@ fi
 chmod 755 "\$d/hackme-node"
 if [[ -f "\$d/coordinator" ]]; then chmod 755 "\$d/coordinator"; fi
 if [[ -f "\$d/bin/workersettlectl" ]]; then chmod 755 "\$d/bin/workersettlectl"; fi
+if [[ -f "\$d/bin/workerfuzz" ]]; then chmod 755 "\$d/bin/workerfuzz"; fi
 if [[ -f "\$d/minersign" ]]; then chmod 755 "\$d/minersign"; fi
 if [[ -f "\$d/scripts/ops/systemd/hackme-node.service" ]]; then
   cp -a "\$d/scripts/ops/systemd/hackme-node.service" /etc/systemd/system/hackme-node.service
@@ -160,6 +163,10 @@ if [[ -f "\$d/.env.vps" && -f "\$d/.env.coord" ]]; then
 fi
 systemctl restart hackme-node
 systemctl restart hackme-coordinator 2>/dev/null || true
+# Dig diggers re-exec themselves for wasm-validate; restart so they pick up new bin/workerfuzz.
+for u in hackme-workerfuzz-hub-fuzz-02 hackme-workerfuzz-hub-fuzz-03 hackme-workerfuzz-hub-fuzz-04; do
+  systemctl restart "\$u" 2>/dev/null || true
+done
 sleep 2
 systemctl is-active hackme-node
 if systemctl is-enabled hackme-coordinator >/dev/null 2>&1; then
