@@ -173,11 +173,42 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 		// Missing bwrap: AllowBare or non-STRICT → bare; else fail closed.
 		return runBareIsolated(runCtx, opts, env, wall)
 	}
-	safeArgv, err := allowlistedIsolateArgv(argv)
-	if err != nil {
-		return err
+	// CodeQL go/command-injection: MatchString barriers must sit in THIS function
+	// (helpers that return slices are not treated as sanitizers).
+	if len(argv) == 0 {
+		return fmt.Errorf("hunt isolate: empty argv")
 	}
-	cmd := exec.CommandContext(runCtx, safeArgv[0], safeArgv[1:]...)
+	out := make([]string, 0, len(argv))
+	for i, raw := range argv {
+		a := strings.TrimSpace(raw)
+		if a == "" {
+			return fmt.Errorf("hunt isolate: empty argv element")
+		}
+		needAbs := i == 0 || filepath.IsAbs(a) || strings.HasPrefix(a, "/")
+		if needAbs {
+			cleaned := filepath.Clean(a)
+			if i == 0 {
+				if abs, e := filepath.Abs(cleaned); e == nil {
+					cleaned = abs
+				}
+			}
+			if !reSafeAbsPath.MatchString(cleaned) {
+				slash := filepath.ToSlash(cleaned)
+				if !reSafeAbsPathWin.MatchString(slash) {
+					return fmt.Errorf("hunt isolate: path rejected by allowlist")
+				}
+				out = append(out, cleaned)
+				continue
+			}
+			out = append(out, reSafeAbsPath.FindString(cleaned))
+			continue
+		}
+		if !reIsolateArgToken.MatchString(a) {
+			return fmt.Errorf("hunt isolate: arg rejected by allowlist")
+		}
+		out = append(out, reIsolateArgToken.FindString(a))
+	}
+	cmd := exec.CommandContext(runCtx, out[0], out[1:]...)
 	cmd.Env = env
 	if opts.Stdin != nil {
 		cmd.Stdin = opts.Stdin
@@ -201,17 +232,17 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	if opts.RSSLimitMB > 0 && cmd.Process != nil {
 		_ = setRSSLimitMB(cmd.Process.Pid, opts.RSSLimitMB)
 	}
-	err = cmd.Wait()
+	waitErr := cmd.Wait()
 	if runCtx.Err() == context.DeadlineExceeded {
 		_ = killProcessGroup(cmd)
 		return fmt.Errorf("hunt isolate: wall exceeded (%s)", wall)
 	}
 	// Post-Wait: never bare-retry. Cage setup failures (RTM_NEWADDR / uid_map)
 	// surface as errors under STRICT; forged stderr cannot unsandbox.
-	if err != nil && IsolateStrict() && !opts.AllowBare && bwrapSetupFailed(stderrBuf.String()) {
-		return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT): %v", err)
+	if waitErr != nil && IsolateStrict() && !opts.AllowBare && bwrapSetupFailed(stderrBuf.String()) {
+		return fmt.Errorf("hunt isolate: bwrap required (HACKME_HUNT_ISOLATE_STRICT): %v", waitErr)
 	}
-	return err
+	return waitErr
 }
 
 func bwrapCageFailed(err error, stderr string) bool {
@@ -275,12 +306,40 @@ func bareIsolatedCommand(ctx context.Context, bin string, args []string) *exec.C
 	if sp, err := exec.LookPath("setpriv"); err == nil {
 		argv = append([]string{sp, "--nnp", "--"}, argv...)
 	}
-	safe, err := allowlistedIsolateArgv(argv)
-	if err != nil || len(safe) == 0 {
-		// Fall back to a guaranteed-failing command rather than exec tainted argv.
+	if len(argv) == 0 {
 		return exec.CommandContext(ctx, "/bin/false")
 	}
-	return exec.CommandContext(ctx, safe[0], safe[1:]...)
+	out := make([]string, 0, len(argv))
+	for i, raw := range argv {
+		a := strings.TrimSpace(raw)
+		if a == "" {
+			return exec.CommandContext(ctx, "/bin/false")
+		}
+		needAbs := i == 0 || filepath.IsAbs(a) || strings.HasPrefix(a, "/")
+		if needAbs {
+			cleaned := filepath.Clean(a)
+			if i == 0 {
+				if abs, e := filepath.Abs(cleaned); e == nil {
+					cleaned = abs
+				}
+			}
+			if !reSafeAbsPath.MatchString(cleaned) {
+				slash := filepath.ToSlash(cleaned)
+				if !reSafeAbsPathWin.MatchString(slash) {
+					return exec.CommandContext(ctx, "/bin/false")
+				}
+				out = append(out, cleaned)
+				continue
+			}
+			out = append(out, reSafeAbsPath.FindString(cleaned))
+			continue
+		}
+		if !reIsolateArgToken.MatchString(a) {
+			return exec.CommandContext(ctx, "/bin/false")
+		}
+		out = append(out, reIsolateArgToken.FindString(a))
+	}
+	return exec.CommandContext(ctx, out[0], out[1:]...)
 }
 
 func runBareIsolated(runCtx context.Context, opts IsolateOpts, env []string, wall time.Duration) error {
@@ -354,49 +413,9 @@ func attachIsolatedStdio(cmd *exec.Cmd, stdout, stderr io.Writer, stderrTee *byt
 	}
 }
 
-// reIsolateArgToken is the CodeQL FindString barrier for non-absolute argv tokens
-// (flags, relative sources). Absolute paths use reSafeAbsPath / reSafeAbsPathWin.
+// reIsolateArgToken is the CodeQL MatchString/FindString barrier for non-absolute
+// argv tokens (flags, relative sources). Absolute paths use reSafeAbsPath.
 var reIsolateArgToken = regexp.MustCompile(`^[A-Za-z0-9._+=,@%/~:-]+$`)
-
-// allowlistedIsolateArgv rebuilds argv so every element flows through FindString
-// (CodeQL command-injection barrier for exec.Command sinks).
-func allowlistedIsolateArgv(argv []string) ([]string, error) {
-	if len(argv) == 0 {
-		return nil, fmt.Errorf("hunt isolate: empty argv")
-	}
-	out := make([]string, 0, len(argv))
-	for i, raw := range argv {
-		a := strings.TrimSpace(raw)
-		if a == "" {
-			return nil, fmt.Errorf("hunt isolate: empty argv element")
-		}
-		needAbs := i == 0 || filepath.IsAbs(a) || strings.HasPrefix(a, "/")
-		if needAbs {
-			cleaned := filepath.Clean(a)
-			if i == 0 {
-				if abs, err := filepath.Abs(cleaned); err == nil {
-					cleaned = abs
-				}
-			}
-			if m := reSafeAbsPath.FindString(cleaned); m != "" && m == cleaned {
-				out = append(out, m)
-				continue
-			}
-			slash := filepath.ToSlash(cleaned)
-			if m := reSafeAbsPathWin.FindString(slash); m != "" {
-				out = append(out, cleaned)
-				continue
-			}
-			return nil, fmt.Errorf("hunt isolate: path rejected by allowlist")
-		}
-		if m := reIsolateArgToken.FindString(a); m != "" && m == a {
-			out = append(out, m)
-			continue
-		}
-		return nil, fmt.Errorf("hunt isolate: arg rejected by allowlist")
-	}
-	return out, nil
-}
 
 func wrapBubblewrap(bin string, args []string, dir string, extraBind, extraRo []string) ([]string, bool) {
 	bwrap, err := exec.LookPath("bwrap")
