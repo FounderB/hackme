@@ -1200,6 +1200,36 @@ func TestPoolLoadCatchUpAfterRestart(t *testing.T) {
 	}
 }
 
+func TestPoolLoadRetargetRunsUnderBlake3V3(t *testing.T) {
+	// Regression: tracksChainTargetMod used to no-op load retarget while UI
+	// still advertised target_mod_load_hint ≫ target_mod_min.
+	wm := &workManager{
+		targetMod:          poolTargetModMin,
+		targetModMin:       poolTargetModMin,
+		targetModMax:       poolTargetModMax,
+		poolRetarget:       true,
+		poolRetargetMinSec: 1,
+		pohFormulaVersion:  3,
+		poolGHSmoothed:     30,
+	}
+	now := time.Now().Unix()
+	if !wm.tracksChainTargetModLocked() {
+		t.Fatal("fixture must track chain (v3)")
+	}
+	for i := 0; i < 24; i++ {
+		wm.maybeRetargetPoolLoadLocked(now+int64(i*20), 30.0, 25)
+	}
+	if wm.targetMod <= poolTargetModMin*2 {
+		t.Fatalf("v3 load retarget must raise M off the floor, got %d", wm.targetMod)
+	}
+	// Chain snap at min must not smash load-raised M back down.
+	raised := wm.targetMod
+	wm.applyChainTargetMod(poolTargetModMin, now+10_000)
+	if wm.targetMod != raised {
+		t.Fatalf("chain floor must not lower load-owned M: before=%d after=%d", raised, wm.targetMod)
+	}
+}
+
 func TestPersistPoolTargetModRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HACKME_COORDINATOR_TARGET_MOD_FILE", filepath.Join(dir, "m.txt"))

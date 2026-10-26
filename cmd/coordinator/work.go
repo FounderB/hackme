@@ -1003,10 +1003,25 @@ func (m *workManager) applyChainTargetMod(parsed uint64, now int64) {
 	if parsed == 0 {
 		return
 	}
-	// After Blake3 v3 activation, pool M tracks chain mining_target_mod so finds
-	// remain solvable on-chain and load retarget cannot pin at target_mod_max.
+	// Blake3 v3 + share-PPS: load retarget owns pool M (fleet GH → difficulty).
+	// Chain mining_target_mod is a solvability floor only — never smash pool M
+	// back to a stale/low chain tip (UI showed load_hint≈70M while M stuck at min).
 	if m.tracksChainTargetModLocked() {
 		next := m.clampTargetMod(parsed)
+		if m.poolRetarget {
+			if next > m.targetMod {
+				m.targetMod = next
+				m.targetModUpdatedUnix = now
+				persistPoolTargetMod(next)
+				if m.rewardAuto && m.baseRewardHMC > 0 {
+					m.rewardPerM = (m.baseRewardHMC * 1_000_000.0) / float64(m.targetMod)
+					if m.rewardPerM < 0 {
+						m.rewardPerM = 0
+					}
+				}
+			}
+			return
+		}
 		if next != m.targetMod {
 			m.targetMod = next
 			m.targetModUpdatedUnix = now
@@ -1226,9 +1241,7 @@ func (m *workManager) maybeEasePoolModOnStallLocked(now int64) {
 	if !m.poolRetarget {
 		return
 	}
-	if m.tracksChainTargetModLocked() {
-		return
-	}
+	// Stall easing stays active under Blake3 v3 (load-owned pool M).
 	// A recent accepted found means the gate is solvable — not stalled.
 	if m.lastFoundHitUnix > 0 && now-m.lastFoundHitUnix < poolStallEaseFoundGapSec {
 		return
@@ -1279,9 +1292,8 @@ func (m *workManager) maybeRetargetPoolLoadLocked(now int64, poolGH float64, min
 	if !m.poolRetarget || poolGH < 0.01 {
 		return
 	}
-	if m.tracksChainTargetModLocked() {
-		return
-	}
+	// Load retarget runs under Blake3 v3 too (share-PPS difficulty). Chain tip M
+	// must not freeze pool difficulty when the chain is stalled at target_mod_min.
 	if m.lastPoolRetargetUnix > 0 && now-m.lastPoolRetargetUnix < m.poolRetargetMinSec {
 		return
 	}
