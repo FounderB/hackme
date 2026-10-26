@@ -27,7 +27,6 @@ const (
 	maxWasmLocalGroups     = 32
 	maxWasmNameBytes       = 128
 	maxWasmExportNameBytes = 128
-	maxWasmBrTableTargets  = 64
 	maxWasmElemEntries     = 256
 	maxWasmDataBytes       = 4096
 )
@@ -284,28 +283,9 @@ func rejectWasmCodeBody(fn []byte) error {
 		}
 		p++ // valtype
 	}
-	// Remaining bytes are the expression; scan for br_table target vectors.
-	return rejectWasmExprInflatedVectors(fn[p:])
-}
-
-func rejectWasmExprInflatedVectors(expr []byte) error {
-	// Lightweight scan: opcode 0x0e (br_table) is followed by a vec(labelidx).
-	for i := 0; i < len(expr); i++ {
-		if expr[i] != 0x0e {
-			continue
-		}
-		p := i + 1
-		n, err := readU32LEB(expr, &p)
-		if err != nil {
-			return nil // truncated — CompileModule will fail; not our OOM path
-		}
-		if n > maxWasmBrTableTargets {
-			return errors.New("sandbox: wasm br_table too large")
-		}
-		if int(n) > len(expr)-p {
-			return errors.New("sandbox: wasm br_table exceeds body bytes")
-		}
-	}
+	// Locals capped above. Do not byte-scan expr for br_table (0x0e): that
+	// byte also appears inside LEB immediates (e.g. i64.const) and false-
+	// rejected real guard modules. Inflated br_table OOM → RLIMIT child.
 	return nil
 }
 
