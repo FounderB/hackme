@@ -2636,13 +2636,17 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		if rawGH <= 0 && wallSec >= 0.05 && wallGH > 0 {
 			rawGH = wallGH
 		}
-		// Short wall with no share GH yet: still seed adaptive leases (× batch/wall).
-		if rawGH <= 0 && wallSec >= 0.05 && wallSec < 0.5 && req.BatchSize >= blake3BootstrapBatch {
-			rawGH = clampWorkerHashrateGHS(float64(req.BatchSize) / wallSec / 1e9)
-		}
+		// Do NOT seed rawGH from batch/wall on short RTT walls. That path treated
+		// early-found 64G leases (CPU canary found=true in <1s) as hundreds of GH/s,
+		// then adaptClaimBatch grew MAX leases and share-PPS volume exploded.
+		// honestWallHashrateGHS already caps credited hashes to prevGH/bootstrap.
 		// Prefer device-reported only as an upper clamp when wall was capped (early found).
 		if reportedGH > 0 && rawGH > reportedGH*1.35 && reportedGH >= 0.5 {
 			rawGH = reportedGH
+		}
+		// Early found with no shares: do not grow adaptive leases from wall fantasy.
+		if req.Found && len(validShares) == 0 && rawGH > 0 && prevGH < 0.5 {
+			rawGH = 0
 		}
 	} else {
 		rawGH = workerHashrateGHSForSubmitFormulaMs(reportedGH, req.BatchSize, issuedAt, now, rec.IssuedAtMs, nowMs, prevGH, leaseFV)
