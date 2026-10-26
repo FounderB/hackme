@@ -118,6 +118,18 @@ func fsMkdirAllParent(p string, perm os.FileMode) error {
 	return os.MkdirAll(dir, perm)
 }
 
+// fsMkdirAll creates p after pathsafe Allow+MatchString (CodeQL path-injection barrier).
+func fsMkdirAll(p string, perm os.FileMode) error {
+	safe, err := guardPathSink(p)
+	if err != nil {
+		return err
+	}
+	if !pathsafe.AbsRE.MatchString(safe) {
+		return fmt.Errorf("hunt: path rejected by allowlist")
+	}
+	return os.MkdirAll(safe, perm)
+}
+
 func fsOpenFileCreateExcl(p string, perm os.FileMode) (*os.File, error) {
 	safe, err := guardPathSink(p)
 	if err != nil {

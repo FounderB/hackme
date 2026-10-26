@@ -172,7 +172,11 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 		// Missing bwrap: AllowBare or non-STRICT → bare; else fail closed.
 		return runBareIsolated(runCtx, opts, env, wall)
 	}
-	cmd := exec.CommandContext(runCtx, argv[0], argv[1:]...)
+	cmdPath, err := allowlistedExecPath(argv[0])
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(runCtx, cmdPath, argv[1:]...)
 	cmd.Env = env
 	if opts.Stdin != nil {
 		cmd.Stdin = opts.Stdin
@@ -196,7 +200,7 @@ func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	if opts.RSSLimitMB > 0 && cmd.Process != nil {
 		_ = setRSSLimitMB(cmd.Process.Pid, opts.RSSLimitMB)
 	}
-	err := cmd.Wait()
+	err = cmd.Wait()
 	if runCtx.Err() == context.DeadlineExceeded {
 		_ = killProcessGroup(cmd)
 		return fmt.Errorf("hunt isolate: wall exceeded (%s)", wall)
@@ -342,6 +346,26 @@ func attachIsolatedStdio(cmd *exec.Cmd, stdout, stderr io.Writer, stderrTee *byt
 	if stderrTee != nil {
 		cmd.Stderr = stderrTee
 	}
+}
+
+// allowlistedExecPath returns an absolute executable path only when it matches
+// the Hunt abs-path allowlist (CodeQL command-injection barrier via FindString).
+func allowlistedExecPath(p string) (string, error) {
+	p = filepath.Clean(strings.TrimSpace(p))
+	if p == "" {
+		return "", fmt.Errorf("hunt isolate: empty command path")
+	}
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	}
+	if m := reSafeAbsPath.FindString(p); m != "" && m == p {
+		return m, nil
+	}
+	slash := filepath.ToSlash(p)
+	if m := reSafeAbsPathWin.FindString(slash); m != "" {
+		return p, nil
+	}
+	return "", fmt.Errorf("hunt isolate: command path rejected by allowlist")
 }
 
 func wrapBubblewrap(bin string, args []string, dir string, extraBind, extraRo []string) ([]string, bool) {

@@ -63,6 +63,8 @@ func TestBuildInventoryRustHarnessFuzzTarget(t *testing.T) {
 	if err := requireRustNightlyASAN(); err != nil {
 		t.Skip(err)
 	}
+	t.Setenv("HACKME_HUNT_ISOLATE_STRICT", "0")
+	t.Setenv("HACKME_HUNT_BUILD_SANDBOX", "0")
 	dir := t.TempDir()
 	src := filepath.Join(dir, "fuzz_parse.rs")
 	body := `#![no_main]

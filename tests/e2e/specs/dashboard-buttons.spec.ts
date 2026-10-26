@@ -4,7 +4,11 @@ const ADMIN = process.env.E2E_ADMIN_TOKEN || 'e2e-admin-token-test';
 
 async function openOrdersAdvanced(page: Page) {
   await page.click('#tab-bar .tab-btn[data-tab="orders"]');
-  await page.click('#btn-orders-toggle-poh-advanced');
+  await expect(page.locator('#panel-orders')).toHaveClass(/active/, { timeout: 10_000 });
+  const toggle = page.locator('#btn-orders-toggle-poh-advanced');
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  await toggle.scrollIntoViewIfNeeded();
+  await toggle.click();
   await expect(page.locator('#orders-admin-create')).toBeVisible({ timeout: 10_000 });
 }
 

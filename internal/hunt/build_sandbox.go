@@ -138,10 +138,22 @@ func buildEphemeralHomeBinds(workDir string) (cargoHome, cacheHome string, binds
 	if base == "" {
 		base = os.TempDir()
 	}
-	cargoHome = filepath.Join(base, ".hackme-build-cargo")
-	cacheHome = filepath.Join(base, ".hackme-build-cache")
-	_ = os.MkdirAll(cargoHome, 0o700)
-	_ = os.MkdirAll(cacheHome, 0o700)
+	var err error
+	cargoHome, err = SafeJoinUnder(base, ".hackme-build-cargo")
+	if err != nil {
+		return "", "", nil, nil
+	}
+	cacheHome, err = SafeJoinUnder(base, ".hackme-build-cache")
+	if err != nil {
+		return "", "", nil, nil
+	}
+	// CodeQL path-injection barrier: only MkdirAll allowlisted absolute paths.
+	if err := fsMkdirAll(cargoHome, 0o700); err != nil {
+		return "", "", nil, nil
+	}
+	if err := fsMkdirAll(cacheHome, 0o700); err != nil {
+		return "", "", nil, nil
+	}
 	binds = []string{cargoHome, cacheHome}
 	env = []string{
 		"CARGO_HOME=" + cargoHome,
