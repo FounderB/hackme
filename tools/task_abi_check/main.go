@@ -20,6 +20,9 @@ type checkResult struct {
 }
 
 func main() {
+	if sandbox.IsValidateChildArg(os.Args) {
+		sandbox.RunValidateChildMain()
+	}
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "usage: go run ./tools/task_abi_check <wasm-file> [more.wasm ...]")
 		os.Exit(2)
