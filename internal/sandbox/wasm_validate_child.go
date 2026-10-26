@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/tetratelabs/wazero"
@@ -31,8 +30,6 @@ const (
 // Cap concurrent RLIMIT children — many parallel re-execs under AS exhaust
 // pthread_create ("Resource temporarily unavailable") and false-quarantine good gates.
 var wasmValidateChildSem = make(chan struct{}, 1)
-
-var wasmValidateChildOnce sync.Once
 
 // RunValidateChildMain is the early-process entry for node/coordinator when
 // argv contains -hackme-wasm-validate. Reads WASM from stdin, runs hostile
@@ -150,7 +147,6 @@ func wasmValidateTransientFailure(msg string) bool {
 		"pthread_create failed",
 		"resource temporarily unavailable",
 		"failed to reserve page summary memory",
-		"cannot allocate memory",
 		"start wasm-validate child",
 	} {
 		if strings.Contains(low, needle) {
