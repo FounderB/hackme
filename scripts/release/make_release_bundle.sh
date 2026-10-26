@@ -240,6 +240,16 @@ done
 [[ -f "${LINUX_DIR}/minersign" ]] && { ln -f "${LINUX_DIR}/minersign" "${LINUX_DIR}/bin/minersign" 2>/dev/null || install -m 0755 "${LINUX_DIR}/minersign" "${LINUX_DIR}/bin/minersign"; }
 cp "${ROOT_DIR}/scripts/release/linux/fix_miner_layout.sh" "${LINUX_DIR}/fix_miner_layout.sh"
 chmod +x "${LINUX_DIR}/fix_miner_layout.sh"
+echo "[release] building hackme-wasm-check (no-cgo Dig validate child; required next to workerpoh-cuda)"
+# MUST be CGO_ENABLED=0 — CUDA-linked self-reexec dies in cuInit under RLIMIT_AS.
+GOOS=linux GOARCH="${LINUX_ARCH}" CGO_ENABLED=0 \
+  go build -trimpath -buildvcs=true -ldflags "-s -w" -o "${LINUX_DIR}/hackme-wasm-check" ./cmd/hackme-wasm-check
+GOOS=windows GOARCH="${WIN_ARCH}" CGO_ENABLED=0 \
+  go build -trimpath -buildvcs=true -ldflags "-s -w" -o "${WIN_DIR}/hackme-wasm-check.exe" ./cmd/hackme-wasm-check
+ln -f "${LINUX_DIR}/hackme-wasm-check" "${LINUX_DIR}/bin/hackme-wasm-check" 2>/dev/null || \
+  install -m 0755 "${LINUX_DIR}/hackme-wasm-check" "${LINUX_DIR}/bin/hackme-wasm-check"
+assert_bin_markers "${LINUX_DIR}/hackme-wasm-check" "-hackme-wasm-validate" "hackme-wasm-validate-child" || exit 1
+
 echo "[release] building workerfuzz (pool dig; hybrid process mode + dedicated diggers)"
 WF_LDFLAGS="-s -w -X hackme/internal/workerfuzzloop.Version=${VERSION}"
 GOOS=linux GOARCH="${LINUX_ARCH}" CGO_ENABLED="${CGO_ENABLED}" \
@@ -248,6 +258,12 @@ GOOS=windows GOARCH="${WIN_ARCH}" CGO_ENABLED="${CGO_ENABLED}" \
   go build -trimpath -ldflags "${WF_LDFLAGS}" -o "${WIN_DIR}/workerfuzz.exe" ./cmd/workerfuzz
 ln -f "${LINUX_DIR}/workerfuzz" "${LINUX_DIR}/bin/workerfuzz" 2>/dev/null || \
   install -m 0755 "${LINUX_DIR}/workerfuzz" "${LINUX_DIR}/bin/workerfuzz"
+# CUDA Dig uses sibling checker; fail closed if cuda ships without it.
+if [[ -x "${LINUX_DIR}/workerpoh-cuda" && ! -x "${LINUX_DIR}/hackme-wasm-check" ]]; then
+  echo "[release] ERROR: workerpoh-cuda present but hackme-wasm-check missing" >&2
+  exit 1
+fi
+
 echo "[release] building fleetplan (GPU fleet JSON)"
 GOOS=linux GOARCH="${LINUX_ARCH}" CGO_ENABLED=0 \
   go build -trimpath -buildvcs=true -ldflags "${LDFLAGS}" -o "${LINUX_DIR}/fleetplan" ./cmd/fleetplan

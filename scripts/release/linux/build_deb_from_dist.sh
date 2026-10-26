@@ -33,7 +33,7 @@ fi
 PKG="${STAGE}/pkg"
 mkdir -p "${PKG}/opt/hackme/data" "${PKG}/opt/hackme/logs" "${PKG}/usr/share/doc/hackme-node"
 install -m 0755 "${SRC}/hackme" "${PKG}/opt/hackme/hackme"
-for b in workerpoh workerfuzz minersign fleetplan workerpoh-opencl workerpoh-cuda; do
+for b in workerpoh workerfuzz minersign fleetplan workerpoh-opencl workerpoh-cuda hackme-wasm-check; do
   [[ -f "${SRC}/${b}" ]] && install -m 0755 "${SRC}/${b}" "${PKG}/opt/hackme/${b}"
 done
 [[ -d "${SRC}/bin" ]] && cp -a "${SRC}/bin" "${PKG}/opt/hackme/bin"

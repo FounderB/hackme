@@ -28,20 +28,30 @@ if (-not $poolToken -or $poolToken -eq "REPLACE_WITH_POOL_TOKEN" -or $poolToken 
 
 $envPath = Join-Path $dir "hackme.env"
 $admin = ""
+$existingWid = ""
 if (Test-Path $envPath) {
     foreach ($line in [System.IO.File]::ReadAllLines($envPath)) {
         if ($line -match '^\s*HACKME_ADMIN_TOKEN=(.*)$') {
             $admin = ($Matches[1] -replace '^["'']|["'']$', '').Trim()
-            break
+        }
+        if ($line -match '^\s*WORKER_ID=(.*)$') {
+            $existingWid = ($Matches[1] -replace '^["'']|["'']$', '').Trim()
         }
     }
 }
 # Empty / placeholder admin must be regenerated - blank env var blocks Go dotenv load and breaks dashboard Mining API.
+$freshIdentity = $false
 if (-not $admin -or $admin -match '^(REPLACE|YOUR_|CHANGE_ME)') {
     $b = New-Object byte[] 24
     [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
     $admin = ($b | ForEach-Object { $_.ToString("x2") }) -join ""
+    $freshIdentity = $true
 }
+# New wallet/seed under a reused hostname WORKER_ID hits coordinator payout_address_locked (0 GH).
+# Preserve WID on repair; on fresh identity mint a unique suffix.
+$seedPath = Join-Path -Path $dir -ChildPath "data\miner_submit_ed25519_seed.hex"
+if (-not (Test-Path -LiteralPath $seedPath)) { $freshIdentity = $true }
+
 
 # Rig profile / batch defaults
 $batch = 16777216
@@ -111,9 +121,19 @@ if (-not (Test-Path -LiteralPath (Join-Path -Path $dir -ChildPath "data"))) {
     New-Item -ItemType Directory -Path (Join-Path -Path $dir -ChildPath "data") -Force | Out-Null
 }
 
-$hostWid = 'worker-' + (($env:COMPUTERNAME).ToLower() -replace '[^a-z0-9-]', '-')
-$hostWid = $hostWid.Trim('-')
-if (-not $hostWid -or $hostWid -eq 'worker-') { $hostWid = 'worker-desktop' }
+$hostBase = 'worker-' + (($env:COMPUTERNAME).ToLower() -replace '[^a-z0-9-]', '-')
+$hostBase = $hostBase.Trim('-')
+if (-not $hostBase -or $hostBase -eq 'worker-') { $hostBase = 'worker-desktop' }
+$hostWid = $hostBase
+if ($existingWid -and -not $freshIdentity) {
+    $hostWid = $existingWid
+} elseif ($freshIdentity -or -not $existingWid) {
+    $sb = New-Object byte[] 3
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($sb)
+    $suf = ($sb | ForEach-Object { $_.ToString("x2") }) -join ""
+    $hostWid = "$hostBase-$suf"
+}
+
 
 $lines = @(
     "HACKME_PUBLIC_AUTHORITY_BASE=https://hackme.tech",

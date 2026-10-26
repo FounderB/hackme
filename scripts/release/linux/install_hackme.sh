@@ -72,7 +72,7 @@ echo "[install] installing to ${INSTALL_DIR}"
 mkdir -p "${INSTALL_DIR}/bin" "${INSTALL_DIR}/scripts/ops" "${INSTALL_DIR}/data" "${INSTALL_DIR}/logs"
 install -m 0755 "${PAYLOAD_DIR}/hackme" "${INSTALL_DIR}/hackme"
 install -m 0644 "${PAYLOAD_DIR}/README.md" "${INSTALL_DIR}/README.md" || true
-for b in workerpoh workerfuzz minersign fleetplan workerpoh-opencl workerpoh-cuda workerpoh-cpu; do
+for b in workerpoh workerfuzz minersign fleetplan workerpoh-opencl workerpoh-cuda workerpoh-cpu hackme-wasm-check; do
   if [[ -f "${PAYLOAD_DIR}/${b}" ]]; then
     install -m 0755 "${PAYLOAD_DIR}/${b}" "${INSTALL_DIR}/${b}"
   fi

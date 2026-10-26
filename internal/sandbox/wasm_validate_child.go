@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +29,9 @@ const (
 	defaultWasmValidateWallMS        = 3000
 	wasmValidateArg                  = "-hackme-wasm-validate"
 	wasmValidateOK                   = "OK\n"
+	// Printed to stderr before RLIMIT/wazero so the parent can tell a real
+	// sandbox child from a GPU binary that died in cuInit under AS limit.
+	wasmValidateChildMarker = "hackme-wasm-validate-child"
 
 	// Child process exit codes (prefer over attacker-controlled stderr text).
 	wasmValidateExitOK        = 0
@@ -45,7 +49,11 @@ var wasmValidateChildSem = make(chan struct{}, 2)
 // of VmSize+budget, runs the same interpreter path as the hub (compile +
 // instantiate + check-export probe), prints OK or error.
 func RunValidateChildMain() {
-	// First action: pin AS relative to this process's already-warm Go runtime.
+	// Prove we entered sandbox code before any driver/RLIMIT work. Parents that
+	// re-exec a CUDA-linked binary never reach here (cuInit dies first).
+	_, _ = os.Stderr.WriteString(wasmValidateChildMarker + "\n")
+
+	// Pin AS relative to this process's already-warm Go runtime.
 	// Parent prlimit-after-Start races mallocinit; self-limit does not.
 	_ = applySelfWasmValidateASLimit(wasmValidateChildBudgetMB())
 
@@ -184,8 +192,8 @@ func wasmValidateChildDisabled() bool {
 	return false
 }
 
-// wasmValidateTransientFailure is a Go-runtime / capacity failure under RLIMIT_AS,
-// not proof the module is hostile. Callers must not quarantine on these.
+// wasmValidateTransientFailure is a Go-runtime / capacity / infra failure under
+// RLIMIT_AS, not proof the module is hostile. Callers must not quarantine.
 func wasmValidateTransientFailure(msg string) bool {
 	low := strings.ToLower(msg)
 	for _, needle := range []string{
@@ -193,6 +201,12 @@ func wasmValidateTransientFailure(msg string) bool {
 		"resource temporarily unavailable",
 		"failed to reserve page summary memory",
 		"start wasm-validate child",
+		"wasm-validate child infra",
+		"no sandbox marker",
+		"outofmemory",
+		"out of memory",
+		"error in initialization",
+		"cuinit",
 	} {
 		if strings.Contains(low, needle) {
 			return true
@@ -201,15 +215,72 @@ func wasmValidateTransientFailure(msg string) bool {
 	return false
 }
 
-// validateWasmInChild runs CompileModule in a self-reexec child with RLIMIT_AS.
-// If the child OOMs or times out, the module is rejected and this process lives.
+// resolveWasmValidateBin picks a no-GPU validate helper when present.
+// Prefer HACKME_WASM_VALIDATE_BIN, then sibling hackme-wasm-check / workerfuzz,
+// else self-reexec (safe for CPU-only binaries; CUDA self-reexec is infra-fail).
+func resolveWasmValidateBin() (string, error) {
+	if v := strings.TrimSpace(os.Getenv("HACKME_WASM_VALIDATE_BIN")); v != "" {
+		if st, err := os.Stat(v); err == nil && !st.IsDir() {
+			return v, nil
+		}
+		return "", fmt.Errorf("sandbox: HACKME_WASM_VALIDATE_BIN not found: %s", v)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("sandbox: resolve executable: %w", err)
+	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		exe, _ = os.Executable()
+	}
+	dir := filepath.Dir(exe)
+	candidates := []string{
+		filepath.Join(dir, "hackme-wasm-check"),
+		filepath.Join(dir, "hackme-wasm-check.exe"),
+		filepath.Join(dir, "workerfuzz"),
+		filepath.Join(dir, "workerfuzz.exe"),
+		filepath.Join(dir, "bin", "hackme-wasm-check"),
+		filepath.Join(dir, "bin", "workerfuzz"),
+	}
+	for _, c := range candidates {
+		if sameFilePath(c, exe) {
+			continue
+		}
+		if st, err := os.Stat(c); err == nil && !st.IsDir() {
+			return c, nil
+		}
+	}
+	return exe, nil
+}
+
+func sameFilePath(a, b string) bool {
+	a = filepath.Clean(a)
+	b = filepath.Clean(b)
+	if strings.EqualFold(a, b) {
+		return true
+	}
+	aa, err1 := filepath.EvalSymlinks(a)
+	bb, err2 := filepath.EvalSymlinks(b)
+	if err1 == nil && err2 == nil {
+		return strings.EqualFold(aa, bb)
+	}
+	return false
+}
+
+func wasmValidateChildHasMarker(stdout, stderr string) bool {
+	return strings.Contains(stderr, wasmValidateChildMarker) ||
+		strings.Contains(stdout, wasmValidateChildMarker)
+}
+
+// validateWasmInChild runs CompileModule in a RLIMIT_AS child.
+// Prefers sibling hackme-wasm-check (no cgo/CUDA) over self-reexec.
 func validateWasmInChild(ctx context.Context, wasm []byte) error {
 	if wasmValidateChildDisabled() {
 		return validateWasmInProcess(ctx, wasm)
 	}
-	exe, err := os.Executable()
+	bin, err := resolveWasmValidateBin()
 	if err != nil {
-		return fmt.Errorf("sandbox: resolve executable: %w", err)
+		return fmt.Errorf("sandbox: start wasm-validate child: %w", err)
 	}
 	select {
 	case wasmValidateChildSem <- struct{}{}:
@@ -220,7 +291,7 @@ func validateWasmInChild(ctx context.Context, wasm []byte) error {
 	wall := wasmValidateWall()
 	runCtx, cancel := context.WithTimeout(ctx, wall)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, exe, wasmValidateArg)
+	cmd := exec.CommandContext(runCtx, bin, wasmValidateArg)
 	cmd.Stdin = bytes.NewReader(wasm)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -235,8 +306,23 @@ func validateWasmInChild(ctx context.Context, wasm []byte) error {
 	// first, we only set the high ceiling so mallocinit can finish.
 	_ = setWasmValidateASLimit(cmd.Process.Pid, wasmValidateASMB())
 	waitErr := cmd.Wait()
+	outStr := stdout.String()
+	errStr := stderr.String()
+	hasMarker := wasmValidateChildHasMarker(outStr, errStr)
 	if runCtx.Err() == context.DeadlineExceeded {
+		if !hasMarker {
+			return fmt.Errorf("sandbox: wasm-validate child infra: no sandbox marker (wall exceeded)")
+		}
 		return fmt.Errorf("sandbox: wasm-validate child wall exceeded")
+	}
+	if !hasMarker {
+		// CUDA/OpenCL-linked self-reexec often dies in driver init under AS
+		// cap (exit 1, "OutOfMemory") before sandbox.init runs — not a bad module.
+		detail := strings.TrimSpace(errStr)
+		if detail == "" {
+			detail = "empty stderr"
+		}
+		return fmt.Errorf("sandbox: wasm-validate child infra: no sandbox marker (%s)", detail)
 	}
 	if waitErr != nil {
 		exitCode := -1
@@ -247,13 +333,13 @@ func validateWasmInChild(ctx context.Context, wasm []byte) error {
 		if exitCode == wasmValidateExitTransient {
 			return fmt.Errorf("sandbox: wasm-validate child: resource temporarily unavailable")
 		}
-		msg := strings.TrimSpace(stderr.String())
+		msg := strings.TrimSpace(errStr)
 		if msg == "" {
 			msg = waitErr.Error()
 		}
 		return fmt.Errorf("sandbox: wasm-validate child failed: %s", msg)
 	}
-	if !strings.HasPrefix(stdout.String(), "OK") {
+	if !strings.HasPrefix(outStr, "OK") {
 		return fmt.Errorf("sandbox: wasm-validate child missing OK")
 	}
 	return nil

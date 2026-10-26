@@ -4,7 +4,7 @@
   "cve_candidates": [],
   "informational_targets": [],
   "clean_targets": [
-    "xchange"
+    "microtar"
   ],
   "hold_disclosure": [
     "centijson",
@@ -30,8 +30,8 @@
     "gpslib",
     "jes"
   ],
-  "wave": "xchange",
-  "started_at": "2026-10-26T14:24:42Z",
-  "finished_at": "2026-10-26T14:52:53Z",
+  "wave": "microtar",
+  "started_at": "2026-10-26T18:38:39Z",
+  "finished_at": "2026-10-26T19:01:25Z",
   "publish_allowed": true
 }

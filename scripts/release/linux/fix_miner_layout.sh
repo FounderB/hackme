@@ -41,10 +41,12 @@ for wp in workerpoh workerpoh-opencl workerpoh-cuda workerpoh-cpu; do
 done
 link_bin fleetplan
 link_bin minersign
+link_bin workerfuzz
+link_bin hackme-wasm-check
 
 chmod +x scripts/ops/*.sh 2>/dev/null || true
 chmod +x worker_autostart.sh detect_gpu_backend.sh 2>/dev/null || true
-chmod +x hackme workerpoh* minersign fleetplan 2>/dev/null || true
+chmod +x hackme workerpoh* minersign fleetplan workerfuzz hackme-wasm-check 2>/dev/null || true
 
 echo "[fix] miner layout OK: ${INSTALL_DIR}"
 echo "[fix] scripts/ops:"

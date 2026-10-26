@@ -1,0 +1,114 @@
+# Windows AMD E2E — HackMe 0.1.0-rc18
+
+**Host:** `192.168.1.118` (DESKTOP-1RGP4GE) · User: Cyrillic `Ярослав` · **GPU:** AMD Radeon RX 580 2048SP · OpenCL.dll present  
+**Date:** 2026-10-26 (local test window ~23:09–23:45 UTC+5)  
+**Release:** https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18  
+
+Tokens/seeds redacted. No secrets below.
+
+---
+
+## Checklist (PASS/FAIL)
+
+| Step | Result | Timing / notes |
+|------|--------|----------------|
+| **A1** OS/GPU/OpenCL baseline | **PASS** | Win10 Pro 19045; RX 580 driver 31.0.12027.9001; OpenCL.dll System32+SysWOW64 |
+| **A2** Prior install noted | **PASS** | Was **HackMe Miner 0.1.0-rc11r** in `C:\Program Files\HackMe`; opencl marker **FAIL** on old binary; no procs running |
+| **B1** Stop processes | **PASS** | taskkill hackme/workerpoh |
+| **B2** Uninstall Inno | **PASS** | `unins000.exe /VERYSILENT` exit 0 in **2.3s** |
+| **B3** Remove leftovers | **PASS** | PF\HackMe removed; desktop shortcut removed |
+| **B4** Confirm clean | **PASS** | PF_HackMe=False, procs=0 |
+| **C1** Download Setup.exe | **PASS** | Size **12 830 614** B; SHA256 **PASS** (`9c2e7ac2…885eea`); ~cached / few seconds |
+| **C2** Silent install | **PASS*** | `/VERYSILENT /NORESTART /SUPPRESSMSGBOXES` exit 0 in **~5.6s**. *No elevation → per-user* `%LOCALAPPDATA%\HackMe` (not Program Files) |
+| **C3** Install contents | **PASS** | hackme.exe, workerpoh*.exe, workerpoh-opencl.exe, pool.miner.token, hackme.env, bats; **workerfuzz.exe MISSING** in Setup payload (has `hackme-fuzzing.exe` instead); `start_hackme_orders.bat` present |
+| **C4** opencl `-hackme-wasm-validate` marker | **PASS** | String in binary **PASS**; run → **not** “flag provided but not defined”; exit 2 `sandbox: wasm size…` (flag defined) |
+| **C5** Embedded version/vcs | **PASS** | `vcs.revision=4bafcc3cbf5c96ee5f85f1cc8093bb6cd3f6e0ed`; build_date status `2026-10-26T17:21:04Z`; commit `4bafcc3cbf5c` |
+| **C6** Start miner / TTFB dashboard | **PASS** | `start_hackme_miner.bat`; bind `127.0.0.1:8080`; **TTFB ~3.8s** (later runs 2.9–3.9s) |
+| **C7** Worker + OpenCL + pool | **PASS*** | workerpoh-opencl @ **~6–10s**; OpenCL Ellesmere; default CF URL hit **payout_address_locked** on stale `WORKER_ID=worker-desktop-1rgp4ge` → **0 GH** for ~5 min. After **pool-direct** `http://132.243.112.100:18083` + **fresh WORKER_ID**: **submit ok ~1.27–1.33 GH/s** |
+| **C8** Dashboard smoke | **PASS** | `/` 200, `/api/status` 200, `/api/metrics` 200, `/api/work/stats` 200 |
+| **D1** Orders UI/API | **PARTIAL** | `start_hackme_orders.bat` present (B2B/toolchains). Local `/api/orders*` → 404 on node (expected; orders not that route). Pool fuzz marketplace **200** |
+| **D2** Campaigns / pool stats | **PASS** | Direct `:18083` `/api/fuzz/pool/campaigns/list` 200; `/api/fuzz/pool/stats` 200; `/api/pool/stats` 200; `/api/work/stats` 200. No paid order placed |
+| **D3** Dig/Hunt hybrid defaults | **PASS** | `HACKME_WORKER_HYBRID_FUZZ=1` `MODE=inline` in env; log: hybrid fuzz ON inline. Fuzz claims → **429 no_fuzz_work** (no spend). Setup lacks `workerfuzz.exe` (inline dig uses workerpoh) |
+| **E1** Uninstall Setup again | **PASS** | |
+| **E2** Download ZIP | **PASS** | `windows_setup.zip` **34 180 786** B in **5.3s**; SHA256 **PASS** (`9f6ba997…391fa`) |
+| **E3** Extract + setup_hackme_miner.bat | **PASS*** | Extract **2.0s**. `setup_hackme_miner.bat -Wait` can **hang** on interactive pause; env was written; prefer `write_hackme_env.ps1 -NonInteractive` |
+| **E4** ZIP miner + marker/OpenCL/pool | **PASS** | marker PASS; workerpoh-opencl; **TTFB 3.1s**; worker **5s**; **ghs=1.32** @ **10.1s**; OpenCL Ellesmere calibrated |
+| **E5** ZIP vs Setup compare | **PASS** (delta noted) | ZIP includes **workerfuzz.exe** (13.9 MB); Setup AppData install **did not**. Both: opencl marker PASS, pool.miner.token, orders bat. Same opencl binary size 14203904 |
+| **G** Leave sane miner | **PASS** | Setup path `%LOCALAPPDATA%\HackMe` running; pool-direct + fresh WID; ~1.33 GH/s; dash 200 |
+
+\* = caveat in notes.
+
+---
+
+## Timings summary
+
+| Metric | Value |
+|--------|-------|
+| Uninstall rc11r | 2.3 s |
+| Setup.exe size / SHA | 12.8 MB / match |
+| Silent Setup install | ~5.6 s (per-user) |
+| ZIP download | 5.3 s / 34.2 MB / SHA match |
+| ZIP extract | 2.0 s |
+| TTFB dashboard (:8080) | **2.9–3.9 s** |
+| First workerpoh-opencl | **5–10 s** after start |
+| First non-zero GH (after WID fix) | **~5–10 s** (log `submit ok` / `ghs≈1.27–1.33`) |
+| Reinstall Setup (final) | 4.2 s |
+
+---
+
+## Blockers / findings
+
+1. **Silent install without admin** installs to `%LOCALAPPDATA%\HackMe`, not `C:\Program Files\HackMe`. Registry: `HackMe 0.1.0-rc18` HKCU uninstall.
+2. **Stale `WORKER_ID=worker-desktop-1rgp4ge`** → coordinator `payout_address_locked` (locked HMC ≠ seed-derived HMC) → claims 403, **zero hashrate**. Fix: new WORKER_ID (or unlock on coordinator).
+3. Default installer COORD URL `https://hackme.tech/pool/coordinator` works intermittently; **cleartext pool-direct `http://132.243.112.100:18083` reliable** on this LAN (as docs say).
+4. **Setup.exe payload missing `workerfuzz.exe`**; ZIP has it. Hybrid inline still digs via workerpoh (429 no_fuzz_work when empty).
+5. `setup_hackme_miner.bat` can block on **pause** under SSH `-Wait`; use `-NonInteractive` write script for automation.
+6. No Defender quarantine / VCRedist / OpenCL ICD failures observed during this run.
+7. Local node `/api/orders` 404; marketplace exercised via pool APIs + `start_hackme_orders.bat` presence.
+
+---
+
+## OpenCL marker
+
+- **PASS** on both Setup and ZIP `workerpoh-opencl.exe` (string `-hackme-wasm-validate` present).
+- CLI: flag **defined** (not “flag provided but not defined”).
+
+---
+
+## Orders / marketplace
+
+- `start_hackme_orders.bat` shipped (Setup + ZIP).
+- Pool-direct: campaigns/list, fuzz/pool/stats, pool/stats, work/stats → **200**.
+- Hybrid fuzz defaults **ON** (`inline`).
+- No real-money order create (gated / not required); local order API paths 404 on miner node.
+
+---
+
+## Final machine state
+
+- **Running:** `%LOCALAPPDATA%\HackMe` (Setup 0.1.0-rc18)
+- **Processes:** `hackme.exe` + `workerpoh-opencl.exe`
+- **COORD:** `http://132.243.112.100:18083` (pool-direct)
+- **WORKER_ID:** `worker-win-rc18-live-*` (fresh; avoids lock)
+- **GPU:** OpenCL / `amd_rx580_2048sp` · **~1.33 GH/s**
+- **Dashboard:** http://127.0.0.1:8080/
+- **Also on disk:** `%USERPROFILE%\HackMe-rc18-zip` (stopped); Downloads Setup.exe + windows_setup.zip
+
+### How to start again
+
+```text
+%LOCALAPPDATA%\HackMe\start_hackme_miner.bat
+```
+
+If claims 403 locked: set a new `WORKER_ID=` in `hackme.env` (keep seed) or use pool-direct URL as above.
+
+---
+
+## Follow-up (code, next Windows rebuild)
+
+Applied in-tree after this E2E (not yet in published `0.1.0-rc18` assets):
+
+1. `scripts/release/windows/hackme.iss` — ship `workerfuzz.exe` in Setup (parity with ZIP).
+2. `scripts/release/windows/write_hackme_env.ps1` — on fresh identity mint `WORKER_ID=worker-<host>-<hex>` so reinstall does not hit `payout_address_locked`; preserve WID on repair.
+3. `docs/MINER_WINDOWS_ONE_CLICK.md` — AppData silent path, lock tip, `HACKME_SETUP_NONINTERACTIVE=1`.
+

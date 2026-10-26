@@ -4,22 +4,26 @@
 
 1. Download **`HackMe-Setup-<version>.exe`** from https://hackme.tech/downloads.html  
    (not the `HackMe` folder from GitHub sources).
-2. Run the installer → **Next** → installation in `C:\Program Files\HackMe` (default).
-3. Master himself:
-   - copies `hackme.exe`, `workerpoh`, pool token;
-   - will create `hackme.env` and a **HackMe Miner** shortcut on the desktop;
-   - writes the installation path to the registry (`HKLM\Software\HackMe Network\HackMe`).
-4. At the end, mark **Start HackMe Miner** - the browser will open on the **Mining** tab.
-5. Keep the **HackMe Miner** window open (node ​​is spinning in it). The worker starts on its own in ~10 s.
-6. **Watchdog:** if the GPU/worker fails - `watchdog_pool_worker.bat` and node will restart mining automatically (log: `logs\watchdog_worker.log`).
+2. Run the installer → **Next** → installation in `C:\Program Files\HackMe` (default; needs admin).  
+   Silent `/VERYSILENT` **without** elevation installs per-user to `%LOCALAPPDATA%\HackMe` instead — that still works.
+3. The installer:
+   - copies `hackme.exe`, `workerpoh` / `workerpoh-opencl`, `workerfuzz`, pool token;
+   - creates `hackme.env` and a **HackMe Miner** shortcut on the desktop;
+   - writes uninstall/registry entries (HKLM when elevated, else HKCU).
+4. At the end, mark **Start HackMe Miner** — the browser opens on the **Mining** tab.
+5. Keep the **HackMe Miner** window open (node is spinning in it). The worker starts on its own in ~10 s.
+6. **Watchdog:** if the GPU/worker fails — `watchdog_pool_worker.bat` and node will restart mining automatically (log: `logs\watchdog_worker.log`).
 
-**The pool token is not needed manually** - it is in `pool.miner.token` inside the installer.
+**The pool token is not needed manually** — it is in `pool.miner.token` inside the installer.
+
+**If hashrate stays 0 / claims 403 `payout_address_locked`:** the hostname `WORKER_ID` was reused with a new miner seed. Set a new `WORKER_ID=` in `hackme.env` (or re-run `write_hackme_env.ps1`, which mints a unique suffix on fresh installs) and restart the miner. Keep the same seed if you only meant to upgrade in place.
 
 ## Alternative: ZIP (advanced)
 
 1. Download **`hackme_*_windows_setup.zip`** (flat archive).
-2. Extract to any folder → run **`setup_hackme_miner.bat`** once.
-3. **`Start HackMe Miner.bat`** - as in the installer.
+2. Extract to any folder → run **`setup_hackme_miner.bat`** once.  
+   Automation: `set HACKME_SETUP_NONINTERACTIVE=1` before the bat (skips `pause`).
+3. **`Start HackMe Miner.bat`** — as in the installer.
 
 ## Delete
 
