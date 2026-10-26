@@ -4,8 +4,8 @@
       "id": "2026-10-26-rc18-live",
       "date": "2026-10-26",
       "title": "0.1.0-rc18 — Blake3 share-PPS LIVE · CUDA/OpenCL · ISO channel",
-      "summary": "Current release channel is 0.1.0-rc18. Public pool runs SHARE_STRICT share-PPS: verified Blake3 share_nonces (work % (M/1024) == 0) pay. Pool hashrate kind is blake3_pow_ghs (shares/wall). NVIDIA CUDA and AMD OpenCL Blake3 miners are supported (see BLAKE3_GPU_MATRIX). Dig/Hunt remain useful-work lanes; Hunt needs Linux+bwrap. Legacy soft-mode copy is retired.",
-      "impact": "Upgrade workers/installers to 0.1.0-rc18. Dashboard What's new + miner notices match share-PPS. Historical rc17.x notes stay in the archive below.",
+      "summary": "Current release channel is 0.1.0-rc18. Public pool runs SHARE_STRICT share-PPS: verified Blake3 share_nonces (work % (M/1024) == 0) pay. Pool hashrate kind is blake3_pow_ghs (shares/wall). NVIDIA CUDA and AMD OpenCL Blake3 miners are supported (see BLAKE3_GPU_MATRIX); OpenCL workers ship with wasm-validate markers and matching vcs.revision. Dig/Hunt remain useful-work lanes; Hunt needs Linux+bwrap. Legacy soft-mode copy is retired. Self-update remains sha256-only (known pre-1.0). Pool-direct miners use cleartext :18083 until pool-direct.hackme.tech has Let's Encrypt.",
+      "impact": "Upgrade workers/installers to 0.1.0-rc18 (replace any stale OpenCL bins). Dashboard What's new + miner notices match share-PPS. Historical rc17.x notes stay in the archive below.",
       "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18 · Economics: https://hackme.tech/economics-model.html",
       "tags": [
         "release",

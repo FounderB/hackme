@@ -725,8 +725,9 @@ func hardenHTTPHandler(next http.Handler) http.Handler {
 			"img-src 'self' data: blob:",
 			"connect-src 'self' https: http://127.0.0.1:8080 http://127.0.0.1:18080 http://127.0.0.1:18081 http://127.0.0.1:18082 http://127.0.0.1:18443 http://127.0.0.1:5199 http://localhost:5199 http://[::1]:5199",
 			"frame-src 'self' https://exchange.hackme.tech http://127.0.0.1:5199 http://localhost:5199 http://[::1]:5199",
-			// Framing locked by X-Frame-Options: DENY (above). Omit frame-ancestors so
-			// browsers do not double-enforce conflicting CSP/meta copies on local UI.
+			// Prefer frame-ancestors in the HTTP header (meta CSP ignores it). Keep
+			// X-Frame-Options: DENY above; ancestors list documents allowed parents.
+			"frame-ancestors 'none'",
 			"base-uri 'self'",
 			"form-action 'self'",
 		}, "; "))

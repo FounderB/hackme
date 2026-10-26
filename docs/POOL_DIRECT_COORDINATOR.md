@@ -6,9 +6,9 @@ High-GH GPU miners can hit the origin directly to avoid CF timeouts on claim/sub
 
 | Mode | URL | Notes |
 |------|-----|-------|
-| **TLS (preferred)** | `https://132.243.112.100:18443` | Same miner allowlist; origin leaf `CN=hackme.tech`. Fleet may keep cleartext until cert trust is rolled out. |
-| **Cleartext (legacy fleet)** | `http://132.243.112.100:18083` | Still live for GPU fleet; prefer TLS when clients trust the origin cert. |
-| **DNS (planned)** | `https://pool-direct.hackme.tech:18443` | Requires **DNS-only** (grey-cloud) A → `132.243.112.100`. Orange-cloud CF proxy defeats the bypass. |
+| **Cleartext (current / default)** | `http://132.243.112.100:18083` | **Use this today.** No TLS — traffic (incl. worker token) is plaintext. Fleet default until a trusted leaf exists. |
+| **TLS by IP (lab only)** | `https://132.243.112.100:18443` | Self-signed `CN=hackme.tech` **without IP SANs** — stock Go workers reject it (`x509: … doesn't contain any IP SANs`). Do **not** put this URL in miner env. |
+| **TLS by DNS (target)** | `https://pool-direct.hackme.tech:18443` | Requires **DNS-only** (grey-cloud) A → `132.243.112.100` + Let's Encrypt (or other public CA). Then workers work without custom RootCAs. Orange-cloud CF proxy defeats the bypass. |
 
 - Auth: **pool worker / join token** only (public `pool.miner.token` or operator-issued worker credential). Miner claim/submit paths do **not** use operator admin credentials.
 - Nginx: `deploy/nginx/hackme-pool-direct.conf` (:18083) + `deploy/nginx/hackme-pool-direct-tls.conf` (:18443) → shared snippet `deploy/nginx/snippets/hackme-pool-direct-locations.conf` → `127.0.0.1:18081`
@@ -19,21 +19,21 @@ High-GH GPU miners can hit the origin directly to avoid CF timeouts on claim/sub
 ## Worker config (no binary rebuild)
 
 ```bash
-# Prefer TLS when the client trusts the origin cert:
-export COORD_URL=https://132.243.112.100:18443
-export HACKME_POOL_COORDINATOR_URL=https://132.243.112.100:18443
-# Legacy cleartext (current fleet default until TLS trust lands):
-# export COORD_URL=http://132.243.112.100:18083
+# Current working path (cleartext — documented honestly):
+export COORD_URL=http://132.243.112.100:18083
+export HACKME_POOL_COORDINATOR_URL=http://132.243.112.100:18083
 export HACKME_POOL_DIRECT=1
 export HACKME_DESKTOP_GPU_POOL=1
 export HACKME_WORKER_BATCH_SIZE=16777216   # fewer RTTs per attempt
 export HACKME_WORKER_CLAIM_COOLDOWN_MS=100 # avoid 429 bans on fast GPUs
+# After pool-direct.hackme.tech has a public CA cert:
+# export COORD_URL=https://pool-direct.hackme.tech:18443
 ```
 
 Or flags:
 
 ```bash
-bin/workerpoh-cuda -coord https://132.243.112.100:18443 -batch 16777216 ...
+bin/workerpoh-cuda -coord http://132.243.112.100:18083 -batch 16777216 ...
 ```
 
 **Defaults (fleet templates):** `worker_autostart.sh` rewrites public CF → direct when `HACKME_DESKTOP_GPU_POOL=1` (or always when `HACKME_POOL_DIRECT=1`); CUDA/desktop GPU batch defaults to 16M; claim cooldown floors 0→100. Rig profiles bake 16M + 100ms for RTX 30/40/50, RDNA2/3, Hopper. Casual miners without those flags keep HTTPS via Cloudflare.
@@ -52,3 +52,11 @@ Examples ship the bake-in values: `.env.desktop.example`, `scripts/ops/desktop_w
 ## Change log (ops)
 
 - **2026-10-26:** Added TLS listener `:18443` + shared location snippet; docs no longer describe admin-token auth for miner paths; CF-only `:443` helper script added but **not left enabled** (real_ip/geo bug → rolled back). Fleet left on cleartext `:18083` until staged TLS trust.
+- **2026-10-26 (fix):** IP HTTPS `:18443` is unusable for stock Go clients (no IP SAN; leaf SANs are `hackme.tech` / `www` / `explorer` only); cleartext `:18083` is the supported direct path until `pool-direct.hackme.tech` has Let's Encrypt.
+
+## Remaining ops (LE / DNS)
+
+1. Cloudflare DNS: create **DNS-only** (grey-cloud) `A` `pool-direct.hackme.tech` → `132.243.112.100` (orange-cloud defeats the bypass).
+2. On hub: issue LE cert for that name (certbot/nginx or existing ACME) and point `deploy/nginx/hackme-pool-direct-tls.conf` at the new leaf (include DNS SAN `pool-direct.hackme.tech`).
+3. Reload nginx; verify `curl -fsS https://pool-direct.hackme.tech:18443/health`.
+4. Stage fleet `COORD_URL=https://pool-direct.hackme.tech:18443` only after trust works on a canary worker — keep bulk fleet on `:18083` until then.

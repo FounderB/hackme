@@ -2032,7 +2032,7 @@
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div class="min-w-0 flex-1">
 							<p class="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-neon mb-1.5">What&apos;s new · <span id="dashboard-whats-new-ver">0.1.0-rc18</span></p>
-							<p id="dashboard-whats-new-body" class="text-gray-200/95"><strong class="text-white/90">rc18</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> <strong class="text-matrix">LIVE</strong> · <strong class="text-white/90">share-PPS</strong> (verified shares) · HackMe OS ISO. Pool GH/s is <code class="text-neon/80">blake3_pow_ghs</code> (shares/wall). Channel <code class="text-neon/80">0.1.0-rc18</code>.</p>
+							<p id="dashboard-whats-new-body" class="text-gray-200/95"><strong class="text-white/90">rc18</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> <strong class="text-matrix">LIVE</strong> · <strong class="text-white/90">share-PPS</strong> · fresh OpenCL/CUDA workers · HackMe OS ISO. Pool GH/s is <code class="text-neon/80">blake3_pow_ghs</code> (shares/wall). Channel <code class="text-neon/80">0.1.0-rc18</code>.</p>
 						</div>
 						<button type="button" id="dashboard-whats-new-dismiss" class="shrink-0 text-[10px] px-2 py-1 rounded border border-white/15 text-gray-400 hover:text-gray-200 uppercase tracking-wider">Dismiss</button>
 					</div>
@@ -4180,7 +4180,7 @@
 		// Enable JS-driven tab behavior (single active panel view).
 		document.body.classList.add('js-ui');
 		const DASHBOARD_UI_VER = '0.1.0-rc18';
-		const DASHBOARD_WHATS_NEW_HTML = '<strong class="text-white/90">rc18</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> <strong class="text-matrix">LIVE</strong> · <strong class="text-white/90">share-PPS</strong> (verified shares) · CUDA/OpenCL · HackMe OS ISO. Pool GH/s is <code class="text-neon/80">blake3_pow_ghs</code>. Channel <code class="text-neon/80">0.1.0-rc18</code>';
+		const DASHBOARD_WHATS_NEW_HTML = '<strong class="text-white/90">rc18</strong> — Blake3 @ <strong class="text-neon/90">#485000</strong> <strong class="text-matrix">LIVE</strong> · <strong class="text-white/90">share-PPS</strong> · fresh CUDA/OpenCL workers (wasm-validate markers) · HackMe OS ISO. Pool GH/s is <code class="text-neon/80">blake3_pow_ghs</code>. Channel <code class="text-neon/80">0.1.0-rc18</code>';
 		function updateUIModeBadge() {
 			const el = document.getElementById('hdr-ui-mode');
 			if (!el) return;

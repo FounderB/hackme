@@ -11,7 +11,7 @@ Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · release notes [HACKME_0.1.0-rc17.
 | Hub UI (`dashboard.html`) | `0.1.0-rc17.4` — Exchange · SUP · Hunt/Dig · Blake3 **LIVE** |
 | `main.go` / `CURRENT_VERSION` / `app.js` `RELEASE_VER` | `0.1.0-rc17.4` |
 | Public downloads (`PUBLISHED_ARTIFACT_VER`) | **0.1.0-rc17.4** Win/Linux/ISO + SHA256SUMS (`.deb` optional / may 404) |
-| News / ticker | rc17.4 LIVE — Blake3 @ 485k **activated** · soft attempt-pay · ISO |
+| News / ticker | **Historical rc17.4** — Blake3 @ 485k activated · soft attempt-pay (superseded by rc18+ **share-PPS**) · ISO |
 | Blake3 (2026-10-24) | Tip ≥ **#485000** — `blake3_v3` LIVE; pool GH/s = wall-rate (~few GH/s fleet class) |
 
 ## Ships since rc17 cut
@@ -23,7 +23,7 @@ Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · release notes [HACKME_0.1.0-rc17.
 - **rc17.1** hotpatch: worker lifecycle + claim-identity
 - **rc17.2** bundle: Hunt deep-havoc v2.8, fuzz release/capability harden, workerpoh env honor, pathsafe/CodeQL
 - **rc17.3**: Coverage Hunt engines auto-install on Linux miner install/update (`install_hunt_engines.sh`)
-- **rc17.4**: Blake3 PoH @ **#485000** (gate **LIVE** as of tip ≥ 485000), soft pseudo-share observability (attempt-pay default), settle SUP/HMC export fix, HackMe OS ISO
+- **rc17.4** (historical): Blake3 PoH @ **#485000** (gate LIVE), soft attempt-pay default at that cut — **current channel is rc18.x share-PPS (`SHARE_STRICT`)**, settle SUP/HMC export fix, HackMe OS ISO
 
 ## Product paths (honest)
 

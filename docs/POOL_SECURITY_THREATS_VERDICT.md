@@ -14,17 +14,17 @@ A comparison of “as it happens in classic articles” with **what HackMe actua
 - **Cryptographic double-check of the entire range** (recalculation of PoH for each nonce in the batch) **no**. **only** branch **`found=true`** is recalculated and strictly checked: range `found_nonce`, `validFoundNonceV1` (eval % `target_mod`), dedup `found_nonce` / `result_hash`.
 - Spam protection: **rate limit** claim/submit per worker and per IP, **bad strikes → temporary ban** for obviously bad submit reasons (`markSubmitOutcome`: incorrect work_id, signature, replay, incorrect found_nonce, etc.) - not for “slow honest”.
 - Mode **`HACKME_COORDINATOR_PAYOUT_FOUND_ONLY`**: with `found=false` **`paidAttempts=0`** - then payment is only for actually proven hit + bonus. This is the **strongest** answer to fake attempts **without** full verification of each attempt (expensive).
-- **Pseudo-shares (rc17.4+):** claim returns `share_mod = target_mod / share_divisor` (default divisor **1024**) and `share_scan_max` (**256Ki** soft / full batch strict). Submit may include `share_nonces[]`; each nonce is verified with the same PoH check as a block hit but against `share_mod`. **Soft mode (default):** always **attempt-pay**; shares are stats-only (`share_expected = min(attempts, share_scan_max) × divisor / M`, flag `share_rate_low` if rate &lt; `HACKME_COORDINATOR_SHARE_RATE_MIN` default **0.30** after enough expected). Optional reject: `HACKME_COORDINATOR_SHARE_RATE_REJECT=1`. **Strict:** `HACKME_COORDINATOR_SHARE_STRICT=1` pays ≈ `base_reward / divisor` per share and rejects `found=false` without shares. Full-lease proof needs GPU harvest. Stats: `share_*` on `/api/work/stats`.
-- **Sampled missed-found recheck** (default **1%** when attempt-pay path is used): `HACKME_COORDINATOR_ATTEMPT_RECHECK_PCT` / `_BUDGET`. Skipped when the submit was paid via verified shares (strict only).
+- **Pseudo-shares / share-PPS (rc18+ live):** claim returns `share_mod = target_mod / share_divisor` (default divisor **1024**) and `share_scan_max`. Submit may include `share_nonces[]`; each nonce is verified against `share_mod`. **Live public pool:** `HACKME_COORDINATOR_SHARE_STRICT=1` (**share-PPS**) pays ≈ `base_reward / divisor` per verified share and rejects `found=false` without shares. **Soft attempt-pay** (shares stats-only) is historical / lab (`SHARE_STRICT` off) — do not describe it as the public default. Optional soft rate flag: `HACKME_COORDINATOR_SHARE_RATE_MIN` / `_REJECT`. Stats: `share_*` on `/api/work/stats`.
+- **Sampled missed-found recheck** (default **1%** on attempt-pay path only): `HACKME_COORDINATOR_ATTEMPT_RECHECK_PCT` / `_BUDGET`. Skipped when the submit was paid via verified shares (strict).
 
 **Verdict**
 
 | Configuration | Fake attempts to pay “just for attempts” |
 |--------------|-----------------------------------------------|
-| Public pool with **hybrid strict** + **pseudo-shares** | Soft: attempt-pay + share rate observability; strict: share-pay. |
+| Public pool with **hybrid strict** + **share-PPS** | Live: `SHARE_STRICT` share-pay. Soft attempt-pay is historical/lab only. |
 | **`payout_found_only=1`** | **Almost closes** the “pay for air without a hit” scenario. |
-| Soft shares + attempt fallback | Attempt path still trusts `attempts` within lease + 1% missed-found recheck. |
-| **`SHARE_STRICT=1`** | No attempt-pay without shares (or found). |
+| Soft shares + attempt fallback (historical/lab) | Attempt path still trusts `attempts` within lease + 1% missed-found recheck. |
+| **`SHARE_STRICT=1` (live default)** | No attempt-pay without shares (or found). |
 
 ---
 

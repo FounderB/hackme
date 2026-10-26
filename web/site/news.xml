@@ -4,7 +4,7 @@
 <title>HackMe Network News</title>
 <link>https://hackme.tech/news.html</link>
 <description>Official HackMe pool, release, and research notices.</description>
-<lastBuildDate>Mon, 26 Oct 2026 14:51:02 +0000</lastBuildDate>
+<lastBuildDate>Mon, 26 Oct 2026 17:10:53 +0000</lastBuildDate>
 <atom:link href="https://hackme.tech/news.xml" rel="self" type="application/rss+xml"/>
 <language>en-us</language>
 <item>
@@ -12,7 +12,7 @@
 <link>https://hackme.tech/news.html#2026-10-26-rc18-live</link>
 <guid isPermaLink="false">2026-10-26-rc18-live</guid>
 <pubDate>Mon, 26 Oct 2026 00:00:00 +0000</pubDate>
-<description>Current release channel is 0.1.0-rc18. Public pool runs SHARE_STRICT share-PPS: verified Blake3 share_nonces (work % (M/1024) == 0) pay. Pool hashrate kind is blake3_pow_ghs (shares/wall). NVIDIA CUDA and AMD OpenCL Blake3 miners are supported (see BLAKE3_GPU_MATRIX). Dig/Hunt remain useful-work lanes; Hunt needs Linux+bwrap. Legacy soft-mode copy is retired.</description>
+<description>Current release channel is 0.1.0-rc18. Public pool runs SHARE_STRICT share-PPS: verified Blake3 share_nonces (work % (M/1024) == 0) pay. Pool hashrate kind is blake3_pow_ghs (shares/wall). NVIDIA CUDA and AMD OpenCL Blake3 miners are supported (see BLAKE3_GPU_MATRIX); OpenCL workers ship with wasm-validate markers and matching vcs.revision. Dig/Hunt remain useful-work lanes; Hunt needs Linux+bwrap. Legacy soft-mode copy is retired. Self-update remains sha256-only (known pre-1.0). Pool-direct miners use cleartext :18083 until pool-direct.hackme.tech has Let&#x27;s Encrypt.</description>
 </item>
 <item>
 <title>Blake3 PoH LIVE — tip ≥ #485000 · honest ~few GH/s wall-rate</title>

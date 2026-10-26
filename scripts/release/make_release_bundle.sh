@@ -64,9 +64,10 @@ GOOS=windows GOARCH="${WIN_ARCH}" CGO_ENABLED="${CGO_ENABLED}" \
 
 echo "[release] building workerpoh (pool worker; required for Windows dashboard worker start)"
 GOOS=linux GOARCH="${LINUX_ARCH}" CGO_ENABLED="${CGO_ENABLED}" \
-  go build -trimpath -ldflags "-s -w" -o "${LINUX_DIR}/workerpoh" ./cmd/workerpoh
+  go build -trimpath -buildvcs=true -ldflags "${LDFLAGS}" -o "${LINUX_DIR}/workerpoh" ./cmd/workerpoh
 GOOS=windows GOARCH="${WIN_ARCH}" CGO_ENABLED="${CGO_ENABLED}" \
-  go build -trimpath -ldflags "-s -w" -o "${WIN_DIR}/workerpoh.exe" ./cmd/workerpoh
+  go build -trimpath -buildvcs=true -ldflags "${LDFLAGS}" -o "${WIN_DIR}/workerpoh.exe" ./cmd/workerpoh
+
 # Windows OpenCL worker (AMD RX 580 etc.): docker mingw or host mingw when available.
 if [[ -x "${ROOT_DIR}/scripts/release/windows/build_workerpoh_opencl.sh" ]] && command -v docker >/dev/null 2>&1; then
   if [[ ! -f "${WIN_DIR}/workerpoh-opencl.exe" ]]; then
@@ -74,20 +75,22 @@ if [[ -x "${ROOT_DIR}/scripts/release/windows/build_workerpoh_opencl.sh" ]] && c
       echo "[release] WARN: workerpoh-opencl.exe build failed" >&2
   fi
 fi
-# Prefer shipping prebuilt GPU workers from bin/ (CI/release hosts may lack CUDA toolkit).
+# Prefer shipping a freshly built GPU worker. Only fall back to bin/ when the
+# fresh build is absent AND bin/ passes marker checks (never silently keep a
+# stale LINUX_DIR leftover from a previous release dir).
 ship_linux_gpu_worker() {
   local name="$1"
-  if [[ -x "${ROOT_DIR}/bin/${name}" ]]; then
-    install -m 0755 "${ROOT_DIR}/bin/${name}" "${LINUX_DIR}/${name}"
+  if [[ -x "${LINUX_DIR}/${name}" ]]; then
     return 0
   fi
-  if [[ -x "${LINUX_DIR}/${name}" ]]; then
+  if [[ -x "${ROOT_DIR}/bin/${name}" ]]; then
+    install -m 0755 "${ROOT_DIR}/bin/${name}" "${LINUX_DIR}/${name}"
     return 0
   fi
   return 1
 }
 
-# Fail closed if a GPU/CPU worker is missing rc17.4 markers (stale Sep CUDA / OpenCL bins).
+# Fail closed if a GPU/CPU worker is missing required markers (stale bins).
 assert_bin_markers() {
   local bin="$1"
   shift
@@ -98,10 +101,28 @@ assert_bin_markers() {
   fi
   for needle in "$@"; do
     if ! grep -a -F -q -- "$needle" "$bin"; then
-      echo "[release] ERROR: $bin missing required marker '$needle' (stale pre-rc17.4 GPU worker?)" >&2
+      echo "[release] ERROR: $bin missing required marker '$needle' (stale GPU worker?)" >&2
       return 1
     fi
   done
+  return 0
+}
+
+# Require wasm-validate child hook + matching vcs revision when buildvcs is present.
+assert_worker_fresh() {
+  local bin="$1"
+  assert_bin_markers "$bin" "-hackme-wasm-validate" "share_scan_max" || return 1
+  if command -v go >/dev/null 2>&1; then
+    local vcs
+    vcs="$(go version -m "$bin" 2>/dev/null | awk '/vcs.revision/ {print $NF; exit}')"
+    if [[ -n "$vcs" && -n "${COMMIT_SHA}" && "${COMMIT_SHA}" != "nogit" ]]; then
+      # COMMIT_SHA may be short; accept prefix match either way.
+      if [[ "$vcs" != "${COMMIT_SHA}"* && "${COMMIT_SHA}" != "$vcs"* ]]; then
+        echo "[release] ERROR: $bin vcs.revision=${vcs} != build COMMIT_SHA=${COMMIT_SHA}" >&2
+        return 1
+      fi
+    fi
+  fi
   return 0
 }
 
@@ -111,22 +132,34 @@ if [[ "${CGO_ENABLED}" == "1" ]] && (pkg-config --exists OpenCL 2>/dev/null || [
     export CGO_CFLAGS="${CGO_CFLAGS:-} -I/tmp/hm-prefix/usr/include"
     export CGO_LDFLAGS="${CGO_LDFLAGS:-} -L/tmp/hm-prefix/usr/lib/x86_64-linux-gnu -lOpenCL"
   fi
+  # Never leave a previous release's OpenCL binary in place if this build fails.
+  rm -f "${LINUX_DIR}/workerpoh-opencl" "${ROOT_DIR}/bin/workerpoh-opencl"
   GOOS=linux GOARCH="${LINUX_ARCH}" CGO_ENABLED=1 \
-    go build -tags opencl -trimpath -ldflags "-s -w" -o "${LINUX_DIR}/workerpoh-opencl" ./cmd/workerpoh || true
+    go build -tags opencl -trimpath -buildvcs=true -ldflags "${LDFLAGS}" \
+    -o "${LINUX_DIR}/workerpoh-opencl" ./cmd/workerpoh
+  install -m 0755 "${LINUX_DIR}/workerpoh-opencl" "${ROOT_DIR}/bin/workerpoh-opencl"
+  assert_worker_fresh "${LINUX_DIR}/workerpoh-opencl" || exit 1
   if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then
     echo "[release] building workerpoh-opencl.exe (mingw cross)"
+    rm -f "${WIN_DIR}/workerpoh-opencl.exe"
     CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
       GOOS=windows GOARCH="${WIN_ARCH}" CGO_ENABLED=1 \
-      go build -tags opencl -trimpath -ldflags "-s -w" -o "${WIN_DIR}/workerpoh-opencl.exe" ./cmd/workerpoh
+      go build -tags opencl -trimpath -buildvcs=true -ldflags "${LDFLAGS}" -o "${WIN_DIR}/workerpoh-opencl.exe" ./cmd/workerpoh
   elif command -v docker >/dev/null 2>&1 && [[ -f "${ROOT_DIR}/scripts/release/windows/build_workerpoh_opencl.sh" ]]; then
     echo "[release] building workerpoh-opencl.exe (docker mingw)"
+    rm -f "${WIN_DIR}/workerpoh-opencl.exe"
     bash "${ROOT_DIR}/scripts/release/windows/build_workerpoh_opencl.sh" "${WIN_DIR}/workerpoh-opencl.exe"
   else
     echo "[release] WARN: skip workerpoh-opencl.exe (install mingw-w64 or docker for Windows OpenCL build)" >&2
   fi
+elif [[ "${CGO_ENABLED}" == "1" ]]; then
+  echo "[release] ERROR: CGO_ENABLED=1 but OpenCL headers/ICD not found — cannot ship AMD workerpoh-opencl" >&2
+  exit 1
+else
+  echo "[release] ERROR: CGO_ENABLED=0 — AMD workerpoh-opencl requires CGO_ENABLED=1 (OpenCL ICD)" >&2
+  exit 1
 fi
-# Always prefer repo bin/workerpoh-opencl if present (portable rebuild).
-ship_linux_gpu_worker workerpoh-opencl || true
+
 
 if [[ -x "${ROOT_DIR}/scripts/ops/build_cuda_worker.sh" ]]; then
   echo "[release] building workerpoh-cuda (NVIDIA native; Linux only)"
@@ -145,14 +178,17 @@ else
   exit 1
 fi
 # Default + OpenCL workers must honor claim share_scan_max (soft pool payout).
-assert_bin_markers "${LINUX_DIR}/workerpoh" "share_scan_max" || exit 1
+assert_worker_fresh "${LINUX_DIR}/workerpoh" || exit 1
 if [[ -x "${LINUX_DIR}/workerpoh-opencl" ]]; then
-  assert_bin_markers "${LINUX_DIR}/workerpoh-opencl" "share_scan_max" || exit 1
+  assert_worker_fresh "${LINUX_DIR}/workerpoh-opencl" || exit 1
+else
+  echo "[release] ERROR: linux workerpoh-opencl missing after OpenCL build step" >&2
+  exit 1
 fi
 if [[ -f "${WIN_DIR}/workerpoh-opencl.exe" ]]; then
-  assert_bin_markers "${WIN_DIR}/workerpoh-opencl.exe" "share_scan_max" || exit 1
+  assert_bin_markers "${WIN_DIR}/workerpoh-opencl.exe" "-hackme-wasm-validate" "share_scan_max" || exit 1
 fi
-assert_bin_markers "${WIN_DIR}/workerpoh.exe" "share_scan_max" || exit 1
+assert_bin_markers "${WIN_DIR}/workerpoh.exe" "-hackme-wasm-validate" "share_scan_max" || exit 1
 assert_bin_markers "${LINUX_DIR}/workerpoh" "share_mod" || exit 1
 
 # Bundle NVRTC runtime next to workers (no system CUDA toolkit required on miner hosts).
@@ -192,13 +228,15 @@ for op in detect_gpu_backend.sh desktop_worker_reset.sh worker_autostart.sh work
     install -m 0755 "${ROOT_DIR}/scripts/ops/${op}" "${LINUX_DIR}/scripts/ops/${op}"
   fi
 done
+# Hardlink into bin/ when possible so tar.gz does not double-store worker blobs.
 for wp in workerpoh workerpoh-opencl workerpoh-cuda; do
   if [[ -f "${LINUX_DIR}/${wp}" ]]; then
-    install -m 0755 "${LINUX_DIR}/${wp}" "${LINUX_DIR}/bin/${wp}"
+    ln -f "${LINUX_DIR}/${wp}" "${LINUX_DIR}/bin/${wp}" 2>/dev/null || \
+      install -m 0755 "${LINUX_DIR}/${wp}" "${LINUX_DIR}/bin/${wp}"
   fi
 done
-[[ -f "${LINUX_DIR}/fleetplan" ]] && install -m 0755 "${LINUX_DIR}/fleetplan" "${LINUX_DIR}/bin/fleetplan"
-[[ -f "${LINUX_DIR}/minersign" ]] && install -m 0755 "${LINUX_DIR}/minersign" "${LINUX_DIR}/bin/minersign"
+[[ -f "${LINUX_DIR}/fleetplan" ]] && { ln -f "${LINUX_DIR}/fleetplan" "${LINUX_DIR}/bin/fleetplan" 2>/dev/null || install -m 0755 "${LINUX_DIR}/fleetplan" "${LINUX_DIR}/bin/fleetplan"; }
+[[ -f "${LINUX_DIR}/minersign" ]] && { ln -f "${LINUX_DIR}/minersign" "${LINUX_DIR}/bin/minersign" 2>/dev/null || install -m 0755 "${LINUX_DIR}/minersign" "${LINUX_DIR}/bin/minersign"; }
 cp "${ROOT_DIR}/scripts/release/linux/fix_miner_layout.sh" "${LINUX_DIR}/fix_miner_layout.sh"
 chmod +x "${LINUX_DIR}/fix_miner_layout.sh"
 echo "[release] building workerfuzz (pool dig; hybrid process mode + dedicated diggers)"
@@ -207,13 +245,14 @@ GOOS=linux GOARCH="${LINUX_ARCH}" CGO_ENABLED="${CGO_ENABLED}" \
   go build -trimpath -ldflags "${WF_LDFLAGS}" -o "${LINUX_DIR}/workerfuzz" ./cmd/workerfuzz
 GOOS=windows GOARCH="${WIN_ARCH}" CGO_ENABLED="${CGO_ENABLED}" \
   go build -trimpath -ldflags "${WF_LDFLAGS}" -o "${WIN_DIR}/workerfuzz.exe" ./cmd/workerfuzz
-install -m 0755 "${LINUX_DIR}/workerfuzz" "${LINUX_DIR}/bin/workerfuzz"
+ln -f "${LINUX_DIR}/workerfuzz" "${LINUX_DIR}/bin/workerfuzz" 2>/dev/null || \
+  install -m 0755 "${LINUX_DIR}/workerfuzz" "${LINUX_DIR}/bin/workerfuzz"
 echo "[release] building fleetplan (GPU fleet JSON)"
 GOOS=linux GOARCH="${LINUX_ARCH}" CGO_ENABLED=0 \
-  go build -trimpath -ldflags "-s -w" -o "${LINUX_DIR}/fleetplan" ./cmd/fleetplan
+  go build -trimpath -buildvcs=true -ldflags "${LDFLAGS}" -o "${LINUX_DIR}/fleetplan" ./cmd/fleetplan
 GOOS=windows GOARCH="${WIN_ARCH}" CGO_ENABLED=0 \
-  go build -trimpath -ldflags "-s -w" -o "${WIN_DIR}/fleetplan.exe" ./cmd/fleetplan
-[[ -f "${LINUX_DIR}/fleetplan" ]] && install -m 0755 "${LINUX_DIR}/fleetplan" "${LINUX_DIR}/bin/fleetplan"
+  go build -trimpath -buildvcs=true -ldflags "${LDFLAGS}" -o "${WIN_DIR}/fleetplan.exe" ./cmd/fleetplan
+[[ -f "${LINUX_DIR}/fleetplan" ]] && { ln -f "${LINUX_DIR}/fleetplan" "${LINUX_DIR}/bin/fleetplan" 2>/dev/null || install -m 0755 "${LINUX_DIR}/fleetplan" "${LINUX_DIR}/bin/fleetplan"; }
 
 cp "${ROOT_DIR}/README.md" "${WIN_DIR}/README.md"
 cp "${ROOT_DIR}/README.md" "${LINUX_DIR}/README.md"

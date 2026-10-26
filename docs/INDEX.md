@@ -23,7 +23,8 @@
 | [HMS_BACKEND.md](HMS_BACKEND.md) | HMS coordinator + workers |
 | [SUPPORT_COIN_UTILITY.md](SUPPORT_COIN_UTILITY.md) | HackMe Support (SUP) accrual |
 | [HACKME_RC17.md](HACKME_RC17.md) | **Current** runtime **0.1.0-rc17.4** · installers **0.1.0-rc17.4** LIVE — Exchange · SUP · Hunt |
-| [releases/HACKME_0.1.0-rc17.4_RELEASE.md](releases/HACKME_0.1.0-rc17.4_RELEASE.md) | **rc17.4 notes** — Blake3 @ 485k · soft attempt-pay · ISO · settle SUP/HMC fix |
+| [releases/HACKME_0.1.0-rc17.4_RELEASE.md](releases/HACKME_0.1.0-rc17.4_RELEASE.md) | Historical rc17.4 notes (archive) |
+| Current channel | **0.1.0-rc18.x** — Blake3 · **share-PPS (verified shares)** · CUDA/OpenCL · ISO — see https://hackme.tech/news.html |
 | [POOL_SECURITY_THREATS_VERDICT.md](POOL_SECURITY_THREATS_VERDICT.md) | Pool threats — shares, attempt recheck, settlement |
 | [RC17_CUTOVER.md](RC17_CUTOVER.md) | Cutover deploy plan — hub exchange embed + SUP (ops window) |
 | [HACKME_RC16.md](HACKME_RC16.md) | Prior / superseded by rc17 — self-update + signed apt + ISO |

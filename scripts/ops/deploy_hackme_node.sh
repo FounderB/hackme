@@ -164,9 +164,14 @@ fi
 systemctl restart hackme-node
 systemctl restart hackme-coordinator 2>/dev/null || true
 # Dig diggers re-exec themselves for wasm-validate; restart so they pick up new bin/workerfuzz.
-for u in hackme-workerfuzz-hub-fuzz-02 hackme-workerfuzz-hub-fuzz-03 hackme-workerfuzz-hub-fuzz-04; do
-  systemctl restart "\$u" 2>/dev/null || true
-done
+# Set SKIP_FLEET_RESTART=1 to leave named hub-fuzz / workerpoh units running (rolling hub-only).
+if [[ "${SKIP_FLEET_RESTART:-0}" != "1" ]]; then
+  for u in hackme-workerfuzz-hub-fuzz-02 hackme-workerfuzz-hub-fuzz-03 hackme-workerfuzz-hub-fuzz-04; do
+    systemctl restart "\$u" 2>/dev/null || true
+  done
+else
+  echo "[deploy-hackme-node] SKIP_FLEET_RESTART=1 — left named hub-fuzz workers running"
+fi
 sleep 2
 systemctl is-active hackme-node
 if systemctl is-enabled hackme-coordinator >/dev/null 2>&1; then
