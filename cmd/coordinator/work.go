@@ -3866,12 +3866,18 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 		var req struct {
 			WorkerID string `json:"worker_id"`
 			IPKey    string `json:"ip_key"`
+			// Permaban defaults true for abuse; false zeros ledger only (old test accruals).
+			Permaban *bool `json:"permaban"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
-		out := wm.revokeWorker(req.WorkerID, req.IPKey, true)
+		permaban := true
+		if req.Permaban != nil {
+			permaban = *req.Permaban
+		}
+		out := wm.revokeWorker(req.WorkerID, req.IPKey, permaban)
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_ = json.NewEncoder(w).Encode(out)
 	})

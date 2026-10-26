@@ -23,6 +23,7 @@ import (
 	"hackme/internal/logsafe"
 	"hackme/internal/logsetup"
 	"hackme/internal/poolfuzz"
+	"hackme/internal/sandbox"
 	"hackme/internal/store"
 )
 
@@ -52,6 +53,10 @@ const maxCoordinatorPushWorkBodyBytes = 1 << 20
 var peerFlusher *peerPersistFlusher
 
 func main() {
+	if sandbox.IsValidateChildArg(os.Args) {
+		sandbox.RunValidateChildMain()
+		return
+	}
 	logsetup.ConfigureFromEnv("HACKME_COORDINATOR")
 	dbPath := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_DB"))
 	if dbPath == "" {

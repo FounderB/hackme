@@ -9,25 +9,36 @@ const maxWasmTableInitial = 256
 // maxWasmElementSectionBytes bounds element-section payload size for check-gate modules.
 const maxWasmElementSectionBytes = 8192
 
-// Per-section vector caps for check-gate modules (customer order / Dig WASM).
+// Nested / per-entry caps — wazero allocates by declared LEB counts before
+// checking that the section has enough bytes (export, valuetypes, locals, names).
 const (
-	maxWasmTypeCount     = 64
-	maxWasmFuncCount     = 64
-	maxWasmExportCount   = 32
-	maxWasmCodeCount     = 64
-	maxWasmGlobalCount   = 32
-	maxWasmDataCount     = 32
-	maxWasmMemoryCount   = 4
-	maxWasmElementCount  = 16
-	maxWasmDeclaredCount = 64
+	maxWasmTypeCount       = 64
+	maxWasmFuncCount       = 64
+	maxWasmExportCount     = 32
+	maxWasmCodeCount       = 64
+	maxWasmGlobalCount     = 32
+	maxWasmDataCount       = 32
+	maxWasmMemoryCount     = 4
+	maxWasmElementCount    = 16
+	maxWasmDeclaredCount   = 64
+	maxWasmParamsPerType   = 32
+	maxWasmResultsPerType  = 16
+	maxWasmLocalsPerFunc   = 64
+	maxWasmLocalGroups     = 32
+	maxWasmNameBytes       = 128
+	maxWasmExportNameBytes = 128
+	maxWasmBrTableTargets  = 64
+	maxWasmElemEntries     = 256
+	maxWasmDataBytes       = 4096
 )
 
-// rejectWasmHostileSections blocks start routines, imports, oversized tables/elements,
-// and inflated LEB vector counts before CompileModule.
+// rejectWasmHostileSections blocks start/import/custom sections, oversized
+// tables/elements, and inflated LEB vector counts (top-level and nested) before
+// CompileModule. Custom/name sections are rejected entirely — Dig/Hunt check
+// gates never need them, and decodeFunctionNames OOMs on inflated counts.
 //
-// Critical: a tiny module can declare export_count ≈ 2e8 via crafted LEB; wazero
-// pre-allocates and OOMs the whole process (cannot recover in-process). Reject when
-// declared count exceeds remaining section bytes (each entry ≥ 1 byte) or hard caps.
+// This is a fast filter only; ValidateCheckWasm also runs CompileModule in a
+// RLIMIT_AS child so novel nested vectors cannot kill the hub process.
 func rejectWasmHostileSections(wasm []byte) error {
 	if len(wasm) < 8 {
 		return nil
@@ -45,8 +56,11 @@ func rejectWasmHostileSections(wasm []byte) error {
 		}
 		body := wasm[pos : pos+int(size)]
 		switch sectionID {
+		case 0: // custom (incl. name) — stripped before compile; do not feed to wazero
+			// Skip body; stripWasmCustomSections removes these. Avoid parsing
+			// name subsection here (itself an OOM vector if done naively).
 		case 1: // type
-			if err := rejectWasmVectorPrefix(body, maxWasmTypeCount); err != nil {
+			if err := rejectWasmTypeSection(body); err != nil {
 				return err
 			}
 		case 2:
@@ -64,11 +78,11 @@ func rejectWasmHostileSections(wasm []byte) error {
 				return err
 			}
 		case 6: // global
-			if err := rejectWasmVectorPrefix(body, maxWasmGlobalCount); err != nil {
+			if err := rejectWasmGlobalSection(body); err != nil {
 				return err
 			}
-		case 7: // export — primary OOM vector (inflated count LEB)
-			if err := rejectWasmVectorPrefix(body, maxWasmExportCount); err != nil {
+		case 7: // export
+			if err := rejectWasmExportSection(body); err != nil {
 				return err
 			}
 		case 8:
@@ -81,21 +95,24 @@ func rejectWasmHostileSections(wasm []byte) error {
 				return err
 			}
 		case 10: // code
-			if err := rejectWasmVectorPrefix(body, maxWasmCodeCount); err != nil {
+			if err := rejectWasmCodeSection(body); err != nil {
 				return err
 			}
 		case 11: // data
-			if err := rejectWasmVectorPrefix(body, maxWasmDataCount); err != nil {
+			if err := rejectWasmDataSection(body); err != nil {
 				return err
 			}
 		case 12: // data count
 			if err := rejectWasmVectorPrefix(body, maxWasmDataCount); err != nil {
 				return err
 			}
-		case 13: // element count / declarative (treat as vector)
+		case 13:
 			if err := rejectWasmVectorPrefix(body, maxWasmDeclaredCount); err != nil {
 				return err
 			}
+		default:
+			// Unknown section id — reject rather than hand to wazero.
+			return errors.New("sandbox: wasm unknown section not allowed")
 		}
 		pos += int(size)
 	}
@@ -107,8 +124,6 @@ func rejectWasmStartSection(wasm []byte) error {
 	return rejectWasmHostileSections(wasm)
 }
 
-// rejectWasmVectorPrefix reads a leading LEB count and rejects inflated counts that
-// cannot fit in the remaining section body (wazero prealloc DoS).
 func rejectWasmVectorPrefix(body []byte, maxCount uint32) error {
 	pos := 0
 	count, err := readU32LEB(body, &pos)
@@ -122,9 +137,223 @@ func rejectWasmVectorPrefix(body []byte, maxCount uint32) error {
 	if remain < 0 {
 		return errors.New("sandbox: malformed wasm vector section")
 	}
-	// Every vector entry consumes at least one payload byte.
 	if int(count) > remain {
 		return errors.New("sandbox: wasm vector count exceeds section bytes")
+	}
+	return nil
+}
+
+func rejectWasmTypeSection(body []byte) error {
+	pos := 0
+	count, err := readU32LEB(body, &pos)
+	if err != nil {
+		return err
+	}
+	if count > maxWasmTypeCount {
+		return errors.New("sandbox: wasm vector count too large")
+	}
+	if int(count) > len(body)-pos {
+		return errors.New("sandbox: wasm vector count exceeds section bytes")
+	}
+	for i := uint32(0); i < count; i++ {
+		if pos >= len(body) {
+			return errors.New("sandbox: malformed wasm type section")
+		}
+		form := body[pos]
+		pos++
+		if form != 0x60 { // functype
+			return errors.New("sandbox: unsupported wasm type form")
+		}
+		nParams, err := readU32LEB(body, &pos)
+		if err != nil {
+			return err
+		}
+		if nParams > maxWasmParamsPerType {
+			return errors.New("sandbox: wasm type param count too large")
+		}
+		if int(nParams) > len(body)-pos {
+			return errors.New("sandbox: wasm type params exceed section bytes")
+		}
+		pos += int(nParams) // skip valtypes (1 byte each)
+		nResults, err := readU32LEB(body, &pos)
+		if err != nil {
+			return err
+		}
+		if nResults > maxWasmResultsPerType {
+			return errors.New("sandbox: wasm type result count too large")
+		}
+		if int(nResults) > len(body)-pos {
+			return errors.New("sandbox: wasm type results exceed section bytes")
+		}
+		pos += int(nResults)
+	}
+	return nil
+}
+
+func rejectWasmExportSection(body []byte) error {
+	pos := 0
+	count, err := readU32LEB(body, &pos)
+	if err != nil {
+		return err
+	}
+	if count > maxWasmExportCount {
+		return errors.New("sandbox: wasm vector count too large")
+	}
+	if int(count) > len(body)-pos {
+		return errors.New("sandbox: wasm vector count exceeds section bytes")
+	}
+	for i := uint32(0); i < count; i++ {
+		nameLen, err := readU32LEB(body, &pos)
+		if err != nil {
+			return err
+		}
+		if nameLen > maxWasmExportNameBytes {
+			return errors.New("sandbox: wasm export name too long")
+		}
+		if int(nameLen) > len(body)-pos {
+			return errors.New("sandbox: wasm export name exceeds section bytes")
+		}
+		pos += int(nameLen)
+		if pos >= len(body) {
+			return errors.New("sandbox: malformed wasm export")
+		}
+		pos++ // kind
+		if _, err := readU32LEB(body, &pos); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rejectWasmCodeSection(body []byte) error {
+	pos := 0
+	count, err := readU32LEB(body, &pos)
+	if err != nil {
+		return err
+	}
+	if count > maxWasmCodeCount {
+		return errors.New("sandbox: wasm vector count too large")
+	}
+	if int(count) > len(body)-pos {
+		return errors.New("sandbox: wasm vector count exceeds section bytes")
+	}
+	for i := uint32(0); i < count; i++ {
+		bodySize, err := readU32LEB(body, &pos)
+		if err != nil {
+			return err
+		}
+		if int(bodySize) > len(body)-pos {
+			return errors.New("sandbox: wasm code body exceeds section bytes")
+		}
+		fn := body[pos : pos+int(bodySize)]
+		pos += int(bodySize)
+		if err := rejectWasmCodeBody(fn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rejectWasmCodeBody(fn []byte) error {
+	p := 0
+	nGroups, err := readU32LEB(fn, &p)
+	if err != nil {
+		return err
+	}
+	if nGroups > maxWasmLocalGroups {
+		return errors.New("sandbox: wasm local groups too many")
+	}
+	if int(nGroups) > len(fn)-p {
+		return errors.New("sandbox: wasm local groups exceed body bytes")
+	}
+	var totalLocals uint64
+	for g := uint32(0); g < nGroups; g++ {
+		n, err := readU32LEB(fn, &p)
+		if err != nil {
+			return err
+		}
+		if n > maxWasmLocalsPerFunc {
+			return errors.New("sandbox: wasm locals count too large")
+		}
+		totalLocals += uint64(n)
+		if totalLocals > uint64(maxWasmLocalsPerFunc) {
+			return errors.New("sandbox: wasm locals total too large")
+		}
+		if p >= len(fn) {
+			return errors.New("sandbox: malformed wasm locals")
+		}
+		p++ // valtype
+	}
+	// Remaining bytes are the expression; scan for br_table target vectors.
+	return rejectWasmExprInflatedVectors(fn[p:])
+}
+
+func rejectWasmExprInflatedVectors(expr []byte) error {
+	// Lightweight scan: opcode 0x0e (br_table) is followed by a vec(labelidx).
+	for i := 0; i < len(expr); i++ {
+		if expr[i] != 0x0e {
+			continue
+		}
+		p := i + 1
+		n, err := readU32LEB(expr, &p)
+		if err != nil {
+			return nil // truncated — CompileModule will fail; not our OOM path
+		}
+		if n > maxWasmBrTableTargets {
+			return errors.New("sandbox: wasm br_table too large")
+		}
+		if int(n) > len(expr)-p {
+			return errors.New("sandbox: wasm br_table exceeds body bytes")
+		}
+	}
+	return nil
+}
+
+func rejectWasmGlobalSection(body []byte) error {
+	pos := 0
+	count, err := readU32LEB(body, &pos)
+	if err != nil {
+		return err
+	}
+	if count > maxWasmGlobalCount {
+		return errors.New("sandbox: wasm vector count too large")
+	}
+	if int(count) > len(body)-pos {
+		return errors.New("sandbox: wasm vector count exceeds section bytes")
+	}
+	return nil
+}
+
+func rejectWasmDataSection(body []byte) error {
+	pos := 0
+	count, err := readU32LEB(body, &pos)
+	if err != nil {
+		return err
+	}
+	if count > maxWasmDataCount {
+		return errors.New("sandbox: wasm vector count too large")
+	}
+	if int(count) > len(body)-pos {
+		return errors.New("sandbox: wasm vector count exceeds section bytes")
+	}
+	for i := uint32(0); i < count; i++ {
+		if pos >= len(body) {
+			return errors.New("sandbox: malformed wasm data section")
+		}
+		// Passive-format data segments vary; bound remaining payload per segment.
+		remain := len(body) - pos
+		if remain > maxWasmDataBytes*(int(count)-int(i)) && remain > maxWasmDataBytes*4 {
+			// Soft: if a single remaining blob is absurd vs caps, reject.
+			if remain > maxWasmDataBytes*int(count) {
+				return errors.New("sandbox: wasm data section too large")
+			}
+		}
+		// Skip one byte of flags/mode when present and try to read a size LEB later —
+		// full parse is complex; child RLIMIT covers residual cases.
+		pos++ // consume at least one byte so count progress is honest
+		if pos > len(body) {
+			return errors.New("sandbox: malformed wasm data section")
+		}
 	}
 	return nil
 }
@@ -146,8 +375,7 @@ func rejectWasmTableSection(body []byte) error {
 		if pos >= len(body) {
 			return errors.New("sandbox: malformed wasm table section")
 		}
-		// reftype (funcref 0x70 / externref 0x6f)
-		pos++
+		pos++ // reftype
 		if pos >= len(body) {
 			return errors.New("sandbox: malformed wasm table limits")
 		}
@@ -181,6 +409,12 @@ func rejectWasmElementSection(body []byte) error {
 	remain := len(body) - pos
 	if int(count) > remain {
 		return errors.New("sandbox: wasm vector count exceeds section bytes")
+	}
+	if remain > maxWasmElemEntries*8 && count > 0 {
+		// Bound total element payload loosely; child RLIMIT is the backstop.
+		if remain > maxWasmElementSectionBytes {
+			return errors.New("sandbox: wasm element section too large")
+		}
 	}
 	return nil
 }

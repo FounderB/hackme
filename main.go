@@ -39,6 +39,7 @@ import (
 	"hackme/internal/nodecrypto"
 	"hackme/internal/p2p"
 	"hackme/internal/poolsync"
+	"hackme/internal/sandbox"
 	"hackme/internal/store"
 	"hackme/internal/workerid"
 	"hackme/internal/workerlock"
@@ -368,6 +369,10 @@ func (a *app) readCanonicalWalletCache(addr string) (float64, uint64, uint64, ui
 }
 
 func main() {
+	if sandbox.IsValidateChildArg(os.Args) {
+		sandbox.RunValidateChildMain()
+		return
+	}
 	ensureStableWorkingDir()
 	loadHackmeDotEnv()
 	applyRigProfileAtStartup()

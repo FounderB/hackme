@@ -298,6 +298,17 @@ func ValidateCheckWasm(ctx context.Context, wasm []byte) error {
 	if err := rejectWasmHostileSections(wasm); err != nil {
 		return err
 	}
+	// Architectural OOM barrier: CompileModule in a RLIMIT_AS child first.
+	// Nested LEB bombs that bypass the pre-parser kill only the child.
+	if err := validateWasmInChild(ctx, wasm); err != nil {
+		key := compiledKey(wasm)
+		quarantineWasm(key, "wasm-validate child rejected")
+		return err
+	}
+	stripped, err := stripWasmCustomSections(wasm)
+	if err != nil {
+		return err
+	}
 	validateCtx, cancel := context.WithTimeout(ctx, wasmCheckTimeout())
 	defer cancel()
 	rt := ensureCheckRuntime()
@@ -315,7 +326,7 @@ func ValidateCheckWasm(ctx context.Context, wasm []byte) error {
 	}
 	checkCompileMu.Unlock()
 
-	compiled, err := rt.CompileModule(validateCtx, wasm)
+	compiled, err := rt.CompileModule(validateCtx, stripped)
 	if err != nil {
 		quarantineWasm(key, "compile wasm failed")
 		return fmt.Errorf("sandbox: compile wasm: %w", err)
