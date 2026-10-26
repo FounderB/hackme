@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tetratelabs/wazero"
@@ -17,15 +18,21 @@ import (
 const (
 	// Go's runtime reserves large virtual address space; RLIMIT_AS below ~1 GiB
 	// aborts the child before wazero runs ("failed to reserve page summary memory").
-	// 1536 MiB still stops multi-GiB LEB prealloc bombs (2–9 GiB) while letting
-	// legitimate CompileModule finish.
-	defaultWasmValidateASMB   = 1536
+	// Concurrent children also need headroom for pthread stacks — default 2048 MiB
+	// still stops multi-GiB LEB prealloc bombs while surviving pool submit bursts.
+	defaultWasmValidateASMB   = 2048
 	minWasmValidateASMB       = 1024
 	maxWasmValidateASMB       = 2048
 	defaultWasmValidateWallMS = 3000
 	wasmValidateArg           = "-hackme-wasm-validate"
 	wasmValidateOK            = "OK\n"
 )
+
+// Cap concurrent RLIMIT children — many parallel re-execs under AS exhaust
+// pthread_create ("Resource temporarily unavailable") and false-quarantine good gates.
+var wasmValidateChildSem = make(chan struct{}, 1)
+
+var wasmValidateChildOnce sync.Once
 
 // RunValidateChildMain is the early-process entry for node/coordinator when
 // argv contains -hackme-wasm-validate. Reads WASM from stdin, runs hostile
@@ -135,6 +142,24 @@ func wasmValidateChildDisabled() bool {
 	return false
 }
 
+// wasmValidateTransientFailure is a Go-runtime / capacity failure under RLIMIT_AS,
+// not proof the module is hostile. Callers must not quarantine on these.
+func wasmValidateTransientFailure(msg string) bool {
+	low := strings.ToLower(msg)
+	for _, needle := range []string{
+		"pthread_create failed",
+		"resource temporarily unavailable",
+		"failed to reserve page summary memory",
+		"cannot allocate memory",
+		"start wasm-validate child",
+	} {
+		if strings.Contains(low, needle) {
+			return true
+		}
+	}
+	return false
+}
+
 // validateWasmInChild runs CompileModule in a self-reexec child with RLIMIT_AS.
 // If the child OOMs or times out, the module is rejected and this process lives.
 func validateWasmInChild(ctx context.Context, wasm []byte) error {
@@ -145,6 +170,12 @@ func validateWasmInChild(ctx context.Context, wasm []byte) error {
 	if err != nil {
 		return fmt.Errorf("sandbox: resolve executable: %w", err)
 	}
+	select {
+	case wasmValidateChildSem <- struct{}{}:
+		defer func() { <-wasmValidateChildSem }()
+	case <-ctx.Done():
+		return fmt.Errorf("sandbox: wasm-validate child: %w", ctx.Err())
+	}
 	wall := wasmValidateWall()
 	runCtx, cancel := context.WithTimeout(ctx, wall)
 	defer cancel()
@@ -153,6 +184,7 @@ func validateWasmInChild(ctx context.Context, wasm []byte) error {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	cmd.Env = append(os.Environ(), "GOMAXPROCS=1")
 	setWasmValidateChildAttr(cmd)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("sandbox: start wasm-validate child: %w", err)

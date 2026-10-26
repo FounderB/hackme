@@ -298,11 +298,22 @@ func ValidateCheckWasm(ctx context.Context, wasm []byte) error {
 	if err := rejectWasmHostileSections(wasm); err != nil {
 		return err
 	}
+	key := compiledKey(wasm)
+	if _, ok := checkCompiled.Load(key); ok {
+		return nil
+	}
+	if blockQuarantinedWasm() {
+		if v, ok := checkQuarantine.Load(key); ok {
+			return fmt.Errorf("sandbox: wasm is quarantined: %v", v)
+		}
+	}
 	// Architectural OOM barrier: CompileModule in a RLIMIT_AS child first.
 	// Nested LEB bombs that bypass the pre-parser kill only the child.
+	// Skip once cached (above) so pool submit bursts do not fork-bomb.
 	if err := validateWasmInChild(ctx, wasm); err != nil {
-		key := compiledKey(wasm)
-		quarantineWasm(key, "wasm-validate child rejected")
+		if !wasmValidateTransientFailure(err.Error()) {
+			quarantineWasm(key, "wasm-validate child rejected")
+		}
 		return err
 	}
 	stripped, err := stripWasmCustomSections(wasm)
@@ -312,7 +323,6 @@ func ValidateCheckWasm(ctx context.Context, wasm []byte) error {
 	validateCtx, cancel := context.WithTimeout(ctx, wasmCheckTimeout())
 	defer cancel()
 	rt := ensureCheckRuntime()
-	key := compiledKey(wasm)
 	checkCompileMu.Lock()
 	if blockQuarantinedWasm() {
 		if v, ok := checkQuarantine.Load(key); ok {
