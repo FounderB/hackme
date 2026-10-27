@@ -187,7 +187,7 @@ settle_read_session_anchor() {
   jq -r --arg wid "$wid" '.workers[$wid].session_anchor_hmc // empty' "$STATE_FILE"
 }
 
-# Single-writer: avoid two cron/systemd instances racing on nonce + state (see docs/POOL_SECURITY_THREATS_VERDICT.md).
+# Single-writer: avoid two cron/systemd instances racing on nonce + state (see docs/archive/verdicts/POOL_SECURITY_THREATS_VERDICT.md).
 LOCK_FILE="${STATE_FILE}.flock"
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then

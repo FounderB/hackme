@@ -32,10 +32,10 @@
 | [SUP_TOKENOMICS.md](SUP_TOKENOMICS.md) | Pool accrual, caps, on-chain mint |
 | [HMS_TOKENOMICS.md](HMS_TOKENOMICS.md) | Storage lane epoch budget |
 | [TOKEN_ALLOCATION_AND_VESTING.md](TOKEN_ALLOCATION_AND_VESTING.md) | Allocation table + unlock calendar |
-| [EXCHANGE_LISTING_MEMO.md](EXCHANGE_LISTING_MEMO.md) | One-page CEX submission memo |
-| [LISTING_PITCH_OUTLINE.md](LISTING_PITCH_OUTLINE.md) | 10–12 slide institutional outline |
-| [DOCUMENTATION_EXPORT.md](DOCUMENTATION_EXPORT.md) | PDF/DOCX export per ticker |
-| [EXCHANGE_LISTING_WALLET_PREP.md](EXCHANGE_LISTING_WALLET_PREP.md) | Technical integration pack |
+| [EXCHANGE_LISTING_MEMO.md](internal/EXCHANGE_LISTING_MEMO.md) | One-page CEX submission memo |
+| [LISTING_PITCH_OUTLINE.md](internal/LISTING_PITCH_OUTLINE.md) | 10–12 slide institutional outline |
+| [DOCUMENTATION_EXPORT.md](internal/DOCUMENTATION_EXPORT.md) | PDF/DOCX export per ticker |
+| [EXCHANGE_LISTING_WALLET_PREP.md](internal/EXCHANGE_LISTING_WALLET_PREP.md) | Technical integration pack |
 
 ## Differentiation (one paragraph)
 

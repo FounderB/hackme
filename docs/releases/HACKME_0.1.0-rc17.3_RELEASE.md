@@ -13,4 +13,4 @@
 
 - `scripts/release/CURRENT_VERSION` → `0.1.0-rc17.3`
 - Downloads: [hackme.tech/downloads.html](https://hackme.tech/downloads.html) · SHA256SUMS after bundle publish
-- Prior channel notes: [HACKME_RC17.md](../HACKME_RC17.md) · [0.1.0-rc17.2](./HACKME_0.1.0-rc17.2_RELEASE.md)
+- Prior channel notes: [HACKME_RC17.md](../archive/rc/HACKME_RC17.md) · [0.1.0-rc17.2](./HACKME_0.1.0-rc17.2_RELEASE.md)

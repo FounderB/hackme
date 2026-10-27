@@ -3,6 +3,8 @@
 **Role:** independent «HackMe Bootstrap Audits» customer (not the main pool VPS).  
 Deploy target defaults to `BOOTSTRAP_VPS` (see `deploy_bootstrap_vps.sh`).
 
+**Listing disclosure:** this is operator-seeded Dig/Hunt demand on the public pool (same escrow APIs as any customer). Documented on [token-transparency.html#bootstrap-demand](https://hackme.tech/token-transparency.html#bootstrap-demand).
+
 ## How orders reach the public pool
 
 Bootstrap places **`POST /api/security-audit`** locally with:

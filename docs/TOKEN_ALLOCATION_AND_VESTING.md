@@ -79,4 +79,4 @@ See [HMS_TOKENOMICS.md](HMS_TOKENOMICS.md). **Do not trade HMS** until lane is l
 
 ## Document exports
 
-Per-ticker PDF/DOCX packs: [DOCUMENTATION_EXPORT.md](DOCUMENTATION_EXPORT.md)
+Per-ticker PDF/DOCX packs: [DOCUMENTATION_EXPORT.md](internal/DOCUMENTATION_EXPORT.md)

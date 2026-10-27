@@ -1,8 +1,8 @@
 # HackMe 0.1.0-rc17 — cutover channel
 
-**Status:** LIVE · full channel **0.1.0-rc17.4** (runtime + installers + ISO) · [downloads](https://hackme.tech/downloads.html) · [GitHub](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.4)
+**Status:** HISTORICAL (superseded by rc18.x) · full channel **0.1.0-rc17.4** (runtime + installers + ISO) · [downloads](https://hackme.tech/downloads.html) · [GitHub](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.4)
 
-Related: [RC17_CUTOVER.md](RC17_CUTOVER.md) · release notes [HACKME_0.1.0-rc17.4_RELEASE.md](releases/HACKME_0.1.0-rc17.4_RELEASE.md) · prior [HACKME_RC16.md](HACKME_RC16.md) · [BUG_BOUNTY.md](BUG_BOUNTY.md)
+Related: [RC17_CUTOVER.md](../../internal/RC17_CUTOVER.md) · release notes [HACKME_0.1.0-rc17.4_RELEASE.md](../../releases/HACKME_0.1.0-rc17.4_RELEASE.md) · prior [HACKME_RC16.md](HACKME_RC16.md) · [BUG_BOUNTY.md](../../BUG_BOUNTY.md)
 
 ## What rc17.4 means
 
@@ -38,4 +38,4 @@ Listing PDFs under `dist/docs/` — rebuild with `bash scripts/release/build_lis
 
 ## Operator note
 
-Published channel **0.1.0-rc17.4** (rebuild/publish bundle, then verify SHA). Ops history: [RC17_CUTOVER.md](RC17_CUTOVER.md).
+Published channel **0.1.0-rc17.4** (rebuild/publish bundle, then verify SHA). Ops history: [RC17_CUTOVER.md](../../internal/RC17_CUTOVER.md).

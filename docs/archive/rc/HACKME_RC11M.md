@@ -1,6 +1,6 @@
 # HackMe 0.1.0-rc11m — archived download channel
 
-> **Historical archive.** Current channel: [HACKME_RC17.md](../../HACKME_RC17.md). Last published artifacts: [HACKME_RC16.md](../../HACKME_RC16.md).
+> **Historical archive.** Current channel: [HACKME_RC17.md](HACKME_RC17.md). Last published artifacts: [HACKME_RC16.md](HACKME_RC16.md).
 
 
 **Status:** **LIVE** on [hackme.tech/downloads.html](https://hackme.tech/downloads.html) — wallet treasury fix, canonical on-chain HMC + SUP display.
@@ -34,4 +34,4 @@ bash scripts/tests/verify_hackme_iso.sh dist/release_0.1.0-rc11l/HackMe-OS-0.1.0
 NODE_SSH=root@host bash scripts/ops/deploy_hackme_public_stack.sh
 ```
 
-Historical: [HACKME_RC11L.md](HACKME_RC11L.md) (ISO boot fix) · [HACKME_RC11K_LAUNCH_CANDIDATE.md](HACKME_RC11K_LAUNCH_CANDIDATE.md)
+Historical: [HACKME_RC11L.md](HACKME_RC11L.md) (ISO boot fix) · `HACKME_RC11K_LAUNCH_CANDIDATE.md` (removed from archive)

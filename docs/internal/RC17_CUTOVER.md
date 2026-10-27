@@ -2,7 +2,7 @@
 
 **Status:** CUTOVER LIVE · 15 Sep 2026 · D0 exchange + SUP wallet + Hunt · hub **0.1.0-rc17**
 
-Related: [HACKME_RC16.md](HACKME_RC16.md) · [exchange D0 checklist](https://github.com/jokeez/hackme-exchange/blob/main/docs/D0_CHECKLIST.md) · [HUB_TAB](https://github.com/jokeez/hackme-exchange/blob/main/docs/HUB_TAB.md)
+Related: [HACKME_RC16.md](../archive/rc/HACKME_RC16.md) · [exchange D0 checklist](https://github.com/jokeez/hackme-exchange/blob/main/docs/D0_CHECKLIST.md) · [HUB_TAB](https://github.com/jokeez/hackme-exchange/blob/main/docs/HUB_TAB.md)
 
 ## What rc17 ships (target bundle)
 

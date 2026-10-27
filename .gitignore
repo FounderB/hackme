@@ -117,3 +117,6 @@ web/site/assets/*.bakcheck
 .DS_Store
 Thumbs.db
 .venv-vast/
+
+# Operator session dumps (not for GitHub)
+scripts/reports/

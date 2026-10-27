@@ -72,7 +72,7 @@ Payout follows **accepted work**, not lottery blocks. Model: [NETWORK_MODEL.md](
 | **OSS CVE Watch** | nghttp2 **14/14** · libheif **14/14** CLEAN ledgers |
 | **HMS storage** | Preview only — not a miner lane |
 
-Channel notes: [docs/HACKME_RC17.md](docs/HACKME_RC17.md) · release: [GitHub 0.1.0-rc17.4](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17.4)
+Channel: **0.1.0-rc18.x** — [docs/releases/](docs/releases/) · [docs/INDEX.md](docs/INDEX.md) · news: https://hackme.tech/news.html · prior rc17: [docs/archive/rc/HACKME_RC17.md](docs/archive/rc/HACKME_RC17.md)
 
 **Honesty:** Hunt/Dig **CLEAN ≠ CVE claim**. Customer value is **bugs in their target + report + escrow**, not “we mint CVEs.” Standalone libFuzzer still wins **raw local exec/s**; product Hunt ships the **same engine class on the pool** (prove + escrow + Dig hybrid) — live bench 2026-10-11 in [HUNT_VS_LIBFUZZER.md](docs/HUNT_VS_LIBFUZZER.md). Old byte “~100 vs ~700 exec/s” charts are **not** the fleet default.
 

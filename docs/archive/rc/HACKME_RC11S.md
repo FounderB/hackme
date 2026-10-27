@@ -58,4 +58,4 @@ VERSION=0.1.0-rc11s bash scripts/release/iso/build_hackme_miner_iso.sh
 NODE_SSH=hackme-vps bash scripts/ops/deploy_hackme_site.sh
 ```
 
-Historical: [HACKME_RC11R.md](HACKME_RC11R.md) · [archive/rc/HACKME_RC11Q.md](archive/rc/HACKME_RC11Q.md)
+Historical: [HACKME_RC11R.md](HACKME_RC11R.md) · [archive/rc/HACKME_RC11Q.md](HACKME_RC11Q.md)

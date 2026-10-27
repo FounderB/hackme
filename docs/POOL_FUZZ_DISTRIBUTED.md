@@ -189,6 +189,6 @@ bash scripts/ops/pool_fuzz_distributed_gate.sh
 bash scripts/ops/run_customer_pool_smoke.sh   # Scan/Audit smoke
 ```
 
-Worker-local research slot (Stage D; escape `HACKME_WORKER_RESEARCH_SLOT=0`): optional short LF persist → `POST /api/fuzz/work/corpus_delta` (lease-bound; crashes ASAN-replayed). Distinct from the primary **coverage-engine lease** (LF/AFL++ wall). Does not enable Dig `HACKME_POOL_SEED_FROM_RESEARCH`. See [POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md) · [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md).
+Worker-local research slot (Stage D; escape `HACKME_WORKER_RESEARCH_SLOT=0`): optional short LF persist → `POST /api/fuzz/work/corpus_delta` (lease-bound; crashes ASAN-replayed). Distinct from the primary **coverage-engine lease** (LF/AFL++ wall). Does not enable Dig `HACKME_POOL_SEED_FROM_RESEARCH`. See [POOL_WORKER_RESEARCH_SLOT.md](internal/POOL_WORKER_RESEARCH_SLOT.md) · [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md).
 
 See also [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md).

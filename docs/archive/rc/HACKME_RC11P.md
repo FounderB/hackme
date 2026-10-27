@@ -1,6 +1,6 @@
 # HackMe 0.1.0-rc11p — superseded by rc11s
 
-> **Historical.** Current channel: [HACKME_RC17.md](../../HACKME_RC17.md). Last published: [HACKME_RC16.md](../../HACKME_RC16.md). Intermediate: [HACKME_RC12W.md](../../HACKME_RC12W.md).
+> **Historical.** Current channel: [HACKME_RC17.md](HACKME_RC17.md). Last published: [HACKME_RC16.md](HACKME_RC16.md). Intermediate: [HACKME_RC12W.md](HACKME_RC12W.md).
 
 **Status:** Superseded — kept for changelog reference.
 
@@ -35,4 +35,4 @@ bash scripts/ops/run_miner_launch_gate.sh
 NODE_SSH=hackme-vps bash scripts/ops/deploy_hackme_node.sh
 ```
 
-Historical: [HACKME_RC11N.md](HACKME_RC11N.md) · [HACKME_RC11O.md](HACKME_RC11O.md) if present
+Historical: [HACKME_RC11N.md](HACKME_RC11N.md) · `HACKME_RC11O.md` (not archived) if present

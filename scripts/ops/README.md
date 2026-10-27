@@ -1,6 +1,6 @@
 # `scripts/ops` — operator scripts (public repo)
 
-Production and CI-supported helpers only. **Lab / one-shot / marathon scripts** live under [`../local/`](../local/) (`ops/`, `tests/`, `vast/`) — that whole tree is gitignored from the repo root and is **not** pushed to GitHub.
+Production and CI-supported helpers only. Lab / one-shot / marathon scripts live under `scripts/local/` on operator machines (`ops/`, `tests/`, `vast/`) — that tree is **gitignored** and is not on GitHub. Spent one-shots that used to live here are in [`../archive/ops/`](../archive/ops/).
 
 ## Supported (production / miners)
 
@@ -12,7 +12,7 @@ Production and CI-supported helpers only. **Lab / one-shot / marathon scripts** 
 | `generate_sitemap.sh` | Regenerate `web/site/sitemap.xml` |
 | `update_hackme_miner.sh` | Self-update miner (Linux/Win/OS) |
 | `download_hackme_release.sh` | Fetch release tarball from hackme.tech |
-| Settlement / SUP timers | Scripts in `systemd/` + `docs/OPERATIONS_MONITORING.md` |
+| Settlement / SUP timers | Scripts in `systemd/` + `docs/internal/OPERATIONS_MONITORING.md` |
 
 Always read the script header before running. Prefer dry-run / gate scripts over destructive ones.
 
@@ -27,7 +27,7 @@ Always read the script header before running. Prefer dry-run / gate scripts over
 | `run_oss_cve_wave.sh` | Generic wave runner (`WAVE=` + JSON registry) |
 | `pool_fuzz_health_fix.sh` | Hub outbox drain + fuzz queue cleanup |
 
-Docs: [../../docs/BOUNTY_AUTOPILOT.md](../../docs/BOUNTY_AUTOPILOT.md) · [../../docs/OSS_CVE_HUNT.md](../../docs/OSS_CVE_HUNT.md)
+Docs: [../../docs/internal/BOUNTY_AUTOPILOT.md](../../docs/internal/BOUNTY_AUTOPILOT.md) · [../../docs/OSS_CVE_HUNT.md](../../docs/OSS_CVE_HUNT.md)
 
 ## Deprecated forwards
 
@@ -38,9 +38,9 @@ Docs: [../../docs/BOUNTY_AUTOPILOT.md](../../docs/BOUNTY_AUTOPILOT.md) · [../..
 
 ## Local-only lab (not on GitHub)
 
-Historical marathons, OSS CVE Watch day scripts, Vast.ai matrix, mega-gates, VPS one-shots, and duplicate bounty hunts live in [`../local/`](../local/). Never `git add -f` that tree.
+Historical marathons, OSS CVE Watch day scripts, Vast.ai matrix, mega-gates, and VPS one-shots stay on the operator machine under gitignored `scripts/local/`. Never `git add -f` that tree.
 
-See [archive/README.md](archive/README.md) for naming patterns of retired one-shots.
+Retired tracked one-shots: [`../archive/README.md`](../archive/README.md).
 
 ## Dangerous defaults
 

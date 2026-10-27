@@ -35,7 +35,7 @@ Published URLs (after deploy):
 ```bash
 mkdir -p dist/docs
 
-pandoc docs/EXCHANGE_LISTING_MEMO.md docs/HMC_TOKENOMICS.md \
+pandoc docs/internal/EXCHANGE_LISTING_MEMO.md docs/HMC_TOKENOMICS.md \
   docs/TOKEN_ALLOCATION_AND_VESTING.md \
   --pdf-engine=xelatex \
   -V mainfont="DejaVu Sans" \
@@ -64,7 +64,7 @@ pandoc docs/SUP_TOKENOMICS.md docs/SUPPORT_COIN_UTILITY.md \
 
 | Section | Source file |
 |---------|-------------|
-| Cover + memo | `docs/EXCHANGE_LISTING_MEMO.md` |
+| Cover + memo | `docs/internal/EXCHANGE_LISTING_MEMO.md` |
 | Tokenomics | `docs/HMC_TOKENOMICS.md` |
 | Allocation & vesting | `docs/TOKEN_ALLOCATION_AND_VESTING.md` |
 
@@ -86,7 +86,7 @@ pandoc docs/SUP_TOKENOMICS.md docs/SUPPORT_COIN_UTILITY.md \
 
 | Section | Source file |
 |---------|-------------|
-| Slides | `docs/LISTING_PITCH_OUTLINE.md` |
+| Slides | `docs/internal/LISTING_PITCH_OUTLINE.md` |
 | Ecosystem | `docs/ECOSYSTEM_OVERVIEW.md` |
 
 ### Legal pack (`HackMe_Legal_and_Rights`)

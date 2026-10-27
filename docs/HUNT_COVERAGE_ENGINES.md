@@ -89,7 +89,7 @@ Miners do **not** `git clone` AFL++. Install engines via `install_hunt_engines.s
 
 ## Related
 
-- [POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md)
+- [POOL_WORKER_RESEARCH_SLOT.md](internal/POOL_WORKER_RESEARCH_SLOT.md)
 - [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md)
 - [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md)
 - [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md)

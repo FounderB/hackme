@@ -141,7 +141,7 @@ When `pool_distributed: true`, hub `workerfuzz` / hybrid `workerpoh` claims work
 - Submit nonce reserved at signature validate (anti-replay)
 - Optional: `claim_batch` / `submit_batch` (≤16), claim-light corpus sha, worker prefetch
 - Coverage-guided Hunt engines (**libFuzzer** fleet default, **AFL++** Deep when AFL present): lease = engine wall; pay for coordinator-proven **showmap edges** + **ASAN crash** only ([HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md)); **`HACKME_HUNT_ENGINE_BYTE_FALLBACK` default OFF** → soft-skip (not silent byte dilution)
-- Hybrid Hunt research slot (escape `HACKME_WORKER_RESEARCH_SLOT=0`): optional short LF persist → corpus-delta + ASAN-replayed crashes ([POOL_WORKER_RESEARCH_SLOT.md](POOL_WORKER_RESEARCH_SLOT.md)); does **not** enable Dig `HACKME_POOL_SEED_FROM_RESEARCH` (stays OFF)
+- Hybrid Hunt research slot (escape `HACKME_WORKER_RESEARCH_SLOT=0`): optional short LF persist → corpus-delta + ASAN-replayed crashes ([POOL_WORKER_RESEARCH_SLOT.md](internal/POOL_WORKER_RESEARCH_SLOT.md)); does **not** enable Dig `HACKME_POOL_SEED_FROM_RESEARCH` (stays OFF)
 
 **Safe fleet tiers:** Scan (1) · Audit (64) · Deep hub **cap 256** (local 512). Fleet ~25–35 dig/hybrid workers typical.
 
@@ -183,4 +183,4 @@ MODE=lang_static bash scripts/tests/run_daily.sh
 - [HUNT_ECONOMICS.md](HUNT_ECONOMICS.md) — Hunt 50/50 (Phase 1–2)
 - [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md) — libFuzzer/AFL++ fleet, pay prove, byte fallback OFF
 - [HUNT_VS_LIBFUZZER.md](HUNT_VS_LIBFUZZER.md) — honest limits (not better than OSS-Fuzz)
-- [FUZZING_B2B_SECURITY_VERDICT.md](FUZZING_B2B_SECURITY_VERDICT.md) — threat model
+- [FUZZING_B2B_SECURITY_VERDICT.md](archive/verdicts/FUZZING_B2B_SECURITY_VERDICT.md) — threat model

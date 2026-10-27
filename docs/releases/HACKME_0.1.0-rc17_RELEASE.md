@@ -53,7 +53,7 @@ sha256sum -c SHA256SUMS-iso.txt   # ISO
 ```
 
 Downloads: https://hackme.tech/downloads.html  
-Cutover notes: https://github.com/jokeez/hackme/blob/main/docs/RC17_CUTOVER.md  
+Cutover notes: https://github.com/jokeez/hackme/blob/main/docs/internal/RC17_CUTOVER.md  
 Prior artifacts: [0.1.0-rc16](https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16)
 
 ## Honest scope

@@ -69,8 +69,8 @@ Cold mid-tier CEX pitches are **deferred** while the desk and product deepen.
 ## Integration pack
 
 1. [EXCHANGE_LISTING_WALLET_PREP.md](EXCHANGE_LISTING_WALLET_PREP.md)
-2. [spec/CHAIN_SPEC.md](../spec/CHAIN_SPEC.md)
-3. [docs/API.md](API.md) — transfers section
+2. [spec/CHAIN_SPEC.md](../../spec/CHAIN_SPEC.md)
+3. [docs/API.md](../API.md) — transfers section
 4. Deposit test: `transfer_v1` + explorer confirmation
 
 ## Market / liquidity (honest)

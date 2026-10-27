@@ -6,12 +6,13 @@ Factual pass/fail snapshots for releases and research series.
 |----------|-----------------|
 | [HUNT_WATCH_2026SEP_SERIES_VERDICT.md](HUNT_WATCH_2026SEP_SERIES_VERDICT.md) | **Hunt Watch 2026sep** — 12/12 CLOSED · ~192.5M Hunt Standard · public ledger |
 | [OSS_CVE_WATCH_NGHTTP2_SERIES_VERDICT.md](OSS_CVE_WATCH_NGHTTP2_SERIES_VERDICT.md) | **OSS CVE Watch Days 1–14** — nghttp2 series CLEAN · ~14.32B exec |
-| [../HACKME_RC17.md](../HACKME_RC17.md) | **Current channel rc17** LIVE — exchange · SUP · Hunt; installers published |
-| [../HACKME_RC16.md](../HACKME_RC16.md) | Prior published channel — self-update + signed apt + ISO |
-| [../HACKME_RC15.md](../HACKME_RC15.md) | Previous rc15 — B2B fuzz Phase 2 + pool anticheat |
-| [../HACKME_RC14.md](../HACKME_RC14.md) | Previous rc14x channel |
-| [../HACKME_RC12W.md](../HACKME_RC12W.md) | Historical rc12w — wallet Activity, UX cleanup (superseded) |
-| [../HACKME_RC11S.md](../HACKME_RC11S.md) | Historical rc11s (superseded) |
+| [../releases/HACKME_0.1.0-rc18_RELEASE.md](../releases/HACKME_0.1.0-rc18_RELEASE.md) | **Current channel rc18.x** — Blake3 · share-PPS · Dig/Hunt |
+| [../archive/rc/HACKME_RC17.md](../archive/rc/HACKME_RC17.md) | Prior rc17 channel — exchange · SUP · Hunt |
+| [../archive/rc/HACKME_RC16.md](../archive/rc/HACKME_RC16.md) | Prior published channel — self-update + signed apt + ISO |
+| [../archive/rc/HACKME_RC15.md](../archive/rc/HACKME_RC15.md) | Previous rc15 — B2B fuzz Phase 2 + pool anticheat |
+| [../archive/rc/HACKME_RC14.md](../archive/rc/HACKME_RC14.md) | Previous rc14x channel |
+| [../archive/rc/HACKME_RC12W.md](../archive/rc/HACKME_RC12W.md) | Historical rc12w — wallet Activity, UX cleanup (superseded) |
+| [../archive/rc/HACKME_RC11S.md](../archive/rc/HACKME_RC11S.md) | Historical rc11s (superseded) |
 | [../archive/rc/HACKME_RC11R.md](../archive/rc/HACKME_RC11R.md) | Historical rc11r (superseded) |
 | [../archive/rc/HACKME_RC11L.md](../archive/rc/HACKME_RC11L.md) | ISO channel rc11l — live USB boot fix (historical) |
 | [../archive/rc/HACKME_RC11M.md](../archive/rc/HACKME_RC11M.md) | Historical rc11m — wallet treasury |
@@ -24,4 +25,4 @@ Public news feed: https://hackme.tech/news.html · `web/site/assets/news.json`
 
 ## Version policy
 
-Win/Linux runtime + published installers: `scripts/release/CURRENT_VERSION` → **0.1.0-rc17.4** (full bundle cut 2026-10-22). Hunt engine auto-install for fleet installers: **rc17.3**. Note: published rc17.4 Linux `workerpoh-cuda` / Windows `workerpoh-opencl.exe` may still be Sep-dated until a rebuild with CUDA toolkit ≥12.8 + fresh OpenCL cross-build; use `scripts/ops/build_cuda_worker.sh` locally.
+Win/Linux runtime + published installers: see `scripts/release/CURRENT_VERSION` and [../releases/](../releases/) (channel **0.1.0-rc18.x**). Older rc17 notes remain under [../archive/rc/](../archive/rc/).

@@ -74,7 +74,7 @@ gen_agpl_body() {
 }
 
 build_pdf HMC_Listing_Pack.pdf "${PANDOC_DIR}/meta/hmc.yaml" \
-  docs/EXCHANGE_LISTING_MEMO.md \
+  docs/internal/EXCHANGE_LISTING_MEMO.md \
   docs/HMC_TOKENOMICS.md \
   docs/TOKEN_ALLOCATION_AND_VESTING.md
 
@@ -83,7 +83,7 @@ build_pdf SUP_Companion_Overview.pdf "${PANDOC_DIR}/meta/sup.yaml" \
   docs/SUPPORT_COIN_UTILITY.md
 
 build_pdf HackMe_Network_Pitch.pdf "${PANDOC_DIR}/meta/pitch.yaml" \
-  docs/LISTING_PITCH_OUTLINE.md \
+  docs/internal/LISTING_PITCH_OUTLINE.md \
   docs/ECOSYSTEM_OVERVIEW.md
 
 build_pdf HackMe_Legal_and_Rights.pdf "${PANDOC_DIR}/meta/legal.yaml" \

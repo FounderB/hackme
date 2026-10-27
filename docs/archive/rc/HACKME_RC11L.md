@@ -1,6 +1,6 @@
 # HackMe 0.1.0-rc11l — HackMe OS ISO channel
 
-> **Historical archive.** Current channel: [HACKME_RC17.md](../../HACKME_RC17.md). Last published artifacts: [HACKME_RC16.md](../../HACKME_RC16.md).
+> **Historical archive.** Current channel: [HACKME_RC17.md](HACKME_RC17.md). Last published artifacts: [HACKME_RC16.md](HACKME_RC16.md).
 
 
 **Status:** ISO live-boot fix shipped; **current ISO on downloads** until rc11m ISO is built. Win/Linux channel: [HACKME_RC11M.md](HACKME_RC11M.md).
@@ -25,4 +25,4 @@ bash scripts/tests/verify_hackme_iso.sh dist/release_0.1.0-rc11l/HackMe-OS-0.1.0
 bash scripts/tests/site_release_consistency_gate.sh
 ```
 
-Historical launch notes: [HACKME_RC11K_LAUNCH_CANDIDATE.md](HACKME_RC11K_LAUNCH_CANDIDATE.md)
+Historical launch notes: `HACKME_RC11K_LAUNCH_CANDIDATE.md` (removed from archive)

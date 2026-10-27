@@ -43,5 +43,5 @@ Closed repos (darts RWA) stay in `closed_need_access` until HackenProof grants r
 
 ## Manual steps / disclosure
 
-- OSS upstream issues: [OSS_DISCLOSURE_ACTIONS.md](OSS_DISCLOSURE_ACTIONS.md) · per-project drafts in repo root `docs/OSS_CVE_DISCLOSURE_*.md`
-- Historical marathon notes: [archive/bounty/README.md](archive/bounty/README.md)
+- OSS upstream issues: [OSS_DISCLOSURE_ACTIONS.md](../OSS_DISCLOSURE_ACTIONS.md) · per-project drafts in repo root `docs/OSS_CVE_DISCLOSURE_*.md`
+- Historical marathon notes: [archive/bounty/README.md](../archive/bounty/README.md)

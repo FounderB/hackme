@@ -54,6 +54,6 @@ flowchart TB
 
 ## Related
 
-- Release channel: [`HACKME_RC16.md`](HACKME_RC16.md)
+- Release channel: [`HACKME_RC16.md`](archive/rc/HACKME_RC16.md)
 - Orders economics: [`ORDER_ECONOMICS.md`](ORDER_ECONOMICS.md)
-- Pool threats: [`POOL_SECURITY_THREATS_VERDICT.md`](POOL_SECURITY_THREATS_VERDICT.md)
+- Pool threats: [`POOL_SECURITY_THREATS_VERDICT.md`](archive/verdicts/POOL_SECURITY_THREATS_VERDICT.md)

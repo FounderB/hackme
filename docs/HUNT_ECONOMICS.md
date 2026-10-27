@@ -2,7 +2,7 @@
 
 **Status:** shipped on **0.1.0-rc17** channel (Dig/Scan still 20/80) · coverage-guided Hunt engines live  
 **Updated:** 2026-10-11  
-**Related:** [FUZZ_ESCROW_20_80.md](FUZZ_ESCROW_20_80.md) · [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md) · [ORDER_ECONOMICS.md](ORDER_ECONOMICS.md) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) · [HACKME_RC17.md](HACKME_RC17.md)
+**Related:** [FUZZ_ESCROW_20_80.md](FUZZ_ESCROW_20_80.md) · [HUNT_COVERAGE_ENGINES.md](HUNT_COVERAGE_ENGINES.md) · [ORDER_ECONOMICS.md](ORDER_ECONOMICS.md) · [FUZZ_PRODUCT_GUIDE.md](FUZZ_PRODUCT_GUIDE.md) · [HACKME_RC17.md](archive/rc/HACKME_RC17.md)
 
 ---
 

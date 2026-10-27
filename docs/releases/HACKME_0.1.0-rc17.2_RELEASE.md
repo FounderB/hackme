@@ -66,4 +66,4 @@ Official mirrors:
 
 - Supersedes published installers from **0.1.0-rc17** / runtime hotpatch **0.1.0-rc17.1**.
 - Apt `.deb` does **not** ship `pool.miner.token` — use `curl -fsSL https://hackme.tech/apt/install.sh | sudo bash` or [downloads `#pool-token`](https://hackme.tech/downloads.html#pool-token).
-- Channel docs: [HACKME_RC17.md](../HACKME_RC17.md)
+- Channel docs: [HACKME_RC17.md](../archive/rc/HACKME_RC17.md)

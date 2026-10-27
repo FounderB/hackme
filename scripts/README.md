@@ -7,7 +7,10 @@
 | [`lib/`](lib/) | yes | Shared shell helpers |
 | [`release/`](release/) | yes | ISO / Windows / apt release pipeline |
 | [`tests/`](tests/) | partial | CI gates (`run_daily.sh`, `run_ui_e2e.sh`, language pack) |
-| [`ops/`](ops/) | partial | Production deploy, pool, settlement, bootstrap |
+| [`ops/`](ops/) | yes | Production deploy, pool, settlement, bootstrap customer |
+| [`archive/`](archive/) | yes | Spent one-shot ops helpers (not for daily use) |
 | [`vast/`](vast/) | **local only** | Vast.ai field-test helpers (gitignored) |
+| [`local/`](local/) | **local only** | Lab / marathon scripts (gitignored — not on GitHub) |
+| `reports/` | **local only** | Operator session dumps (gitignored) |
 
-Lab scripts removed from the public index are listed in [`.gitignore`](.gitignore) — they remain on operator machines, not on [github.com/jokeez/hackme/tree/main/scripts](https://github.com/jokeez/hackme/tree/main/scripts).
+See [`ops/README.md`](ops/README.md) for the supported production script list.

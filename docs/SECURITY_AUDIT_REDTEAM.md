@@ -152,4 +152,4 @@ HACKME_P2P_TOKEN=<strong-secret>   # if P2P enabled
 ## Related docs
 
 - [SECURITY.md](SECURITY.md) — threat model  
-- [POOL_SECURITY_THREATS_VERDICT.md](POOL_SECURITY_THREATS_VERDICT.md) — payout abuse scenarios  
+- [POOL_SECURITY_THREATS_VERDICT.md](archive/verdicts/POOL_SECURITY_THREATS_VERDICT.md) — payout abuse scenarios  

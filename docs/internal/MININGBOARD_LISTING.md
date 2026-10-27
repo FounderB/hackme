@@ -3,7 +3,7 @@
 Submit HackMe (HMC) to [MiningBoard](https://miningboard.com/en/pools) pool directory.  
 **Status:** first submit stalled (legacy `/api/pool/stats` shape ≠ MiningBoard `pool-v1`) — use **`/api/miningboard/hmc`** + follow-up email.
 
-Related: [MININGPOOLSTATS_LISTING.md](MININGPOOLSTATS_LISTING.md) (historical — MiningPoolStats is **defunct**; do not cite as live proof).
+Related: MiningPoolStats listing was removed (directory **defunct**; do not cite as live proof).
 
 ## Why the first attempt likely failed
 
@@ -150,5 +150,5 @@ HackMe Network
 
 ## Not a substitute for
 
-- Exchange listing — see [EXCHANGE_LISTING_ROADMAP.md](EXCHANGE_LISTING_ROADMAP.md).
+- Exchange listing — see [EXCHANGE_LISTING_MEMO.md](EXCHANGE_LISTING_MEMO.md) / [LISTING_PITCH_OUTLINE.md](LISTING_PITCH_OUTLINE.md).
 - Defunct aggregators (e.g. MiningPoolStats) — do not cite as live.
