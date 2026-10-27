@@ -82,6 +82,10 @@ type Miner struct {
 	sessionStartNs atomic.Int64
 	sessionSolves  atomic.Uint64
 
+	// WASM gate errors reject every candidate silently (UI buffer only) — journal them rate-limited.
+	gateErrCount   atomic.Uint64
+	gateErrLogNano atomic.Int64
+
 	solved      atomic.Uint32 // 0 = hunting, 1 = winner claimed
 	throttleMu  sync.RWMutex
 	throttlePct float64      // target max CPU % for process (soft hint via sleep); see SetSoftCPUThrottlePct
@@ -349,6 +353,21 @@ func (m *Miner) setGPUPoHFleet(labels, names, backs []string, backendSummary str
 	m.poHBackend.Store(backendSummary)
 }
 
+// gateErrLogInterval bounds journal spam: a broken validator fails every candidate.
+const gateErrLogInterval = 30 * time.Second
+
+// logGateErrRateLimited surfaces WASM gate failures in the process log (not only the UI buffer),
+// so a misconfigured validator (e.g. HACKME_WASM_VALIDATE_BIN missing) cannot stall the chain unseen.
+func (m *Miner) logGateErrRateLimited(err error) {
+	n := m.gateErrCount.Add(1)
+	now := time.Now().UnixNano()
+	last := m.gateErrLogNano.Load()
+	if now-last < int64(gateErrLogInterval) || !m.gateErrLogNano.CompareAndSwap(last, now) {
+		return
+	}
+	log.Printf("hackme: miner: wasm gate rejecting candidates (total=%d): %v", n, err)
+}
+
 func (m *Miner) appendLine(s string) {
 	m.mu.Lock()
 	m.lines = append(m.lines, s)
@@ -536,6 +555,7 @@ func (m *Miner) workerLoop(ctx context.Context, next *atomic.Uint64) {
 					ok, err := sandbox.InvokeCheck(ctx, ts.WasmCheck, n)
 					if err != nil {
 						m.appendLine("miner: wasm gate: " + err.Error())
+						m.logGateErrRateLimited(err)
 					}
 					if err != nil || !ok {
 						rem := (i + 1) % statStride

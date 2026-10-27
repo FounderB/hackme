@@ -90,6 +90,14 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
     echo "[deploy-hackme-node] go build workerfuzz (dig pool; wasm-validate child entry)"
     go build -trimpath -ldflags "-s -w" -o bin/workerfuzz ./cmd/workerfuzz
   fi
+  # No-cgo wasm-validate child for node + coordinator gates (HACKME_WASM_VALIDATE_BIN).
+  echo "[deploy-hackme-node] go build hackme-wasm-check (wasm-validate child)"
+  mkdir -p bin
+  CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o bin/hackme-wasm-check ./cmd/hackme-wasm-check
+fi
+if [[ ! -x "$ROOT_DIR/bin/hackme-wasm-check" ]]; then
+  echo "[deploy-hackme-node] FATAL: bin/hackme-wasm-check missing — rsync --delete would leave PoH gates without a validator" >&2
+  exit 4
 fi
 
 echo "[deploy-hackme-node] rsync -> $NODE_SSH:$NODE_DEPLOY_DIR (SYNC_DIST=${SYNC_DIST})"
@@ -132,6 +140,16 @@ if [[ -f "\$d/bin/workersettle" ]]; then chmod 755 "\$d/bin/workersettle"; fi
 if [[ -f "\$d/bin/workersettlectl" ]]; then chmod 755 "\$d/bin/workersettlectl"; fi
 if [[ -f "\$d/bin/workerfuzz" ]]; then chmod 755 "\$d/bin/workerfuzz"; fi
 if [[ -f "\$d/minersign" ]]; then chmod 755 "\$d/minersign"; fi
+if [[ -f "\$d/bin/hackme-wasm-check" ]]; then chmod 755 "\$d/bin/hackme-wasm-check"; fi
+# A missing HACKME_WASM_VALIDATE_BIN makes every PoH gate candidate fail → chain halts silently.
+for envf in "\$d/.env.vps" "\$d/.env.coord"; do
+  [[ -f "\$envf" ]] || continue
+  vbin="\$(grep -m1 '^HACKME_WASM_VALIDATE_BIN=' "\$envf" | cut -d= -f2- | tr -d '\r\n"')"
+  if [[ -n "\$vbin" && ! -x "\$vbin" ]]; then
+    echo "[deploy-hackme-node] FATAL: \$(basename "\$envf") HACKME_WASM_VALIDATE_BIN=\$vbin not executable — refusing restart" >&2
+    exit 5
+  fi
+done
 if [[ -f "\$d/scripts/ops/systemd/hackme-node.service" ]]; then
   cp -a "\$d/scripts/ops/systemd/hackme-node.service" /etc/systemd/system/hackme-node.service
   echo "[deploy-hackme-node] installed systemd unit (binary ExecStart, not go run)"
