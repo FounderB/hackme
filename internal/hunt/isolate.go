@@ -133,12 +133,31 @@ func probeBubblewrap() bool {
 	return true
 }
 
+// isolateEffectiveUID is os.Geteuid; tests override to exercise root refuse without root.
+var isolateEffectiveUID = os.Geteuid
+
+// refuseRootIsolated blocks paid Hunt exec as root unless AllowBare or HACKME_HUNT_ALLOW_ROOT.
+// Applies to both bare and bwrap paths — namespaces ≠ uid drop.
+func refuseRootIsolated(allowBare bool) error {
+	if isolateEffectiveUID() != 0 || allowBare {
+		return nil
+	}
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_HUNT_ALLOW_ROOT")))
+	if v == "1" || v == "true" || v == "yes" || v == "on" {
+		return nil
+	}
+	return fmt.Errorf("hunt isolate: refusing root exec (set HACKME_HUNT_ALLOW_ROOT=1 to override)")
+}
+
 // RunIsolated executes bin under wall-clock + bubblewrap (--unshare-net) when available.
 // When IsolateRequired and bwrap is missing (and AllowBare is false), returns an error
 // instead of falling through to bare exec (M1 fail-closed for paid Hunt).
 func RunIsolated(ctx context.Context, opts IsolateOpts) error {
 	if strings.TrimSpace(opts.Bin) == "" {
 		return fmt.Errorf("hunt isolate: empty bin")
+	}
+	if err := refuseRootIsolated(opts.AllowBare); err != nil {
+		return err
 	}
 	wall := opts.Wall
 	if wall <= 0 {
@@ -343,13 +362,9 @@ func bareIsolatedCommand(ctx context.Context, bin string, args []string) *exec.C
 }
 
 func runBareIsolated(runCtx context.Context, opts IsolateOpts, env []string, wall time.Duration) error {
-	if os.Geteuid() == 0 && !opts.AllowBare {
-		// Paid Hunt must not exec untrusted harnesses as root on the bare path.
-		// AllowBare keeps showmap/unit helpers usable under CI root.
-		v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_HUNT_ALLOW_ROOT")))
-		if v != "1" && v != "true" && v != "yes" && v != "on" {
-			return fmt.Errorf("hunt isolate: refusing bare root exec (set HACKME_HUNT_ALLOW_ROOT=1 to override)")
-		}
+	// Defense in depth when called directly (RunIsolated already checks).
+	if err := refuseRootIsolated(opts.AllowBare); err != nil {
+		return err
 	}
 	cmd := bareIsolatedCommand(runCtx, opts.Bin, opts.Args)
 	cmd.Env = env
