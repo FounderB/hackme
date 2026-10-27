@@ -2,8 +2,8 @@
 Description=Run HackMe Node HTTP Watchdog every minute
 
 [Timer]
-OnBootSec=45s
-OnUnitActiveSec=60s
+# OnCalendar, not OnUnitActiveSec: the latter lost its anchor on the hub and never fired again (Jul→Oct 2026).
+OnCalendar=*-*-* *:*:00
 Unit=hackme-node-watchdog.service
 Persistent=true
 
