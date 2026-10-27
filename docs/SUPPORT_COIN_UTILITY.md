@@ -31,8 +31,11 @@ SUP is designed for **exchange listing**: fixed policy, on-chain transfers, publ
 
 ## Utility (why hold / trade)
 
-1. **Security Audit discount** — pay up to 15% of order escrow in SUP (rest HMC).
-2. **Pool priority** — higher lease weight in congested periods for wallets with SUP balance ≥ threshold.
+> **Status:** no SUP spending utility is live yet. Items 1–2 were never enforced in code and are
+> superseded by economics v2 (order fee payable in SUP; escrow always HMC; no pool priority).
+
+1. ~~Security Audit discount — up to 15% of order escrow in SUP~~ → v2: pay the order **fee** in SUP (planned).
+2. ~~Pool priority under congestion~~ — dropped in v2.
 3. **Reputation badge** — public “Support miner” tier on explorer / dashboard (top SUP earners, anti-abuse reviewed).
 4. **Governance signal** — non-binding votes on coordinator params (reward_per_m, settle thresholds).
 5. **Lane access** — early ORD / Alpha testnet slots for SUP holders (planned).

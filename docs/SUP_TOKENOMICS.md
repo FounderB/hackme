@@ -32,8 +32,8 @@ Full policy: [SUPPORT_COIN_UTILITY.md](SUPPORT_COIN_UTILITY.md) · Phase C on-ch
 
 | Utility | Status |
 |---------|--------|
-| Security Audit discount (up to 15% escrow in SUP) | Spec + rollout |
-| Pool priority under congestion | Planned enforcement |
+| Order fee payable in SUP (escrow stays HMC) | Planned — economics v2 |
+| ~~Security Audit discount (15% escrow)~~ / ~~pool priority~~ | Not enforced; dropped in v2 |
 | Support-miner reputation tier | Explorer / dashboard |
 | Governance signal (non-binding param votes) | Planned |
 | Early ORD / Alpha slots | Planned |
