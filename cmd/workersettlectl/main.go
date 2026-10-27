@@ -1,4 +1,4 @@
-// Command workersettlectl: SQLite settlement ledger helpers for settle_worker_payouts.sh.
+// Command workersettlectl: SQLite settlement ledger helpers (used by workersettle / ops debug).
 package main
 
 import (
@@ -64,14 +64,17 @@ func main() {
 		w, err := s.GetWorker(ctx, os.Args[3])
 		must(err)
 		ent := map[string]any{
-			"worker_id":          w.WorkerID,
-			"settled_hmc":        w.SettledHMC,
-			"settled_sup":        w.SettledSUP,
-			"session_anchor_hmc": w.SessionAnchorHMC,
-			"session_anchor_sup": w.SessionAnchorSUP,
-			"payout_address":     w.PayoutAddress,
-			"last_tx_hash":       w.LastTxHash,
-			"pending_json":       w.PendingJSON,
+			"worker_id":            w.WorkerID,
+			"settled_hmc":          w.SettledHMC,
+			"settled_units":        w.SettledUnits,
+			"settled_sup":          w.SettledSUP,
+			"settled_sup_units":    w.SettledSUPUnits,
+			"session_anchor_hmc":   w.SessionAnchorHMC,
+			"session_anchor_units": w.SessionAnchorUnits,
+			"session_anchor_sup":   w.SessionAnchorSUP,
+			"payout_address":       w.PayoutAddress,
+			"last_tx_hash":         w.LastTxHash,
+			"pending_json":         w.PendingJSON,
 		}
 		b, err := json.Marshal(ent)
 		must(err)

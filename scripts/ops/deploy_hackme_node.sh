@@ -83,8 +83,9 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
     go build -trimpath -ldflags "-s -w" -o coordinator ./cmd/coordinator
     echo "[deploy-hackme-node] go build minersign (worker hybrid signer helper)"
     go build -trimpath -ldflags "-s -w" -o minersign ./cmd/minersign
-    echo "[deploy-hackme-node] go build workersettlectl (HMC settle SQLite ledger)"
+    echo "[deploy-hackme-node] go build workersettle + workersettlectl (HMC units ledger settler)"
     mkdir -p bin
+    go build -trimpath -ldflags "-s -w" -o bin/workersettle ./cmd/workersettle
     go build -trimpath -ldflags "-s -w" -o bin/workersettlectl ./cmd/workersettlectl
     echo "[deploy-hackme-node] go build workerfuzz (dig pool; wasm-validate child entry)"
     go build -trimpath -ldflags "-s -w" -o bin/workerfuzz ./cmd/workerfuzz
@@ -127,6 +128,7 @@ if [[ ! -f "\$d/.env.vps" ]]; then
 fi
 chmod 755 "\$d/hackme-node"
 if [[ -f "\$d/coordinator" ]]; then chmod 755 "\$d/coordinator"; fi
+if [[ -f "\$d/bin/workersettle" ]]; then chmod 755 "\$d/bin/workersettle"; fi
 if [[ -f "\$d/bin/workersettlectl" ]]; then chmod 755 "\$d/bin/workersettlectl"; fi
 if [[ -f "\$d/bin/workerfuzz" ]]; then chmod 755 "\$d/bin/workerfuzz"; fi
 if [[ -f "\$d/minersign" ]]; then chmod 755 "\$d/minersign"; fi

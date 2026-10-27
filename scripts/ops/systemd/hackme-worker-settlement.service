@@ -13,7 +13,9 @@ PermissionsStartOnly=true
 ExecStartPre=/bin/bash -c 'install -d -o hackme -g hackme -m 700 /opt/hackme/data; for f in worker_settlement_state.json worker_settlement_state.json.flock worker_settlement.db; do touch "/opt/hackme/data/$f"; chown hackme:hackme "/opt/hackme/data/$f"; done; chmod 600 /opt/hackme/data/worker_settlement_state.json /opt/hackme/data/worker_settlement.db; chown hackme:hackme /opt/hackme/data/worker_settlement.db-shm /opt/hackme/data/worker_settlement.db-wal 2>/dev/null || true; chmod 755 /opt/hackme/data'
 # Never block payouts when treasury probe is slow (hub load); script exits 0 on probe failure.
 ExecStartPre=-/opt/hackme/scripts/ops/ensure_settlement_treasury_float.sh
+# Prefer Go settler; wrapper falls back to archived bash if bin missing.
 ExecStart=/opt/hackme/scripts/ops/settle_worker_payouts.sh
+# Build on deploy: go build -o /opt/hackme/bin/workersettle ./cmd/workersettle
 User=hackme
 Group=hackme
 

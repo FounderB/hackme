@@ -1,6 +1,6 @@
 // Package workersettle is the HMC worker settlement ledger (SQLite + outbox).
-// It extends the JSON flock model used by scripts/ops/settle_worker_payouts.sh
-// toward transactional pending intents (same spirit as poolfuzz settle_outbox).
+// Canonical balances are uint64 units (1 HMC = 1e8). cmd/workersettle runs payouts;
+// float HMC columns remain mirrors for legacy JSON/UI.
 package workersettle
 
 import (
@@ -21,16 +21,21 @@ import (
 )
 
 // WorkerRow is one worker's settlement watermark + optional pending intent.
+// Canonical money fields are *Units (uint64); float HMC/SUP columns are mirrors for legacy JSON/UI.
 type WorkerRow struct {
-	WorkerID         string
-	SettledHMC       float64
-	SettledSUP       float64
-	SessionAnchorHMC float64 // 0 = unset
-	SessionAnchorSUP float64 // 0 = unset (coordinator SUP counter reset)
-	PayoutAddress    string
-	LastTxHash       string
-	LastSettleUnix   int64
-	PendingJSON      string // raw pending_settle object or empty
+	WorkerID           string
+	SettledHMC         float64
+	SettledSUP         float64
+	SettledUnits       uint64 // HMC watermark in units (authoritative when >0 or after migrate)
+	SettledSUPUnits    uint64
+	SessionAnchorHMC   float64 // 0 = unset
+	SessionAnchorSUP   float64 // 0 = unset (coordinator SUP counter reset)
+	SessionAnchorUnits uint64
+	SessionAnchorSUPU  uint64
+	PayoutAddress      string
+	LastTxHash         string
+	LastSettleUnix     int64
+	PendingJSON        string // raw pending_settle object or empty
 }
 
 // Meta holds ledger-wide fields.
@@ -106,6 +111,7 @@ CREATE TABLE IF NOT EXISTS settle_outbox (
   worker_id TEXT NOT NULL,
   payout_address TEXT NOT NULL,
   delta_hmc REAL NOT NULL,
+  delta_units INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'pending',
   tx_hash TEXT NOT NULL DEFAULT '',
   nonce INTEGER NOT NULL DEFAULT 0,
@@ -113,13 +119,61 @@ CREATE TABLE IF NOT EXISTS settle_outbox (
   applied_at INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_settle_outbox_status ON settle_outbox(status, id);
+
+CREATE TABLE IF NOT EXISTS settle_ledger (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  worker_id TEXT NOT NULL DEFAULT '',
+  units INTEGER NOT NULL DEFAULT 0,
+  share_count INTEGER NOT NULL DEFAULT 0,
+  instant_share_units INTEGER NOT NULL DEFAULT 0,
+  ema_share_units INTEGER NOT NULL DEFAULT 0,
+  target_mod INTEGER NOT NULL DEFAULT 0,
+  share_mod INTEGER NOT NULL DEFAULT 0,
+  note TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_settle_ledger_kind_ts ON settle_ledger(kind, created_at);
 `)
 	if err != nil {
 		return err
 	}
-	// Idempotent column add for DBs created before session_anchor_sup.
+	// Idempotent column adds for older DBs.
 	_, _ = s.db.Exec(`ALTER TABLE settle_workers ADD COLUMN session_anchor_sup REAL NOT NULL DEFAULT 0`)
+	_, _ = s.db.Exec(`ALTER TABLE settle_workers ADD COLUMN settled_units INTEGER NOT NULL DEFAULT 0`)
+	_, _ = s.db.Exec(`ALTER TABLE settle_workers ADD COLUMN settled_sup_units INTEGER NOT NULL DEFAULT 0`)
+	_, _ = s.db.Exec(`ALTER TABLE settle_workers ADD COLUMN session_anchor_units INTEGER NOT NULL DEFAULT 0`)
+	_, _ = s.db.Exec(`ALTER TABLE settle_workers ADD COLUMN session_anchor_sup_units INTEGER NOT NULL DEFAULT 0`)
+	_, _ = s.db.Exec(`ALTER TABLE settle_outbox ADD COLUMN delta_units INTEGER NOT NULL DEFAULT 0`)
+	s.backfillUnitsFromFloat()
 	return nil
+}
+
+// backfillUnitsFromFloat fills *_units from REAL columns once (idempotent where units==0).
+func (s *Store) backfillUnitsFromFloat() {
+	if s == nil || s.db == nil {
+		return
+	}
+	_, _ = s.db.Exec(`
+UPDATE settle_workers SET
+  settled_units = CAST(ROUND(settled_hmc * 100000000) AS INTEGER)
+WHERE settled_units = 0 AND settled_hmc > 0`)
+	_, _ = s.db.Exec(`
+UPDATE settle_workers SET
+  settled_sup_units = CAST(ROUND(settled_sup * 100000000) AS INTEGER)
+WHERE settled_sup_units = 0 AND settled_sup > 0`)
+	_, _ = s.db.Exec(`
+UPDATE settle_workers SET
+  session_anchor_units = CAST(ROUND(session_anchor_hmc * 100000000) AS INTEGER)
+WHERE session_anchor_units = 0 AND session_anchor_hmc > 0`)
+	_, _ = s.db.Exec(`
+UPDATE settle_workers SET
+  session_anchor_sup_units = CAST(ROUND(session_anchor_sup * 100000000) AS INTEGER)
+WHERE session_anchor_sup_units = 0 AND session_anchor_sup > 0`)
+	_, _ = s.db.Exec(`
+UPDATE settle_outbox SET
+  delta_units = CAST(ROUND(delta_hmc * 100000000) AS INTEGER)
+WHERE delta_units = 0 AND delta_hmc > 0`)
 }
 
 // MigrateFromJSON imports a legacy worker_settlement_state.json once.
@@ -180,20 +234,28 @@ func (s *Store) MigrateFromJSON(ctx context.Context, jsonPath string) (bool, err
 		if len(e.PendingSettle) > 0 && string(e.PendingSettle) != "null" {
 			pend = string(e.PendingSettle)
 		}
+		su := HMCToUnits(e.SettledHMC)
+		ssu := HMCToUnits(e.SettledSUP)
+		sau := HMCToUnits(e.SessionAnchorHMC)
+		sasu := HMCToUnits(e.SessionAnchorSUP)
 		_, err := tx.ExecContext(ctx, `
-INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_hmc, session_anchor_sup, payout_address, last_tx_hash, last_settle_unix, pending_json, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, settled_units, settled_sup_units, session_anchor_hmc, session_anchor_sup, session_anchor_units, session_anchor_sup_units, payout_address, last_tx_hash, last_settle_unix, pending_json, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(worker_id) DO UPDATE SET
   settled_hmc=excluded.settled_hmc,
   settled_sup=excluded.settled_sup,
+  settled_units=excluded.settled_units,
+  settled_sup_units=excluded.settled_sup_units,
   session_anchor_hmc=excluded.session_anchor_hmc,
   session_anchor_sup=excluded.session_anchor_sup,
+  session_anchor_units=excluded.session_anchor_units,
+  session_anchor_sup_units=excluded.session_anchor_sup_units,
   payout_address=excluded.payout_address,
   last_tx_hash=excluded.last_tx_hash,
   last_settle_unix=excluded.last_settle_unix,
   pending_json=excluded.pending_json,
   updated_at=excluded.updated_at`,
-			wid, e.SettledHMC, e.SettledSUP, e.SessionAnchorHMC, e.SessionAnchorSUP, strings.TrimSpace(e.PayoutAddress),
+			wid, e.SettledHMC, e.SettledSUP, su, ssu, e.SessionAnchorHMC, e.SessionAnchorSUP, sau, sasu, strings.TrimSpace(e.PayoutAddress),
 			strings.TrimSpace(e.LastTxHash), e.LastSettleUnix, pend, now)
 		if err != nil {
 			return false, err
@@ -217,28 +279,58 @@ func (s *Store) GetWorker(ctx context.Context, workerID string) (WorkerRow, erro
 		return r, fmt.Errorf("workersettle: empty worker_id")
 	}
 	err := s.db.QueryRowContext(ctx, `
-SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, session_anchor_sup, payout_address, last_tx_hash, last_settle_unix, pending_json
+SELECT worker_id, settled_hmc, settled_sup, COALESCE(settled_units,0), COALESCE(settled_sup_units,0),
+       session_anchor_hmc, session_anchor_sup, COALESCE(session_anchor_units,0), COALESCE(session_anchor_sup_units,0),
+       payout_address, last_tx_hash, last_settle_unix, pending_json
   FROM settle_workers WHERE worker_id=?`, workerID).Scan(
-		&r.WorkerID, &r.SettledHMC, &r.SettledSUP, &r.SessionAnchorHMC, &r.SessionAnchorSUP, &r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON)
+		&r.WorkerID, &r.SettledHMC, &r.SettledSUP, &r.SettledUnits, &r.SettledSUPUnits,
+		&r.SessionAnchorHMC, &r.SessionAnchorSUP, &r.SessionAnchorUnits, &r.SessionAnchorSUPU,
+		&r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON)
 	if err == sql.ErrNoRows {
 		r.WorkerID = workerID
 		return r, nil
 	}
-	return r, err
+	if err != nil {
+		return r, err
+	}
+	// Prefer units as authoritative; keep float mirrors coherent.
+	if r.SettledUnits > 0 {
+		r.SettledHMC = UnitsToHMC(r.SettledUnits)
+	} else if r.SettledHMC > 0 {
+		r.SettledUnits = HMCToUnits(r.SettledHMC)
+	}
+	if r.SettledSUPUnits > 0 {
+		r.SettledSUP = UnitsToHMC(r.SettledSUPUnits)
+	} else if r.SettledSUP > 0 {
+		r.SettledSUPUnits = HMCToUnits(r.SettledSUP)
+	}
+	if r.SessionAnchorUnits > 0 {
+		r.SessionAnchorHMC = UnitsToHMC(r.SessionAnchorUnits)
+	} else if r.SessionAnchorHMC > 0 {
+		r.SessionAnchorUnits = HMCToUnits(r.SessionAnchorHMC)
+	}
+	return r, nil
 }
 
 // SetPending records durable pending intent (BEGIN IMMEDIATE) and enqueues outbox.
 func (s *Store) SetPending(ctx context.Context, workerID, payoutAddr string, deltaHMC float64, nonce int64) (outboxID int64, err error) {
+	return s.SetPendingUnits(ctx, workerID, payoutAddr, HMCToUnits(deltaHMC), nonce)
+}
+
+// SetPendingUnits is the units-native pending enqueue.
+func (s *Store) SetPendingUnits(ctx context.Context, workerID, payoutAddr string, deltaUnits uint64, nonce int64) (outboxID int64, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	workerID = strings.TrimSpace(workerID)
 	payoutAddr = strings.TrimSpace(payoutAddr)
-	if workerID == "" || payoutAddr == "" || deltaHMC <= 0 {
+	if workerID == "" || payoutAddr == "" || deltaUnits == 0 {
 		return 0, fmt.Errorf("workersettle: invalid pending args")
 	}
+	deltaHMC := UnitsToHMC(deltaUnits)
 	now := time.Now().Unix()
 	pendObj := map[string]any{
 		"delta_hmc":      deltaHMC,
+		"delta_units":    deltaUnits,
 		"payout_address": payoutAddr,
 		"started_unix":   now,
 		"nonce":          nonce,
@@ -270,8 +362,8 @@ ON CONFLICT(worker_id) DO UPDATE SET
 		return 0, err
 	}
 	res, err := conn.ExecContext(ctx, `
-INSERT INTO settle_outbox (worker_id, payout_address, delta_hmc, status, nonce, created_at)
-VALUES (?, ?, ?, 'pending', ?, ?)`, workerID, payoutAddr, deltaHMC, nonce, now)
+INSERT INTO settle_outbox (worker_id, payout_address, delta_hmc, delta_units, status, nonce, created_at)
+VALUES (?, ?, ?, ?, 'pending', ?, ?)`, workerID, payoutAddr, deltaHMC, deltaUnits, nonce, now)
 	if err != nil {
 		return 0, err
 	}
@@ -359,6 +451,11 @@ UPDATE settle_outbox SET status='abandoned', applied_at=?
 
 // ApplySettle advances settled watermark, clears pending, marks outbox applied.
 func (s *Store) ApplySettle(ctx context.Context, workerID, payoutAddr, txHash string, newSettled, sessionAnchor float64, clearAnchor bool) error {
+	return s.ApplySettleUnits(ctx, workerID, payoutAddr, txHash, HMCToUnits(newSettled), HMCToUnits(sessionAnchor), clearAnchor)
+}
+
+// ApplySettleUnits is the units-native settle apply.
+func (s *Store) ApplySettleUnits(ctx context.Context, workerID, payoutAddr, txHash string, newSettledUnits, sessionAnchorUnits uint64, clearAnchor bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	workerID = strings.TrimSpace(workerID)
@@ -380,23 +477,27 @@ func (s *Store) ApplySettle(ctx context.Context, workerID, payoutAddr, txHash st
 			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
 		}
 	}()
-	anchor := sessionAnchor
+	anchorU := sessionAnchorUnits
 	if clearAnchor {
-		anchor = 0
+		anchorU = 0
 	}
+	newSettled := UnitsToHMC(newSettledUnits)
+	anchor := UnitsToHMC(anchorU)
 	// Never touch settled_sup here — SUP settle owns that watermark (audit 5a).
 	_, err = conn.ExecContext(ctx, `
-INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_hmc, payout_address, last_tx_hash, last_settle_unix, pending_json, updated_at)
-VALUES (?, ?, 0, ?, ?, ?, ?, '', ?)
+INSERT INTO settle_workers (worker_id, settled_hmc, settled_units, settled_sup, session_anchor_hmc, session_anchor_units, payout_address, last_tx_hash, last_settle_unix, pending_json, updated_at)
+VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, '', ?)
 ON CONFLICT(worker_id) DO UPDATE SET
   settled_hmc=excluded.settled_hmc,
+  settled_units=excluded.settled_units,
   session_anchor_hmc=excluded.session_anchor_hmc,
+  session_anchor_units=excluded.session_anchor_units,
   payout_address=excluded.payout_address,
   last_tx_hash=excluded.last_tx_hash,
   last_settle_unix=excluded.last_settle_unix,
   pending_json='',
   updated_at=excluded.updated_at`,
-		workerID, newSettled, anchor, strings.TrimSpace(payoutAddr), strings.TrimSpace(txHash), now, now)
+		workerID, newSettled, newSettledUnits, anchor, anchorU, strings.TrimSpace(payoutAddr), strings.TrimSpace(txHash), now, now)
 	if err != nil {
 		return err
 	}
@@ -406,11 +507,28 @@ UPDATE settle_outbox SET status='applied', tx_hash=?, applied_at=?
 	if err != nil {
 		return err
 	}
+	if _, err := conn.ExecContext(ctx, `
+INSERT INTO settle_ledger (kind, worker_id, units, note, created_at)
+VALUES ('payout_applied', ?, ?, ?, ?)`, workerID, newSettledUnits, strings.TrimSpace(txHash), now); err != nil {
+		return err
+	}
 	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
 		return err
 	}
 	committed = true
 	return nil
+}
+
+// AppendLedger writes an audit/journal row (share-price samples, catch-up notes, …).
+func (s *Store) AppendLedger(ctx context.Context, kind, workerID string, units, shareCount, instantShareUnits, emaShareUnits, targetMod, shareMod uint64, note string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("workersettle: nil store")
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO settle_ledger (kind, worker_id, units, share_count, instant_share_units, ema_share_units, target_mod, share_mod, note, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		strings.TrimSpace(kind), strings.TrimSpace(workerID), units, shareCount, instantShareUnits, emaShareUnits, targetMod, shareMod, strings.TrimSpace(note), time.Now().Unix())
+	return err
 }
 
 // SetLastForceUnix updates meta.
@@ -441,7 +559,9 @@ func (s *Store) ExportJSON(ctx context.Context) ([]byte, error) {
 func (s *Store) exportWorkers(ctx context.Context) (map[string]any, Meta, error) {
 	var meta Meta
 	rows, err := s.db.QueryContext(ctx, `
-SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, session_anchor_sup, payout_address, last_tx_hash, last_settle_unix, pending_json
+SELECT worker_id, settled_hmc, settled_sup, COALESCE(settled_units,0), COALESCE(settled_sup_units,0),
+       session_anchor_hmc, session_anchor_sup, COALESCE(session_anchor_units,0), COALESCE(session_anchor_sup_units,0),
+       payout_address, last_tx_hash, last_settle_unix, pending_json
   FROM settle_workers`)
 	if err != nil {
 		return nil, meta, err
@@ -450,18 +570,28 @@ SELECT worker_id, settled_hmc, settled_sup, session_anchor_hmc, session_anchor_s
 	workers := map[string]any{}
 	for rows.Next() {
 		var r WorkerRow
-		if err := rows.Scan(&r.WorkerID, &r.SettledHMC, &r.SettledSUP, &r.SessionAnchorHMC, &r.SessionAnchorSUP, &r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON); err != nil {
+		if err := rows.Scan(&r.WorkerID, &r.SettledHMC, &r.SettledSUP, &r.SettledUnits, &r.SettledSUPUnits,
+			&r.SessionAnchorHMC, &r.SessionAnchorSUP, &r.SessionAnchorUnits, &r.SessionAnchorSUPU,
+			&r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON); err != nil {
 			return nil, meta, err
+		}
+		if r.SettledUnits > 0 {
+			r.SettledHMC = UnitsToHMC(r.SettledUnits)
 		}
 		ent := map[string]any{
 			"settled_hmc":      r.SettledHMC,
 			"settled_sup":      r.SettledSUP,
+			"settled_units":    r.SettledUnits,
 			"payout_address":   r.PayoutAddress,
 			"last_tx_hash":     r.LastTxHash,
 			"last_settle_unix": r.LastSettleUnix,
 		}
-		if r.SessionAnchorHMC > 0 {
+		if r.SessionAnchorHMC > 0 || r.SessionAnchorUnits > 0 {
+			if r.SessionAnchorUnits > 0 {
+				r.SessionAnchorHMC = UnitsToHMC(r.SessionAnchorUnits)
+			}
 			ent["session_anchor_hmc"] = r.SessionAnchorHMC
+			ent["session_anchor_units"] = r.SessionAnchorUnits
 		}
 		if r.SessionAnchorSUP > 0 {
 			ent["session_anchor_sup"] = r.SessionAnchorSUP
@@ -492,14 +622,16 @@ func (s *Store) SetSettledSUP(ctx context.Context, workerID string, settledSUP f
 		return fmt.Errorf("workersettle: negative settled_sup")
 	}
 	now := time.Now().Unix()
+	u := HMCToUnits(settledSUP)
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, payout_address, updated_at)
-VALUES (?, 0, ?, ?, ?)
+INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, settled_sup_units, payout_address, updated_at)
+VALUES (?, 0, ?, ?, ?, ?)
 ON CONFLICT(worker_id) DO UPDATE SET
   settled_sup=excluded.settled_sup,
+  settled_sup_units=excluded.settled_sup_units,
   payout_address=CASE WHEN excluded.payout_address != '' THEN excluded.payout_address ELSE settle_workers.payout_address END,
   updated_at=excluded.updated_at`,
-		workerID, settledSUP, strings.TrimSpace(payoutAddr), now)
+		workerID, settledSUP, u, strings.TrimSpace(payoutAddr), now)
 	return err
 }
 
@@ -515,13 +647,15 @@ func (s *Store) SetSessionAnchorHMC(ctx context.Context, workerID string, anchor
 		return fmt.Errorf("workersettle: negative session_anchor_hmc")
 	}
 	now := time.Now().Unix()
+	au := HMCToUnits(anchor)
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_hmc, updated_at)
-VALUES (?, 0, 0, ?, ?)
+INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_hmc, session_anchor_units, updated_at)
+VALUES (?, 0, 0, ?, ?, ?)
 ON CONFLICT(worker_id) DO UPDATE SET
   session_anchor_hmc=excluded.session_anchor_hmc,
+  session_anchor_units=excluded.session_anchor_units,
   updated_at=excluded.updated_at`,
-		workerID, anchor, now)
+		workerID, anchor, au, now)
 	return err
 }
 
@@ -537,13 +671,15 @@ func (s *Store) SetSessionAnchorSUP(ctx context.Context, workerID string, anchor
 		return fmt.Errorf("workersettle: negative session_anchor_sup")
 	}
 	now := time.Now().Unix()
+	au := HMCToUnits(anchor)
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_sup, updated_at)
-VALUES (?, 0, 0, ?, ?)
+INSERT INTO settle_workers (worker_id, settled_hmc, settled_sup, session_anchor_sup, session_anchor_sup_units, updated_at)
+VALUES (?, 0, 0, ?, ?, ?)
 ON CONFLICT(worker_id) DO UPDATE SET
   session_anchor_sup=excluded.session_anchor_sup,
+  session_anchor_sup_units=excluded.session_anchor_sup_units,
   updated_at=excluded.updated_at`,
-		workerID, anchor, now)
+		workerID, anchor, au, now)
 	return err
 }
 
