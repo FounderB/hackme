@@ -102,6 +102,35 @@ func LoadOrCreate(dataDir string) (*Signer, error) {
 	return &Signer{priv: priv, pub: priv.Public().(ed25519.PublicKey)}, nil
 }
 
+// Load reads dataDir/node_ed25519.seed and never creates one. Tools that sign on behalf of an
+// existing node (e.g. checkpoints) must fail on a wrong path instead of minting a new identity.
+func Load(dataDir string) (*Signer, error) {
+	if dataDir == "" {
+		return nil, errors.New("nodecrypto: empty dataDir")
+	}
+	path := filepath.Join(dataDir, seedFile)
+	seed, err := ReadSeedFile(path)
+	if err != nil {
+		return nil, err
+	}
+	raw := make([]byte, ed25519.SeedSize)
+	n, err := hex.Decode(raw, seed)
+	if err != nil {
+		return nil, fmt.Errorf("nodecrypto: corrupt seed file %s: %w", path, err)
+	}
+	if n != ed25519.SeedSize {
+		return nil, fmt.Errorf("nodecrypto: seed file %s must be %d hex bytes (got %d decoded)", path, ed25519.SeedSize, n)
+	}
+	priv := ed25519.NewKeyFromSeed(raw)
+	return &Signer{priv: priv, pub: priv.Public().(ed25519.PublicKey)}, nil
+}
+
+// AddressForPublicKey derives the HMC- address for a raw Ed25519 public key (same rule as Address).
+func AddressForPublicKey(pub ed25519.PublicKey) string {
+	sum := sha256.Sum256(pub)
+	return "HMC-" + hex.EncodeToString(sum[:])[:16]
+}
+
 // PublicKeyHex returns the public key as 64 hex chars (32 bytes).
 func (s *Signer) PublicKeyHex() string {
 	return hex.EncodeToString(s.pub)

@@ -94,6 +94,8 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
   echo "[deploy-hackme-node] go build hackme-wasm-check (wasm-validate child)"
   mkdir -p bin
   CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o bin/hackme-wasm-check ./cmd/hackme-wasm-check
+  echo "[deploy-hackme-node] go build checkpoint (external chain checkpoints)"
+  go build -trimpath -ldflags "-s -w" -o bin/checkpoint ./cmd/checkpoint
 fi
 if [[ ! -x "$ROOT_DIR/bin/hackme-wasm-check" ]]; then
   echo "[deploy-hackme-node] FATAL: bin/hackme-wasm-check missing — rsync --delete would leave PoH gates without a validator" >&2
@@ -141,6 +143,7 @@ if [[ -f "\$d/bin/workersettlectl" ]]; then chmod 755 "\$d/bin/workersettlectl";
 if [[ -f "\$d/bin/workerfuzz" ]]; then chmod 755 "\$d/bin/workerfuzz"; fi
 if [[ -f "\$d/minersign" ]]; then chmod 755 "\$d/minersign"; fi
 if [[ -f "\$d/bin/hackme-wasm-check" ]]; then chmod 755 "\$d/bin/hackme-wasm-check"; fi
+if [[ -f "\$d/bin/checkpoint" ]]; then chmod 755 "\$d/bin/checkpoint"; fi
 # A missing HACKME_WASM_VALIDATE_BIN makes every PoH gate candidate fail → chain halts silently.
 for envf in "\$d/.env.vps" "\$d/.env.coord"; do
   [[ -f "\$envf" ]] || continue
@@ -158,7 +161,7 @@ if [[ -f "\$d/scripts/ops/systemd/hackme-coordinator.service" ]]; then
   cp -a "\$d/scripts/ops/systemd/hackme-coordinator.service" /etc/systemd/system/hackme-coordinator.service
   echo "[deploy-hackme-node] installed hackme-coordinator systemd unit"
 fi
-for u in hackme-node-watchdog.service hackme-node-watchdog.timer hackme-oss-cve-nightly.service hackme-oss-cve-nightly.timer; do
+for u in hackme-node-watchdog.service hackme-node-watchdog.timer hackme-oss-cve-nightly.service hackme-oss-cve-nightly.timer hackme-checkpoint.service hackme-checkpoint.timer; do
   if [[ -f "\$d/scripts/ops/systemd/\$u" ]]; then
     cp -a "\$d/scripts/ops/systemd/\$u" "/etc/systemd/system/\$u"
   fi
@@ -168,6 +171,11 @@ chmod +x "\$d/scripts/ops/run_oss_cve_nightly.sh" 2>/dev/null || true
 systemctl daemon-reload
 systemctl enable --now hackme-node-watchdog.timer 2>/dev/null || true
 systemctl enable --now hackme-oss-cve-nightly.timer 2>/dev/null || true
+# Checkpoints publish from a clone outside the deploy dir; enable only once it is provisioned.
+if [[ -d /opt/hackme-checkpoints/.git ]]; then
+  chmod +x "\$d/scripts/ops/checkpoint_publish.sh" 2>/dev/null || true
+  systemctl enable --now hackme-checkpoint.timer 2>/dev/null || true
+fi
 systemctl enable hackme-coordinator 2>/dev/null || true
 # ORDERS attach / solve-relay must use the chain admin token (POST /api/tasks auth).
 if [[ -f "\$d/.env.vps" && -f "\$d/.env.coord" ]]; then

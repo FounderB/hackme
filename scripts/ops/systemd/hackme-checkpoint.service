@@ -1,0 +1,11 @@
+[Unit]
+Description=HackMe external checkpoint (sign + OpenTimestamps + public git)
+After=network-online.target hackme-node.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hackme
+Group=hackme
+Environment=HOME=/home/hackme
+ExecStart=/opt/hackme/scripts/ops/checkpoint_publish.sh
