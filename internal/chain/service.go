@@ -1037,14 +1037,29 @@ type BlockSummary struct {
 
 // ListRecentBlockSummaries returns up to `limit` blocks, newest first.
 func (s *Service) ListRecentBlockSummaries(ctx context.Context, limit int) ([]BlockSummary, error) {
+	return s.ListBlockSummariesBefore(ctx, 0, limit)
+}
+
+// ListBlockSummariesBefore returns up to `limit` blocks with index < before,
+// newest first (explorer pagination back to genesis). before == 0 means tip.
+func (s *Service) ListBlockSummariesBefore(ctx context.Context, before uint64, limit int) ([]BlockSummary, error) {
 	if limit <= 0 {
 		limit = 30
 	}
 	if limit > 500 {
 		limit = 500
 	}
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT block_index, json FROM blocks ORDER BY block_index DESC LIMIT ?`, limit)
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if before > 0 {
+		rows, err = s.db.QueryContext(ctx,
+			`SELECT block_index, json FROM blocks WHERE block_index < ? ORDER BY block_index DESC LIMIT ?`, before, limit)
+	} else {
+		rows, err = s.db.QueryContext(ctx,
+			`SELECT block_index, json FROM blocks ORDER BY block_index DESC LIMIT ?`, limit)
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -362,6 +362,16 @@ func TestPoHBlockCountSinceAndSummaries(t *testing.T) {
 	if sums[0].TaskKind != block.PoHBlockKind {
 		t.Fatalf("tip task kind: %q", sums[0].TaskKind)
 	}
+	older, err := svc.ListBlockSummariesBefore(ctx, sums[0].Index, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(older) != len(sums)-1 || older[0].Index != sums[1].Index {
+		t.Fatalf("before=%d: want %d rows from #%d, got %+v", sums[0].Index, len(sums)-1, sums[1].Index, older)
+	}
+	if none, err := svc.ListBlockSummariesBefore(ctx, 1, 10); err != nil || len(none) != 1 || none[0].Index != 0 {
+		t.Fatalf("before=1: want only genesis, got %+v err=%v", none, err)
+	}
 	if sums[0].MinerAddress != addr {
 		t.Fatalf("tip miner_address: want %q got %q", addr, sums[0].MinerAddress)
 	}

@@ -62,8 +62,12 @@ func (a *app) fetchRemoteJSONMap(ctx context.Context, base, path string) (map[st
 	return tryCurl()
 }
 
-func (a *app) fetchRemoteReportsBlocksJSON(ctx context.Context, base string, limit int) (map[string]any, error) {
-	out, err := a.fetchRemoteJSONMap(ctx, base, "/api/reports/blocks?limit="+strconv.Itoa(limit))
+func (a *app) fetchRemoteReportsBlocksJSON(ctx context.Context, base string, limit int, before uint64) (map[string]any, error) {
+	path := "/api/reports/blocks?limit=" + strconv.Itoa(limit)
+	if before > 0 {
+		path += "&before=" + strconv.FormatUint(before, 10)
+	}
+	out, err := a.fetchRemoteJSONMap(ctx, base, path)
 	if err != nil {
 		return nil, err
 	}
@@ -185,6 +189,16 @@ func (a *app) handleReportsBlocks(w http.ResponseWriter, r *http.Request) {
 	if limit > 500 {
 		limit = 500
 	}
+	// before=N pages back toward genesis: blocks with index < N, newest first.
+	var before uint64
+	if s := strings.TrimSpace(r.URL.Query().Get("before")); s != "" {
+		n, err := strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			http.Error(w, "bad before", http.StatusBadRequest)
+			return
+		}
+		before = n
+	}
 	ctx := r.Context()
 	source := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("source")))
 	if source == "" {
@@ -234,12 +248,12 @@ func (a *app) handleReportsBlocks(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		rctx, cancel := context.WithTimeout(ctx, 6*time.Second)
-		rm, err := a.fetchRemoteReportsBlocksJSON(rctx, canonBase, limit)
+		rm, err := a.fetchRemoteReportsBlocksJSON(rctx, canonBase, limit, before)
 		cancel()
 		if err == nil && writeCanon(rm) {
 			return
 		}
-		rows, err2 := a.chain.ListRecentBlockSummaries(ctx, limit)
+		rows, err2 := a.chain.ListBlockSummariesBefore(ctx, before, limit)
 		if err2 != nil {
 			http.Error(w, err2.Error(), http.StatusInternalServerError)
 			return
@@ -264,7 +278,7 @@ func (a *app) handleReportsBlocks(w http.ResponseWriter, r *http.Request) {
 		cancel()
 		if okCanon && hCanon != localH {
 			rctx, cancel2 := context.WithTimeout(ctx, 3*time.Second)
-			rm, err := a.fetchRemoteReportsBlocksJSON(rctx, canonBase, limit)
+			rm, err := a.fetchRemoteReportsBlocksJSON(rctx, canonBase, limit, before)
 			cancel2()
 			if err == nil && writeCanon(rm) {
 				return
@@ -272,7 +286,7 @@ func (a *app) handleReportsBlocks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rows, err := a.chain.ListRecentBlockSummaries(ctx, limit)
+	rows, err := a.chain.ListBlockSummariesBefore(ctx, before, limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

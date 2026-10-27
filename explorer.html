@@ -225,6 +225,12 @@
           <thead><tr><th>#</th><th>Time</th><th>Task</th><th>Task ID</th><th>Hash</th></tr></thead>
           <tbody id="blocks-body"></tbody>
         </table>
+        <div class="toolbar" style="margin-top:10px;">
+          <button id="btn-blocks-older" type="button" style="margin-right:auto;">Load older</button>
+          <input id="in-blocks-goto" type="number" min="0" placeholder="Go to block #" style="width:140px;" />
+          <button id="btn-blocks-goto" type="button">Go</button>
+        </div>
+        <p id="blocks-page-note" class="muted" style="display:none;margin:8px 0 0;font-size:11px;"></p>
       </section>
 
       <section class="card">
@@ -599,12 +605,105 @@
       }
     }
 
+    const BLOCKS_PAGE = 50;
+    /** Lowest block index currently in the table (next "Load older" asks for index < this). */
+    let blocksOldestShown = null;
+    /** True after Load older / Go to: 5s auto-poll stops overwriting the table. */
+    let blocksBrowsing = false;
+
+    function setBlocksPageNote(msg) {
+      const el = $('blocks-page-note');
+      if (!el) return;
+      el.style.display = msg ? 'block' : 'none';
+      el.textContent = msg || '';
+    }
+
+    function syncOlderButton() {
+      const btn = $('btn-blocks-older');
+      if (!btn) return;
+      const done = blocksOldestShown !== null && blocksOldestShown <= 0;
+      btn.disabled = done;
+      btn.textContent = done ? 'Genesis reached' : 'Load older';
+    }
+
+    // Appends rows with index < before. Returns false when nothing older came back.
+    async function appendBlocksBefore(before) {
+      const tb = $('blocks-body');
+      if (!tb) return false;
+      const r = await fetchJsonTimeout(apiUrl('/reports/blocks?limit=' + BLOCKS_PAGE + '&source=auto&before=' + before), 6000);
+      if (!r.ok) {
+        setBlocksPageNote('failed to load older blocks');
+        return false;
+      }
+      const j = await r.json();
+      // Peers without before= support return the tip again: keep only strictly older rows.
+      const rows = (j.blocks || []).filter((b) => Number(b.index) < before);
+      if (!rows.length) {
+        if ((j.blocks || []).length) setBlocksPageNote('Block source does not support paging yet (older node/hub).');
+        return false;
+      }
+      rows.forEach((b) => tb.appendChild(blockRow(b)));
+      blocksOldestShown = Number(rows[rows.length - 1].index);
+      return true;
+    }
+
+    async function loadOlderBlocks() {
+      if (blocksOldestShown === null || blocksOldestShown <= 0) return;
+      blocksBrowsing = true;
+      setBlocksPageNote('');
+      await appendBlocksBefore(blocksOldestShown);
+      syncOlderButton();
+    }
+
+    async function gotoBlock() {
+      const v = String($('in-blocks-goto').value || '').trim();
+      if (!/^\d+$/.test(v)) return;
+      const tb = $('blocks-body');
+      if (!tb) return;
+      blocksBrowsing = true;
+      tb.innerHTML = '';
+      setBlocksPageNote('');
+      blocksOldestShown = null;
+      if (!(await appendBlocksBefore(Number(v) + 1))) {
+        tb.innerHTML = '<tr><td colspan="5" class="muted">no blocks at or below #' + esc(v) + '</td></tr>';
+      }
+      syncOlderButton();
+    }
+
+    function blockRow(b) {
+      const hashFull = blockHashFull(b) || String(b.hash_prefix || '').trim();
+      const tr = document.createElement('tr');
+      tr.className = 'clickable';
+      tr.title = 'Click hash to copy full block hash · click row to load task id';
+      tr.addEventListener('click', (ev) => {
+        if (ev.target && ev.target.closest && ev.target.closest('[data-copy-hash]')) {
+          ev.preventDefault();
+          copyText(hashFull);
+          return;
+        }
+        const v = String(b.task_id || '').trim();
+        if (v) {
+          $('in-tx').value = v;
+        }
+      });
+      tr.innerHTML =
+        '<td class="mono">' + String(b.index || 0) + '</td>' +
+        '<td class="mono">' + fmtTs(b.timestamp_unix) + '</td>' +
+        '<td>' + esc(String(b.task_kind || '—')) + '</td>' +
+        '<td class="mono">' + esc(short(b.task_id || '—', 20)) + '</td>' +
+        '<td class="mono" data-copy-hash="1" title="' + esc(hashFull || '—') + '">' + esc(short(hashFull || '—', 18)) + '</td>';
+      return tr;
+    }
+
     async function refreshBlocks() {
       const noteEl = $('blocks-sync-note');
       const r = await fetchJsonTimeout(apiUrl('/reports/blocks?limit=20&source=auto'), 6000);
       const tb = $('blocks-body');
       if (!tb) return;
       tb.innerHTML = '';
+      blocksOldestShown = null;
+      setBlocksPageNote('');
+      syncOlderButton();
       if (!r.ok) {
         tb.innerHTML = '<tr><td colspan="5" class="muted">failed to load</td></tr>';
         return;
@@ -628,30 +727,9 @@
         tb.innerHTML = '<tr><td colspan="5" class="muted">no blocks</td></tr>';
         return;
       }
-      rows.forEach((b) => {
-        const hashFull = blockHashFull(b) || String(b.hash_prefix || '').trim();
-        const tr = document.createElement('tr');
-        tr.className = 'clickable';
-        tr.title = 'Click hash to copy full block hash · click row to load task id';
-        tr.addEventListener('click', (ev) => {
-          if (ev.target && ev.target.closest && ev.target.closest('[data-copy-hash]')) {
-            ev.preventDefault();
-            copyText(hashFull);
-            return;
-          }
-          const v = String(b.task_id || '').trim();
-          if (v) {
-            $('in-tx').value = v;
-          }
-        });
-        tr.innerHTML =
-          '<td class="mono">' + String(b.index || 0) + '</td>' +
-          '<td class="mono">' + fmtTs(b.timestamp_unix) + '</td>' +
-          '<td>' + esc(String(b.task_kind || '—')) + '</td>' +
-          '<td class="mono">' + esc(short(b.task_id || '—', 20)) + '</td>' +
-          '<td class="mono" data-copy-hash="1" title="' + esc(hashFull || '—') + '">' + esc(short(hashFull || '—', 18)) + '</td>';
-        tb.appendChild(tr);
-      });
+      rows.forEach((b) => tb.appendChild(blockRow(b)));
+      blocksOldestShown = Number(rows[rows.length - 1].index);
+      syncOlderButton();
     }
 
     async function refreshTxPool() {
@@ -792,7 +870,10 @@
       }, null, 2);
     }
 
-    $('btn-refresh-blocks').addEventListener('click', refreshBlocks);
+    $('btn-refresh-blocks').addEventListener('click', () => { blocksBrowsing = false; void refreshBlocks(); });
+    $('btn-blocks-older').addEventListener('click', loadOlderBlocks);
+    $('btn-blocks-goto').addEventListener('click', gotoBlock);
+    $('in-blocks-goto').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') gotoBlock(); });
     $('btn-refresh-tx').addEventListener('click', refreshTxPool);
     const btnWk = $('btn-refresh-workers');
     if (btnWk) btnWk.addEventListener('click', refreshWorkers);
@@ -814,7 +895,8 @@
       if (pollInFlight) return;
       pollInFlight = true;
       try {
-        await Promise.all([refreshTop(), refreshBlocks(), refreshTxPool(), refreshWorkers()]);
+        // While browsing history (Load older / Go to), keep the table; Refresh returns to tip.
+        await Promise.all([refreshTop(), blocksBrowsing ? null : refreshBlocks(), refreshTxPool(), refreshWorkers()]);
       } finally {
         pollInFlight = false;
       }
