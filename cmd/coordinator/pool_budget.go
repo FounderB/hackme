@@ -89,12 +89,12 @@ func (m *workManager) poolBudgetStats() map[string]any {
 		remain = 0
 	}
 	return map[string]any{
-		"enabled":              budget > 0,
-		"daily_budget_hmc":     budget,
-		"accrued_today_hmc":    m.poolPayAccruedDay,
-		"remaining_today_hmc":  remain,
-		"budget_clip_events":   m.poolBudgetClipped,
-		"block_sec":            poolBlockSec(),
-		"note":                 "accrual capped to chain emission schedule; settle still requires treasury float",
+		"enabled":             budget > 0,
+		"daily_budget_hmc":    budget,
+		"accrued_today_hmc":   m.poolPayAccruedDay,
+		"remaining_today_hmc": remain,
+		"budget_clip_events":  m.poolBudgetClipped,
+		"block_sec":           poolBlockSec(),
+		"note":                "accrual capped to chain emission schedule; settle still requires treasury float",
 	}
 }
