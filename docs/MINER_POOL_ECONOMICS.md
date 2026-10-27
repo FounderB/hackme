@@ -6,44 +6,50 @@ English guide for anyone joining **https://hackme.tech** as a pool worker.
 
 | Layer | What you earn | When it appears |
 |--------|----------------|-----------------|
-| **Coordinator** | Off-chain `payout_hmc` for **accepted work** | Dashboard **Unpaid worker accrual** / coordinator stats |
+| **Coordinator** | Off-chain accrual for **verified Blake3 shares** (share-PPS) | Dashboard **Unpaid worker accrual** / coordinator stats |
 | **Settlement** | On-chain HMC to your `HMC-…` address | After operator `settle_worker_payouts` (timer ~2 min) |
 | **Chain block subsidy** | PoH block reward | **Primary wallet of the block-producing node** — not auto-split to every GPU |
 
-## Public pool payout formula (default policy)
+Dig/Hunt escrow (customer orders) is a **separate** rail: PayRun / bounty from campaign escrow, not the Blake3 share-PPS formula below.
 
-When `payout_found_only=0` and `reward_auto=1` (fair public pool):
+## Public pool payout (live — share-PPS)
+
+Public pool default is **`SHARE_STRICT=1`** (rc18+): pay **verified** `share_nonces` only. Soft attempt-pay is historical / lab.
 
 ```
-payout_per_submit ≈ (attempts / 1_000_000) × reward_per_m
-reward_per_m ≈ base_reward_hmc × 1_000_000 / target_mod   (from canonical /api/metrics)
+share_mod ≈ target_mod / share_divisor   (default divisor 1024)
+payout ≈ (accepted_shares) × (base_reward_hmc × share_mod / target_mod)
+       ≈ accepted_shares × (base_reward_hmc / share_divisor)
 + found_bonus_hmc   (extra when you submit a valid found hit)
 ```
 
-- **attempts** are capped by your lease **batch size** (anti-abuse).
+- Client-reported `hashrate_gh_s` / raw **attempts do not pay** under share-PPS.
+- Pool GH/s for load comes from **shares / wall**, not fantasy client GH/s.
 - **Hybrid signer** must be valid when strict mode is on.
 - **Max 3 active leases** per worker id (fair share for home rigs).
+- Live knobs (operator): `HACKME_COORDINATOR_SHARE_STRICT=1`, `REWARD_AUTO=0`, `REWARD_PER_M_ATTEMPTS` kept for tooling — share pay uses `base_reward` × share fraction.
 
 ## Worker configuration
 
-1. **`WORKER_PAYOUT_MAP`** — `your-worker-id=HMC-your-address` (must match operator map for settlement).
+1. **`WORKER_PAYOUT_MAP`** — `your-worker-id=HMC-your-address` (must match operator map for settlement), **or** hybrid-signed `payout_address` on submits.
 2. **`HACKME_PUBLIC_AUTHORITY_BASE=https://hackme.tech`**
 3. Verify downloads SHA256 on **https://hackme.tech/downloads.html**
 
 ## What to expect on the dashboard
 
-- **Unpaid worker accrual** grows while you submit accepted batches (not only on block finds).
+- **Unpaid worker accrual** grows when the coordinator **accepts verified shares** (and rare found bonuses).
 - **Wallet balance** on a follower node may show canonical overlay; settlement credits your mapped address on-chain.
-- Low share % with many VPS workers is normal; accrual follows **your** accepted attempts.
+- Low share % with many VPS workers is normal; accrual follows **your** accepted shares.
 
-## Security vs “found-only” mode
+## Security vs older modes
 
-| Mode | Miner UX | Operator risk |
-|------|----------|----------------|
-| `payout_found_only=1` | Accrual almost only on rare found hits | Lowest fake-attempt payout risk |
-| `payout_found_only=0` + hybrid strict + lease caps | **Recommended for public pool** — steady accrual | Mitigated by signing + batch caps + monitoring |
+| Mode | Miner UX | Status |
+|------|----------|--------|
+| **`SHARE_STRICT=1` (share-PPS)** | Steady accrual for proven shares | **Live public default** |
+| Soft attempt-pay (`SHARE_STRICT` off) | Accrual from reported attempts | Historical / lab only |
+| `payout_found_only=1` | Accrual almost only on rare found hits | Optional / high-friction |
 
-Official public pool uses **fair attempt-based** accrual unless announced otherwise on News.
+Official public pool uses **share-PPS** unless News announces otherwise.
 
 ## Official links
 
