@@ -799,8 +799,14 @@
     if (!Number.isFinite(diff) || diff <= 0) {
       diff = Number(work && work.target_mod);
     }
-    const diffText =
-      Number.isFinite(diff) && diff > 0 ? Math.floor(diff).toLocaleString("en-US") : "—";
+    const diffText = (() => {
+      if (!Number.isFinite(diff) || diff <= 0) return "—";
+      const n = Math.floor(diff);
+      // Compact form once M leaves the familiar millions range (solvency-scale / misconfig).
+      if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+      if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+      return n.toLocaleString("en-US");
+    })();
 
     let reward = Number(work && work.base_reward_hmc);
     if (!Number.isFinite(reward) || reward <= 0) {

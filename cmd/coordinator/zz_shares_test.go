@@ -7,6 +7,26 @@ import (
 	"hackme/internal/chain"
 )
 
+func TestShareModForLeaseStarvesNotOnSolvencyM(t *testing.T) {
+	// Live bug class: M ≈ Hs×30s (~5e11) made M/1024 ≫ batch → zero expected shares.
+	const hugeM = uint64(500_000_000_000)
+	const batch = uint64(4_194_304)
+	sm := shareModForLease(hugeM, 1024, batch)
+	leaseSM := batch / targetSharesPerLease
+	if sm != leaseSM {
+		t.Fatalf("shareMod=%d want lease scale %d (not M/div=%d)", sm, leaseSM, hugeM/1024)
+	}
+	if expectedSharesForMod(batch, sm) < 1 {
+		t.Fatalf("expected shares %.4f must be ≥1", expectedSharesForMod(batch, sm))
+	}
+	// Normal M: still harden large leases above M/div when leaseSM is harder.
+	mod := uint64(5_000_000)
+	sm2 := shareModForLease(mod, 1024, batch)
+	if sm2 < leaseSM {
+		t.Fatalf("large lease should harden to ≥%d, got %d", leaseSM, sm2)
+	}
+}
+
 func TestValidateShareNoncesV1(t *testing.T) {
 	mod := uint64(1_000_003)
 	div := uint64(1024)
