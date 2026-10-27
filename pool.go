@@ -510,6 +510,10 @@ func fetchJSONViaCurlDesktop(u string, maxTimeSec int) (map[string]any, error) {
 
 // postJSONViaCurl POSTs JSON to URL via curl (TLS subprocess fallback when net/http to public canonical fails).
 func postJSONViaCurl(ctx context.Context, targetURL string, jsonBody []byte, extraHeaders ...map[string]string) (statusCode int, respBody []byte, err error) {
+	// Same egress floor as GET curl: block metadata/link-local; loopback still denied below.
+	if !netutil.SafeHTTPURLForEgressAllowLab(targetURL) {
+		return 0, nil, fmt.Errorf("curl post fallback: url not safe for egress")
+	}
 	if coordinatorURLIsLoopback(targetURL) {
 		return 0, nil, fmt.Errorf("curl post fallback disabled on loopback")
 	}
