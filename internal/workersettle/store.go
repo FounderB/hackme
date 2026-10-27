@@ -293,23 +293,21 @@ SELECT worker_id, settled_hmc, settled_sup, COALESCE(settled_units,0), COALESCE(
 	if err != nil {
 		return r, err
 	}
-	// Prefer units as authoritative; keep float mirrors coherent.
-	if r.SettledUnits > 0 {
-		r.SettledHMC = UnitsToHMC(r.SettledUnits)
-	} else if r.SettledHMC > 0 {
-		r.SettledUnits = HMCToUnits(r.SettledHMC)
-	}
-	if r.SettledSUPUnits > 0 {
-		r.SettledSUP = UnitsToHMC(r.SettledSUPUnits)
-	} else if r.SettledSUP > 0 {
-		r.SettledSUPUnits = HMCToUnits(r.SettledSUP)
-	}
-	if r.SessionAnchorUnits > 0 {
-		r.SessionAnchorHMC = UnitsToHMC(r.SessionAnchorUnits)
-	} else if r.SessionAnchorHMC > 0 {
-		r.SessionAnchorUnits = HMCToUnits(r.SessionAnchorHMC)
-	}
+	hydrateWorkerRow(&r)
 	return r, nil
+}
+
+// hydrateWorkerRow makes *Units authoritative. Float columns are display mirrors only.
+// Legitimate zero units (after clear / unset) must NOT fall back to a stale float —
+// Open.backfillUnitsFromFloat already lifts legacy float→units once at schema time.
+func hydrateWorkerRow(r *WorkerRow) {
+	if r == nil {
+		return
+	}
+	r.SettledHMC = UnitsToHMC(r.SettledUnits)
+	r.SettledSUP = UnitsToHMC(r.SettledSUPUnits)
+	r.SessionAnchorHMC = UnitsToHMC(r.SessionAnchorUnits)
+	r.SessionAnchorSUP = UnitsToHMC(r.SessionAnchorSUPU)
 }
 
 // SetPending records durable pending intent (BEGIN IMMEDIATE) and enqueues outbox.
@@ -483,6 +481,16 @@ func (s *Store) ApplySettleUnits(ctx context.Context, workerID, payoutAddr, txHa
 	}
 	newSettled := UnitsToHMC(newSettledUnits)
 	anchor := UnitsToHMC(anchorU)
+	txHash = strings.TrimSpace(txHash)
+	payoutAddr = strings.TrimSpace(payoutAddr)
+
+	var prevSettled uint64
+	_ = conn.QueryRowContext(ctx, `SELECT COALESCE(settled_units,0) FROM settle_workers WHERE worker_id=?`, workerID).Scan(&prevSettled)
+	var deltaUnits uint64
+	if newSettledUnits > prevSettled {
+		deltaUnits = newSettledUnits - prevSettled
+	}
+
 	// Never touch settled_sup here — SUP settle owns that watermark (audit 5a).
 	_, err = conn.ExecContext(ctx, `
 INSERT INTO settle_workers (worker_id, settled_hmc, settled_units, settled_sup, session_anchor_hmc, session_anchor_units, payout_address, last_tx_hash, last_settle_unix, pending_json, updated_at)
@@ -497,19 +505,37 @@ ON CONFLICT(worker_id) DO UPDATE SET
   last_settle_unix=excluded.last_settle_unix,
   pending_json='',
   updated_at=excluded.updated_at`,
-		workerID, newSettled, newSettledUnits, anchor, anchorU, strings.TrimSpace(payoutAddr), strings.TrimSpace(txHash), now, now)
+		workerID, newSettled, newSettledUnits, anchor, anchorU, payoutAddr, txHash, now, now)
 	if err != nil {
 		return err
 	}
-	_, err = conn.ExecContext(ctx, `
+	// Prefer the outbox row stamped with this tx_hash; else the latest pending for worker.
+	res, err := conn.ExecContext(ctx, `
 UPDATE settle_outbox SET status='applied', tx_hash=?, applied_at=?
- WHERE worker_id=? AND status='pending'`, strings.TrimSpace(txHash), now, workerID)
+ WHERE id=(
+   SELECT id FROM settle_outbox
+    WHERE worker_id=? AND status='pending' AND tx_hash=?
+    ORDER BY id DESC LIMIT 1
+ )`, txHash, now, workerID, txHash)
 	if err != nil {
 		return err
 	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		_, err = conn.ExecContext(ctx, `
+UPDATE settle_outbox SET status='applied', tx_hash=?, applied_at=?
+ WHERE id=(
+   SELECT id FROM settle_outbox
+    WHERE worker_id=? AND status='pending'
+    ORDER BY id DESC LIMIT 1
+ )`, txHash, now, workerID)
+		if err != nil {
+			return err
+		}
+	}
+	note := fmt.Sprintf("tx=%s watermark_units=%d", txHash, newSettledUnits)
 	if _, err := conn.ExecContext(ctx, `
 INSERT INTO settle_ledger (kind, worker_id, units, note, created_at)
-VALUES ('payout_applied', ?, ?, ?, ?)`, workerID, newSettledUnits, strings.TrimSpace(txHash), now); err != nil {
+VALUES ('payout_applied', ?, ?, ?, ?)`, workerID, deltaUnits, note, now); err != nil {
 		return err
 	}
 	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
@@ -575,26 +601,23 @@ SELECT worker_id, settled_hmc, settled_sup, COALESCE(settled_units,0), COALESCE(
 			&r.PayoutAddress, &r.LastTxHash, &r.LastSettleUnix, &r.PendingJSON); err != nil {
 			return nil, meta, err
 		}
-		if r.SettledUnits > 0 {
-			r.SettledHMC = UnitsToHMC(r.SettledUnits)
-		}
+		hydrateWorkerRow(&r)
 		ent := map[string]any{
-			"settled_hmc":      r.SettledHMC,
-			"settled_sup":      r.SettledSUP,
-			"settled_units":    r.SettledUnits,
-			"payout_address":   r.PayoutAddress,
-			"last_tx_hash":     r.LastTxHash,
-			"last_settle_unix": r.LastSettleUnix,
+			"settled_hmc":        r.SettledHMC,
+			"settled_sup":        r.SettledSUP,
+			"settled_units":      r.SettledUnits,
+			"settled_sup_units":  r.SettledSUPUnits,
+			"payout_address":     r.PayoutAddress,
+			"last_tx_hash":       r.LastTxHash,
+			"last_settle_unix":   r.LastSettleUnix,
 		}
-		if r.SessionAnchorHMC > 0 || r.SessionAnchorUnits > 0 {
-			if r.SessionAnchorUnits > 0 {
-				r.SessionAnchorHMC = UnitsToHMC(r.SessionAnchorUnits)
-			}
+		if r.SessionAnchorUnits > 0 {
 			ent["session_anchor_hmc"] = r.SessionAnchorHMC
 			ent["session_anchor_units"] = r.SessionAnchorUnits
 		}
-		if r.SessionAnchorSUP > 0 {
+		if r.SessionAnchorSUPU > 0 {
 			ent["session_anchor_sup"] = r.SessionAnchorSUP
+			ent["session_anchor_sup_units"] = r.SessionAnchorSUPU
 		}
 		if strings.TrimSpace(r.PendingJSON) != "" {
 			var pend any
@@ -761,6 +784,9 @@ func (s *Store) ExportJSONToFile(ctx context.Context, path string) error {
 			dbAnchor := anyFloat(ent["session_anchor_sup"])
 			if oldAnchor > dbAnchor {
 				ent["session_anchor_sup"] = oldAnchor
+				if err := s.SetSessionAnchorSUP(ctx, wid, oldAnchor, false); err != nil {
+					log.Printf("workersettle: SetSessionAnchorSUP(%s) during export merge: %v", wid, err)
+				}
 			}
 		}
 		workers[wid] = ent

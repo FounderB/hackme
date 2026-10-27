@@ -33,6 +33,18 @@ CREATE TABLE IF NOT EXISTS worker_accrual (
   updated_at INTEGER NOT NULL DEFAULT 0
 )`
 
+// Append-only accrual journal (units). Watermark stays in worker_accrual; deltas land here.
+const workerAccrualJournalTable = `
+CREATE TABLE IF NOT EXISTS accrual_journal (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  worker_id TEXT NOT NULL,
+  delta_units INTEGER NOT NULL DEFAULT 0,
+  payout_units INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_accrual_journal_worker_ts ON accrual_journal(worker_id, created_at);
+`
+
 func migrateWorkerAccrualTable(db *sql.DB) error {
 	if db == nil {
 		return nil
@@ -42,6 +54,7 @@ func migrateWorkerAccrualTable(db *sql.DB) error {
 	}
 	_, _ = db.Exec(`ALTER TABLE worker_accrual ADD COLUMN payout_units INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`UPDATE worker_accrual SET payout_units = CAST(ROUND(payout_hmc * 100000000) AS INTEGER) WHERE payout_units = 0 AND payout_hmc > 0`)
+	_, _ = db.Exec(workerAccrualJournalTable)
 	ensureSharePriceJournal(db)
 	return nil
 }
@@ -82,11 +95,11 @@ FROM worker_accrual`)
 			continue
 		}
 		st.PayoutAddress = strings.TrimSpace(addr)
+		// Units authoritative (float is UI mirror). Legacy float→units only when units unset.
 		if st.PayoutUnits == 0 && st.PayoutHMC > 0 {
 			st.PayoutUnits = chain.HMCToUnits(st.PayoutHMC)
-		} else if st.PayoutUnits > 0 {
-			st.PayoutHMC = chain.UnitsToHMC(st.PayoutUnits)
 		}
+		st.PayoutHMC = chain.UnitsToHMC(st.PayoutUnits)
 		// Prefer any already-warm in-memory row (tests); else restore durable.
 		if cur, ok := m.worker[id]; ok && (cur.PayoutHMC > 0 || cur.AcceptedAtt > 0) {
 			continue
@@ -138,9 +151,8 @@ FROM worker_accrual WHERE worker_id=?`, workerID).Scan(
 	st.PayoutAddress = strings.TrimSpace(addr)
 	if st.PayoutUnits == 0 && st.PayoutHMC > 0 {
 		st.PayoutUnits = chain.HMCToUnits(st.PayoutHMC)
-	} else if st.PayoutUnits > 0 {
-		st.PayoutHMC = chain.UnitsToHMC(st.PayoutUnits)
 	}
+	st.PayoutHMC = chain.UnitsToHMC(st.PayoutUnits)
 	return st, true
 }
 
@@ -287,6 +299,11 @@ func (m *workManager) persistWorkerAccrual(workerID string, force bool) {
 	if pu == 0 && snap.PayoutHMC > 0 {
 		pu = chain.HMCToUnits(snap.PayoutHMC)
 	}
+	hmcMirror := chain.UnitsToHMC(pu)
+
+	var prevUnits uint64
+	_ = m.dedupDB.QueryRow(`SELECT COALESCE(payout_units,0) FROM worker_accrual WHERE worker_id=?`, workerID).Scan(&prevUnits)
+
 	_, err := m.dedupDB.Exec(`
 INSERT INTO worker_accrual (
   worker_id, accepted_ranges, accepted_hits, accepted_attempts,
@@ -310,10 +327,17 @@ ON CONFLICT(worker_id) DO UPDATE SET
   updated_at=excluded.updated_at
 WHERE excluded.accepted_attempts >= worker_accrual.accepted_attempts
 `, workerID, snap.AcceptedRanges, snap.AcceptedHits, snap.AcceptedAtt,
-		snap.PayoutHMC, pu, snap.PayoutSUP, strings.TrimSpace(snap.PayoutAddress), snap.SignedSubmits,
+		hmcMirror, pu, snap.PayoutSUP, strings.TrimSpace(snap.PayoutAddress), snap.SignedSubmits,
 		snap.LastHashrateGHS, snap.PeakHashrateGHS, snap.LastSeenUnix, snap.LastPoHSeenUnix, snap.LastFuzzSeenUnix, now)
 	if err != nil {
 		log.Printf("worker accrual persist id=%s err=%v", sanitizeLogToken(workerID), err)
+	} else if pu > prevUnits {
+		delta := pu - prevUnits
+		if _, jerr := m.dedupDB.Exec(`
+INSERT INTO accrual_journal (worker_id, delta_units, payout_units, created_at)
+VALUES (?, ?, ?, ?)`, workerID, delta, pu, now); jerr != nil {
+			log.Printf("accrual journal id=%s err=%v", sanitizeLogToken(workerID), jerr)
+		}
 	}
 
 	// Revoke may have DELETE'd while we held the snapshot; purge any resurrection.
