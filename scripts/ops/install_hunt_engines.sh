@@ -78,8 +78,17 @@ check_status() {
   fi
   if have bwrap; then
     log "bwrap: $(command -v bwrap)"
+    # Probe the cage (nested userns / AppArmor may leave bwrap on PATH but unusable).
+    if bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid --unshare-net --die-with-parent -- "$(command -v true 2>/dev/null || echo /bin/true)" >/dev/null 2>&1; then
+      log "bwrap: probe OK (userns cage)"
+    else
+      warn "bwrap present but probe FAILED (uid_map/userns/AppArmor) — Hunt STRICT will soft-skip"
+      warn "Ubuntu 24.04+: if aa-enabled, check unprivileged userns (kernel.apparmor_restrict_unprivileged_userns=0 or bwrap profile)"
+      ok=0
+    fi
   else
-    warn "bubblewrap missing — Hunt falls back to bare exec (no net namespace)"
+    warn "bubblewrap missing — Hunt STRICT refuses bare exec (no unsandboxed foreign harness)"
+    ok=0
   fi
   return $((1 - ok))
 }
@@ -269,5 +278,16 @@ if [[ -x "$ROOT_DIR/scripts/ops/prune_hunt_miner_caches.sh" ]]; then
 elif [[ -x "$SCRIPT_DIR/prune_hunt_miner_caches.sh" ]]; then
   bash "$SCRIPT_DIR/prune_hunt_miner_caches.sh" --repo "$ROOT_DIR" 2>/dev/null || true
 fi
-check_status || warn "partial install — Hunt soft-skips missing engines; Dig unchanged"
-log "done (promise: distributed coverage-guided Hunt — not OSS-Fuzz replacement)"
+if check_status; then
+  log "done (clang + AFL++ + bwrap ready for Hunt)"
+else
+  if [[ "${HACKME_SKIP_HUNT_ENGINES:-0}" == "1" || "${MODE_DESKTOP}" == "1" ]]; then
+    warn "partial install — Hunt soft-skips missing engines; Dig unchanged"
+    log "done (partial)"
+  else
+    # System/miner install: fail closed so STRICT isolate does not silent-starve Hunt.
+    echo "[hunt-engines] ERROR: clang and/or afl-fuzz and/or bwrap missing after install" >&2
+    echo "[hunt-engines] ERROR: fix apt (sudo) or set HACKME_SKIP_HUNT_ENGINES=1" >&2
+    exit 1
+  fi
+fi

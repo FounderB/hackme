@@ -113,10 +113,26 @@ func (s *Service) CreditOrdersFund(ctx context.Context, fromAddr, txHash string,
 	var walletAddr string
 	var balUnits uint64
 	if err := tx.QueryRowContext(ctx, `SELECT address, COALESCE(balance_units,0) FROM wallet WHERE id=1`).Scan(&walletAddr, &balUnits); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		// Desktop followers often sync tip without a local genesis wallet row.
+		// Orders fund has already debited on-chain; create the primary row so
+		// spendable credit can land (address must match signer / fromAddr).
+		signerAddr := ""
+		if s.signer != nil {
+			signerAddr = strings.TrimSpace(s.signer.Address())
+		}
+		if signerAddr == "" || !strings.EqualFold(signerAddr, fromAddr) {
 			return nil, errors.New("orders fund: wallet row missing")
 		}
-		return nil, err
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO wallet (id, address, balance_hmc, balance_units) VALUES (1, ?, 0, 0)`,
+			signerAddr); err != nil {
+			return nil, fmt.Errorf("orders fund: create wallet row: %w", err)
+		}
+		walletAddr = signerAddr
+		balUnits = 0
 	}
 	walletAddr = strings.TrimSpace(walletAddr)
 	if !strings.EqualFold(walletAddr, fromAddr) {

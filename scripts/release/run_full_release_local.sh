@@ -9,10 +9,12 @@ cd "$ROOT"
 export PATH="${PATH}:$(go env GOPATH 2>/dev/null)/bin"
 VERSION="${VERSION:-$(tr -d ' \n\r' <scripts/release/CURRENT_VERSION)}"
 export VERSION
+# AMD/Intel OpenCL workerpoh-opencl needs CGO + ICD headers (default ON for full release).
+export CGO_ENABLED="${CGO_ENABLED:-1}"
 export BUILD_DEB="${BUILD_DEB:-1}"
 export HACKME_RELEASE_POOL_MINER_TOKEN="${HACKME_RELEASE_POOL_MINER_TOKEN:-$(tr -d '\r\n' <.secrets/hackme_coordinator_worker_token 2>/dev/null || true)}"
 
-echo "[full-release] VERSION=$VERSION"
+echo "[full-release] VERSION=$VERSION CGO_ENABLED=$CGO_ENABLED"
 bash scripts/release/apt/ensure_apt_signing_key.sh
 
 echo "[full-release] 1/5 make_release_bundle"

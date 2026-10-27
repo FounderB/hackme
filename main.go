@@ -1414,6 +1414,27 @@ func redactPublicMetrics(s *MetricsSnapshot) {
 	for i := range s.MiningRigs {
 		s.MiningRigs[i].IP = ""
 	}
+	// Host fingerprint / load (DDoS and VM identity) — loopback/admin only.
+	s.CPUPct = 0
+	s.MemPct = 0
+	s.MemUsedGB = 0
+	s.MemTotalGB = 0
+	s.DiskUsedPct = 0
+	s.DiskReadMBps = 0
+	s.DiskWriteMBps = 0
+	s.NetSentMBps = 0
+	s.NetRecvMBps = 0
+	s.GPUUtilPct = 0
+	s.GPUMemPct = 0
+	s.GPUName = ""
+	s.GPUTempC = -1
+	s.CPUTempC = -1
+	s.LoadAvg1 = -1
+	s.LoadPerCPU = -1
+	s.MiningLoad = -1
+	s.CPUModel = ""
+	s.Goroutines = 0
+	s.MiningGPUDevices = nil
 }
 
 func miningGPUAliasKey(backend string, idx int) string {

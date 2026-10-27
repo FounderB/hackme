@@ -1001,6 +1001,8 @@ func TestRefreshTargetModDoesNotDowngradePoolRetargetM(t *testing.T) {
 
 func TestApplyChainTargetModTracksChainAfterBlake3(t *testing.T) {
 	t.Setenv("HACKME_COORDINATOR_TARGET_MOD_FILE", filepath.Join(t.TempDir(), "coordinator_target_mod.txt"))
+	// v3 + poolRetarget: chain tip is a raise-only solvability floor.
+	// Load retarget owns M; a lower chain tip must not smash pool M down.
 	wm := &workManager{
 		targetMod:           900_000_000,
 		poolRetarget:        true,
@@ -1013,8 +1015,12 @@ func TestApplyChainTargetModTracksChainAfterBlake3(t *testing.T) {
 		targetModMax:        poolTargetModMax,
 	}
 	wm.applyChainTargetMod(23_000_000, time.Now().Unix())
-	if wm.targetMod != 23_000_000 {
-		t.Fatalf("v3 pool M must track chain, got %d", wm.targetMod)
+	if wm.targetMod != 900_000_000 {
+		t.Fatalf("v3+poolRetarget: lower chain tip must not lower pool M, got %d", wm.targetMod)
+	}
+	wm.applyChainTargetMod(950_000_000, time.Now().Unix())
+	if wm.targetMod != 950_000_000 {
+		t.Fatalf("v3+poolRetarget: higher chain tip must raise pool M floor, got %d", wm.targetMod)
 	}
 }
 
@@ -1116,6 +1122,7 @@ func TestPayoutSharesNoSystematicLoss(t *testing.T) {
 }
 
 func TestPoolDifficultyStableAtSteadyHashrate(t *testing.T) {
+	t.Setenv("HACKME_COORDINATOR_POOL_BLOCK_SEC", "30")
 	wm := &workManager{
 		targetMod:          4_000_000,
 		targetModMin:       poolTargetModMin,
@@ -1127,16 +1134,20 @@ func TestPoolDifficultyStableAtSteadyHashrate(t *testing.T) {
 	const poolGH = 12.5
 	const miners = 4
 	converged := false
-	for i := 0; i < 48; i++ {
+	// Solvency-scale M (~3.75e11) needs many 1.35× ramp ticks from 4e6.
+	for i := 0; i < 120; i++ {
 		prev := wm.targetMod
 		wm.maybeRetargetPoolLoadLocked(now+int64(i*30), poolGH, miners)
-		if i > 8 && wm.targetMod == prev {
+		if i > 16 && wm.targetMod == prev {
 			converged = true
 			break
 		}
 	}
 	if !converged {
-		t.Fatalf("steady GH/s did not converge within 48 steps, target_mod=%d", wm.targetMod)
+		t.Fatalf("steady GH/s did not converge within 120 steps, target_mod=%d", wm.targetMod)
+	}
+	if wm.targetMod < 1_000_000_000 {
+		t.Fatalf("converged M too small for 12.5 GH/s: %d", wm.targetMod)
 	}
 }
 

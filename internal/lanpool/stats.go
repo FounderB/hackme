@@ -127,11 +127,13 @@ func RealNetworkStats(reg *Registry, localNodeID string, local LocalMining) Netw
 	}
 }
 
-// RedactPublicNetworkStats strips miner IPs from public fleet rows.
+// RedactPublicNetworkStats strips miner IPs and synthetic top_miners labels.
+// Public aggregators must not see HMC-<workerId> fakes as wallet addresses.
 func RedactPublicNetworkStats(resp NetworkStatsResponse) NetworkStatsResponse {
 	for i := range resp.ActiveRigs {
 		resp.ActiveRigs[i].IP = ""
 	}
+	resp.TopMiners = nil
 	return resp
 }
 

@@ -7,17 +7,18 @@ Miner profile
   • Dashboard: http://127.0.0.1:8080/#mining
 
 Orders profile (B2B)
-  • Open "HackMe Orders" — local node for Dig / Hunt campaigns
+  • Open "HackMe Orders" — local node for Dig campaigns (WASM byte-checker)
   • Dashboard: http://127.0.0.1:8080/#orders
   • CLI in the install folder:
       hackme-fuzzing.exe wizard --pack secrets --package audit
-      hackme-fuzzing.exe hunt packages
-  • Keep both CLI executables next to hackme.exe (already done by Setup)
+  • Keep CLI executables next to hackme.exe (already done by Setup)
 
 Tips
   • Admin token is in hackme.env (Miner) or .env.orders.windows (Orders)
-  • Dig packs run on Windows; Hunt pool execution is on Linux miners —
-    you still create / escrow Hunt from this node
+  • Dig (WASM) runs on this Windows PC (hybrid miner + Orders) — default path.
+  • Hunt (libFuzzer/AFL++ + bwrap) is Linux-only. This Windows installer does not
+    fake a sandbox. Optional later: enable Hunt via WSL2 (same Linux engines).
+    Until then, create Hunt orders on Linux or use the public Linux pool miners.
 
 Site: https://hackme.tech/downloads.html
 Guide: https://hackme.tech/fuzz-guide.html

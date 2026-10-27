@@ -630,15 +630,13 @@ func (a *app) handleWorkerSettlement(w http.ResponseWriter, r *http.Request) {
 		"sup_policy":                   supPolicy,
 		"min_settle_sup":               minSettleSUP,
 		"sup_settlement_note":          supNote,
-		"display_wallet_address":       displayWallet,
-		"desktop_worker_id":            desktopWorkerID,
-		"coordinator_raw_payout_hmc":   desktopWorkerAccrued,
-		"coordinator_pending_hmc":      coordinatorPending,
-		"accrual_source":               accrualSource,
-		"last_signed_miner_address":    strings.TrimSpace(asString(ws["last_signed_miner_address"])),
+		"display_wallet_address":     displayWallet,
+		"coordinator_raw_payout_hmc": desktopWorkerAccrued,
+		"coordinator_pending_hmc":    coordinatorPending,
+		"accrual_source":             accrualSource,
 		"coordinator_total_payout_hmc": parseAnyFloat(ws["total_payout_hmc"]),
-		"fleet_unpaid_hmc":             totalUnpaid,
-		"min_settle_hmc":               minSettleHMC,
+		"fleet_unpaid_hmc":           totalUnpaid,
+		"min_settle_hmc":             minSettleHMC,
 		"daily_min_settle_hmc":         dailyMinSettleHMC,
 		"daily_force_interval_sec":     dailyForceIntervalSec,
 		"last_force_unix":              lastForceUnix,
@@ -655,9 +653,11 @@ func (a *app) handleWorkerSettlement(w http.ResponseWriter, r *http.Request) {
 		"on_chain_payout_note":                  "UI threshold is not a bank transfer. On-chain payout runs on the VPS/chain host via settle_worker_payouts.sh (ADMIN_TOKEN + CHAIN_BASE + COORD_URL + WORKER_PAYOUT_MAP). Coordinators that omit workers{} require the updated script (synthetic single-map row) or coordinator upgrade.",
 		"updated_unix":                          nowUnix,
 	}
-	// M4: filesystem paths are admin-only (public UI does not need state_file).
-	if hasValidAdminAuth(r) {
+	// M4: filesystem paths + local identity are admin/loopback-only (public UI uses wallet totals).
+	if hasValidAdminAuth(r) || (requestFromLoopback(r) && requestHostIsLoopbackLiteral(r)) {
 		out["state_file"] = statePath
+		out["desktop_worker_id"] = desktopWorkerID
+		out["last_signed_miner_address"] = strings.TrimSpace(asString(ws["last_signed_miner_address"]))
 	}
 	writeJSON(w, out)
 }

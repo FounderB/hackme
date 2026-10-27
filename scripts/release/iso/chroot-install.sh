@@ -64,6 +64,14 @@ if [[ -d /tmp/payload ]]; then
       install -m 0755 "/tmp/payload/${op}" "/opt/hackme/scripts/ops/${op}"
     fi
   done
+  # Hunt engines installer (firstboot → clang/AFL++/bwrap). Prefer root copy from release tar.
+  if [[ -f /tmp/payload/install_hunt_engines.sh ]]; then
+    install -m 0755 /tmp/payload/install_hunt_engines.sh /opt/hackme/install_hunt_engines.sh
+    install -m 0755 /tmp/payload/install_hunt_engines.sh /opt/hackme/scripts/ops/install_hunt_engines.sh
+  elif [[ -f /tmp/payload/scripts/ops/install_hunt_engines.sh ]]; then
+    install -m 0755 /tmp/payload/scripts/ops/install_hunt_engines.sh /opt/hackme/install_hunt_engines.sh
+    install -m 0755 /tmp/payload/scripts/ops/install_hunt_engines.sh /opt/hackme/scripts/ops/install_hunt_engines.sh
+  fi
 fi
 if [[ -d /tmp/iso-scripts ]]; then
   cp -a /tmp/iso-scripts/. /opt/hackme/scripts/release/iso/

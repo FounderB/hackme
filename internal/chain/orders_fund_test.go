@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"hackme/internal/nodecrypto"
 	"hackme/internal/store"
 )
 
@@ -164,5 +165,42 @@ func TestMemoIsOrdersFund(t *testing.T) {
 	}
 	if MemoIsOrdersFund("other") {
 		t.Fatal("other")
+	}
+}
+
+func TestCreditOrdersFundCreatesMissingWalletRow(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "fund-miss.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	signer, err := nodecrypto.LoadOrCreate(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := NewWithSigner(db, signer)
+	ctx := context.Background()
+	node := signer.Address()
+	if _, _, err := svc.InitGenesis(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM wallet WHERE id=1`); err != nil {
+		t.Fatal(err)
+	}
+	units := HMCToUnits(20)
+	r, err := svc.CreditOrdersFund(ctx, node, "dddd1234dddd5678ffff0000eeee4444", units)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.AmountUnits != units {
+		t.Fatalf("%+v", r)
+	}
+	_, bal, err := svc.Wallet(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bal < 19.9 {
+		t.Fatalf("bal=%v", bal)
 	}
 }

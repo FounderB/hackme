@@ -10,8 +10,9 @@ On the next page choose how you will use HackMe:
     pool token preconfigured — one click to start.
 
   Orders (B2B)
-    Local node for Dig / Hunt security fuzz campaigns. Dashboard opens on
+    Local node for Dig (WASM) security fuzz campaigns. Dashboard opens on
     Orders. Includes hackme-fuzzing CLI (wizard + build) in the same folder.
+    Hunt (AFL++/libFuzzer) runs on Linux miners — not in this Windows build.
     No mining worker is started.
 
 Both profiles install the same core node. You can add the other profile later

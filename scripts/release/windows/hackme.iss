@@ -67,7 +67,7 @@ english.ProfilePageTitle=How will you use HackMe?
 english.ProfilePageSubtitle=One installer — two products. You can open the other profile later from the Start menu.
 english.RbMiner=Miner — public Useful PoW pool
 english.RbMinerHint=GPU/CPU hashing · Mining dashboard · pool token included · watchdog
-english.RbOrders=Orders — B2B Dig / Hunt campaigns
+english.RbOrders=Orders — B2B Dig campaigns (Hunt = Linux)
 english.RbOrdersHint=Local node · Orders dashboard · hackme-fuzzing CLI · no mining worker
 english.GpuPageTitle=GPU && mining backend
 english.GpuPageSubtitle=Detected graphics hardware. Choose how workerpoh should run (change later in hackme.env).

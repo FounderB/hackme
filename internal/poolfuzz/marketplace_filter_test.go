@@ -17,6 +17,10 @@ func TestIsInternalGateCampaign(t *testing.T) {
 		{"l1v4-btc-1", "L1 v4 upstream Bitcoin guard", "", map[string]any{"internal_gate": true}, true},
 		{"campaign-audit-20260701", "tier-gate-audit-1", "tier-gate:audit:1", nil, true},
 		{"campaign-audit-20260701", "tier-debug-audit", "tier:audit:debug", nil, true},
+		// Dig product / obs titles embed "smoke" — must NOT be treated as gates.
+		{"campaign-obs-dig-1", "Obs Dig smoke · 20261026", "obs:timings", nil, false},
+		{"campaign-dig-scan-1", "HackMe Dig · Scan · numeric bounds smoke", "customer:acme", nil, false},
+		{"campaign-gate-smoke", "customer smoke probe", "gate:smoke", nil, true},
 	}
 	for _, tc := range cases {
 		got := IsInternalGateCampaign(tc.id, tc.title, tc.owner, tc.cfg)

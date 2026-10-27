@@ -146,7 +146,20 @@ go build -trimpath -o "$WORKERFUZZ_BIN" ./cmd/workerfuzz
 export COORD_URL="$BASE"
 export COORD_TOKEN="$HACKME_COORDINATOR_WORKER_TOKEN"
 export WORKERFUZZ_TIMEOUT_MS="${WORKERFUZZ_TIMEOUT_MS:-120000}"
-echo "[hunt-pool-gate] run workerfuzz (timeout_ms=$WORKERFUZZ_TIMEOUT_MS lease=${GATE_LEASE_SEC}s min_done=${GATE_MIN_DONE})"
+# Nested userns (Cursor/CI agents) often deny bwrap uid_map while leaving bwrap on PATH.
+# Fleet/Vast miners use real userns — keep STRICT=1 there. Desk gate: soft-relax so shards exercise Dig/Hunt paths.
+if [[ -z "${HACKME_HUNT_ISOLATE_STRICT:-}" ]]; then
+  if command -v bwrap >/dev/null 2>&1 && bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid --unshare-net --die-with-parent -- "$(command -v true 2>/dev/null || echo /bin/true)" >/dev/null 2>&1; then
+    export HACKME_HUNT_ISOLATE_STRICT=1
+    export HACKME_HUNT_ISOLATE_REQUIRE=1
+    echo "[hunt-pool-gate] bwrap probe OK — STRICT isolate ON"
+  else
+    export HACKME_HUNT_ISOLATE_STRICT=0
+    export HACKME_HUNT_ISOLATE_REQUIRE=0
+    echo "[hunt-pool-gate] WARN: bwrap probe failed/missing — STRICT=0 for desk gate only (Vast must re-run with working userns)"
+  fi
+fi
+echo "[hunt-pool-gate] run workerfuzz (timeout_ms=$WORKERFUZZ_TIMEOUT_MS lease=${GATE_LEASE_SEC}s min_done=${GATE_MIN_DONE} isolate_strict=${HACKME_HUNT_ISOLATE_STRICT})"
 # Wall ≥ 2 coverage leases + drain slack (was fixed 120s wanting 4×60s → false FAIL).
 GATE_WALL_SEC="${GATE_WALL_SEC:-$((GATE_LEASE_SEC * GATE_MIN_DONE + 45))}"
 set +e

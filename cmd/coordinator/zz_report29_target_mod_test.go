@@ -70,13 +70,17 @@ func TestReport29PoolClampKeepsBoundsOnly(t *testing.T) {
 }
 
 func TestReport29LoadRetargetStaysInBounds(t *testing.T) {
+	t.Setenv("HACKME_COORDINATOR_POOL_BLOCK_SEC", "30")
 	m := report29WM(t, 2_000_000)
+	// report29WM caps max at 1e9 — raise for solvency-scale load M.
+	m.targetModMax = poolTargetModMax
 	now := int64(1_700_000_000)
-	for i := 0; i < 40; i++ {
+	for i := 0; i < 80; i++ {
 		now += m.poolRetargetMinSec + 1
 		m.maybeRetargetPoolLoadLocked(now, 1.05, 1)
 	}
-	if m.targetMod < 2_000_000 || m.targetMod > 2_200_000 {
+	// 1.05 GH/s × 1e9 × 30s ≈ 3.15e10 (solvency-aligned load).
+	if m.targetMod < 10_000_000_000 || m.targetMod > poolTargetModMax {
 		t.Fatalf("unexpected converged M=%d", m.targetMod)
 	}
 }

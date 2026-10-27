@@ -56,7 +56,10 @@ func IsInternalGateCampaign(id, title, ownerRef string, cfg map[string]any) bool
 	if strings.HasPrefix(id, "test-") || strings.HasPrefix(id, "verify-") {
 		return true
 	}
-	if strings.Contains(title, "penny") || strings.Contains(title, "smoke") {
+	// Do NOT match bare "smoke" — Dig product packs use titles like
+	// "HackMe Dig · Scan · numeric bounds smoke" (product_mode smoke SKU).
+	// Those must remain claimable; only intentional gate probes stay hidden.
+	if strings.Contains(title, "penny") {
 		return true
 	}
 	if strings.Contains(title, "customer smoke") {

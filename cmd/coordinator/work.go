@@ -126,6 +126,10 @@ type workManager struct {
 	supDayID              int64
 	supAccruedDay         float64
 	hmcAccruedDay         float64
+	// Pool pay solvency (UTC day): cap SHARE_STRICT accrual to emission schedule.
+	poolPayDayID       int64
+	poolPayAccruedDay  float64
+	poolBudgetClipped  uint64
 	dedupSubmits          uint64
 	dedupFoundNonce       uint64
 	fleetAddressConflicts uint64
@@ -184,9 +188,9 @@ type workKey struct {
 const (
 	poolTargetModDefault = 5_000_000
 	poolTargetModMin     = 2_000_000
-	// Default cap 2e9 — headroom for multi-5090 fleets when load retarget owns M.
-	// Override via HACKME_COORDINATOR_POOL_TARGET_MOD_MAX (env hard limit 2e9).
-	poolTargetModMax = 2_000_000_000
+	// Default cap 1e12 — M ≈ pool_Hs × block_sec (~4.5e11 at 15 GH/s × 30s).
+	// Override via HACKME_COORDINATOR_POOL_TARGET_MOD_MAX (env hard limit = this const).
+	poolTargetModMax = 1_000_000_000_000
 )
 
 type leaseRecord struct {
@@ -309,13 +313,13 @@ func newWorkManagerFromEnv() *workManager {
 	}
 	minM := uint64(poolTargetModMin)
 	if v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_POOL_TARGET_MOD_MIN")); v != "" {
-		if x, err := strconv.ParseUint(v, 10, 64); err == nil && x >= 500_000 && x <= 2_000_000_000 {
+		if x, err := strconv.ParseUint(v, 10, 64); err == nil && x >= 500_000 && x <= poolTargetModMax {
 			minM = x
 		}
 	}
 	maxM := uint64(poolTargetModMax)
 	if v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_POOL_TARGET_MOD_MAX")); v != "" {
-		if x, err := strconv.ParseUint(v, 10, 64); err == nil && x >= minM && x <= 2_000_000_000 {
+		if x, err := strconv.ParseUint(v, 10, 64); err == nil && x >= minM && x <= poolTargetModMax {
 			maxM = x
 		}
 	}
@@ -1301,11 +1305,16 @@ func (m *workManager) maybeRetargetPoolLoadLocked(now int64, poolGH float64, min
 	if smoothed > 0 {
 		poolGH = smoothed
 	}
-	// Scale M with fleet GH/s (targetModMin per 1 GH/s) so more hash → higher M, less hash → lower M.
-	// Do not use poolGH*1e9*targetSec (that overshoots targetModMax immediately).
-	modPerGH := float64(m.targetModMinOrDefault())
-	loadM := poolGH * modPerGH
+	// Solvency-aligned load: one expected find per block_sec across the fleet.
+	// M ≈ pool_hashes/s × block_sec → sum(base×batch/M) ≈ emission (not lease-count PPS).
+	blockSec := poolBlockSec()
+	loadM := poolGH * 1e9 * blockSec
 	loadM *= poolMinerCountBoost(miners)
+	// Floor: never below min × online miners so empty fleets stay claimable.
+	floor := float64(m.targetModMinOrDefault())
+	if loadM < floor {
+		loadM = floor
+	}
 	target := m.clampTargetMod(uint64(loadM + 0.5))
 	prev := m.clampTargetMod(m.targetMod)
 	if target == prev {
@@ -2745,6 +2754,8 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if payout > maxSubmitHMC {
 		payout = maxSubmitHMC
 	}
+	// Solvency: never accrue more than the UTC-day emission budget.
+	payout = m.applyPoolDailyBudget(payout, now)
 	st := m.ensureWorkerAccrualLocked(req.WorkerID)
 	st.AcceptedRanges++
 	st.AcceptedAtt += attempts
@@ -3292,6 +3303,7 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 		"accepted_attempts":            m.totalAttempts,
 		"total_payout_hmc":             m.totalPayoutHMC,
 		"total_payout_sup":             m.totalPayoutSUP,
+		"pool_budget":                  m.poolBudgetStats(),
 		"sup_policy":                   m.supPolicyStats(),
 		"claim_per_min":                m.claimPerMin,
 		"submit_per_min":               m.submitPerMin,

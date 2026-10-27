@@ -58,6 +58,13 @@ if [[ -z "$PAYLOAD_DIR" || ! -f "${PAYLOAD_DIR}/hackme" ]]; then
 fi
 cp -f "${ROOT_DIR}/scripts/ops/detect_gpu_backend.sh" "${PAYLOAD_DIR}/detect_gpu_backend.sh"
 chmod +x "${PAYLOAD_DIR}/detect_gpu_backend.sh" 2>/dev/null || true
+# Always ship latest Hunt engines installer into ISO payload (firstboot + /opt/hackme).
+if [[ -f "${ROOT_DIR}/scripts/ops/install_hunt_engines.sh" ]]; then
+  cp -f "${ROOT_DIR}/scripts/ops/install_hunt_engines.sh" "${PAYLOAD_DIR}/install_hunt_engines.sh"
+  mkdir -p "${PAYLOAD_DIR}/scripts/ops"
+  cp -f "${ROOT_DIR}/scripts/ops/install_hunt_engines.sh" "${PAYLOAD_DIR}/scripts/ops/install_hunt_engines.sh"
+  chmod +x "${PAYLOAD_DIR}/install_hunt_engines.sh" "${PAYLOAD_DIR}/scripts/ops/install_hunt_engines.sh" 2>/dev/null || true
+fi
 
 chmod +x "${ISO_DIR}"/*.sh
 if [[ -x "${ISO_DIR}/visual_overhaul.sh" ]]; then
