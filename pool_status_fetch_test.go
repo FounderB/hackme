@@ -17,6 +17,18 @@ func TestCanonicalPeerStatusURL(t *testing.T) {
 	}
 }
 
+func TestPostJSONViaCurlRejectsMetadata(t *testing.T) {
+	ctx := context.Background()
+	_, _, err := postJSONViaCurl(ctx, "http://169.254.169.254/latest/meta-data", []byte(`{}`))
+	if err == nil || !strings.Contains(err.Error(), "not safe for egress") {
+		t.Fatalf("metadata must be rejected before curl, got %v", err)
+	}
+	_, _, err = postJSONViaCurl(ctx, "http://127.0.0.1:8080/api/tx/send", []byte(`{}`))
+	if err == nil {
+		t.Fatal("loopback post curl must stay disabled")
+	}
+}
+
 func TestCanonicalBaseIsSelfNode_publicAuthority(t *testing.T) {
 	t.Setenv("HACKME_PUBLIC_AUTHORITY_BASE", "https://hackme.tech")
 	t.Setenv("HACKME_P2P_PEERS", "")
