@@ -1126,6 +1126,83 @@ func (s *Service) GetBlockSummaryByIndex(ctx context.Context, index uint64) (Blo
 	}, true, nil
 }
 
+// blockHashPrefixMin keeps prefix lookups unambiguous enough for explorer search.
+const blockHashPrefixMin = 8
+
+// FindBlockSummary resolves an explorer query across the whole chain using indexes only:
+// decimal block index, full block hash, hash prefix (>= 8 hex), or PoH task id ("task-…").
+func (s *Service) FindBlockSummary(ctx context.Context, query string) (BlockSummary, bool, error) {
+	q := strings.TrimSpace(query)
+	if q == "" || len(q) > 128 {
+		return BlockSummary{}, false, nil
+	}
+	if strings.HasPrefix(q, "task-") {
+		var idx uint64
+		err := s.db.QueryRowContext(ctx,
+			`SELECT block_index FROM blocks WHERE json_extract(json, '$.task.id') = ? LIMIT 1`, q).Scan(&idx)
+		if errors.Is(err, sql.ErrNoRows) {
+			return BlockSummary{}, false, nil
+		}
+		if err != nil {
+			return BlockSummary{}, false, err
+		}
+		return s.GetBlockSummaryByIndex(ctx, idx)
+	}
+	if isDecimal(q) {
+		if idx, err := strconv.ParseUint(q, 10, 64); err == nil {
+			row, ok, err := s.GetBlockSummaryByIndex(ctx, idx)
+			if err != nil || ok {
+				return row, ok, err
+			}
+		}
+		// All-digit strings can also be hash prefixes; fall through.
+	}
+	h := strings.ToLower(strings.TrimSuffix(strings.TrimSuffix(q, "…"), "..."))
+	if !isLowerHex(h) || len(h) < blockHashPrefixMin || len(h) > 64 {
+		return BlockSummary{}, false, nil
+	}
+	var idx uint64
+	var err error
+	if len(h) == 64 {
+		err = s.db.QueryRowContext(ctx, `SELECT block_index FROM blocks WHERE hash = ?`, h).Scan(&idx)
+	} else {
+		// Range on the UNIQUE(hash) index: every hex string with prefix h sorts in [h, h+"g").
+		err = s.db.QueryRowContext(ctx,
+			`SELECT block_index FROM blocks WHERE hash >= ? AND hash < ? ORDER BY hash LIMIT 1`, h, h+"g").Scan(&idx)
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return BlockSummary{}, false, nil
+	}
+	if err != nil {
+		return BlockSummary{}, false, err
+	}
+	return s.GetBlockSummaryByIndex(ctx, idx)
+}
+
+func isDecimal(s string) bool {
+	if s == "" || len(s) > 20 {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func isLowerHex(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 func pohFormulaFromBlock(b *block.Block) string {
 	if b == nil {
 		return ""

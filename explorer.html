@@ -153,7 +153,7 @@
   <div class="wrap">
     <div class="hero">
       <h1><span class="live-dot"></span>HackMe Explorer</h1>
-      <p class="muted" style="margin:0;">Pool · chain · workers · <span class="mono">0.1.0-rc17.4</span> channel · auto-refresh 5s</p>
+      <p class="muted" style="margin:0;">Pool · chain · workers · <span class="mono">{{.Version}}</span> channel · auto-refresh 5s</p>
       <p class="muted" style="margin:6px 0 0;font-size:11px;">Chain: <span class="mono">{{.ChainID}}</span> · Node: <span class="mono">{{.NodeID}}</span></p>
     </div>
     <p id="explorer-wallet-path" class="muted mono" style="margin:0 0 14px;font-size:11px;line-height:1.45;">—</p>
@@ -776,8 +776,9 @@
       const out = $('tx-result');
       out.innerHTML = '<span class="muted">loading...</span>';
 
-      // 1) First try strict TX lookup.
+      // 1) First try strict TX lookup (tx hashes are alphanumeric; public nginx 403s anything else).
       try {
+        if (!/^[A-Za-z0-9]+$/.test(query)) throw new Error('not a tx hash');
         const txR = await fetch(apiUrl('/tx/' + encodeURIComponent(query)), { cache: 'no-store' });
         if (txR.ok) {
           const tx = await txR.json();
@@ -794,14 +795,33 @@
         }
       } catch (_) {}
 
-      // 2) Fallback: search recent blocks by task_id or full/prefix hash.
+      // 2) Whole-chain lookup on the node (indexed: task id, block hash/prefix, block index).
+      //    Older nodes ignore ?q= and return recent rows (no "lookup" key) → fall back to the scan below.
+      let serverHit = null;
+      let serverAnswered = false;
       try {
-        const blocksR = await fetch(apiUrl('/reports/blocks?limit=400'), { cache: 'no-store' });
-        if (blocksR.ok) {
-          const blocksJ = await blocksR.json();
-          const rows = blocksJ.blocks || [];
+        const lr = await fetch(apiUrl('/reports/blocks?q=' + encodeURIComponent(query)), { cache: 'no-store' });
+        if (lr.ok) {
+          const lj = await lr.json();
+          if (lj && lj.lookup === true) {
+            serverAnswered = true;
+            if (lj.found && Array.isArray(lj.blocks) && lj.blocks.length) serverHit = lj.blocks[0];
+          }
+        }
+      } catch (_) {}
+
+      // 3) Fallback: search recent blocks by task_id or full/prefix hash.
+      try {
+        let rows = [];
+        if (serverHit) {
+          rows = [serverHit];
+        } else if (!serverAnswered) {
+          const blocksR = await fetch(apiUrl('/reports/blocks?limit=400'), { cache: 'no-store' });
+          if (blocksR.ok) rows = (await blocksR.json()).blocks || [];
+        }
+        {
           const q = query.toLowerCase();
-          const hit = rows.find((b) => {
+          const hit = serverHit || rows.find((b) => {
             const taskId = String(b.task_id || '').toLowerCase();
             const hashFull = String(b.hash || '').toLowerCase();
             const hashPrefix = String(b.hash_prefix || '').toLowerCase().replace(/…$/, '').replace(/\.\.\.$/, '');
@@ -848,7 +868,7 @@
         }
       } catch (_) {}
 
-      out.innerHTML = '<span class="muted">Not found in tx hash or recent block/task index.</span>';
+      out.innerHTML = '<span class="muted">Not found: no tx hash, block index, block hash/prefix (≥8 hex) or task id matches.</span>';
     }
 
     async function findAddr() {

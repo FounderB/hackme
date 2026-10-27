@@ -59,7 +59,7 @@ var embeddedFaviconICO []byte
 
 // Build metadata (overridden by -ldflags in release builds).
 var (
-	Version   = "0.1.0-rc17.4"
+	Version   = "0.1.0-rc18"
 	Commit    = "nogit"
 	BuildDate = "unknown"
 )
@@ -70,6 +70,7 @@ var metricsHeavyMu sync.Mutex
 type pageData struct {
 	NodeID              string
 	ChainID             string
+	Version             string // build version (ldflags) — explorer channel label
 	BeginnerInlineToken string // legacy field; beginner solo env was removed
 }
 
@@ -1165,6 +1166,7 @@ func (a *app) handleExplorer(w http.ResponseWriter, r *http.Request) {
 	data := pageData{
 		NodeID:  a.nodeID,
 		ChainID: chainID,
+		Version: Version,
 	}
 	if err := a.explorerTmpl.Execute(w, data); err != nil {
 		log.Printf("explorer template: %v", err)

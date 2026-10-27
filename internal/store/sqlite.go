@@ -320,6 +320,8 @@ func migrateTransferLedger(db *sql.DB) error {
 			applied_at INTEGER NOT NULL,
 			reject_code TEXT NOT NULL DEFAULT ''
 		)`,
+		// Explorer lookup by PoH task id over the whole chain (public endpoint must not full-scan).
+		`CREATE INDEX IF NOT EXISTS idx_blocks_task_id ON blocks(json_extract(json, '$.task.id'))`,
 		`CREATE INDEX IF NOT EXISTS idx_tx_pool_from_nonce ON tx_pool(from_address, nonce)`,
 		`CREATE INDEX IF NOT EXISTS idx_tx_pool_status_received ON tx_pool(status, received_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_tx_history_from_applied ON tx_history(from_address, applied_at DESC)`,

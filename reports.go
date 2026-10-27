@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"hackme/internal/chain"
 )
 
 func (a *app) fetchRemoteJSONMap(ctx context.Context, base, path string) (map[string]any, error) {
@@ -178,6 +180,26 @@ func jsonUint64(v any) uint64 {
 func (a *app) handleReportsBlocks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// q=… resolves one block over the whole local chain (task id / hash / prefix / index).
+	// Lives on /api/reports/blocks because public nginx allowlists only this reports path.
+	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
+		row, ok, err := a.chain.FindBlockSummary(r.Context(), q)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		blocks := []chain.BlockSummary{}
+		if ok {
+			blocks = append(blocks, row)
+		}
+		writeJSON(w, map[string]any{
+			"lookup":        true,
+			"found":         ok,
+			"blocks":        blocks,
+			"blocks_source": "local_ledger",
+		})
 		return
 	}
 	limit := 30
