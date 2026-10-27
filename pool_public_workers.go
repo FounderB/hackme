@@ -25,12 +25,46 @@ func stripDesktopWorkerFields(ws map[string]any) {
 	delete(ws, "desktop_worker_on_coordinator")
 }
 
+// redactPublicActiveRigRows pseudonymizes active_rigs worker_id/name (same key as workers map);
+// raw ids there would let anyone recompute and de-anonymize the workers pseudonyms.
+func redactPublicActiveRigRows(ws map[string]any) {
+	rows, ok := ws["active_rigs"].([]any)
+	if !ok || len(rows) == 0 {
+		return
+	}
+	red := make([]any, 0, len(rows))
+	for _, r := range rows {
+		row, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, _ := row["worker_id"].(string)
+		key := publicWorkerPseudoKey(id)
+		if key == "" {
+			continue
+		}
+		cp := make(map[string]any, len(row))
+		for k, v := range row {
+			switch k {
+			case "ip", "client_ip", "last_client_ip":
+				continue
+			}
+			cp[k] = v
+		}
+		cp["worker_id"] = key
+		cp["name"] = key
+		red = append(red, cp)
+	}
+	ws["active_rigs"] = red
+}
+
 // redactPublicWorkStats strips desktop id leakage and re-keys workers for unauthenticated callers.
 func redactPublicWorkStats(ws map[string]any) {
 	if ws == nil {
 		return
 	}
 	stripDesktopWorkerFields(ws)
+	redactPublicActiveRigRows(ws)
 	raw, ok := ws["workers"].(map[string]any)
 	if !ok || len(raw) == 0 {
 		return

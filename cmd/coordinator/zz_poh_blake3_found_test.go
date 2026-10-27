@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"hackme/internal/chain"
 )
@@ -170,41 +171,70 @@ func TestFoundRejectsWithoutTipHash(t *testing.T) {
 	}
 }
 
-func TestBlake3StalePrevHashRejected(t *testing.T) {
+func TestBlake3StaleFoundDroppedSharesPaid(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HACKME_COORDINATOR_TARGET_MOD_FILE", filepath.Join(dir, "mod2.txt"))
+	t.Setenv("HACKME_COORDINATOR_POOL_DAILY_BUDGET_HMC", "0")
 	prev := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-	mod := uint64(1021)
+	mod := uint64(2_000_000)
 	pub, priv, _ := ed25519.GenerateKey(nil)
 	addr := signerAddr(pub)
 	m := report29WM(t, mod)
-	m.targetModMin = 251
 	m.targetMod = mod
 	m.tipHash = prev
 	m.tipHeight = 500_000
 	m.pohFormulaVersion = 3
+	m.shareDivisor = 1024
+	m.shareStrict = true
 	m.worker["rig-stale"] = workerPayoutStat{PayoutAddress: addr}
-	var nonce uint64
-	for n := uint64(0); n < 200_000; n++ {
-		if chain.PohWorkBlake3(prev, addr, n)%mod == 0 {
-			nonce = n
-			break
+	const base, size = uint64(1 << 30), uint64(1 << 16)
+	sm := shareModForLease(mod, m.shareDivisor, size)
+	var shares []uint64
+	var found uint64
+	for n := base; n < base+size; n++ {
+		w := chain.PohWorkBlake3(prev, addr, n)
+		if w%sm == 0 && len(shares) < 8 {
+			shares = append(shares, n)
+		}
+		if found == 0 && w%mod == 0 {
+			found = n
 		}
 	}
-	m.active[workKey{base: nonce, batch: 1}] = leaseRecord{
-		WorkerID: "rig-stale", BaseNonce: nonce, BatchSize: 1, IssuedAt: 1, ExpiresAt: 1 << 40,
-		TargetMod: mod, PrevHash: prev, MinerAddress: addr, FormulaVersion: 3,
+	if len(shares) == 0 {
+		t.Skip("no shares in lease")
 	}
-	m.tipHash = "0000000000000000000000000000000000000000000000000000000000000001" // tip moved
+	if found == 0 {
+		found = shares[0] // stale check fires before found validation; any in-range nonce exercises it
+	}
+	m.active[workKey{base: base, batch: size}] = leaseRecord{
+		WorkerID: "rig-stale", BaseNonce: base, BatchSize: size, IssuedAt: time.Now().Unix() - 3,
+		IssuedAtMs: time.Now().UnixMilli() - 2500, ExpiresAt: 1 << 40,
+		TargetMod: mod, ShareMod: sm, PrevHash: prev, MinerAddress: addr, FormulaVersion: 3,
+	}
+	m.tipHash = "0000000000000000000000000000000000000000000000000000000000000001" // tip moved mid-lease
 	req := submitWorkRequest{
-		WorkerID: "rig-stale", BaseNonce: nonce, BatchSize: 1,
-		Found: true, FoundNonce: nonce, ResultHash: "stale1", HashrateGHS: 1,
-		Attempts: 1, SubmitNonce: 1,
+		WorkerID: "rig-stale", BaseNonce: base, BatchSize: size,
+		Found: true, FoundNonce: found, ResultHash: "stale1", HashrateGHS: 1,
+		Attempts: size, SubmitNonce: 1, ShareNonces: shares,
 		MinerPubKey: hex.EncodeToString(pub), MinerAddress: addr, MinerSigAlg: "ed25519",
 	}
 	req.MinerSig = hex.EncodeToString(ed25519.Sign(priv, canonicalSubmitBytes(req)))
-	ok, reason, _, _, _ := m.submit(req)
-	if ok || reason != "stale_prev_hash" {
-		t.Fatalf("want stale_prev_hash, got ok=%v reason=%s", ok, reason)
+	// submit's first result means "found accepted"; a share-only success is (false, "").
+	foundAccepted, reason, payout, _, _ := m.submit(req)
+	if foundAccepted || reason != "" {
+		t.Fatalf("stale found must be dropped but shares accepted, got found=%v reason=%s", foundAccepted, reason)
+	}
+	want := float64(len(shares)) * rewardPerShareAt(m.baseRewardHMC, sm, mod)
+	if payout < want*0.99 || payout > want*1.01 {
+		t.Fatalf("payout=%v want shares-only ~%v (no found bonus %v)", payout, want, m.foundBonus)
+	}
+	if m.staleFoundDropped != 1 {
+		t.Fatalf("staleFoundDropped=%d want 1", m.staleFoundDropped)
+	}
+	if _, rec := m.acceptedFoundNonces[found]; rec {
+		t.Fatal("stale found nonce must not be recorded as an accepted found")
+	}
+	if st := m.worker["rig-stale"]; st.AcceptedHits != 0 {
+		t.Fatalf("stale found must not count as a hit, AcceptedHits=%d", st.AcceptedHits)
 	}
 }

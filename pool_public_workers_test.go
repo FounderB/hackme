@@ -46,3 +46,21 @@ func TestPublicWorkerPseudoKeyStable(t *testing.T) {
 		t.Fatalf("a=%q b=%q c=%q", a, b, c)
 	}
 }
+
+func TestRedactPublicWorkStatsActiveRigs(t *testing.T) {
+	ws := map[string]any{
+		"active_rigs": []any{
+			map[string]any{"worker_id": "worker-bob-vps-ru", "name": "worker-bob-vps-ru", "hashrate_gh_s": 2.0, "last_client_ip": "198.51.100.4"},
+		},
+	}
+	redactPublicWorkStats(ws)
+	rows := ws["active_rigs"].([]any)
+	row := rows[0].(map[string]any)
+	want := publicWorkerPseudoKey("worker-bob-vps-ru")
+	if row["worker_id"] != want || row["name"] != want {
+		t.Fatalf("active_rigs must be pseudonymized, got %v", row)
+	}
+	if _, ok := row["last_client_ip"]; ok {
+		t.Fatalf("ip must be stripped: %v", row)
+	}
+}

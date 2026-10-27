@@ -108,6 +108,8 @@ type workManager struct {
 	foundHits        uint64
 	lastFoundHitUnix int64
 	poolGHSmoothed   float64 // EMA of fleet GH/s for load retarget (avoids 0.15 GH/s pin → M runaway)
+	shareWorkTotal   float64 // cumulative verified share work (expected hashes) — delivered GH/s
+	shareWorkSamples []shareWorkSample
 	poolRetarget     bool
 	// Pool M bounds (defaults poolTargetModMin/Max; override via HACKME_COORDINATOR_POOL_TARGET_MOD_{MIN,MAX}).
 	targetModMin         uint64
@@ -133,6 +135,7 @@ type workManager struct {
 	poolBudgetClipped     uint64
 	dedupSubmits          uint64
 	dedupFoundNonce       uint64
+	staleFoundDropped     uint64 // founds on a superseded tip: found dropped, shares still paid
 	fleetAddressConflicts uint64
 	signedAccepts         uint64
 	signedRejects         uint64
@@ -189,10 +192,11 @@ type workKey struct {
 const (
 	poolTargetModDefault = 5_000_000
 	poolTargetModMin     = 2_000_000
-	// Hard ceiling for lab/solvency load mode. SHARE_STRICT load targets stay near
-	// poolGH×modMin (tens of millions), not Hs×block_sec hundreds of billions.
+	// Hard ceiling for solvency load mode (M ≈ delivered Hs × block_sec). Must stay above
+	// any realistic fleet: once M clamps, pay/hash stops falling and the pool overpays
+	// (1e12 clamped at ~31 GH/s delivered). 1e15 ≈ 31,000 GH/s.
 	// Override via HACKME_COORDINATOR_POOL_TARGET_MOD_MAX (env hard limit = this const).
-	poolTargetModMax = 1_000_000_000_000
+	poolTargetModMax = 1_000_000_000_000_000
 )
 
 type leaseRecord struct {
@@ -668,6 +672,18 @@ func (m *workManager) workerHashrateForPool(st workerPayoutStat) float64 {
 		return clampWorkerHashrateGHS(st.LastHashrateGHS)
 	}
 	return effectiveWorkerHashrateGHS(st)
+}
+
+// foundStaleForLeaseLocked reports a Blake3 v3 found whose lease prev_hash is no longer the
+// chain tip (caller holds m.mu). Missing tip/prev stay on the fail-closed found path.
+func (m *workManager) foundStaleForLeaseLocked(rec leaseRecord) bool {
+	fv := rec.FormulaVersion
+	if fv <= 0 {
+		fv = m.resolvedPoHFormulaVersionLocked()
+	}
+	leasePrev := strings.TrimSpace(rec.PrevHash)
+	curTip := strings.TrimSpace(m.tipHash)
+	return fv >= 3 && leasePrev != "" && curTip != "" && !strings.EqualFold(leasePrev, curTip)
 }
 
 func poolMinerCountBoost(miners int) float64 {
@@ -2371,6 +2387,17 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	issuedAt := rec.IssuedAt
 	validateMod := leaseMod
 	resultHashKey := ""
+	// Tip race (Blake3 v3): a found bound to a superseded prev_hash cannot count, but the
+	// lease's verified shares are bound to the lease prev_hash and stay payable. Drop only
+	// the found (no bonus) instead of rejecting the whole lease. signedReq keeps the bytes
+	// the miner actually signed for replay dedup below.
+	signedReq := req
+	if req.Found && m.foundStaleForLeaseLocked(rec) {
+		m.staleFoundDropped++
+		req.Found = false
+		req.FoundNonce = 0
+		req.ResultHash = ""
+	}
 	if req.Found {
 		if _, exists := m.acceptedFoundNonces[req.FoundNonce]; exists {
 			m.dedupFoundNonce++
@@ -2644,7 +2671,7 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		m.acceptedSubmitNonces[nonceKey] = struct{}{}
 		m.signedSubmitNonceMax[scope] = req.SubmitNonce
 		sig, _ := hex.DecodeString(strings.TrimSpace(req.MinerSig))
-		canon := canonicalSubmitBytes(req)
+		canon := canonicalSubmitBytes(signedReq)
 		sum := sha256.Sum256(append(canon, sig...))
 		sigPayload := hex.EncodeToString(sum[:])
 		if len(m.acceptedSignedPayloads) >= m.maxDedupEntries {
@@ -2816,6 +2843,9 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	st.LastSeenUnix = time.Now().Unix()
 	st.PayoutHMC += payout
 	st.PayoutUnits += payoutUnits
+	if useShares {
+		m.noteShareWorkLocked(len(validShares), sm, now)
+	}
 	hybridOK := signerAddr != ""
 	if sup := m.computeSUPAccrual(req.WorkerID, payout, paidAttempts, hybridOK, now); sup > 0 {
 		st.PayoutSUP += sup
@@ -2829,7 +2859,10 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	// continuously adjust difficulty from observed work; we approximate via submit heartbeats).
 	retNow := time.Now().Unix()
 	poolGH, online, _ := m.poolOnlineSummaryUnlocked(120, retNow)
-	if smoothed := m.smoothPoolGHSample(poolGH); smoothed > poolGH {
+	if delivered, ok := m.deliveredPoolGHLocked(retNow); ok {
+		// Size M to work that actually reaches the pool, not device-busy GH/s.
+		poolGH = delivered
+	} else if smoothed := m.smoothPoolGHSample(poolGH); smoothed > poolGH {
 		poolGH = smoothed
 	}
 	m.maybeRetargetPoolLoadLocked(retNow, poolGH, online)
@@ -3176,6 +3209,14 @@ func enrichPoolStatsForPublic(out map[string]any, reg *lanpool.Registry, wm *wor
 		}
 		online = len(reg.ListOnline())
 	}
+	out["pool_hashrate_gh_s_device"] = poolGH
+	if wm != nil {
+		if delivered, ok := wm.deliveredPoolGH(time.Now().Unix()); ok {
+			// Public / listing hashrate and load retarget use verified delivered work.
+			poolGH = delivered
+			out["pool_hashrate_kind"] = "delivered_verified_shares_10m"
+		}
+	}
 	out["pool_hashrate_gh_s"] = poolGH
 	out["hashrate"] = poolGH * 1e9
 	out["hashrate_hs"] = poolGH * 1e9
@@ -3355,6 +3396,7 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 		"rejected_submits":             m.rejectedSubmits,
 		"dedup_submits":                m.dedupSubmits,
 		"dedup_found_nonce":            m.dedupFoundNonce,
+		"stale_found_dropped":          m.staleFoundDropped,
 		"fleet_address_conflicts":      m.fleetAddressConflicts,
 		"accepted_attempts":            m.totalAttempts,
 		"total_payout_hmc":             m.totalPayoutHMC,
@@ -4141,6 +4183,9 @@ func addWorkRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInse
 		w.Header().Set("Cache-Control", "public, max-age=1")
 		out := wm.statsCached(details)
 		enrichPoolStatsForPublic(out, reg, wm)
+		if !details {
+			redactPublicActiveRigs(out)
+		}
 		_ = json.NewEncoder(w).Encode(out)
 	})
 
