@@ -118,6 +118,44 @@ func TestPersistWorkerAccrualMonotonic(t *testing.T) {
 	}
 }
 
+func TestAccrualJournalDeltaUnits(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "accrual-journal.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	wm := &workManager{worker: map[string]workerPayoutStat{}}
+	wm.attachDedupDB(db)
+	wm.mu.Lock()
+	wm.worker["j"] = workerPayoutStat{AcceptedAtt: 10, PayoutUnits: 1_000_00000, PayoutHMC: 1}
+	wm.mu.Unlock()
+	wm.persistWorkerAccrual("j", true)
+
+	wm.mu.Lock()
+	wm.worker["j"] = workerPayoutStat{AcceptedAtt: 20, PayoutUnits: 1_500_00000, PayoutHMC: 1.5}
+	wm.mu.Unlock()
+	wm.persistWorkerAccrual("j", true)
+
+	var n int
+	var sum uint64
+	if err := db.QueryRow(`SELECT COUNT(*), COALESCE(SUM(delta_units),0) FROM accrual_journal WHERE worker_id='j'`).Scan(&n, &sum); err != nil {
+		t.Fatal(err)
+	}
+	if n < 2 {
+		t.Fatalf("want >=2 journal rows, got %d", n)
+	}
+	// First persist: +1 HMC; second: +0.5 HMC.
+	if sum != 1_500_00000 {
+		t.Fatalf("sum delta_units=%d want 150000000", sum)
+	}
+	st, ok := wm.fetchDurableAccrual("j")
+	if !ok || st.PayoutUnits != 1_500_00000 {
+		t.Fatalf("watermark: ok=%v st=%+v", ok, st)
+	}
+}
+
 func TestWorkerAccrualPersistRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	db, err := store.Open(filepath.Join(dir, "accrual.db"))

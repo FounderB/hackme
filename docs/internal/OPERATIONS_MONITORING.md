@@ -10,7 +10,8 @@
 ## Settlement automation
 
 - **Coordinator admin / fuzz settle outbox:** hit VPS loopback **`:18081`** (or desktop unit `hackme-coord-admin-tunnel`). Public/direct **`:18083`** nginx often **403**s admin settle routes — see [POOL_DIRECT_COORDINATOR.md](../POOL_DIRECT_COORDINATOR.md).
-- Bridge script: **`scripts/ops/settle_worker_payouts.sh`** (env-driven thresholds and payout maps).
+- Bridge: **`bin/workersettle`** (Go; thin wrap `scripts/ops/settle_worker_payouts.sh`). SQLite units ledger (`worker_settlement_state.db`, `settle_ledger` deltas). Env-driven thresholds and `WORKER_PAYOUT_MAP`.
+- Coordinator accrual: `worker_accrual.payout_units` + append-only `accrual_journal` (uint64; 1 HMC = 10⁸). Float HMC columns are mirrors only.
 - SUP mint: **`scripts/ops/settle_worker_sup.sh`** (parallel timer on VPS).
 - Desktop canonical cache: **`scripts/ops/sync_desktop_settlement_canonical.sh`** (or rely on node HTTP merge after `settlement_api.go` refresh).
 - Health probe pattern: **`scripts/ops/settlement_healthcheck.sh`**.

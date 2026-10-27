@@ -269,7 +269,14 @@ func TestSessionAnchorHMC(t *testing.T) {
 		t.Fatal(err)
 	}
 	w, _ = s.GetWorker(ctx, "w")
-	if w.SessionAnchorHMC != 1.25 || w.SettledHMC != 5.0 {
+	if w.SessionAnchorHMC != 1.25 || w.SessionAnchorUnits != HMCToUnits(1.25) || w.SettledHMC != 5.0 {
 		t.Fatalf("re-anchor lost settled: %+v", w)
+	}
+	if err := s.SetSessionAnchorHMC(ctx, "w", 0, true); err != nil {
+		t.Fatal(err)
+	}
+	w, _ = s.GetWorker(ctx, "w")
+	if w.SessionAnchorHMC != 0 || w.SessionAnchorUnits != 0 || w.SettledHMC != 5.0 {
+		t.Fatalf("clear anchor must zero units+float, keep settled: %+v", w)
 	}
 }

@@ -7,7 +7,7 @@ English guide for anyone joining **https://hackme.tech** as a pool worker.
 | Layer | What you earn | When it appears |
 |--------|----------------|-----------------|
 | **Coordinator** | Off-chain accrual for **verified Blake3 shares** (share-PPS) | Dashboard **Unpaid worker accrual** / coordinator stats |
-| **Settlement** | On-chain HMC to your `HMC-…` address | After operator `settle_worker_payouts` (timer ~2 min) |
+| **Settlement** | On-chain HMC to your `HMC-…` address | After operator Go settler `workersettle` / `settle_worker_payouts` (timer ~2 min); ledger is SQLite **uint64 units** (1 HMC = 10⁸) |
 | **Chain block subsidy** | PoH block reward | **Primary wallet of the block-producing node** — not auto-split to every GPU |
 
 Dig/Hunt escrow (customer orders) is a **separate** rail: PayRun / bounty from campaign escrow, not the Blake3 share-PPS formula below.
@@ -18,16 +18,18 @@ Public pool default is **`SHARE_STRICT=1`** (rc18+): pay **verified** `share_non
 
 ```
 share_mod ≈ target_mod / share_divisor   (default divisor 1024)
-payout ≈ (accepted_shares) × (base_reward_hmc × share_mod / target_mod)
-       ≈ accepted_shares × (base_reward_hmc / share_divisor)
-+ found_bonus_hmc   (extra when you submit a valid found hit)
+instant_price_units = HMCToUnits(base_reward_hmc × share_mod / target_mod)
+pay_price_units     = EMA(instant_price_units)   # HACKME_COORDINATOR_SHARE_PRICE_EMA=1 (default)
+payout_units        = accepted_shares × pay_price_units
++ found_bonus_units (extra when you submit a valid found hit)
 ```
 
 - Client-reported `hashrate_gh_s` / raw **attempts do not pay** under share-PPS.
 - Pool GH/s for load comes from **shares / wall**, not fantasy client GH/s.
 - **Hybrid signer** must be valid when strict mode is on.
 - **Max 3 active leases** per worker id (fair share for home rigs).
-- Live knobs (operator): `HACKME_COORDINATOR_SHARE_STRICT=1`, `REWARD_AUTO=0`, `REWARD_PER_M_ATTEMPTS` kept for tooling — share pay uses `base_reward` × share fraction.
+- Live knobs (operator): `HACKME_COORDINATOR_SHARE_STRICT=1`, `HACKME_COORDINATOR_SHARE_PRICE_EMA=1`, `HACKME_COORDINATOR_SHARE_PRICE_EMA_ALPHA=0.25`, `REWARD_AUTO=0`.
+- Share-price samples land in coordinator `share_price_journal` and settlement `settle_ledger` (units).
 
 ## Worker configuration
 

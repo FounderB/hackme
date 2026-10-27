@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"hackme/internal/chain"
 )
 
 // Durable worker accrual (payout_hmc / attempts) across coordinator restarts.
@@ -19,6 +21,7 @@ CREATE TABLE IF NOT EXISTS worker_accrual (
   accepted_hits INTEGER NOT NULL DEFAULT 0,
   accepted_attempts INTEGER NOT NULL DEFAULT 0,
   payout_hmc REAL NOT NULL DEFAULT 0,
+  payout_units INTEGER NOT NULL DEFAULT 0,
   payout_sup REAL NOT NULL DEFAULT 0,
   payout_address TEXT NOT NULL DEFAULT '',
   signed_submits INTEGER NOT NULL DEFAULT 0,
@@ -30,12 +33,30 @@ CREATE TABLE IF NOT EXISTS worker_accrual (
   updated_at INTEGER NOT NULL DEFAULT 0
 )`
 
+// Append-only accrual journal (units). Watermark stays in worker_accrual; deltas land here.
+const workerAccrualJournalTable = `
+CREATE TABLE IF NOT EXISTS accrual_journal (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  worker_id TEXT NOT NULL,
+  delta_units INTEGER NOT NULL DEFAULT 0,
+  payout_units INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_accrual_journal_worker_ts ON accrual_journal(worker_id, created_at);
+`
+
 func migrateWorkerAccrualTable(db *sql.DB) error {
 	if db == nil {
 		return nil
 	}
-	_, err := db.Exec(workerAccrualTable)
-	return err
+	if _, err := db.Exec(workerAccrualTable); err != nil {
+		return err
+	}
+	_, _ = db.Exec(`ALTER TABLE worker_accrual ADD COLUMN payout_units INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`UPDATE worker_accrual SET payout_units = CAST(ROUND(payout_hmc * 100000000) AS INTEGER) WHERE payout_units = 0 AND payout_hmc > 0`)
+	_, _ = db.Exec(workerAccrualJournalTable)
+	ensureSharePriceJournal(db)
+	return nil
 }
 
 func (m *workManager) loadWorkerAccruals() {
@@ -44,7 +65,7 @@ func (m *workManager) loadWorkerAccruals() {
 	}
 	rows, err := m.dedupDB.Query(`
 SELECT worker_id, accepted_ranges, accepted_hits, accepted_attempts,
-       payout_hmc, payout_sup, payout_address, signed_submits,
+       payout_hmc, COALESCE(payout_units,0), payout_sup, payout_address, signed_submits,
        last_ghs, peak_ghs, last_seen_unix, last_poh_seen_unix, last_fuzz_seen_unix
 FROM worker_accrual`)
 	if err != nil {
@@ -64,7 +85,7 @@ FROM worker_accrual`)
 		var id, addr string
 		var st workerPayoutStat
 		if err := rows.Scan(&id, &st.AcceptedRanges, &st.AcceptedHits, &st.AcceptedAtt,
-			&st.PayoutHMC, &st.PayoutSUP, &addr, &st.SignedSubmits,
+			&st.PayoutHMC, &st.PayoutUnits, &st.PayoutSUP, &addr, &st.SignedSubmits,
 			&st.LastHashrateGHS, &st.PeakHashrateGHS, &st.LastSeenUnix, &st.LastPoHSeenUnix, &st.LastFuzzSeenUnix); err != nil {
 			log.Printf("worker accrual scan: %v", err)
 			continue
@@ -74,6 +95,11 @@ FROM worker_accrual`)
 			continue
 		}
 		st.PayoutAddress = strings.TrimSpace(addr)
+		// Units authoritative (float is UI mirror). Legacy float→units only when units unset.
+		if st.PayoutUnits == 0 && st.PayoutHMC > 0 {
+			st.PayoutUnits = chain.HMCToUnits(st.PayoutHMC)
+		}
+		st.PayoutHMC = chain.UnitsToHMC(st.PayoutUnits)
 		// Prefer any already-warm in-memory row (tests); else restore durable.
 		if cur, ok := m.worker[id]; ok && (cur.PayoutHMC > 0 || cur.AcceptedAtt > 0) {
 			continue
@@ -113,16 +139,20 @@ func (m *workManager) fetchDurableAccrual(workerID string) (workerPayoutStat, bo
 	var addr string
 	err := m.dedupDB.QueryRow(`
 SELECT accepted_ranges, accepted_hits, accepted_attempts,
-       payout_hmc, payout_sup, payout_address, signed_submits,
+       payout_hmc, COALESCE(payout_units,0), payout_sup, payout_address, signed_submits,
        last_ghs, peak_ghs, last_seen_unix, last_poh_seen_unix, last_fuzz_seen_unix
 FROM worker_accrual WHERE worker_id=?`, workerID).Scan(
 		&st.AcceptedRanges, &st.AcceptedHits, &st.AcceptedAtt,
-		&st.PayoutHMC, &st.PayoutSUP, &addr, &st.SignedSubmits,
+		&st.PayoutHMC, &st.PayoutUnits, &st.PayoutSUP, &addr, &st.SignedSubmits,
 		&st.LastHashrateGHS, &st.PeakHashrateGHS, &st.LastSeenUnix, &st.LastPoHSeenUnix, &st.LastFuzzSeenUnix)
 	if err != nil {
 		return st, false
 	}
 	st.PayoutAddress = strings.TrimSpace(addr)
+	if st.PayoutUnits == 0 && st.PayoutHMC > 0 {
+		st.PayoutUnits = chain.HMCToUnits(st.PayoutHMC)
+	}
+	st.PayoutHMC = chain.UnitsToHMC(st.PayoutUnits)
 	return st, true
 }
 
@@ -265,17 +295,27 @@ func (m *workManager) persistWorkerAccrual(workerID string, force bool) {
 	m.mu.Unlock()
 
 	// Monotonic upsert: a delayed goroutine must not overwrite a newer accepted_attempts row.
+	pu := snap.PayoutUnits
+	if pu == 0 && snap.PayoutHMC > 0 {
+		pu = chain.HMCToUnits(snap.PayoutHMC)
+	}
+	hmcMirror := chain.UnitsToHMC(pu)
+
+	var prevUnits uint64
+	_ = m.dedupDB.QueryRow(`SELECT COALESCE(payout_units,0) FROM worker_accrual WHERE worker_id=?`, workerID).Scan(&prevUnits)
+
 	_, err := m.dedupDB.Exec(`
 INSERT INTO worker_accrual (
   worker_id, accepted_ranges, accepted_hits, accepted_attempts,
-  payout_hmc, payout_sup, payout_address, signed_submits,
+  payout_hmc, payout_units, payout_sup, payout_address, signed_submits,
   last_ghs, peak_ghs, last_seen_unix, last_poh_seen_unix, last_fuzz_seen_unix, updated_at
-) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(worker_id) DO UPDATE SET
   accepted_ranges=excluded.accepted_ranges,
   accepted_hits=excluded.accepted_hits,
   accepted_attempts=excluded.accepted_attempts,
   payout_hmc=excluded.payout_hmc,
+  payout_units=excluded.payout_units,
   payout_sup=excluded.payout_sup,
   payout_address=excluded.payout_address,
   signed_submits=excluded.signed_submits,
@@ -287,10 +327,17 @@ ON CONFLICT(worker_id) DO UPDATE SET
   updated_at=excluded.updated_at
 WHERE excluded.accepted_attempts >= worker_accrual.accepted_attempts
 `, workerID, snap.AcceptedRanges, snap.AcceptedHits, snap.AcceptedAtt,
-		snap.PayoutHMC, snap.PayoutSUP, strings.TrimSpace(snap.PayoutAddress), snap.SignedSubmits,
+		hmcMirror, pu, snap.PayoutSUP, strings.TrimSpace(snap.PayoutAddress), snap.SignedSubmits,
 		snap.LastHashrateGHS, snap.PeakHashrateGHS, snap.LastSeenUnix, snap.LastPoHSeenUnix, snap.LastFuzzSeenUnix, now)
 	if err != nil {
 		log.Printf("worker accrual persist id=%s err=%v", sanitizeLogToken(workerID), err)
+	} else if pu > prevUnits {
+		delta := pu - prevUnits
+		if _, jerr := m.dedupDB.Exec(`
+INSERT INTO accrual_journal (worker_id, delta_units, payout_units, created_at)
+VALUES (?, ?, ?, ?)`, workerID, delta, pu, now); jerr != nil {
+			log.Printf("accrual journal id=%s err=%v", sanitizeLogToken(workerID), jerr)
+		}
 	}
 
 	// Revoke may have DELETE'd while we held the snapshot; purge any resurrection.

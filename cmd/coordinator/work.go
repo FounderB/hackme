@@ -74,6 +74,7 @@ type workManager struct {
 	sharePaidSubmits     uint64
 	shareRateLowFlags    uint64
 	shareRateLowRejects  uint64
+	sharePrice           *sharePriceState // EMA share-PPS price (units per share)
 
 	// PoH tip binding for Blake3 v3 (refreshed from chain /api/metrics).
 	tipHash             string
@@ -214,6 +215,7 @@ type workerPayoutStat struct {
 	AcceptedHits    uint64  `json:"accepted_hits"`
 	AcceptedAtt     uint64  `json:"accepted_attempts"`
 	PayoutHMC       float64 `json:"payout_hmc"`
+	PayoutUnits     uint64  `json:"payout_units,omitempty"` // authoritative integer units (1 HMC = 1e8)
 	PayoutSUP       float64 `json:"payout_sup"`
 	PayoutAddress   string  `json:"payout_address,omitempty"`
 	AddressConflict bool    `json:"address_conflict,omitempty"`
@@ -2717,9 +2719,14 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		paidAttempts = 0
 	}
 	var payout float64
+	var payoutUnits uint64
 	if useShares {
 		m.sharePaidSubmits++
-		payout = float64(len(validShares)) * rewardPerShareAt(m.baseRewardHMC, sm, rec.TargetMod)
+		nShares := uint64(len(validShares))
+		instantU := rewardPerShareUnits(m.baseRewardHMC, sm, rec.TargetMod)
+		payPerShareU := m.observeSharePrice(instantU, nShares, rec.TargetMod, sm)
+		payoutUnits = nShares * payPerShareU
+		payout = chain.UnitsToHMC(payoutUnits)
 		if req.Found && !chainSolve.OK {
 			foundIsShare := false
 			for _, n := range validShares {
@@ -2729,12 +2736,15 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 				}
 			}
 			if !foundIsShare {
-				payout += m.foundBonus
+				bonusU := chain.HMCToUnits(m.foundBonus)
+				payoutUnits += bonusU
+				payout = chain.UnitsToHMC(payoutUnits)
 			}
 		}
 	} else if m.shareStrict {
 		if req.Found && !chainSolve.OK {
 			payout = m.foundBonus
+			payoutUnits = chain.HMCToUnits(payout)
 		}
 	} else {
 		payout = (float64(paidAttempts) / 1_000_000.0) * m.rewardPerM
@@ -2745,17 +2755,21 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		if chainSolve.OK {
 			payout = (float64(paidAttempts) / 1_000_000.0) * m.rewardPerM
 		}
+		payoutUnits = chain.HMCToUnits(payout)
 	}
 	if payout < 0 {
 		payout = 0
+		payoutUnits = 0
 	}
 	// Hard per-submit HMC ceiling (attempt accrual + found bonus) — keyed to this lease.
 	maxSubmitHMC := m.maxSubmitHMCForBatch(req.BatchSize)
 	if payout > maxSubmitHMC {
 		payout = maxSubmitHMC
+		payoutUnits = chain.HMCToUnits(payout)
 	}
 	// Solvency: never accrue more than the UTC-day emission budget.
 	payout = m.applyPoolDailyBudget(payout, now)
+	payoutUnits = chain.HMCToUnits(payout)
 	st := m.ensureWorkerAccrualLocked(req.WorkerID)
 	st.AcceptedRanges++
 	st.AcceptedAtt += attempts
@@ -2781,6 +2795,7 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	}
 	st.LastSeenUnix = time.Now().Unix()
 	st.PayoutHMC += payout
+	st.PayoutUnits += payoutUnits
 	hybridOK := signerAddr != ""
 	if sup := m.computeSUPAccrual(req.WorkerID, payout, paidAttempts, hybridOK, now); sup > 0 {
 		st.PayoutSUP += sup
@@ -2975,6 +2990,7 @@ func mergeWorkerStat(dst, src workerPayoutStat) (workerPayoutStat, bool) {
 	dst.AcceptedHits += src.AcceptedHits
 	dst.AcceptedAtt += src.AcceptedAtt
 	dst.PayoutHMC += src.PayoutHMC
+	dst.PayoutUnits += src.PayoutUnits
 	dst.PayoutSUP += src.PayoutSUP
 	dst.SignedSubmits += src.SignedSubmits
 	dst.LastHashrateGHS += src.LastHashrateGHS
@@ -3258,24 +3274,46 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 	minStat := m.targetModMinOrDefault()
 	maxStat := m.targetModMaxOrDefault()
 	out := map[string]any{
-		"default_batch":                m.defaultBatch,
-		"max_claim_batch":              m.maxClaimBatch,
-		"lease_work_sec":               m.leaseWorkSec,
-		"target_mod":                   m.clampTargetMod(m.targetMod),
-		"target_mod_updated_unix":      m.targetModUpdatedUnix,
-		"pool_retarget_enabled":        m.poolRetarget,
-		"lease_sec":                    m.leaseSec,
-		"reward_per_m":                 m.rewardPerM,
-		"reward_auto":                  m.rewardAuto,
-		"base_reward_hmc":              m.baseRewardHMC,
-		"found_bonus_hmc":              m.foundBonus,
-		"payout_found_only":            m.payoutFoundOnly,
-		"attempt_recheck_pct":          m.attemptRecheckPct,
-		"attempt_recheck_budget":       m.attemptRecheckBudget,
-		"attempt_recheck_rolls":        m.attemptRecheckRolls,
-		"attempt_recheck_rejects":      m.attemptRecheckReject,
-		"share_divisor":                m.shareDivisor,
-		"share_strict":                 m.shareStrict,
+		"default_batch":           m.defaultBatch,
+		"max_claim_batch":         m.maxClaimBatch,
+		"lease_work_sec":          m.leaseWorkSec,
+		"target_mod":              m.clampTargetMod(m.targetMod),
+		"target_mod_updated_unix": m.targetModUpdatedUnix,
+		"pool_retarget_enabled":   m.poolRetarget,
+		"lease_sec":               m.leaseSec,
+		"reward_per_m":            m.rewardPerM,
+		"reward_auto":             m.rewardAuto,
+		"base_reward_hmc":         m.baseRewardHMC,
+		"found_bonus_hmc":         m.foundBonus,
+		"payout_found_only":       m.payoutFoundOnly,
+		"attempt_recheck_pct":     m.attemptRecheckPct,
+		"attempt_recheck_budget":  m.attemptRecheckBudget,
+		"attempt_recheck_rolls":   m.attemptRecheckRolls,
+		"attempt_recheck_rejects": m.attemptRecheckReject,
+		"share_divisor":           m.shareDivisor,
+		"share_strict":            m.shareStrict,
+		"share_price_ema":         envSharePriceEMA(),
+		"share_price_ema_units": func() uint64 {
+			if m.sharePrice != nil {
+				return m.sharePrice.emaUnits
+			}
+			return 0
+		}(),
+		"share_price_instant_units": func() uint64 {
+			if m.sharePrice != nil {
+				return m.sharePrice.lastInstantUnits
+			}
+			return 0
+		}(),
+		"share_price_samples": func() uint64 {
+			if m.sharePrice != nil {
+				return m.sharePrice.samples
+			}
+			return 0
+		}(),
+		"total_payout_units": func() uint64 {
+			return chain.HMCToUnits(m.totalPayoutHMC)
+		}(),
 		"share_rate_min":               m.shareRateMin,
 		"share_rate_min_expected":      m.shareRateMinExpected,
 		"share_rate_reject":            m.shareRateReject,
