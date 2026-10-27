@@ -141,7 +141,8 @@ $lines = @(
     "HACKME_POOL_COORDINATOR_TOKEN=$poolToken",
     "HACKME_REQUIRE_ADMIN_TOKEN=1",
     "HACKME_DESKTOP_MODE=1",
-    "HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN=1",
+    # EXPOSE embeds admin_token in HTML; local-auth JSON already re-syncs the UI.
+    "HACKME_DESKTOP_EXPOSE_ADMIN_TOKEN=0",
     "HACKME_RIG_PROFILE_AUTO=0",
     "HACKME_GPU_BACKEND=$GpuBackend",
     "HACKME_WORKER_BATCH_SIZE=$batch",
