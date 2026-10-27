@@ -49,10 +49,10 @@ type Config struct {
 
 // Result summarizes one Run.
 type Result struct {
-	SettledAny   bool
-	PayoutsSent  int
-	ForceMode    bool
-	SkippedLock  bool
+	SettledAny  bool
+	PayoutsSent int
+	ForceMode   bool
+	SkippedLock bool
 }
 
 // DefaultConfig fills env-compatible defaults.

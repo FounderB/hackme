@@ -603,13 +603,13 @@ SELECT worker_id, settled_hmc, settled_sup, COALESCE(settled_units,0), COALESCE(
 		}
 		hydrateWorkerRow(&r)
 		ent := map[string]any{
-			"settled_hmc":        r.SettledHMC,
-			"settled_sup":        r.SettledSUP,
-			"settled_units":      r.SettledUnits,
-			"settled_sup_units":  r.SettledSUPUnits,
-			"payout_address":     r.PayoutAddress,
-			"last_tx_hash":       r.LastTxHash,
-			"last_settle_unix":   r.LastSettleUnix,
+			"settled_hmc":       r.SettledHMC,
+			"settled_sup":       r.SettledSUP,
+			"settled_units":     r.SettledUnits,
+			"settled_sup_units": r.SettledSUPUnits,
+			"payout_address":    r.PayoutAddress,
+			"last_tx_hash":      r.LastTxHash,
+			"last_settle_unix":  r.LastSettleUnix,
 		}
 		if r.SessionAnchorUnits > 0 {
 			ent["session_anchor_hmc"] = r.SessionAnchorHMC

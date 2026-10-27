@@ -8,12 +8,12 @@ package workersettle
 //     pay only session growth above SessionAnchorUnits (re-anchored if needed).
 //   - When accrual has caught up, clear the session anchor.
 type AccrualDelta struct {
-	BaselineUnits   uint64
-	DeltaUnits      uint64
-	NeedAnchor      bool
-	NewAnchorUnits  uint64
-	ClearAnchor     bool
-	Rebase          bool
+	BaselineUnits  uint64
+	DeltaUnits     uint64
+	NeedAnchor     bool
+	NewAnchorUnits uint64
+	ClearAnchor    bool
+	Rebase         bool
 }
 
 // ComputeAccrualDelta returns unpaid delta and any session-anchor mutation.

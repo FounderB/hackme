@@ -16,18 +16,18 @@ import (
 // Pay uses EMA when HACKME_COORDINATOR_SHARE_PRICE_EMA=1 (default on with SHARE_STRICT).
 
 const (
-	defaultSharePriceEMAAlpha = 0.25
-	sharePriceJournalMinGapSec  = int64(5)
+	defaultSharePriceEMAAlpha  = 0.25
+	sharePriceJournalMinGapSec = int64(5)
 )
 
 type sharePriceState struct {
-	emaUnits           uint64
-	lastInstantUnits   uint64
-	samples            uint64
-	sharesPaid         uint64
-	lastJournalUnix    int64
-	windowTargetMod    uint64
-	windowShareMod     uint64
+	emaUnits         uint64
+	lastInstantUnits uint64
+	samples          uint64
+	sharesPaid       uint64
+	lastJournalUnix  int64
+	windowTargetMod  uint64
+	windowShareMod   uint64
 }
 
 func envSharePriceEMA() bool {
