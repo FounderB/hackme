@@ -116,6 +116,8 @@ func shareModFor(targetMod, divisor uint64) uint64 {
 
 // shareModForLease hardens share difficulty on large Blake3 leases so expected
 // shares stay near targetSharesPerLease (not maxSharesPerSubmit on every submit).
+// When pool M is solvency-scale (Hs×block_sec), M/divisor can exceed the whole
+// lease — that would starve PPS. Cap so a full lease still expects ≥1 share.
 func shareModForLease(targetMod, divisor, batch uint64) uint64 {
 	sm := shareModFor(targetMod, divisor)
 	if batch == 0 {
@@ -126,6 +128,10 @@ func shareModForLease(targetMod, divisor, batch uint64) uint64 {
 		leaseSM = 1
 	}
 	if sm == 0 || leaseSM > sm {
+		return leaseSM
+	}
+	// Starve guard: shareMod ≥ batch ⇒ expected shares < 1 for an honest full lease.
+	if sm >= batch {
 		return leaseSM
 	}
 	return sm

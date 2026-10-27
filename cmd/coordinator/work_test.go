@@ -1123,31 +1123,60 @@ func TestPayoutSharesNoSystematicLoss(t *testing.T) {
 
 func TestPoolDifficultyStableAtSteadyHashrate(t *testing.T) {
 	t.Setenv("HACKME_COORDINATOR_POOL_BLOCK_SEC", "30")
+	t.Setenv("HACKME_COORDINATOR_SHARE_STRICT", "1")
+	t.Setenv("HACKME_COORDINATOR_POOL_LOAD_SOLVENCY", "0")
 	wm := &workManager{
 		targetMod:          4_000_000,
 		targetModMin:       poolTargetModMin,
 		targetModMax:       poolTargetModMax,
 		poolRetarget:       true,
 		poolRetargetMinSec: 1,
+		shareStrict:        true,
 	}
 	now := time.Now().Unix()
 	const poolGH = 12.5
 	const miners = 4
+	want := poolLoadTargetM(poolGH, miners, poolTargetModMin, true)
 	converged := false
-	// Solvency-scale M (~3.75e11) needs many 1.35× ramp ticks from 4e6.
-	for i := 0; i < 120; i++ {
+	for i := 0; i < 80; i++ {
 		prev := wm.targetMod
 		wm.maybeRetargetPoolLoadLocked(now+int64(i*30), poolGH, miners)
-		if i > 16 && wm.targetMod == prev {
+		if i > 8 && wm.targetMod == prev {
 			converged = true
 			break
 		}
 	}
 	if !converged {
-		t.Fatalf("steady GH/s did not converge within 120 steps, target_mod=%d", wm.targetMod)
+		t.Fatalf("steady GH/s did not converge within 80 steps, target_mod=%d", wm.targetMod)
 	}
-	if wm.targetMod < 1_000_000_000 {
-		t.Fatalf("converged M too small for 12.5 GH/s: %d", wm.targetMod)
+	// SHARE_STRICT: ~12.5×2e6 ≈ 25M class, not Hs×30s hundreds of billions.
+	if wm.targetMod < want/2 || wm.targetMod > want*2 {
+		t.Fatalf("converged M=%d want ~%d (share-PPS load)", wm.targetMod, want)
+	}
+	if wm.targetMod > 200_000_000 {
+		t.Fatalf("share-PPS M must not runaway to solvency scale: %d", wm.targetMod)
+	}
+}
+
+func TestPoolDifficultyCatchDownFromSolvencyScale(t *testing.T) {
+	t.Setenv("HACKME_COORDINATOR_SHARE_STRICT", "1")
+	t.Setenv("HACKME_COORDINATOR_POOL_LOAD_SOLVENCY", "0")
+	wm := &workManager{
+		targetMod:          450_000_000_000, // live runaway class
+		targetModMin:       poolTargetModMin,
+		targetModMax:       poolTargetModMax,
+		poolRetarget:       true,
+		poolRetargetMinSec: 1,
+		shareStrict:        true,
+		poolGHSmoothed:     15,
+	}
+	now := time.Now().Unix()
+	want := poolLoadTargetM(15, 10, poolTargetModMin, true)
+	for i := 0; i < 40; i++ {
+		wm.maybeRetargetPoolLoadLocked(now+int64(i*20), 15.0, 10)
+	}
+	if wm.targetMod > want*3 {
+		t.Fatalf("catch-down too slow: M=%d want~%d", wm.targetMod, want)
 	}
 }
 
@@ -1193,6 +1222,7 @@ func newTestWorkManagerForPayout(rewardPerM float64, payoutFoundOnly bool) *work
 }
 
 func TestPoolLoadCatchUpAfterRestart(t *testing.T) {
+	t.Setenv("HACKME_COORDINATOR_SHARE_STRICT", "1")
 	wm := &workManager{
 		targetMod:          5_000_000, // default after restart
 		targetModMin:       poolTargetModMin,
@@ -1200,9 +1230,10 @@ func TestPoolLoadCatchUpAfterRestart(t *testing.T) {
 		poolRetarget:       true,
 		poolRetargetMinSec: 1,
 		poolGHSmoothed:     100,
+		shareStrict:        true,
 	}
 	now := time.Now().Unix()
-	// With ~100 GH/s, load hint ≈ 200M; catch-up should climb much faster than +6%/tick.
+	// With ~100 GH/s, share-PPS load hint ≈ 200M; catch-up should climb much faster than +6%/tick.
 	for i := 0; i < 20; i++ {
 		wm.maybeRetargetPoolLoadLocked(now+int64(i*20), 100.0, 10)
 	}

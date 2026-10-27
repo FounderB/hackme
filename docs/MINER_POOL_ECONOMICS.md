@@ -30,6 +30,7 @@ payout_units        = accepted_shares × pay_price_units
 - **Max 3 active leases** per worker id (fair share for home rigs).
 - Live knobs (operator): `HACKME_COORDINATOR_SHARE_STRICT=1`, `HACKME_COORDINATOR_SHARE_PRICE_EMA=1`, `HACKME_COORDINATOR_SHARE_PRICE_EMA_ALPHA=0.25`, `REWARD_AUTO=0`.
 - Share-price samples land in coordinator `share_price_journal` and settlement `settle_ledger` (units).
+- Pool **Difficulty (M)** under share-PPS tracks fleet GH/s × floor (~tens of millions), not `Hs × block_sec` hundreds of billions. Daily accrual budget (`~28.8 HMC/day`) is the emission cap; set `HACKME_COORDINATOR_POOL_LOAD_SOLVENCY=1` only for lab found-cadence experiments.
 
 ## Worker configuration
 

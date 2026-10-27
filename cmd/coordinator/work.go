@@ -189,7 +189,8 @@ type workKey struct {
 const (
 	poolTargetModDefault = 5_000_000
 	poolTargetModMin     = 2_000_000
-	// Default cap 1e12 — M ≈ pool_Hs × block_sec (~4.5e11 at 15 GH/s × 30s).
+	// Hard ceiling for lab/solvency load mode. SHARE_STRICT load targets stay near
+	// poolGH×modMin (tens of millions), not Hs×block_sec hundreds of billions.
 	// Override via HACKME_COORDINATOR_POOL_TARGET_MOD_MAX (env hard limit = this const).
 	poolTargetModMax = 1_000_000_000_000
 )
@@ -681,21 +682,47 @@ func poolMinerCountBoost(miners int) float64 {
 }
 
 // poolLoadHintUnclamped is the fleet-hash + miner-count difficulty the coordinator *would* use
-// before applying targetModMax (for honest UI / pool listings).
+// before applying targetModMax (for honest UI / pool listings). Matches maybeRetargetPoolLoad.
 func poolLoadHintUnclamped(poolGH float64, miners int, modMin uint64) uint64 {
+	return poolLoadTargetM(poolGH, miners, modMin, envShareStrict())
+}
+
+// poolLoadTargetM is the load-retarget setpoint for pool M.
+//
+// SHARE_STRICT (live default): M ≈ poolGH × modMin × minerBoost (tens of millions at
+// home-fleet GH/s). Emission solvency is enforced by applyPoolDailyBudget — not by
+// inflating M to Hs×block_sec (~4e11), which starved small leases of shares and made
+// the dashboard look broken.
+//
+// Soft/attempt mode (or HACKME_COORDINATOR_POOL_LOAD_SOLVENCY=1): M ≈ Hs × block_sec
+// so expected found cadence matches block time (legacy solvency-via-M path).
+func poolLoadTargetM(poolGH float64, miners int, modMin uint64, shareStrict bool) uint64 {
 	if poolGH < 0.01 {
 		return 0
 	}
 	if modMin == 0 {
 		modMin = poolTargetModMin
 	}
-	modPerGH := float64(modMin)
-	loadM := poolGH * modPerGH
+	solvency := envPoolLoadSolvency()
+	var loadM float64
+	if shareStrict && !solvency {
+		loadM = poolGH * float64(modMin)
+	} else {
+		loadM = poolGH * 1e9 * poolBlockSec()
+	}
 	loadM *= poolMinerCountBoost(miners)
+	if loadM < float64(modMin) {
+		loadM = float64(modMin)
+	}
 	if loadM >= float64(^uint64(0)>>1) {
 		return ^uint64(0) >> 1
 	}
 	return uint64(loadM + 0.5)
+}
+
+func envPoolLoadSolvency() bool {
+	v := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_POOL_LOAD_SOLVENCY"))
+	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
 
 func (m *workManager) clampTargetMod(u uint64) uint64 {
@@ -1307,17 +1334,7 @@ func (m *workManager) maybeRetargetPoolLoadLocked(now int64, poolGH float64, min
 	if smoothed > 0 {
 		poolGH = smoothed
 	}
-	// Solvency-aligned load: one expected find per block_sec across the fleet.
-	// M ≈ pool_hashes/s × block_sec → sum(base×batch/M) ≈ emission (not lease-count PPS).
-	blockSec := poolBlockSec()
-	loadM := poolGH * 1e9 * blockSec
-	loadM *= poolMinerCountBoost(miners)
-	// Floor: never below min × online miners so empty fleets stay claimable.
-	floor := float64(m.targetModMinOrDefault())
-	if loadM < floor {
-		loadM = floor
-	}
-	target := m.clampTargetMod(uint64(loadM + 0.5))
+	target := m.clampTargetMod(poolLoadTargetM(poolGH, miners, m.targetModMinOrDefault(), m.shareStrict))
 	prev := m.clampTargetMod(m.targetMod)
 	if target == prev {
 		// Periodic tick even when load-stable: stall easing must not require an accepted found
@@ -1339,7 +1356,14 @@ func (m *workManager) maybeRetargetPoolLoadLocked(now int64, poolGH float64, min
 			next = target
 		}
 	} else {
-		next = uint64(float64(prev)*0.97 + 0.5)
+		// Fast catch-down when solvency-scale M (~1e11) must return to share-PPS setpoints (~1e7).
+		ratio := 0.97
+		if prev > target*4 {
+			ratio = 0.72
+		} else if prev > target*2 {
+			ratio = 0.85
+		}
+		next = uint64(float64(prev)*ratio + 0.5)
 		if next < target {
 			next = target
 		}
@@ -3383,6 +3407,11 @@ func (m *workManager) stats(includeDetails bool) map[string]any {
 		out["target_mod_load_hint"] = hintStat
 	}
 	out["target_mod_load_capped"] = hintStat > maxStat && maxStat > 0
+	if m.shareStrict && !envPoolLoadSolvency() {
+		out["target_mod_load_mode"] = "share_pps"
+	} else {
+		out["target_mod_load_mode"] = "solvency_found"
+	}
 	out["pool_hashrate_gh_s"] = poolGHStat
 	out["hashrate"] = poolGHStat * 1e9
 	out["hashrate_hs"] = poolGHStat * 1e9
