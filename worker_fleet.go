@@ -147,25 +147,9 @@ func killExternalWorkerFleet(repoRoot string) {
 		_ = exec.Command("taskkill", "/F", "/IM", "workerpoh-cpu.exe").Run()
 		return
 	}
-	// Keep parity with scripts/ops/stop_pool_workers.sh — plain bin/workerpoh
-	// orphans (non-cuda suffix) must die too or they keep flock after node crash.
-	patterns := []string{
-		"scripts/ops/worker_autostart.sh",
-		"scripts/ops/worker_loop.sh",
-		"worker_autostart.sh",
-		"worker_loop.sh",
-		"workerpoh-cuda",
-		"workerpoh-opencl",
-		"workerpoh-cpu",
-		"bin/workerpoh",
-		"workerpoh ",
-	}
-	for _, pattern := range patterns {
-		_ = exec.Command("pkill", "-f", pattern).Run()
-	}
-	for _, pattern := range []string{"workerpoh-cuda", "workerpoh-opencl", "workerpoh-cpu", "workerpoh "} {
-		_ = exec.Command("pkill", "-9", "-f", pattern).Run()
-	}
+	// Exact match only (see worker_proc_kill_linux.go): binaries by executable name, helper
+	// scripts by script file name — never a substring of an arbitrary command line.
+	killPoolWorkerProcs(nil)
 	if repoRoot != "" {
 		_ = os.Remove(filepath.Join(repoRoot, "logs", ".worker_autostart.lock"))
 	}

@@ -119,9 +119,7 @@ func killExternalWorkerfuzzFleet() {
 		_ = exec.Command("taskkill", "/F", "/IM", "workerfuzz.exe").Run()
 		return
 	}
-	_ = exec.Command("pkill", "-f", "bin/workerfuzz").Run()
-	_ = exec.Command("pkill", "-f", "/workerfuzz ").Run()
-	_ = exec.Command("pkill", "-f", "workerfuzz ").Run()
+	killWorkerfuzzProcs(nil)
 }
 
 // rotateWorkerParticipantLog renames an existing participant log so O_TRUNC cannot

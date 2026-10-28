@@ -75,7 +75,10 @@ func Reap(kind, workerID, dir string) (ReapResult, error) {
 	if err == nil && pid > 0 {
 		res.PID = pid
 	}
-	if !res.WasHeld && (res.PID == 0 || !processAlive(res.PID)) {
+	if !res.WasHeld {
+		// The OS file lock dies with its owner, so an unheld lock has no live owner. The pid
+		// file is stale and its PID may now belong to an unrelated process (PIDs are reused):
+		// never signal it. (This SIGTERMed `go test` in multi-package runs.)
 		return res, nil
 	}
 	if res.PID > 0 && res.PID != os.Getpid() && processAlive(res.PID) {
