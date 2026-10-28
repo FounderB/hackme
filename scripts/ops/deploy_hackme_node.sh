@@ -166,9 +166,9 @@ if [[ "$RSYNC_DELETE" == "1" ]]; then
 fi
 
 if [[ "$DRY_RUN" == "1" ]]; then
-  echo "[deploy-hackme-node] DRY_RUN=1 — rsync preview (nothing is changed on $NODE_SSH):"
+  echo "[deploy-hackme-node] DRY_RUN=1 — rsync preview, time-only changes hidden (nothing is changed on $NODE_SSH):"
   deploy_ssh_retry_run _deploy_rsync "${RSYNC_FLAGS[@]}" --dry-run --itemize-changes \
-    "${RSYNC_EXCLUDES[@]}" "$ROOT_DIR/" "$NODE_SSH:$NODE_DEPLOY_DIR/" | grep -vE '^\.[df]\.\.t' || true
+    "${RSYNC_EXCLUDES[@]}" "$ROOT_DIR/" "$NODE_SSH:$NODE_DEPLOY_DIR/" | grep -vE '^\.[df]\.\.t\.\.\.\.\.\. ' || true
   echo "[deploy-hackme-node] DRY_RUN done: commit=${COMMIT_SHA} version=${DEPLOY_VERSION}"
   exit 0
 fi
