@@ -1173,25 +1173,65 @@ func (a *app) handleExplorer(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// leaderRateCache holds the last computed leader block-rate metrics: concurrent /api/metrics
+// callers that lose metricsHeavyMu, or arrive within leaderRateTTL, are served from it instead of
+// publishing 0 blocks/hour (which flickered on dashboards like a chain halt).
+var leaderRateCache struct {
+	sync.Mutex
+	at       time.Time
+	blocks   int
+	hmc      float64
+	avgSec   float64
+	hasValue bool
+}
+
+const leaderRateTTL = 30 * time.Second
+
 // fillLeaderBlockRateMetrics sets blocks/HMC in the last hour and the recent average block time
 // on chain leaders (heavy metrics skipped), under a short budget so /api/metrics stays fast.
 func (a *app) fillLeaderBlockRateMetrics(ctx context.Context, s *MetricsSnapshot) {
 	if s.MiningObservedBlockSec <= 0 {
 		s.MiningObservedBlockSec = -1
 	}
-	if a.chain == nil || !metricsHeavyMu.TryLock() {
+	apply := func() bool {
+		leaderRateCache.Lock()
+		defer leaderRateCache.Unlock()
+		if !leaderRateCache.hasValue {
+			return false
+		}
+		s.MiningPohBlocksLast1h = leaderRateCache.blocks
+		s.MiningHmcLastHourApprox = leaderRateCache.hmc
+		if leaderRateCache.avgSec > 0 {
+			s.MiningObservedBlockSec = leaderRateCache.avgSec
+		}
+		return true
+	}
+	leaderRateCache.Lock()
+	fresh := leaderRateCache.hasValue && time.Since(leaderRateCache.at) < leaderRateTTL
+	leaderRateCache.Unlock()
+	if fresh || a.chain == nil || !metricsHeavyMu.TryLock() {
+		apply()
 		return
 	}
 	defer metricsHeavyMu.Unlock()
 	cctx, cancel := context.WithTimeout(ctx, 400*time.Millisecond)
 	defer cancel()
-	if rw, err := a.chain.RewardWindowBreakdownSince(cctx, time.Now().Unix()-3600); err == nil {
-		s.MiningPohBlocksLast1h = rw.Blocks
-		s.MiningHmcLastHourApprox = rw.TotalHMC
+	rw, errW := a.chain.RewardWindowBreakdownSince(cctx, time.Now().Unix()-3600)
+	avg, errA := a.chain.RecentPoHAvgBlockSec(cctx, int(chain.PoHRetargetWindowBlocks)*4)
+	if errW != nil {
+		apply()
+		return
 	}
-	if avg, err := a.chain.RecentPoHAvgBlockSec(cctx, int(chain.PoHRetargetWindowBlocks)*4); err == nil && avg > 0 {
-		s.MiningObservedBlockSec = avg
+	leaderRateCache.Lock()
+	leaderRateCache.at = time.Now()
+	leaderRateCache.blocks = rw.Blocks
+	leaderRateCache.hmc = rw.TotalHMC
+	if errA == nil && avg > 0 {
+		leaderRateCache.avgSec = avg
 	}
+	leaderRateCache.hasValue = true
+	leaderRateCache.Unlock()
+	apply()
 }
 
 func (a *app) handleMetrics(w http.ResponseWriter, r *http.Request) {

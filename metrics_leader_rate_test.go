@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"hackme/internal/chain"
 	"hackme/internal/store"
@@ -37,6 +38,9 @@ func TestLeaderBlockRateMetricsNotZeroOnLiveChain(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	leaderRateCache.Lock()
+	leaderRateCache.hasValue = false
+	leaderRateCache.Unlock()
 	a := &app{chain: svc}
 	var s MetricsSnapshot
 	a.fillLeaderBlockRateMetrics(ctx, &s)
@@ -45,5 +49,17 @@ func TestLeaderBlockRateMetricsNotZeroOnLiveChain(t *testing.T) {
 	}
 	if s.MiningObservedBlockSec == 0 {
 		t.Fatalf("observed block sec must be set (>0 or -1), got 0")
+	}
+	// A concurrent /api/metrics caller holds the heavy lock: serve the cached value, not 0
+	// (this flickered "0 blocks/hour" on the live dashboard).
+	metricsHeavyMu.Lock()
+	leaderRateCache.Lock()
+	leaderRateCache.at = time.Time{} // stale: would recompute if the lock were free
+	leaderRateCache.Unlock()
+	var busy MetricsSnapshot
+	a.fillLeaderBlockRateMetrics(ctx, &busy)
+	metricsHeavyMu.Unlock()
+	if busy.MiningPohBlocksLast1h != 3 {
+		t.Fatalf("lock contended: blocks last 1h = %d, want cached 3", busy.MiningPohBlocksLast1h)
 	}
 }
