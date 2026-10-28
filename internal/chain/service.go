@@ -475,6 +475,14 @@ func (s *Service) PoHTargetMod(ctx context.Context) (uint64, error) {
 	// This keeps the 30s target practical after abrupt hashrate drops.
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var tipIdx sql.NullInt64
+	if err := s.db.QueryRowContext(ctx, `SELECT MAX(block_index) FROM blocks`).Scan(&tipIdx); err == nil && tipIdx.Valid {
+		if next := uint64(tipIdx.Int64) + 1; ASERTActiveForIndex(next) {
+			// ASERT: no wall-clock stall easing (it lived in meta, outside blocks, and could
+			// not be reproduced by followers); the schedule itself eases a slow chain.
+			return asertModForIndexQ(ctx, s.db, next)
+		}
+	}
 	mod, err := s.poHTargetModFromDB(ctx, s.db)
 	if err != nil {
 		return 0, err
@@ -548,21 +556,6 @@ func (s *Service) AppendPoHBlock(ctx context.Context, minerAddress string, nonce
 		return nil, err
 	}
 
-	metaMod, err := s.poHTargetModFromDB(ctx, s.db)
-	if err != nil {
-		return nil, err
-	}
-	orderTaskID = strings.TrimSpace(orderTaskID)
-	if orderTaskID == "" {
-		if targetMod != metaMod {
-			return nil, fmt.Errorf("chain: poh target mod mismatch (chain %d, submitted %d)", metaMod, targetMod)
-		}
-	} else {
-		// Pool order solve: SubmitOrderPoHSolve already forced canonical chain Mod;
-		// targetMod here is that canonical value (lease M from the pool is not trusted).
-		targetMod = ClampPoHTargetMod(targetMod)
-	}
-
 	var maxIdx sql.NullInt64
 	if err := s.db.QueryRowContext(ctx, `SELECT MAX(block_index) FROM blocks`).Scan(&maxIdx); err != nil {
 		return nil, err
@@ -571,6 +564,33 @@ func (s *Service) AppendPoHBlock(ctx context.Context, minerAddress string, nonce
 		return nil, errors.New("chain: empty (genesis required)")
 	}
 	nextIdx := uint64(maxIdx.Int64) + 1
+
+	orderTaskID = strings.TrimSpace(orderTaskID)
+	asertActive := ASERTActiveForIndex(nextIdx)
+	if asertActive {
+		// ASERT: M is a pure function of headers — orders and plain blocks alike must match it.
+		want, err := asertModForIndexQ(ctx, s.db, nextIdx)
+		if err != nil {
+			return nil, err
+		}
+		if targetMod != want {
+			return nil, fmt.Errorf("chain: poh target mod mismatch (asert %d, submitted %d)", want, targetMod)
+		}
+	} else {
+		metaMod, err := s.poHTargetModFromDB(ctx, s.db)
+		if err != nil {
+			return nil, err
+		}
+		if orderTaskID == "" {
+			if targetMod != metaMod {
+				return nil, fmt.Errorf("chain: poh target mod mismatch (chain %d, submitted %d)", metaMod, targetMod)
+			}
+		} else {
+			// Pool order solve: SubmitOrderPoHSolve already forced canonical chain Mod;
+			// targetMod here is that canonical value (lease M from the pool is not trusted).
+			targetMod = ClampPoHTargetMod(targetMod)
+		}
+	}
 	if err := validatePoHSubmission(nextIdx, nonce, eval, targetMod, tipHash, minerAddress); err != nil {
 		return nil, err
 	}
@@ -615,6 +635,19 @@ func (s *Service) AppendPoHBlock(ctx context.Context, minerAddress string, nonce
 		orderTaskID,
 		PoHFormulaLabelForIndex(nextIdx),
 	)
+	if asertActive && b.Timestamp < prev.Timestamp {
+		// ASERT reads the schedule from header timestamps: never let them run backwards
+		// (clock step on the node); validators reject a decreasing timestamp.
+		b.Timestamp = prev.Timestamp
+		b.SetHash()
+	}
+	if ASERTActiveForIndex(nextIdx + 1) {
+		nm, err := asertModAfterQ(ctx, s.db, nextIdx, b.Timestamp)
+		if err != nil {
+			return nil, err
+		}
+		nextMod = nm
+	}
 	if err := s.attachBlockSignature(b); err != nil {
 		return nil, err
 	}

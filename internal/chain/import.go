@@ -1,6 +1,7 @@
 package chain
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -77,9 +78,27 @@ func (s *Service) ImportPoHBlock(ctx context.Context, b *block.Block) error {
 	}
 	// Report #8: the payload modulus is attacker-controlled. Validate and
 	// retarget against this node's poh_target_mod, the same rule AppendPoHBlock uses.
-	chainMod, err := s.poHTargetModFromDB(ctx, s.db)
-	if err != nil {
-		return err
+	var chainMod uint64
+	if ASERTActiveForIndex(b.Index) {
+		// ASERT: recompute M from headers; enforce the timestamp rules the schedule relies on.
+		parentTime, err := blockTimestampQ(ctx, s.db, b.Index-1)
+		if err != nil {
+			return err
+		}
+		if b.Timestamp < parentTime {
+			return fmt.Errorf("chain: import timestamp %d before parent %d (asert)", b.Timestamp, parentTime)
+		}
+		if b.Timestamp > time.Now().Unix()+PoHASERTMaxFutureSec {
+			return fmt.Errorf("chain: import timestamp %d too far in the future (asert)", b.Timestamp)
+		}
+		if chainMod, err = asertModAfterQ(ctx, s.db, b.Index-1, parentTime); err != nil {
+			return err
+		}
+	} else {
+		var err error
+		if chainMod, err = s.poHTargetModFromDB(ctx, s.db); err != nil {
+			return err
+		}
 	}
 	if payloadMod != chainMod {
 		return fmt.Errorf("chain: import target mod mismatch (chain %d, payload %d)", chainMod, payloadMod)
@@ -249,8 +268,12 @@ func pohFieldsFromPayload(payload []byte) (nonce, eval, mod uint64, err error) {
 	if len(payload) == 0 {
 		return 0, 0, 0, errors.New("chain: empty poh payload")
 	}
+	// UseNumber: Blake3 v3 work is a full 64-bit value (> 2^53); decoding into float64
+	// rounded it, so followers rejected every post-485000 block ("eval does not match").
 	var m map[string]any
-	if err := json.Unmarshal(payload, &m); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(payload))
+	dec.UseNumber()
+	if err := dec.Decode(&m); err != nil {
 		return 0, 0, 0, err
 	}
 	nonce, err = anyToUint64(m["nonce"])
@@ -289,6 +312,9 @@ func anyToUint64(v any) (uint64, error) {
 }
 
 func (s *Service) nextPoHTargetModTx(ctx context.Context, tx *sql.Tx, b *block.Block, currentMod uint64) (uint64, error) {
+	if ASERTActiveForIndex(b.Index + 1) {
+		return asertModAfterQ(ctx, tx, b.Index, b.Timestamp)
+	}
 	w := uint64(PoHRetargetWindowBlocks)
 	nextIdx := b.Index
 	now := b.Timestamp
