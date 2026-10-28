@@ -1,19 +1,31 @@
 #!/usr/bin/env bash
-# Operator-only. Prefer DRY_RUN=1 when the script supports it. Confirm remote target before run.
-# Build hackme-node locally, rsync to VPS, restart service (same layout as dual_vps_cutover node half).
+# Operator-only. Builds a CLEAN commit, ships it to the hub, restarts, and rolls back unless the
+# chain keeps producing blocks.
 #
-#   NODE_SSH=hackme-vps NODE_DEPLOY_DIR=/opt/hackme bash scripts/ops/deploy_hackme_node.sh
+#   NODE_SSH=hackme-vps bash scripts/ops/deploy_hackme_node.sh              # deploy origin/main
+#   DRY_RUN=1 NODE_SSH=hackme-vps bash scripts/ops/deploy_hackme_node.sh    # build + show rsync diff only
+#   DEPLOY_REF=<sha|tag|branch> …                                           # deploy a specific commit
 #
-# Secrets on the server (/opt/hackme/.env.vps, .env.coord, toolchains) are rsync-excluded and never deleted.
-# If .env.vps was removed by an older deploy, recreate it before re-running (see scripts/ops/vps_bootstrap.sh
-# or copy from your password manager), then: sudo systemctl restart hackme-node
+# Safety model (after the 2026-10-27 3.5h chain halt caused by deploying a dirty local tree):
+#   1. Build from a throwaway git worktree at DEPLOY_REF (default origin/main) — never from the
+#      working directory, so uncommitted edits, crash-* files etc. never reach production.
+#      DEPLOY_REF must be on origin/main unless ALLOW_UNPUSHED=1.
+#   2. rsync WITHOUT --delete: server-only files (scripts/local/ops, extra bin/*) survive.
+#      RSYNC_DELETE=1 opts back into mirror-delete (dangerous: the source is a clean tree).
+#   3. Snapshot the live binaries to releases/<stamp>/ before syncing (keeps 5).
+#   4. deploy_remote_activate.sh restarts services, then requires +GATE_MIN_BLOCKS blocks within
+#      GATE_BLOCK_SEC; otherwise restores the snapshot binaries and exits 6 (ROLLED BACK).
+#
+# Secrets on the server (.env.vps, .env.coord, toolchains) are rsync-excluded and never touched.
 #
 # Optional:
-#   DEPLOY_VERSION — override embedded node version (default: RELEASE_VER from web/site/assets/app.js, else "dev")
+#   DEPLOY_VERSION — override embedded node version (default: RELEASE_VER from web/site/assets/app.js)
+#   DEPLOY_FROM_LOCAL_TREE=1 — legacy: build and ship the working directory (no clean-commit guarantee)
+#   SKIP_BUILD=1 — only with DEPLOY_FROM_LOCAL_TREE=1 (reuse binaries already built there)
+#   SKIP_COORDINATOR_BUILD=1 — do not build coordinator / helpers
+#   SYNC_DIST=1 — include dist/ in rsync
 #   INSTALL_FROM_CODE_TOOLCHAINS=1 — run install_vps_from_code_toolchains.sh on remote after sync
-#   SKIP_BUILD=1
-#   SKIP_COORDINATOR_BUILD=1 — do not build ./cmd/coordinator (same tree as node on single VPS)
-#   SYNC_DIST=1 — include dist/ in rsync (release ZIP/tar for /dist/ URLs); avoids a second SSH/rsync session
+#   SKIP_FLEET_RESTART=1, SKIP_HEALTH_GATE=1, GATE_MIN_BLOCKS, GATE_BLOCK_SEC — see deploy_remote_activate.sh
 
 set -euo pipefail
 
@@ -45,18 +57,46 @@ SKIP_BUILD="${SKIP_BUILD:-0}"
 SKIP_COORDINATOR_BUILD="${SKIP_COORDINATOR_BUILD:-0}"
 INSTALL_FROM_CODE_TOOLCHAINS="${INSTALL_FROM_CODE_TOOLCHAINS:-0}"
 SYNC_DIST="${SYNC_DIST:-0}"
+DRY_RUN="${DRY_RUN:-0}"
+DEPLOY_FROM_LOCAL_TREE="${DEPLOY_FROM_LOCAL_TREE:-0}"
+DEPLOY_REF="${DEPLOY_REF:-origin/main}"
+RSYNC_DELETE="${RSYNC_DELETE:-0}"
 
 if [[ -z "$NODE_SSH" ]]; then
   echo "[deploy-hackme-node] set NODE_SSH=root@host" >&2
   exit 1
 fi
 
-for x in ssh rsync curl jq; do
+for x in ssh rsync curl jq git go; do
   command -v "$x" >/dev/null || {
     echo "[deploy-hackme-node] missing: $x" >&2
     exit 1
   }
 done
+
+# --- 1. clean source tree -------------------------------------------------------------------
+REPO_DIR="$ROOT_DIR"
+if [[ "$DEPLOY_FROM_LOCAL_TREE" == "1" ]]; then
+  echo "[deploy-hackme-node] WARN: DEPLOY_FROM_LOCAL_TREE=1 — shipping the working directory as-is" >&2
+else
+  if [[ "$SKIP_BUILD" == "1" ]]; then
+    echo "[deploy-hackme-node] SKIP_BUILD=1 needs DEPLOY_FROM_LOCAL_TREE=1 (a fresh worktree has no binaries)" >&2
+    exit 1
+  fi
+  git -C "$REPO_DIR" fetch -q origin
+  DEPLOY_SHA="$(git -C "$REPO_DIR" rev-parse --verify "${DEPLOY_REF}^{commit}")"
+  if [[ "${ALLOW_UNPUSHED:-0}" != "1" ]] && ! git -C "$REPO_DIR" merge-base --is-ancestor "$DEPLOY_SHA" origin/main; then
+    echo "[deploy-hackme-node] FATAL: $DEPLOY_REF ($DEPLOY_SHA) is not on origin/main — push it first or ALLOW_UNPUSHED=1" >&2
+    exit 1
+  fi
+  WORKTREE="$(mktemp -d "${TMPDIR:-/tmp}/hackme-deploy.XXXXXX")"
+  cleanup_worktree() { git -C "$REPO_DIR" worktree remove --force "$WORKTREE" >/dev/null 2>&1 || rm -rf "$WORKTREE"; }
+  trap cleanup_worktree EXIT
+  git -C "$REPO_DIR" worktree add -q --detach "$WORKTREE" "$DEPLOY_SHA"
+  ROOT_DIR="$WORKTREE"
+  cd "$ROOT_DIR"
+  echo "[deploy-hackme-node] clean build of $DEPLOY_REF = $(git -C "$ROOT_DIR" log -1 --format='%h %s')"
+fi
 
 DEPLOY_VERSION="${DEPLOY_VERSION:-}"
 if [[ -z "$DEPLOY_VERSION" ]] && [[ -f "$ROOT_DIR/web/site/assets/app.js" ]]; then
@@ -98,25 +138,57 @@ if [[ "$SKIP_BUILD" != "1" ]]; then
   go build -trimpath -ldflags "-s -w" -o bin/checkpoint ./cmd/checkpoint
 fi
 if [[ ! -x "$ROOT_DIR/bin/hackme-wasm-check" ]]; then
-  echo "[deploy-hackme-node] FATAL: bin/hackme-wasm-check missing — rsync --delete would leave PoH gates without a validator" >&2
+  echo "[deploy-hackme-node] FATAL: bin/hackme-wasm-check missing — PoH gates would have no validator" >&2
   exit 4
 fi
 
-echo "[deploy-hackme-node] rsync -> $NODE_SSH:$NODE_DEPLOY_DIR (SYNC_DIST=${SYNC_DIST})"
-# Never mirror-delete secrets or VPS-local toolchain dirs (rsync --delete would remove them).
+# --- 2. sync ---------------------------------------------------------------------------------
+# Never mirror-delete secrets or VPS-local toolchain dirs.
 RSYNC_EXCLUDES=(
-  --exclude '.git/' --exclude 'data/' --exclude 'reports/' --exclude 'node_modules/'
-  --exclude 'backups/' --exclude 'logs/' --exclude '*.exe'
+  --exclude '.git' --exclude '.git/' --exclude 'data/' --exclude 'reports/' --exclude 'node_modules/'
+  --exclude 'backups/' --exclude 'releases/' --exclude 'logs/' --exclude '*.exe'
   --exclude 'tasks/artifacts/' --exclude '.cache/'
   --exclude '.env' --exclude '.env.*'
   --exclude '.cargo/' --exclude '.npm-global/' --exclude '.rustup/'
   --exclude '.secrets/' --exclude 'apt/'
-  --exclude 'web/exchange/'
+  --exclude 'web/exchange/' --exclude 'DEPLOYED'
 )
 if [[ "$SYNC_DIST" != "1" ]]; then
   RSYNC_EXCLUDES+=(--exclude 'dist/')
 fi
-deploy_ssh_retry_run _deploy_rsync -az --delete \
+RSYNC_FLAGS=(-az)
+if [[ "$RSYNC_DELETE" == "1" ]]; then
+  echo "[deploy-hackme-node] WARN: RSYNC_DELETE=1 — server files absent from the source will be deleted" >&2
+  RSYNC_FLAGS+=(--delete)
+fi
+
+if [[ "$DRY_RUN" == "1" ]]; then
+  echo "[deploy-hackme-node] DRY_RUN=1 — rsync preview (nothing is changed on $NODE_SSH):"
+  deploy_ssh_retry_run _deploy_rsync "${RSYNC_FLAGS[@]}" --dry-run --itemize-changes \
+    "${RSYNC_EXCLUDES[@]}" "$ROOT_DIR/" "$NODE_SSH:$NODE_DEPLOY_DIR/" | grep -vE '^\.[df]\.\.t' || true
+  echo "[deploy-hackme-node] DRY_RUN done: commit=${COMMIT_SHA} version=${DEPLOY_VERSION}"
+  exit 0
+fi
+
+# --- 3. snapshot live binaries for rollback ---------------------------------------------------
+RELEASE_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+SNAP_DIR="$NODE_DEPLOY_DIR/releases/$RELEASE_STAMP"
+echo "[deploy-hackme-node] snapshot live binaries -> $SNAP_DIR"
+deploy_ssh_retry_run _deploy_ssh "$NODE_SSH" bash -s -- "$NODE_DEPLOY_DIR" "$SNAP_DIR" <<'SNAP_EOF'
+set -euo pipefail
+d="$1"; snap="$2"
+mkdir -p "$snap/bin"
+for b in hackme-node coordinator minersign bin/workersettle bin/workersettlectl bin/workerfuzz bin/hackme-wasm-check bin/checkpoint; do
+  [[ -f "$d/$b" ]] && cp -a "$d/$b" "$snap/$b"
+done
+[[ -f "$d/DEPLOYED" ]] && cp -a "$d/DEPLOYED" "$snap/DEPLOYED"
+# keep the newest 5 snapshots
+ls -1d "$d"/releases/*/ 2>/dev/null | sort | head -n -5 | xargs -r rm -rf
+echo "[deploy-hackme-node] snapshot: $(ls "$snap" "$snap/bin" | tr '\n' ' ')"
+SNAP_EOF
+
+echo "[deploy-hackme-node] rsync -> $NODE_SSH:$NODE_DEPLOY_DIR (delete=${RSYNC_DELETE} dist=${SYNC_DIST})"
+deploy_ssh_retry_run _deploy_rsync "${RSYNC_FLAGS[@]}" \
   "${RSYNC_EXCLUDES[@]}" \
   "$ROOT_DIR/" "$NODE_SSH:$NODE_DEPLOY_DIR/"
 
@@ -125,93 +197,11 @@ if [[ "$INSTALL_FROM_CODE_TOOLCHAINS" == "1" ]]; then
   deploy_ssh_retry_run _deploy_ssh "$NODE_SSH" "bash -lc '$NODE_DEPLOY_DIR/scripts/ops/install_vps_from_code_toolchains.sh'"
 fi
 
-# One SSH session after rsync: fewer TCP connects when port 22 flakes between commands.
-echo "[deploy-hackme-node] chmod, restart hackme-node/coordinator, smoke (single SSH)"
-deploy_ssh_retry_run _deploy_ssh "$NODE_SSH" bash -s <<REMOTE_EOF
-set -euo pipefail
-d='$NODE_DEPLOY_DIR'
-if [[ ! -f "\$d/.env.vps" ]]; then
-  echo "[deploy-hackme-node] FATAL: \$d/.env.vps missing on remote." >&2
-  echo "  Previous rsync --delete may have removed it before excludes were added." >&2
-  echo "  Recreate .env.vps on the server (HACKME_BIND_ADDR, HACKME_ADMIN_TOKEN, P2P, coordinator URL/token), then re-run this script." >&2
-  exit 3
-fi
-chmod 755 "\$d/hackme-node"
-if [[ -f "\$d/coordinator" ]]; then chmod 755 "\$d/coordinator"; fi
-if [[ -f "\$d/bin/workersettle" ]]; then chmod 755 "\$d/bin/workersettle"; fi
-if [[ -f "\$d/bin/workersettlectl" ]]; then chmod 755 "\$d/bin/workersettlectl"; fi
-if [[ -f "\$d/bin/workerfuzz" ]]; then chmod 755 "\$d/bin/workerfuzz"; fi
-if [[ -f "\$d/minersign" ]]; then chmod 755 "\$d/minersign"; fi
-if [[ -f "\$d/bin/hackme-wasm-check" ]]; then chmod 755 "\$d/bin/hackme-wasm-check"; fi
-if [[ -f "\$d/bin/checkpoint" ]]; then chmod 755 "\$d/bin/checkpoint"; fi
-# A missing HACKME_WASM_VALIDATE_BIN makes every PoH gate candidate fail → chain halts silently.
-for envf in "\$d/.env.vps" "\$d/.env.coord"; do
-  [[ -f "\$envf" ]] || continue
-  vbin="\$(grep -m1 '^HACKME_WASM_VALIDATE_BIN=' "\$envf" | cut -d= -f2- | tr -d '\r\n"')"
-  if [[ -n "\$vbin" && ! -x "\$vbin" ]]; then
-    echo "[deploy-hackme-node] FATAL: \$(basename "\$envf") HACKME_WASM_VALIDATE_BIN=\$vbin not executable — refusing restart" >&2
-    exit 5
-  fi
-done
-if [[ -f "\$d/scripts/ops/systemd/hackme-node.service" ]]; then
-  cp -a "\$d/scripts/ops/systemd/hackme-node.service" /etc/systemd/system/hackme-node.service
-  echo "[deploy-hackme-node] installed systemd unit (binary ExecStart, not go run)"
-fi
-if [[ -f "\$d/scripts/ops/systemd/hackme-coordinator.service" ]]; then
-  cp -a "\$d/scripts/ops/systemd/hackme-coordinator.service" /etc/systemd/system/hackme-coordinator.service
-  echo "[deploy-hackme-node] installed hackme-coordinator systemd unit"
-fi
-for u in hackme-node-watchdog.service hackme-node-watchdog.timer hackme-oss-cve-nightly.service hackme-oss-cve-nightly.timer hackme-checkpoint.service hackme-checkpoint.timer; do
-  if [[ -f "\$d/scripts/ops/systemd/\$u" ]]; then
-    cp -a "\$d/scripts/ops/systemd/\$u" "/etc/systemd/system/\$u"
-  fi
-done
-chmod +x "\$d/scripts/ops/node_healthcheck.sh" 2>/dev/null || true
-chmod +x "\$d/scripts/ops/run_oss_cve_nightly.sh" 2>/dev/null || true
-systemctl daemon-reload
-systemctl enable --now hackme-node-watchdog.timer 2>/dev/null || true
-systemctl enable --now hackme-oss-cve-nightly.timer 2>/dev/null || true
-# Checkpoints publish from a clone outside the deploy dir; enable only once it is provisioned.
-if [[ -d /opt/hackme-checkpoints/.git ]]; then
-  chmod +x "\$d/scripts/ops/checkpoint_publish.sh" 2>/dev/null || true
-  systemctl enable --now hackme-checkpoint.timer 2>/dev/null || true
-fi
-systemctl enable hackme-coordinator 2>/dev/null || true
-# ORDERS attach / solve-relay must use the chain admin token (POST /api/tasks auth).
-if [[ -f "\$d/.env.vps" && -f "\$d/.env.coord" ]]; then
-  admin="\$(grep -m1 '^HACKME_ADMIN_TOKEN=' "\$d/.env.vps" | cut -d= -f2- | tr -d '\r\n')"
-  if [[ -n "\$admin" ]]; then
-    if grep -q '^HACKME_COORDINATOR_ORDERS_ADMIN_TOKEN=' "\$d/.env.coord"; then
-      sed -i "s|^HACKME_COORDINATOR_ORDERS_ADMIN_TOKEN=.*|HACKME_COORDINATOR_ORDERS_ADMIN_TOKEN=\${admin}|" "\$d/.env.coord"
-    else
-      echo "HACKME_COORDINATOR_ORDERS_ADMIN_TOKEN=\${admin}" >>"\$d/.env.coord"
-    fi
-    echo "[deploy-hackme-node] synced HACKME_COORDINATOR_ORDERS_ADMIN_TOKEN from .env.vps"
-  fi
-fi
-systemctl restart hackme-node
-systemctl restart hackme-coordinator 2>/dev/null || true
-# Dig diggers re-exec themselves for wasm-validate; restart so they pick up new bin/workerfuzz.
-# Set SKIP_FLEET_RESTART=1 to leave named hub-fuzz / workerpoh units running (rolling hub-only).
-if [[ "${SKIP_FLEET_RESTART:-0}" != "1" ]]; then
-  for u in hackme-workerfuzz-hub-fuzz-02 hackme-workerfuzz-hub-fuzz-03 hackme-workerfuzz-hub-fuzz-04; do
-    systemctl restart "\$u" 2>/dev/null || true
-  done
-else
-  echo "[deploy-hackme-node] SKIP_FLEET_RESTART=1 — left named hub-fuzz workers running"
-fi
-sleep 2
-systemctl is-active hackme-node
-if systemctl is-enabled hackme-coordinator >/dev/null 2>&1; then
-  systemctl is-active hackme-coordinator 2>/dev/null || echo "[deploy-hackme-node] WARN: hackme-coordinator not active"
-fi
-echo "[deploy-hackme-node] smoke: GET /api/status on loopback"
-status_json="\$(curl -fsS --max-time 15 http://127.0.0.1:18080/api/status)"
-echo "\$status_json" | jq '{tip_height,mining,has_genesis,version,commit}' 2>/dev/null || echo "\$status_json" | head -c 240
-echo
-if curl -fsS --max-time 5 http://127.0.0.1:18081/health >/dev/null 2>&1; then
-  echo "[deploy-hackme-node] coordinator health OK (loopback :18081)"
-else
-  echo "[deploy-hackme-node] coordinator :18081 not OK from VPS loopback (check service/firewall)"
-fi
-REMOTE_EOF
+# --- 4. activate + chain-progress gate + automatic rollback --------------------------------
+echo "[deploy-hackme-node] activate (restart, gate on new blocks, rollback on failure)"
+_deploy_ssh "$NODE_SSH" env \
+  SKIP_FLEET_RESTART="${SKIP_FLEET_RESTART:-0}" SKIP_HEALTH_GATE="${SKIP_HEALTH_GATE:-0}" \
+  GATE_MIN_BLOCKS="${GATE_MIN_BLOCKS:-2}" GATE_BLOCK_SEC="${GATE_BLOCK_SEC:-300}" \
+  bash "$NODE_DEPLOY_DIR/scripts/ops/deploy_remote_activate.sh" \
+  "$NODE_DEPLOY_DIR" "$SNAP_DIR" "$COMMIT_SHA" "$DEPLOY_VERSION"
+echo "[deploy-hackme-node] done: commit=${COMMIT_SHA} version=${DEPLOY_VERSION}"
