@@ -88,6 +88,10 @@ jobs:
           cache-dependency-path: go.sum
       - name: Coordinator payout and difficulty tests
         run: go test ./cmd/coordinator/... ./internal/chain/... -count=1 -run 'TestPayout|TestPool|TestMaybeRetarget|TestRetarget'
+      # Full pool + consensus suites under the race detector (incl. TestSecurity*, ASERT,
+      # TestSecurityClaimWithoutTipDoesNotDeadlock): lock leaks and data races fail here.
+      - name: Coordinator, chain and settlement under -race
+        run: go test -race -count=1 -timeout 25m ./cmd/coordinator/ ./internal/chain/ ./internal/workersettle/ ./internal/checkpoint/
 
   ui-e2e:
     runs-on: ubuntu-latest
