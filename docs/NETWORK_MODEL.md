@@ -55,6 +55,26 @@ Total: **you can mine through a pool** without P2P; **copy of the chain on disk*
 
 Orders (`POST /api/tasks`) - a separate layer: escrow and linking a reward to a task when an order is open.
 
+### Block difficulty (ASERT, from block 495 400)
+
+From index **495 400** the PoH modulus `M` follows ASERT (the aserti3-2d scheme Bitcoin Cash uses),
+replacing the old per-block micro step, 5-block window and wall-clock stall easing
+([`internal/chain/asert.go`](../internal/chain/asert.go)):
+
+```
+M(n) = 17 500 000 · 2^((30·(h_parent − 495 399) − (t_parent − t_anchor)) / 3600)
+```
+
+- **Holds the schedule, not the last interval:** the long-run average is exactly 30 s per block, so
+  2 880 blocks/day and halving dates are real (the old retarget drifted to ~27.7 s and oscillated).
+- **Verifiable:** `M` is a pure integer function of block heights and timestamps — any follower or
+  auditor recomputes it from headers (the old stall easing lived in node-local `meta`).
+- **Half-life 1 h:** one hour ahead of schedule doubles `M`, one hour behind halves it.
+- **Timestamp rules:** a block's timestamp never decreases and is at most 120 s ahead of the
+  validator's clock.
+- Consensus vectors: `internal/chain/testdata/asert_vectors.json` (1000 cases from an independent
+  reference implementation) and `TestASERTConsensusVectors`.
+
 ---
 
 ## 4. Related docs
