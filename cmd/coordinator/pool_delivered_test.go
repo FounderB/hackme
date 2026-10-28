@@ -93,3 +93,60 @@ func TestPoolLoadTargetMPayNeverExceedsEmission(t *testing.T) {
 		}
 	}
 }
+
+// Economic invariant over lease shapes (model test, no hashing): one day of pool work through
+// the production formulas — M from poolLoadTargetM, per-share price base·sm/M, per-lease ceiling,
+// SUP from credited work — must pay ≤ daily emission in HMC and ≤ 12% of that HMC in SUP, for
+// any lease size (2^22…2^36) and fleet. HMC must not scale with lease shape; the SUP side guards
+// the daily cap (the attempt-based SUP basis itself is pinned by
+// TestSUPFollowsVerifiedSharePayNotClaimedAttempts).
+func TestEconomicInvariantAcrossLeaseShapes(t *testing.T) {
+	t.Setenv("HACKME_COORDINATOR_POOL_BLOCK_SEC", "30")
+	t.Setenv("HACKME_COORDINATOR_POOL_LOAD_SOLVENCY", "")
+	const base = 0.01
+	emission := base * 86400 / 30
+	for _, gh := range []float64{0.5, 6, 30} {
+		{
+			for _, batch := range []uint64{1 << 22, 1 << 28, 1 << 32, 1 << 36} {
+				wm := &workManager{
+					baseRewardHMC: base, shareDivisor: 1024, shareStrict: true, rewardPerM: 0.00005,
+					defaultBatch: 1 << 22, maxClaimBatch: 1 << 36,
+					supPolicy: supPolicy{Enabled: true, RateOfHMC: 0.08, DailyCapRatio: 0.12, StreakSec: 72 * 3600, StreakBonus: 0.25, StaleRateMax: 0.05, ReducedMult: 0.25},
+					supMeta:   make(map[string]workerSupMeta),
+					abuse:     make(map[string]workerAbuseState),
+				}
+				wm.targetMod = wm.clampTargetMod(poolLoadTargetM(gh, 26, poolTargetModMin, true))
+				sm := shareModForLease(wm.targetMod, wm.shareDivisor, batch)
+				hashesPerDay := gh * 1e9 * 86400
+				leases := hashesPerDay / float64(batch)
+				expShares := float64(batch) / float64(sm)
+				payPerLease := expShares * rewardPerShareAt(base, sm, wm.targetMod)
+				if ceil := wm.maxSubmitHMCForBatch(batch); payPerLease > ceil {
+					payPerLease = ceil
+				}
+				hmcDay := payPerLease * leases
+				// SUP: feed the day through computeSUPAccrual in 1000 equal steps of credited work.
+				now := time.Now().Unix()
+				var supDay float64
+				for i := 0; i < 1000; i++ {
+					supDay += wm.computeSUPAccrual("w", hmcDay/1000, true, now)
+				}
+				if hmcDay > emission*1.001 {
+					t.Fatalf("gh=%v batch=2^%d: HMC/day %.3f > emission %.2f", gh, bitsOf(batch), hmcDay, emission)
+				}
+				if supDay > hmcDay*0.12*1.0001 {
+					t.Fatalf("gh=%v batch=2^%d: SUP/day %.4f > 12%% of HMC/day %.4f", gh, bitsOf(batch), supDay, hmcDay)
+				}
+			}
+		}
+	}
+}
+
+func bitsOf(x uint64) int {
+	n := 0
+	for x > 1 {
+		x >>= 1
+		n++
+	}
+	return n
+}
