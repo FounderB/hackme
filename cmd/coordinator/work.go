@@ -2244,6 +2244,7 @@ func (m *workManager) claim(workerID string, batch uint64) (base uint64, size ui
 	// version would fall back to algebraic v1, whose shares (7n+13) need no work — they paid
 	// real HMC. (Legacy attempt-pay never verified work, so a tip gate adds nothing there.)
 	if m.shareStrict && (prev == "" || tipH == 0) {
+		m.mu.Unlock() // claim holds m.mu without defer: every early return must release it
 		return 0, 0, 0, m.targetMod, false, false, "tip_unavailable"
 	}
 	// Reuse expired range of the same batch before purging stale entries.

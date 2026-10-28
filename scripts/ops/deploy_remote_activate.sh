@@ -19,6 +19,9 @@ GATE_BLOCK_SEC="${GATE_BLOCK_SEC:-300}"
 GATE_READY_SEC="${GATE_READY_SEC:-90}"
 STATUS_URL="${STATUS_URL:-http://127.0.0.1:18080/api/status}"
 COORD_HEALTH_URL="${COORD_HEALTH_URL:-http://127.0.0.1:18081/health}"
+# /health answers without the work-manager lock; work/stats takes it — a deadlocked pool
+# (2026-10-28: leaked m.mu in claim) passed /health while no miner could claim.
+COORD_STATS_URL="${COORD_STATS_URL:-http://127.0.0.1:18081/api/work/stats}"
 FLEET_UNITS=(hackme-workerfuzz-hub-fuzz-02 hackme-workerfuzz-hub-fuzz-03 hackme-workerfuzz-hub-fuzz-04)
 # Binaries snapshotted before rsync and restored on rollback (paths relative to $d).
 BINARIES=(hackme-node coordinator minersign bin/workersettle bin/workersettlectl bin/workerfuzz bin/hackme-wasm-check bin/checkpoint)
@@ -77,7 +80,12 @@ health_gate() {
     fi
     tip="$(tip_height)"
     if [[ -n "$tip" ]] && (( tip >= want )); then
-      log "gate OK: tip $tip0 -> $tip"
+      if systemctl is-enabled hackme-coordinator >/dev/null 2>&1 &&
+        ! curl -fsS --max-time 10 "$COORD_STATS_URL" >/dev/null 2>&1; then
+        log "GATE FAIL: coordinator work manager not answering $COORD_STATS_URL (pool stuck)"
+        return 1
+      fi
+      log "gate OK: tip $tip0 -> $tip, coordinator work manager answering"
       return 0
     fi
     if (( $(date +%s) >= deadline )); then

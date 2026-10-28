@@ -232,3 +232,29 @@ func TestSecurityNoAlgebraicLeasesWithoutTip(t *testing.T) {
 		t.Fatalf("algebraic (no-work) shares paid %v on a lease issued without tip (fv=%d)", payout, rec.FormulaVersion)
 	}
 }
+
+// Regression (2026-10-28 outage): the tip_unavailable early return in claim leaked m.mu, so the
+// first claim after a coordinator restart (before the tip refresh) deadlocked the whole pool.
+func TestSecurityClaimWithoutTipDoesNotDeadlock(t *testing.T) {
+	wm := secWM(t)
+	wm.tipHash, wm.tipHeight = "", 0
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 3; i++ {
+			if _, _, _, _, _, ok, reason := wm.claim("w-notip", 1<<16); ok || reason != "tip_unavailable" {
+				t.Errorf("claim %d without tip: ok=%v reason=%q", i, ok, reason)
+			}
+		}
+		_ = wm.stats(false) // takes m.mu as well
+		wm.tipHash, wm.tipHeight = secTip, 495_000
+		if _, _, _, _, _, ok, reason := wm.claim("w-notip", 1<<16); !ok {
+			t.Errorf("claim after tip arrives: %s", reason)
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("claim without tip deadlocked the work manager (m.mu leaked)")
+	}
+}
