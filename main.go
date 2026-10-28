@@ -1173,6 +1173,27 @@ func (a *app) handleExplorer(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// fillLeaderBlockRateMetrics sets blocks/HMC in the last hour and the recent average block time
+// on chain leaders (heavy metrics skipped), under a short budget so /api/metrics stays fast.
+func (a *app) fillLeaderBlockRateMetrics(ctx context.Context, s *MetricsSnapshot) {
+	if s.MiningObservedBlockSec <= 0 {
+		s.MiningObservedBlockSec = -1
+	}
+	if a.chain == nil || !metricsHeavyMu.TryLock() {
+		return
+	}
+	defer metricsHeavyMu.Unlock()
+	cctx, cancel := context.WithTimeout(ctx, 400*time.Millisecond)
+	defer cancel()
+	if rw, err := a.chain.RewardWindowBreakdownSince(cctx, time.Now().Unix()-3600); err == nil {
+		s.MiningPohBlocksLast1h = rw.Blocks
+		s.MiningHmcLastHourApprox = rw.TotalHMC
+	}
+	if avg, err := a.chain.RecentPoHAvgBlockSec(cctx, int(chain.PoHRetargetWindowBlocks)*4); err == nil && avg > 0 {
+		s.MiningObservedBlockSec = avg
+	}
+}
+
 func (a *app) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -1369,8 +1390,11 @@ func (a *app) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		} else if s.MiningObservedBlockSec <= 0 {
 			s.MiningObservedBlockSec = -1
 		}
-	} else if s.MiningObservedBlockSec <= 0 {
-		s.MiningObservedBlockSec = -1
+	} else {
+		// Write-hot leader skips the heavy block, but the two chain-rate signals are index range
+		// scans now (~30 ms on mainnet). Without them /api/metrics published 0 blocks/hour on a
+		// healthy chain — indistinguishable from a halt on dashboards.
+		a.fillLeaderBlockRateMetrics(mctx, &s)
 	}
 	if ms.Running && ms.TargetMod >= 251 && ms.AttemptsPerSec >= 1e-6 {
 		eta, prog, proj := computeMiningInsight(ms.AttemptsTotal, ms.TargetMod, ms.AttemptsPerSec, ms.RewardHMC)
