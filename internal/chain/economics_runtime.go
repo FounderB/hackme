@@ -30,14 +30,22 @@ func (s *Service) BaseRewardForNextBlock(ctx context.Context) (float64, error) {
 
 // RewardWindowBreakdownSince estimates base-vs-order mining rewards from PoH blocks
 // in the given time window. For order-linked blocks it uses current task reward row.
+// rewardWindowMaxBlocks bounds the reward-window scan (see RewardWindowBreakdownSince).
+const rewardWindowMaxBlocks = 4000
+
 func (s *Service) RewardWindowBreakdownSince(ctx context.Context, sinceUnix int64) (RewardWindowBreakdown, error) {
 	out := RewardWindowBreakdown{WindowSec: 0}
+	// Range-scan only the newest blocks via the block_index index: filtering on json_extract
+	// alone scanned every block (~500k rows, 800 MB JSON), never finished inside the /api/metrics
+	// budget, and published mining_poh_blocks_last_1h=0 while the chain was producing.
+	// rewardWindowMaxBlocks is far above one hour of blocks (ASERT ≈ 120/h).
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT block_index, json FROM blocks WHERE block_index > 0
+		`SELECT block_index, json FROM blocks
+		 WHERE block_index > MAX(0, (SELECT COALESCE(MAX(block_index), 0) FROM blocks) - ?)
 		 AND CAST(json_extract(json, '$.timestamp_unix') AS INTEGER) >= ?
 		 AND json_extract(json, '$.task.kind') = ?
 		 ORDER BY block_index ASC`,
-		sinceUnix, block.PoHBlockKind)
+		rewardWindowMaxBlocks, sinceUnix, block.PoHBlockKind)
 	if err != nil {
 		return out, err
 	}
