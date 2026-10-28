@@ -90,6 +90,9 @@ else
     exit 1
   fi
   WORKTREE="$(mktemp -d "${TMPDIR:-/tmp}/hackme-deploy.XXXXXX")"
+  # rsync -a "src/" copies the source root's mode onto the deploy dir: mktemp's 0700 made
+  # /opt/hackme unreadable for the hackme service user (2026-10-28, 5 min node outage).
+  chmod 755 "$WORKTREE"
   cleanup_worktree() { git -C "$REPO_DIR" worktree remove --force "$WORKTREE" >/dev/null 2>&1 || rm -rf "$WORKTREE"; }
   trap cleanup_worktree EXIT
   git -C "$REPO_DIR" worktree add -q --detach "$WORKTREE" "$DEPLOY_SHA"

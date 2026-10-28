@@ -17,7 +17,7 @@ PRIORITY_MAX="${PRIORITY_MAX:-0}"
 STAMP="${STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
 OUT="${OUT:-$ROOT/reports/oss-cve/${STAMP}}"
 
-require_cmd clang git go
+require_cmd clang git go jq
 
 command -v clang >/dev/null || fail "clang required for OSS CVE hunt"
 
@@ -72,7 +72,9 @@ if [[ -f "$OUT/ROLLUP.json" ]]; then
   python3 "$ROOT/scripts/ops/export_oss_cve_html.py" "$OUT" >>"$OUT/hunt.log" 2>&1 || true
 fi
 
-if [[ $RC -eq 1 ]]; then
+# rc=1 is also what `go run` returns when the tool fails to build (e.g. module download
+# blocked) — only a written ROLLUP with that verdict is a candidate, never a bare exit code.
+if [[ $RC -eq 1 ]] && [[ -f "$OUT/ROLLUP.json" ]] && jq -e '.verdict == "CVE_CANDIDATE"' "$OUT/ROLLUP.json" >/dev/null 2>&1; then
   log "CVE_CANDIDATE — see $OUT/ROLLUP.json (responsible disclosure HOLD)"
   exit 1
 fi

@@ -98,13 +98,27 @@ rollback() {
     fi
   done
   restart_services
-  local tip
-  tip="$(tip_height)"
-  local prev="previous build"
+  local prev="previous build" tip="" deadline
   [[ -f "$snap/DEPLOYED" ]] && prev="$(tr '\n' ' ' <"$snap/DEPLOYED")"
-  log "ROLLED BACK to ${prev}; tip=${tip:-?}"
+  deadline=$(( $(date +%s) + GATE_READY_SEC ))
+  until tip="$(tip_height)"; [[ -n "$tip" ]] || (( $(date +%s) >= deadline )); do
+    sleep 3
+  done
+  if [[ -z "$tip" ]]; then
+    log "CRITICAL: node still not answering after rollback — the cause is not the binary; manual action needed"
+    journalctl -u hackme-node -n 15 --no-pager -o cat 2>/dev/null | sed 's/^/    /' || true
+    return 1
+  fi
+  log "ROLLED BACK to ${prev}; node answering, tip=${tip}"
 }
 
+# The services run as an unprivileged user: the deploy dir must stay traversable whatever
+# mode rsync carried over from the build tree (a 0700 root caused status=200/CHDIR).
+chmod 755 "$d"
+if ! runuser -u hackme -- test -r "$d/.env.vps" -a -x "$d" 2>/dev/null && id hackme >/dev/null 2>&1; then
+  log "FATAL: user hackme cannot read $d — fix permissions before restarting"
+  exit 4
+fi
 if [[ ! -f "$d/.env.vps" ]]; then
   log "FATAL: $d/.env.vps missing on remote — recreate it before deploying"
   exit 3
@@ -166,7 +180,8 @@ else
     tip0=0
   fi
   if ! health_gate "$tip0" "$since"; then
-    rollback
+    journalctl -u hackme-node --since "@$since" -n 15 --no-pager -o cat 2>/dev/null | sed 's/^/    /' || true
+    rollback || exit 7
     exit 6
   fi
 fi
