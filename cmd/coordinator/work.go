@@ -2240,6 +2240,12 @@ func (m *workManager) claim(workerID string, batch uint64) (base uint64, size ui
 	fv := m.resolvedPoHFormulaVersionLocked()
 	prev := strings.TrimSpace(m.tipHash)
 	tipH := m.tipHeight
+	// Share-PPS fails closed without a tip (fresh restart, node unreachable): the formula
+	// version would fall back to algebraic v1, whose shares (7n+13) need no work — they paid
+	// real HMC. (Legacy attempt-pay never verified work, so a tip gate adds nothing there.)
+	if m.shareStrict && (prev == "" || tipH == 0) {
+		return 0, 0, 0, m.targetMod, false, false, "tip_unavailable"
+	}
 	// Reuse expired range of the same batch before purging stale entries.
 	for k, rec := range m.active {
 		if rec.BatchSize != batch {
@@ -2577,8 +2583,14 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	if fvShare <= 0 {
 		fvShare = m.resolvedPoHFormulaVersionLocked()
 	}
+	// Pre-Blake3 formulas need no real work: accept them only for a lease provably issued
+	// before v3 activation. Unknown lease height or a post-activation lease ⇒ reject shares.
+	weakFormula := fvShare < 3 && (rec.TipHeight == 0 || chain.PoHFormulaVersionForIndex(rec.TipHeight+1) >= 3)
 	var validShares []uint64
-	if sm > 0 && len(req.ShareNonces) > 0 {
+	if weakFormula && len(req.ShareNonces) > 0 {
+		m.shareRejects += uint64(len(req.ShareNonces))
+		m.shareRejectBadPoH += uint64(len(req.ShareNonces))
+	} else if sm > 0 && len(req.ShareNonces) > 0 {
 		var rej shareRejectKind
 		validShares, rej = validateShareNonces(req.ShareNonces, req.BaseNonce, req.BatchSize, sm, fvShare, leasePrevShare, leaseAddrShare)
 		m.shareAccepts += uint64(len(validShares))
