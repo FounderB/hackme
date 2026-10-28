@@ -26,27 +26,51 @@ git_bot() { git -c user.name="HackMe checkpoint bot" -c user.email="checkpoints@
 cd "$REPO"
 git pull --ff-only -q
 
+rc=0
+created=""
 # Refuses (non-zero) when the existing chain of checkpoints does not verify, when the node key
 # differs from the published signer, or when the tip has not advanced (stalled chain → alert).
-file="$("$BIN" create -db "$DB" -data-dir "$DATA_DIR" -dir "$REPO/checkpoints" -min-blocks "$MIN_BLOCKS")"
-log "created ${file#"$REPO"/}"
+# A refusal still lets this run publish anything pending below, then fails the unit.
+if created="$("$BIN" create -db "$DB" -data-dir "$DATA_DIR" -dir "$REPO/checkpoints" -min-blocks "$MIN_BLOCKS")"; then
+  log "created ${created#"$REPO"/}"
+else
+  rc=1
+  log "ERROR: checkpoint create refused (see above)"
+fi
 
+# OpenTimestamps never blocks publication: stamp any checkpoint still missing a proof (this run's
+# or one left by an earlier failed run) and upgrade pending proofs once Bitcoin confirms them.
 if [[ -x "$OTS" ]]; then
-  "$OTS" stamp "$file"
-  log "ots stamped ${file#"$REPO"/}.ots"
-  # Earlier stamps become Bitcoin-attested a few hours later; upgrade them in place.
+  for cp in "$REPO"/checkpoints/*.json; do
+    [[ -e "$cp" && ! -e "${cp}.ots" ]] || continue
+    if "$OTS" stamp "$cp" >/dev/null 2>&1; then
+      log "ots stamped ${cp#"$REPO"/}"
+    else
+      log "WARN: ots stamp failed for ${cp#"$REPO"/} — retried next run"
+    fi
+  done
   for proof in "$REPO"/checkpoints/*.ots; do
-    [[ "$proof" == "${file}.ots" ]] && continue
+    [[ -e "$proof" ]] || continue
     "$OTS" upgrade "$proof" >/dev/null 2>&1 || true
   done
 else
-  log "WARN: $OTS missing — checkpoint published without OpenTimestamps proof"
+  log "WARN: $OTS missing — publishing without OpenTimestamps proofs"
 fi
 
 "$BIN" verify -dir "$REPO/checkpoints" >/dev/null
 
 git add checkpoints
-height="$(basename "$file" .json)"
-git_bot commit -q -m "checkpoint $((10#$height))"
-git push -q
-log "pushed"
+if git diff --cached --quiet; then
+  log "nothing to publish"
+else
+  if [[ -n "$created" ]]; then
+    height="$(basename "$created" .json)"
+    msg="checkpoint $((10#$height))"
+  else
+    msg="checkpoint proofs: OpenTimestamps upgrades"
+  fi
+  git_bot commit -q -m "$msg"
+  git push -q
+  log "pushed: $msg"
+fi
+exit "$rc"
