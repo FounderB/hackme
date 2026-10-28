@@ -258,3 +258,36 @@ func TestSecurityClaimWithoutTipDoesNotDeadlock(t *testing.T) {
 		t.Fatal("claim without tip deadlocked the work manager (m.mu leaked)")
 	}
 }
+
+// Regression (2026-10-28): SUP accrued from client-reported attempts × the dead attempt-pay
+// rate (~59 SUP per real HMC with 2^36 leases). SUP must follow verified share pay only.
+func TestSUPFollowsVerifiedSharePayNotClaimedAttempts(t *testing.T) {
+	wm := secWM(t)
+	wm.rewardPerM = 0.00005 // live legacy rate that used to drive SUP
+	wm.supPolicy = supPolicy{Enabled: true, RateOfHMC: 0.08, DailyCapRatio: 0.12, StreakSec: 72 * 3600, StreakBonus: 0.25, StaleRateMax: 0.05, ReducedMult: 0.25}
+	wm.supMeta = make(map[string]workerSupMeta)
+	wm.abuse = make(map[string]workerAbuseState)
+	l := secClaim(t, wm, "w-sup", "HMC-aaaaaaaaaaaaaaaa")
+	shares := honestShares(l, l.prev, l.addr, 6)
+	if len(shares) == 0 {
+		t.Skip("no shares")
+	}
+	_, reason, payout, _, _ := wm.submit(submitWorkRequest{
+		WorkerID: "w-sup", BaseNonce: l.base, BatchSize: l.size, Attempts: 1 << 62, // absurd claim
+		HashrateGHS: 1, ShareNonces: shares,
+	})
+	if reason != "" || payout <= 0 {
+		t.Fatalf("submit: reason=%q payout=%v", reason, payout)
+	}
+	sup := wm.worker["w-sup"].PayoutSUP
+	if sup <= 0 || sup > payout*0.08*1.25*1.0001 {
+		t.Fatalf("SUP %v for share pay %v: want ≤ 8%% (×streak 1.25), independent of claimed attempts", sup, payout)
+	}
+	// The SUP basis is exactly the credited share pay (the old basis was attempts × legacy rate).
+	if wm.hmcAccruedDay < payout*0.9999 || wm.hmcAccruedDay > payout*1.0001 {
+		t.Fatalf("SUP daily basis %v must equal credited share pay %v", wm.hmcAccruedDay, payout)
+	}
+	if wm.supAccruedDay > wm.hmcAccruedDay*0.12+1e-12 {
+		t.Fatalf("SUP day %v above 12%% of real HMC %v", wm.supAccruedDay, wm.hmcAccruedDay)
+	}
+}

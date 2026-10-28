@@ -17,7 +17,7 @@ type workerSupMeta struct {
 
 type supPolicy struct {
 	Enabled       bool
-	RateOfHMC     float64 // base SUP = attempt-only HMC slice * rate
+	RateOfHMC     float64 // base SUP = HMC paid for verified work (no found bonus) * rate
 	StreakSec     int64
 	StreakBonus   float64 // added to multiplier (e.g. 0.25 -> 1.25x)
 	DailyCapRatio float64 // max SUP accrual per UTC day <= ratio * HMC accrued that day
@@ -138,11 +138,19 @@ func (m *workManager) supQualityMult(workerID string, now int64) float64 {
 }
 
 // computeSUPAccrual returns SUP to add for an accepted submit (caller holds m.mu).
-func (m *workManager) computeSUPAccrual(workerID string, hmcPayout float64, paidAttempts uint64, hybridSigned bool, now int64) float64 {
+// computeSUPAccrual returns SUP for one accepted submit. workHMC is the HMC actually credited
+// for verified work in this submit — share-PPS: share pay (found bonus excluded); legacy
+// attempt-pay: the attempt slice — never more than the credited payout.
+//
+// It used to be paidAttempts × reward_per_m in every mode. Under share-PPS that is a dead
+// legacy rate applied to client-reported attempts: with 2^36 / 8 s leases it accrued ~59 SUP
+// per real HMC (policy: 0.08) and the daily cap, computed from the same inflated basis, never
+// bound. ~1 100 surplus SUP were minted on-chain before accrual was paused (2026-10-28).
+func (m *workManager) computeSUPAccrual(workerID string, workHMC float64, hybridSigned bool, now int64) float64 {
 	if m == nil || !m.supPolicy.Enabled || workerID == "" {
 		return 0
 	}
-	if paidAttempts == 0 || hmcPayout <= 0 {
+	if workHMC <= 0 || math.IsNaN(workHMC) || math.IsInf(workHMC, 0) {
 		return 0
 	}
 	if m.supPolicy.RequireHybrid && !hybridSigned {
@@ -151,10 +159,7 @@ func (m *workManager) computeSUPAccrual(workerID string, hmcPayout float64, paid
 	if st, ok := m.abuse[workerID]; ok && st.BannedUntil > now {
 		return 0
 	}
-	attemptHMC := (float64(paidAttempts) / 1_000_000.0) * m.rewardPerM
-	if attemptHMC <= 0 {
-		return 0
-	}
+	attemptHMC := workHMC
 	mult := m.supQualityMult(workerID, now)
 	if mult <= 0 {
 		return 0
@@ -164,7 +169,7 @@ func (m *workManager) computeSUPAccrual(workerID string, hmcPayout float64, paid
 		return 0
 	}
 	m.resetSupDayIfNeeded(now)
-	// V3-M3: daily SUP cap basis is attempt-HMC only (not found_bonus).
+	// V3-M3: daily SUP cap basis is HMC credited for verified work only (not found_bonus).
 	m.hmcAccruedDay += attemptHMC
 	if m.supPolicy.DailyCapRatio > 0 && m.hmcAccruedDay > 0 {
 		cap := m.hmcAccruedDay * m.supPolicy.DailyCapRatio

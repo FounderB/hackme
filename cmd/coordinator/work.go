@@ -2787,12 +2787,15 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	}
 	var payout float64
 	var payoutUnits uint64
+	// workHMC: pay for verified work only (SUP basis) — share pay or legacy attempt slice.
+	var workHMC float64
 	if useShares {
 		m.sharePaidSubmits++
 		nShares := uint64(len(validShares))
 		payPerShareU := m.observeSharePrice(m.baseRewardHMC, nShares, rec.TargetMod, sm)
 		shareUnits := nShares * payPerShareU
 		payout = chain.UnitsToHMC(shareUnits)
+		workHMC = payout
 		if req.Found && !chainSolve.OK {
 			foundIsShare := false
 			for _, n := range validShares {
@@ -2860,7 +2863,13 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 		m.noteShareWorkLocked(len(validShares), sm, now)
 	}
 	hybridOK := signerAddr != ""
-	if sup := m.computeSUPAccrual(req.WorkerID, payout, paidAttempts, hybridOK, now); sup > 0 {
+	if !useShares && !m.shareStrict {
+		workHMC = (float64(paidAttempts) / 1_000_000.0) * m.rewardPerM
+	}
+	if workHMC > payout {
+		workHMC = payout // never above what was actually credited (submit cap, daily budget)
+	}
+	if sup := m.computeSUPAccrual(req.WorkerID, workHMC, hybridOK, now); sup > 0 {
 		st.PayoutSUP += sup
 		m.totalPayoutSUP += sup
 	}
