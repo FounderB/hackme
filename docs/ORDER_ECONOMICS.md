@@ -75,6 +75,7 @@ For production where **only pool rigs** should earn order escrow (even if local 
 
 When `HACKME_POOL_BASELINE_RELAY=on` (also accepts `1` / `true`) and the coordinator has chain admin + `HACKME_COORDINATOR_ORDERS_URL`, a verified **non-order** `found=true` relays `POST /api/poh/solve-baseline`. The empty-block subsidy credits the **primary wallet** (settlement payer), not the worker `miner_address`. Modes: `off` (default in code) · `dry` (count would-mint) · `on` (**live on public hub** with `LOCAL_POH=0`). Coordinator refuses `on` while hub local PoH is still enabled. Orders still use `solve-order` → escrow to miner.
 
+
 ## Honest limits
 
 - WASM gate is a **simplified check**, not full `bitcoind` fuzzing.
