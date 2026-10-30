@@ -76,6 +76,10 @@ func TestEmptyClaimNegativeCache(t *testing.T) {
 	if until.IsZero() || !time.Now().Before(until) {
 		t.Fatalf("empty claim cache not armed: until=%v", until)
 	}
+	remain := time.Until(until)
+	if remain > 800*time.Millisecond {
+		t.Fatalf("empty claim TTL too long (want ~400ms default): remain=%s", remain)
+	}
 	start := time.Now()
 	_, ok, err = svc.Claim(ctx, "worker-empty", now)
 	if err != nil || ok {
