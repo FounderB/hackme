@@ -78,10 +78,11 @@ func (s *Service) buildHuntClaimedWork(ctx context.Context, campaignID string, i
 	}
 	// Capture seed_byte_corpus after guided L2 merge so the worker cfg matches
 	// async replay (which also merges from the same on-disk L2 cache).
+	// Trim for claim JSON size; replay applies the same helper after merge.
 	var seedCorpus []any
 	if raw, ok := cfg["seed_byte_corpus"]; ok && raw != nil {
 		if list, ok := raw.([]any); ok && len(list) > 0 {
-			seedCorpus = list
+			seedCorpus = TrimSeedByteCorpusForWire(list)
 		}
 	}
 	engine := hunt.EngineByte

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 )
@@ -438,6 +439,8 @@ func copyCorpusFiles(src, dst string, max int) int {
 	if err != nil {
 		return 0
 	}
+	// Stable order so max-N imports are reproducible across lease warmups.
+	sort.Slice(ents, func(i, j int) bool { return ents[i].Name() < ents[j].Name() })
 	_ = os.MkdirAll(dst, 0o755)
 	n := 0
 	for _, e := range ents {
@@ -447,8 +450,9 @@ func copyCorpusFiles(src, dst string, max int) int {
 		if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(src, e.Name()))
-		if err != nil || len(b) == 0 || len(b) > 1<<20 {
+		srcPath := filepath.Join(src, e.Name())
+		info, err := e.Info()
+		if err != nil || info.Size() <= 0 || info.Size() > 1<<20 {
 			continue
 		}
 		name := e.Name()
@@ -461,11 +465,25 @@ func copyCorpusFiles(src, dst string, max int) int {
 		if _, err := os.Stat(dest); err == nil {
 			continue
 		}
-		if err := os.WriteFile(dest, b, 0o600); err == nil {
+		if placeCorpusFile(srcPath, dest) {
 			n++
 		}
 	}
 	return n
+}
+
+// placeCorpusFile prefers a same-FS hardlink (no Read+Write) then falls back to copy.
+// Mode is always 0600 so linked files match WriteFile semantics for AFL inputs.
+func placeCorpusFile(srcPath, dest string) bool {
+	if err := os.Link(srcPath, dest); err == nil {
+		_ = os.Chmod(dest, 0o600)
+		return true
+	}
+	b, err := os.ReadFile(srcPath)
+	if err != nil || len(b) == 0 {
+		return false
+	}
+	return os.WriteFile(dest, b, 0o600) == nil
 }
 
 func listFiles(dir string, max int) []string {
