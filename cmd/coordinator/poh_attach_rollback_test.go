@@ -24,7 +24,7 @@ func TestPoHAttachFailureRollsBackCampaign(t *testing.T) {
 		ordersProbeURL: "", // forces attach failure (orders_url_missing, skipped=false)
 	}
 	mux := http.NewServeMux()
-	addFuzzPoolRoutes(mux, "admintok", "", false, wm, pf)
+	addFuzzPoolRoutes(mux, "admintok", "", "", false, wm, pf)
 
 	body := `{"id":"poh-fail-1","campaign_type":"property","title":"t","status":"running","budget_runs":2,"config":{"attach_poh_order":true,"wasm_check_hex":"00"}}`
 	req := httptest.NewRequest(http.MethodPost, "/api/fuzz/pool/campaigns", strings.NewReader(body))

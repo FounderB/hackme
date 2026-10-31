@@ -383,22 +383,39 @@ else
   echo "[release] wrote pool.miner.token (${#POOL_MINER_TOKEN} chars) for Windows + Linux miners"
 fi
 
-# B2B Orders publish token must NEVER ship in public miner/Orders zips.
-# Historical bug: fallback to .secrets/hackme_coordinator_admin_token put the live
-# pool admin credential into GitHub Releases / hackme.tech/dist (rc17.3–rc17.4).
-# Operators paste a per-customer scoped token locally after install; release only
-# ships a placeholder. Do not read admin_token here. Do not write real secrets.
+# B2B Orders publish token (scoped): may ship when explicitly provided for rc18.1+ Orders.
+# NEVER fall back to coordinator admin token (rc17 leak). Must differ from miner token.
 for _orders_tok in "${WIN_DIR}/pool.orders.token" "${LINUX_DIR}/pool.orders.token"; do
   rm -f "${_orders_tok}"
 done
 printf '%s\n' "REPLACE_WITH_ORDERS_PUBLISH_TOKEN" >"${WIN_DIR}/pool.orders.token.example"
 printf '%s\n' "REPLACE_WITH_ORDERS_PUBLISH_TOKEN" >"${LINUX_DIR}/pool.orders.token.example"
-echo "[release] SECURITY: omitted pool.orders.token from public bundle (example only)"
-if [[ -n "${HACKME_RELEASE_ORDERS_PUBLISH_TOKEN:-}" ]]; then
-  echo "[release] REFUSING HACKME_RELEASE_ORDERS_PUBLISH_TOKEN in public bundle — unset it" >&2
+ORDERS_PUBLISH_TOKEN="${HACKME_RELEASE_ORDERS_PUBLISH_TOKEN:-}"
+if [[ -z "${ORDERS_PUBLISH_TOKEN}" && -f "${ROOT_DIR}/.secrets/hackme_coordinator_orders_publish_token" ]]; then
+  ORDERS_PUBLISH_TOKEN="$(tr -d '\r\n' <"${ROOT_DIR}/.secrets/hackme_coordinator_orders_publish_token")"
 fi
-if [[ -f "${ROOT_DIR}/.secrets/hackme_coordinator_admin_token" ]] || [[ -f "${ROOT_DIR}/.secrets/hackme_coordinator_orders_publish_token" ]]; then
-  echo "[release] note: local .secrets orders/admin tokens stay on disk; they are NOT copied into dist/" >&2
+if [[ -n "${ORDERS_PUBLISH_TOKEN}" ]]; then
+  if [[ "${ORDERS_PUBLISH_TOKEN}" == "REPLACE_WITH_ORDERS_PUBLISH_TOKEN" ]]; then
+    echo "[release] REFUSING placeholder ORDERS_PUBLISH_TOKEN" >&2
+    exit 1
+  fi
+  if [[ -n "${POOL_MINER_TOKEN}" && "${ORDERS_PUBLISH_TOKEN}" == "${POOL_MINER_TOKEN}" ]]; then
+    echo "[release] REFUSING: orders publish token must differ from pool.miner.token" >&2
+    exit 1
+  fi
+  _admin="${HACKME_COORDINATOR_ADMIN_TOKEN:-}"
+  if [[ -z "${_admin}" && -f "${ROOT_DIR}/.secrets/hackme_coordinator_admin_token" ]]; then
+    _admin="$(tr -d '\r\n' <"${ROOT_DIR}/.secrets/hackme_coordinator_admin_token")"
+  fi
+  if [[ -n "${_admin}" && "${ORDERS_PUBLISH_TOKEN}" == "${_admin}" ]]; then
+    echo "[release] REFUSING: orders publish token must differ from coordinator admin token" >&2
+    exit 1
+  fi
+  printf '%s' "${ORDERS_PUBLISH_TOKEN}" >"${WIN_DIR}/pool.orders.token"
+  printf '%s' "${ORDERS_PUBLISH_TOKEN}" >"${LINUX_DIR}/pool.orders.token"
+  echo "[release] wrote scoped pool.orders.token (${#ORDERS_PUBLISH_TOKEN} chars) for Orders profile"
+else
+  echo "[release] NOTE: no orders publish token — Orders local Dig/Hunt OK; public-pool register needs pool.orders.token"
 fi
 
 cat > "${DIST_DIR}/BUILD_INFO.txt" <<EOF

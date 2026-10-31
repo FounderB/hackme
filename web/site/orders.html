@@ -64,7 +64,7 @@
           (CLI ships next to the node in Orders profile; packs: <code>secrets</code> · <code>script_bounds</code> · <code>filter_utf8</code> · <code>parser_expat</code>
           · <code>bounds_smoke</code> · <code>overflow_smoke</code> · <code>state_smoke</code>
           · or <code>--wasm guard.wasm</code> · dashboard <code>#orders</code> · <strong>Hunt</strong> inventory).</li>
-        <li><strong>Deliverable</strong> — wizard prints <code>report_url</code>, <code>gate_url</code>, <code>pulse_url</code>. Pool diggers pick customer work first.</li>
+        <li><strong>Deliverable</strong> — wizard prints <code>report_url</code>, <code>gate_url</code>, <code>pulse_url</code>. With <code>pool.orders.token</code> (rc18.1+ Orders bundle), the campaign registers on the public pool so diggers pick it up; without the token, Dig/Hunt still run locally.</li>
       </ol>
       <pre class="code-block" style="margin-top:1rem"><code>export HACKME_ADMIN_TOKEN=…   # local node only
 hackme-fuzzing wizard \

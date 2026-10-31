@@ -1379,14 +1379,16 @@ func coordinatorToken() string {
 	return strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_TOKEN"))
 }
 
-// coordinatorAdminToken is the hub admin secret for privileged pool GETs
-// (campaign progress, findings mirror). Matches poolsync.CoordinatorAdminToken:
-// accepts HACKME_COORDINATOR_ADMIN_TOKEN or HACKME_POOL_COORDINATOR_ADMIN_TOKEN
-// (Orders launchers write the latter from pool.orders.token). Never falls back
-// to the worker-scoped HACKME_POOL_COORDINATOR_TOKEN — that 401s on admin routes
-// and left Orders progress/findings sync silently empty after rc17.3.
+// coordinatorAdminToken is the hub admin secret for privileged pool APIs.
+// Never falls back to worker token or Orders publish token.
 func coordinatorAdminToken() string {
 	return poolsync.CoordinatorAdminToken()
+}
+
+// coordinatorOrdersCustomerToken prefers scoped pool.orders.token / publish env,
+// then admin — for progress, findings mirror, and settle-pull (rc18.1+).
+func coordinatorOrdersCustomerToken() string {
+	return poolsync.OrdersCustomerToken()
 }
 
 func postCoordinatorWorkAdmin(ctx context.Context, base, path string, body []byte) (map[string]any, int, error) {

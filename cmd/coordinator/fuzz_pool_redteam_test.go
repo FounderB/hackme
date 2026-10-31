@@ -154,7 +154,7 @@ func TestFuzzSubmitConcurrentNonceMapsNoPanic(t *testing.T) {
 func TestHTTPFuzzSubmitUnauth(t *testing.T) {
 	pf := &poolfuzz.Service{DB: nil}
 	mux := http.NewServeMux()
-	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", false, &workManager{}, pf)
+	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", "", false, &workManager{}, pf)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/fuzz/work/submit", bytes.NewReader([]byte(`{"worker_id":"x"}`)))
 	req.Header.Set("Content-Type", "application/json")
@@ -198,7 +198,7 @@ func TestHTTPFuzzClaimPeerGateDoesNotPreChargeWorker(t *testing.T) {
 		maxWorkers:      100,
 	}
 	mux := http.NewServeMux()
-	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", false, wm, pf)
+	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", "", false, wm, pf)
 	// Empty queue → no_fuzz_work; forgeable id must not consume claim bucket.
 	for i := 0; i < 5; i++ {
 		rec := httptest.NewRecorder()
@@ -250,7 +250,7 @@ func TestHTTPFuzzClaimTouchesLastSeenOnEmptyQueue(t *testing.T) {
 		dropReasonCount: make(map[string]uint64),
 	}
 	mux := http.NewServeMux()
-	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", false, wm, pf)
+	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", "", false, wm, pf)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/fuzz/work/claim", bytes.NewReader([]byte(`{"worker_id":"fuzz-online"}`)))

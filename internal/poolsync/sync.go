@@ -124,16 +124,34 @@ func coordHealthOK(base string) bool {
 }
 
 func adminToken() string {
+	// Prefer scoped Orders publish token for campaign register; never use worker token.
+	if t := OrdersPublishToken(); t != "" {
+		return t
+	}
+	return CoordinatorAdminToken()
+}
+
+// OrdersPublishToken is the scoped credential for campaign register + settle-pull.
+// Set via Orders installer pool.orders.token → HACKME_POOL_ORDERS_PUBLISH_TOKEN / …
+func OrdersPublishToken() string {
 	for _, k := range []string{
-		"HACKME_COORDINATOR_ADMIN_TOKEN",
-		"HACKME_POOL_COORDINATOR_ADMIN_TOKEN",
-		"HACKME_POOL_COORDINATOR_TOKEN",
+		"HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN",
+		"HACKME_POOL_ORDERS_PUBLISH_TOKEN",
+		"HACKME_ORDERS_PUBLISH_TOKEN",
 	} {
 		if t := strings.TrimSpace(os.Getenv(k)); t != "" {
 			return t
 		}
 	}
 	return ""
+}
+
+// OrdersCustomerToken prefers scoped publish, then full admin (never worker).
+func OrdersCustomerToken() string {
+	if t := OrdersPublishToken(); t != "" {
+		return t
+	}
+	return CoordinatorAdminToken()
 }
 
 // CoordinatorAdminToken is the hub admin secret for privileged pool APIs (settle outbox).
@@ -158,7 +176,7 @@ func RegisterOnce(ctx context.Context, coordURL, token string, req RegisterReque
 		return 0, fmt.Errorf("pool sync: coordinator URL not set")
 	}
 	if token == "" {
-		return 0, fmt.Errorf("pool sync: coordinator admin token not set")
+		return 0, fmt.Errorf("pool sync: orders publish or coordinator admin token not set")
 	}
 	if req.Config == nil {
 		req.Config = map[string]any{}

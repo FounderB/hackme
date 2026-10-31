@@ -23,10 +23,12 @@ func ScrubBuildEnv(env []string) []string {
 		"COORD_TOKEN": true, "GITHUB_TOKEN": true, "GH_TOKEN": true,
 		"HACKME_ADMIN_TOKEN": true, "HACKME_POOL_COORDINATOR_TOKEN": true,
 		"HACKME_MINER_ED25519_SEED_HEX": true, "HACKME_COORDINATOR_ADMIN_TOKEN": true,
+		"HACKME_COORDINATOR_WORKER_TOKEN": true, "HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN": true,
+		"HACKME_ORDERS_PUBLISH_TOKEN": true, "HACKME_POOL_ORDERS_PUBLISH_TOKEN": true,
 		"HACKME_SETTLEMENT_ADMIN_TOKEN": true, "OPENAI_API_KEY": true, "ANTHROPIC_API_KEY": true,
 	}
 	denyPrefix := []string{
-		"HACKME_MINER_", "HACKME_POOL_", "HACKME_SETTLE", "AWS_", "GITHUB_",
+		"HACKME_MINER_", "HACKME_POOL_", "HACKME_SETTLE", "HACKME_ORDERS_", "AWS_", "GITHUB_",
 	}
 	out := make([]string, 0, len(env))
 	for _, e := range env {

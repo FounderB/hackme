@@ -71,7 +71,7 @@ func report27Setup(t *testing.T) (*sql.DB, *workManager, *http.ServeMux) {
 	}
 	wm.attachDedupDB(db)
 	mux := http.NewServeMux()
-	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", false, wm, pf)
+	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", "", false, wm, pf)
 	addWorkRoutes(mux, "admin-tok", "worker-tok", false, nil, wm, nil)
 	return db, wm, mux
 }

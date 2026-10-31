@@ -10,14 +10,14 @@ func envTruthy(key string) bool {
 	return v == "1" || v == "true" || v == "yes" || v == "on"
 }
 
-// FuzzSettlePullEnabled is true when outbox pull is not explicitly disabled and a
-// coordinator *admin* token is present (worker pool token is not enough).
+// FuzzSettlePullEnabled is true when outbox pull is not explicitly disabled and an
+// Orders customer credential is present (scoped publish or admin — not worker token).
 func FuzzSettlePullEnabled() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_FUZZ_SETTLE_PULL")))
 	if v == "0" || v == "false" || v == "no" || v == "off" {
 		return false
 	}
-	return CoordinatorAdminToken() != ""
+	return OrdersCustomerToken() != ""
 }
 
 func preferPoolSyncDirect() bool {

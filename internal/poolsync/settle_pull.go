@@ -30,9 +30,14 @@ type SettleOutboxItem struct {
 // returns an error (not a silent empty success): callers that close escrow
 // must not treat "no token" as "fully drained" (report #23).
 //
+// With OrdersPublishToken set, global list is forbidden — use FetchSettleOutboxForCampaign.
+//
 // Transient edge failures (HTTP 502/503/504, connection reset) are retried
 // with short backoff — bootstrap nodes hit Cloudflare fronts often.
 func FetchSettleOutbox(ctx context.Context, limit int) ([]SettleOutboxItem, error) {
+	if OrdersPublishToken() != "" {
+		return nil, fmt.Errorf("settle outbox: campaign_id required with orders publish token — use FetchSettleOutboxForCampaign")
+	}
 	return fetchSettleOutboxQuery(ctx, limit, "")
 }
 
@@ -53,12 +58,12 @@ func CountPendingSettleOutbox(ctx context.Context, campaignID string) (int64, er
 		return 0, fmt.Errorf("settle outbox: campaign_id required")
 	}
 	coordURL := ResolveCoordinatorURL()
-	token := CoordinatorAdminToken()
+	token := OrdersCustomerToken()
 	if coordURL == "" {
 		return 0, nil
 	}
 	if token == "" {
-		return 0, fmt.Errorf("settle outbox: coordinator admin token required")
+		return 0, fmt.Errorf("settle outbox: orders publish or coordinator admin token required")
 	}
 	q := url.Values{}
 	q.Set("campaign_id", campaignID)
@@ -88,12 +93,12 @@ func CountPendingSettleOutbox(ctx context.Context, campaignID string) (int64, er
 
 func fetchSettleOutboxQuery(ctx context.Context, limit int, campaignID string) ([]SettleOutboxItem, error) {
 	coordURL := ResolveCoordinatorURL()
-	token := CoordinatorAdminToken()
+	token := OrdersCustomerToken()
 	if coordURL == "" {
 		return nil, nil
 	}
 	if token == "" {
-		return nil, fmt.Errorf("settle outbox: coordinator admin token required")
+		return nil, fmt.Errorf("settle outbox: orders publish or coordinator admin token required")
 	}
 	if limit <= 0 || limit > 500 {
 		limit = 64
@@ -200,19 +205,35 @@ func settleOutboxTransient(err error) bool {
 }
 
 // AckSettleOutbox marks coordinator outbox rows applied on the origin node.
+// When using the scoped publish token, campaignID is required (hub enforces scope).
 func AckSettleOutbox(ctx context.Context, ids []int64) error {
+	return AckSettleOutboxForCampaign(ctx, "", ids)
+}
+
+// AckSettleOutboxForCampaign ACKs rows; campaignID required when OrdersPublishToken is set.
+func AckSettleOutboxForCampaign(ctx context.Context, campaignID string, ids []int64) error {
 	if len(ids) == 0 {
 		return nil
 	}
 	coordURL := ResolveCoordinatorURL()
-	token := CoordinatorAdminToken()
+	token := OrdersCustomerToken()
 	if coordURL == "" {
 		return nil
 	}
 	if token == "" {
-		return fmt.Errorf("settle outbox ack: coordinator admin token required")
+		return fmt.Errorf("settle outbox ack: orders publish or coordinator admin token required")
 	}
-	body, _ := json.Marshal(map[string]any{"ids": ids})
+	if OrdersPublishToken() != "" {
+		campaignID = strings.TrimSpace(campaignID)
+		if campaignID == "" {
+			return fmt.Errorf("settle outbox ack: campaign_id required with orders publish token")
+		}
+	}
+	bodyMap := map[string]any{"ids": ids}
+	if campaignID != "" {
+		bodyMap["campaign_id"] = campaignID
+	}
+	body, _ := json.Marshal(bodyMap)
 	var lastErr error
 	for attempt := 0; attempt < 5; attempt++ {
 		if attempt > 0 {

@@ -37,7 +37,7 @@ func coordPoolReadOK(r *http.Request, adminToken, workerToken string, allowInsec
 	return false
 }
 
-func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInsecure bool, wm *workManager, pf *poolfuzz.Service) {
+func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken, publishToken string, allowInsecure bool, wm *workManager, pf *poolfuzz.Service) {
 	if pf == nil {
 		return
 	}
@@ -132,14 +132,22 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if !coordPoolReadOK(r, adminToken, workerToken, allowInsecure) {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
 		id := strings.TrimSpace(r.URL.Query().Get("id"))
 		if id == "" {
 			http.Error(w, "id required", http.StatusBadRequest)
 			return
+		}
+		isAdmin, isPublish, pubOK := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure)
+		if !coordPoolReadOK(r, adminToken, workerToken, allowInsecure) && !pubOK {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if isPublish && !isAdmin && !coordPoolReadOK(r, adminToken, workerToken, allowInsecure) {
+			ok, err := pf.CampaignIsOrdersPublish(r.Context(), id)
+			if err != nil || !ok {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
 		}
 		prog, err := pf.CampaignProgress(r.Context(), id)
 		if err == sql.ErrNoRows {
@@ -173,23 +181,28 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 		_ = json.NewEncoder(w).Encode(prog)
 	})
 
-	// Admin-only findings mirror for Orders nodes (customer report rows).
+	// Admin or scoped Orders publish (orders_publish campaigns only) for findings mirror.
 	mux.HandleFunc("/api/fuzz/pool/campaigns/findings", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		if adminToken == "" && allowInsecure {
-			// loopback dev
-		} else if adminToken == "" || !coordAdminOK(r, adminToken) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
-			http.Error(w, "admin authentication required", http.StatusUnauthorized)
 			return
 		}
 		id := strings.TrimSpace(r.URL.Query().Get("id"))
 		if id == "" {
 			http.Error(w, "id required", http.StatusBadRequest)
 			return
+		}
+		isAdmin, isPublish, authed := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure)
+		if !authed {
+			writePublishAuthError(w)
+			return
+		}
+		if isPublish && !isAdmin {
+			ok, err := pf.CampaignIsOrdersPublish(r.Context(), id)
+			if err != nil || !ok {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
 		}
 		limit := 100
 		if s := strings.TrimSpace(r.URL.Query().Get("limit")); s != "" {
@@ -218,11 +231,10 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if adminToken == "" && allowInsecure {
-			// loopback dev
-		} else if adminToken == "" || !coordAdminOK(r, adminToken) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
-			http.Error(w, "admin authentication required", http.StatusUnauthorized)
+		// Admin or scoped Orders publish (desktop settle-pull). Worker token denied.
+		isAdmin, isPublish, ok := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure)
+		if !ok {
+			writePublishAuthError(w)
 			return
 		}
 		limit := 64
@@ -232,6 +244,21 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			}
 		}
 		campaignID := strings.TrimSpace(r.URL.Query().Get("campaign_id"))
+		if isPublish && !isAdmin {
+			if campaignID == "" {
+				http.Error(w, "campaign_id required for publish token", http.StatusBadRequest)
+				return
+			}
+			pub, err := pf.CampaignIsOrdersPublish(r.Context(), campaignID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if !pub {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+		}
 		countOnly := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("count")), "1") ||
 			strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("count")), "true")
 		if campaignID != "" && countOnly {
@@ -268,24 +295,40 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if adminToken == "" && allowInsecure {
-			// loopback dev
-		} else if adminToken == "" || !coordAdminOK(r, adminToken) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
-			http.Error(w, "admin authentication required", http.StatusUnauthorized)
+		isAdmin, isPublish, ok := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure)
+		if !ok {
+			writePublishAuthError(w)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
 		var req struct {
-			IDs []int64 `json:"ids"`
+			IDs        []int64 `json:"ids"`
+			CampaignID string  `json:"campaign_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
-		n, err := pf.AckSettleOutbox(r.Context(), req.IDs)
+		var (
+			n   int64
+			err error
+		)
+		if isPublish && !isAdmin {
+			if strings.TrimSpace(req.CampaignID) == "" {
+				http.Error(w, "campaign_id required for publish token", http.StatusBadRequest)
+				return
+			}
+			n, err = pf.AckSettleOutboxForOrdersPublish(r.Context(), req.CampaignID, req.IDs)
+		} else {
+			n, err = pf.AckSettleOutbox(r.Context(), req.IDs)
+		}
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			msg := err.Error()
+			if strings.Contains(msg, "not orders_publish") || strings.Contains(msg, "campaign_id required") {
+				http.Error(w, msg, http.StatusForbidden)
+				return
+			}
+			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -503,11 +546,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if adminToken == "" && allowInsecure {
-			// loopback dev
-		} else if adminToken == "" || !coordAdminOK(r, adminToken) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
-			http.Error(w, "admin authentication required", http.StatusUnauthorized)
+		isAdmin, isPublish, authed := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure)
+		if !authed {
+			writePublishAuthError(w)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
@@ -534,6 +575,32 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			req.Config = map[string]any{}
 		}
 		req.Config["pool_distributed"] = true
+		if isPublish && !isAdmin {
+			stripPublishEscalationConfig(req.Config)
+			if err := validatePublishCampaignCaps(publishCampaignReq{
+				ID: req.ID, Status: req.Status, Title: req.Title, Description: req.Description,
+				OwnerRef: req.OwnerRef, BudgetRuns: req.BudgetRuns, BudgetSeconds: req.BudgetSeconds, Config: req.Config,
+			}); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			// Force safe lifecycle — register upsert must not cancel/complete via publish.
+			st := strings.ToLower(strings.TrimSpace(req.Status))
+			if st == "" || st == "planned" {
+				req.Status = st
+				if st == "" {
+					req.Status = "running"
+				}
+			} else {
+				req.Status = "running"
+			}
+			if !publishRateAllow(r) {
+				http.Error(w, "orders publish rate limit exceeded", http.StatusTooManyRequests)
+				return
+			}
+			req.Config["orders_publish"] = true
+			stripPublishEscalationConfig(req.Config) // again after any finalize side effects below
+		}
 		// Dig (non-Hunt) campaigns get the same depth pack/mutator/seed finalize as local B2B.
 		if !poolfuzz.IsHuntCampaign(req.Config) {
 			repoRoot := strings.TrimSpace(os.Getenv("HACKME_REPO_ROOT"))
@@ -545,6 +612,26 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			pack := configString(req.Config, "guard_pack", "guard_name")
 			pkg := configString(req.Config, "dig_package")
 			req.Config = fuzzingcli.FinalizeDigCampaignConfig(req.Config, pkg, pack, repoRoot)
+		}
+		if isPublish && !isAdmin {
+			stripPublishEscalationConfig(req.Config)
+			req.Config["orders_publish"] = true
+			exists, err := pf.CampaignExists(r.Context(), req.ID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if exists {
+				pub, err := pf.CampaignIsOrdersPublish(r.Context(), req.ID)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				if !pub {
+					http.Error(w, "campaign id exists (not orders_publish) — publish cannot hijack", http.StatusConflict)
+					return
+				}
+			}
 		}
 		if err := pf.RegisterCampaign(r.Context(), poolfuzz.Campaign{
 			ID:            req.ID,
@@ -567,11 +654,14 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			_ = pf.EnsureWorkItems(ctx, campaignID, time.Now().Unix())
 		}()
 		attach := map[string]any{"ok": false, "skipped": true, "reason": "no_work_manager"}
-		if wm != nil {
+		// Publish token must never attach PoH escrow (admin-only escalation).
+		if isPublish && !isAdmin {
+			attach = map[string]any{"ok": false, "skipped": true, "reason": "orders_publish_no_poh_attach"}
+		} else if wm != nil {
 			attach = wm.attachPoHOrderFromFuzzConfig(req.ID, req.Config)
 		}
 		wantAttach := false
-		if req.Config != nil {
+		if req.Config != nil && !(isPublish && !isAdmin) {
 			wantAttach = configTruthy(req.Config, "attach_poh_order", "create_poh_order")
 		}
 		if wantAttach {

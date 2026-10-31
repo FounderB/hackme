@@ -351,6 +351,27 @@ func fairSettleOutboxWindow(items []SettleOutboxItem, limit int) []SettleOutboxI
 // pending — callers must Apply on-chain before ACK (stolen admin ACK without Apply
 // still risks false paid; keep admin token offline / TLS-only for settle routes).
 func (s *Service) AckSettleOutbox(ctx context.Context, ids []int64) (int64, error) {
+	return s.ackSettleOutbox(ctx, "", ids, false)
+}
+
+// AckSettleOutboxForOrdersPublish ACKs only rows for campaignID when that campaign
+// was registered with orders_publish (scoped publish token path).
+func (s *Service) AckSettleOutboxForOrdersPublish(ctx context.Context, campaignID string, ids []int64) (int64, error) {
+	campaignID = strings.TrimSpace(campaignID)
+	if campaignID == "" {
+		return 0, fmt.Errorf("poolfuzz: campaign_id required for publish ack")
+	}
+	ok, err := s.CampaignIsOrdersPublish(ctx, campaignID)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, fmt.Errorf("poolfuzz: campaign not orders_publish")
+	}
+	return s.ackSettleOutbox(ctx, campaignID, ids, true)
+}
+
+func (s *Service) ackSettleOutbox(ctx context.Context, campaignID string, ids []int64, requireCampaign bool) (int64, error) {
 	if s == nil || s.DB == nil {
 		return 0, fmt.Errorf("poolfuzz: no database")
 	}
@@ -363,9 +384,18 @@ func (s *Service) AckSettleOutbox(ctx context.Context, ids []int64) (int64, erro
 		if id <= 0 {
 			continue
 		}
-		res, err := s.DB.ExecContext(ctx,
-			`UPDATE fuzz_settle_outbox SET status='applied', applied_at=? WHERE id=? AND status='pending'`,
-			now, id)
+		var res sql.Result
+		var err error
+		if requireCampaign {
+			res, err = s.DB.ExecContext(ctx,
+				`UPDATE fuzz_settle_outbox SET status='applied', applied_at=?
+				 WHERE id=? AND status='pending' AND campaign_id=?`,
+				now, id, campaignID)
+		} else {
+			res, err = s.DB.ExecContext(ctx,
+				`UPDATE fuzz_settle_outbox SET status='applied', applied_at=? WHERE id=? AND status='pending'`,
+				now, id)
+		}
 		if err != nil {
 			return n, err
 		}
@@ -380,6 +410,61 @@ func (s *Service) AckSettleOutbox(ctx context.Context, ids []int64) (int64, erro
 			 WHERE settle_finding_outbox_id=? AND settle_finding_status IN ('queued','pending')`, id)
 	}
 	return n, nil
+}
+
+// CampaignIsOrdersPublish is true when config_json marks orders_publish.
+func (s *Service) CampaignIsOrdersPublish(ctx context.Context, campaignID string) (bool, error) {
+	cfg, err := s.CampaignConfig(ctx, campaignID)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return configTruthyAny(cfg, "orders_publish"), nil
+}
+
+// CampaignExists reports whether a pool campaign row exists.
+func (s *Service) CampaignExists(ctx context.Context, campaignID string) (bool, error) {
+	if s == nil || s.DB == nil {
+		return false, fmt.Errorf("poolfuzz: no database")
+	}
+	campaignID = strings.TrimSpace(campaignID)
+	if campaignID == "" {
+		return false, nil
+	}
+	var one int
+	err := s.DB.QueryRowContext(ctx, `SELECT 1 FROM fuzz_campaigns WHERE id=?`, campaignID).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func configTruthyAny(cfg map[string]any, key string) bool {
+	if cfg == nil {
+		return false
+	}
+	v, ok := cfg[key]
+	if !ok || v == nil {
+		return false
+	}
+	switch t := v.(type) {
+	case bool:
+		return t
+	case string:
+		s := strings.ToLower(strings.TrimSpace(t))
+		return s == "1" || s == "true" || s == "yes" || s == "on"
+	case float64:
+		return t != 0
+	case int:
+		return t != 0
+	default:
+		return false
+	}
 }
 
 // SettleOutboxStatus returns pending|applied|"" for an outbox row id.

@@ -151,10 +151,19 @@ func main() {
 	}
 	token := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_ADMIN_TOKEN"))
 	workerToken := strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_WORKER_TOKEN"))
+	publishToken := ordersPublishTokenFromEnv()
 	allowInsecure := envBool("HACKME_COORDINATOR_ALLOW_INSECURE", false)
 	requireToken := envBool("HACKME_COORDINATOR_REQUIRE_ADMIN_TOKEN", true)
 	if token != "" && workerToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(workerToken)) == 1 {
 		log.Fatal("security: HACKME_COORDINATOR_ADMIN_TOKEN must differ from HACKME_COORDINATOR_WORKER_TOKEN (worker would elevate to admin)")
+	}
+	if publishToken != "" {
+		if token != "" && subtle.ConstantTimeCompare([]byte(publishToken), []byte(token)) == 1 {
+			log.Fatal("security: HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN must differ from HACKME_COORDINATOR_ADMIN_TOKEN")
+		}
+		if workerToken != "" && subtle.ConstantTimeCompare([]byte(publishToken), []byte(workerToken)) == 1 {
+			log.Fatal("security: HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN must differ from HACKME_COORDINATOR_WORKER_TOKEN")
+		}
 	}
 	if requireToken && token == "" && !allowInsecure {
 		log.Fatal("security: HACKME_COORDINATOR_ADMIN_TOKEN is required (or set HACKME_COORDINATOR_ALLOW_INSECURE=1 for loopback-only dev)")
@@ -231,7 +240,7 @@ func main() {
 		AdminToken:       wm.ordersAdminToken,
 		SkipInlineHTTP:   settleEnqueueOnly,
 	}
-	addFuzzPoolRoutes(mux, token, workerToken, allowInsecure, wm, pf)
+	addFuzzPoolRoutes(mux, token, workerToken, publishToken, allowInsecure, wm, pf)
 	addCorpusNamespaceRoute(mux, token, allowInsecure, pf)
 	addCorpusDeltaRoute(mux, token, workerToken, allowInsecure, pf)
 	startPoolFuzzTicker(context.Background(), pf)
@@ -247,7 +256,10 @@ func main() {
 	if workerToken != "" {
 		log.Printf("HACKME_COORDINATOR_WORKER_TOKEN is set: remote miners may claim/submit with worker token (not clear-abuse or stats details)")
 	}
-	log.Printf("Pool fuzz: POST /api/fuzz/work/claim|submit  POST /api/fuzz/pool/campaigns (admin)  GET /api/fuzz/pool/stats")
+	if publishToken != "" {
+		log.Printf("HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN is set: POST /api/fuzz/pool/campaigns allowed with publish caps")
+	}
+	log.Printf("Pool fuzz: POST /api/fuzz/work/claim|submit  POST /api/fuzz/pool/campaigns (admin|publish)  GET /api/fuzz/pool/stats")
 	if token == "" && workerToken == "" && allowInsecure {
 		log.Printf("security warning: HACKME_COORDINATOR_ALLOW_INSECURE=1 — claim/submit/push_work allowed without token on %s (dev only)", addr)
 	}

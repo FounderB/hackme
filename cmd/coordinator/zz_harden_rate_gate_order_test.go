@@ -42,7 +42,7 @@ func TestHardenReleaseDoesNotChargeClaimBucket(t *testing.T) {
 	}
 	wm.attachDedupDB(db)
 	mux := http.NewServeMux()
-	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", false, wm, pf)
+	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", "", false, wm, pf)
 
 	atkPub, _, _ := ed25519.GenerateKey(nil)
 	body, _ := json.Marshal(map[string]any{
@@ -87,7 +87,7 @@ func TestHardenFailedClaimDoesNotBindPayoutLock(t *testing.T) {
 	}
 	wm.attachDedupDB(db)
 	mux := http.NewServeMux()
-	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", false, wm, pf)
+	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", "", false, wm, pf)
 	atkPub, _, _ := ed25519.GenerateKey(nil)
 	body, _ := json.Marshal(map[string]any{
 		"worker_id": "never-claimed-rig", "miner_pubkey": hex.EncodeToString(atkPub),

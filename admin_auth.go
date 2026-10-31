@@ -242,17 +242,22 @@ func ensurePoolCoordinatorTokenEnv() {
 	}
 }
 
-// ensurePoolCoordinatorAdminTokenEnv loads pool campaign register credentials for Dig/Hunt pool_sync.
-// Worker pool.miner.token is not valid for POST /api/fuzz/pool/campaigns (coordinator admin only).
+// ensurePoolCoordinatorAdminTokenEnv loads Dig/Hunt pool_sync credentials from on-disk
+// secrets when env is empty. Scoped Orders publish (pool.orders.token) goes into
+// HACKME_POOL_ORDERS_PUBLISH_TOKEN only — never into the admin env (rc18.1).
+// Worker pool.miner.token is never used for campaign register / settle-pull.
 func ensurePoolCoordinatorAdminTokenEnv() {
+	if strings.TrimSpace(os.Getenv("HACKME_POOL_ORDERS_PUBLISH_TOKEN")) == "" &&
+		strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN")) == "" &&
+		strings.TrimSpace(os.Getenv("HACKME_ORDERS_PUBLISH_TOKEN")) == "" {
+		if t := operator.ReadOrdersPublishToken(); t != "" {
+			_ = os.Setenv("HACKME_POOL_ORDERS_PUBLISH_TOKEN", t)
+		}
+	}
 	if strings.TrimSpace(os.Getenv("HACKME_COORDINATOR_ADMIN_TOKEN")) != "" {
 		return
 	}
 	if strings.TrimSpace(os.Getenv("HACKME_POOL_COORDINATOR_ADMIN_TOKEN")) != "" {
-		return
-	}
-	if t := operator.ReadOrdersPublishToken(); t != "" {
-		_ = os.Setenv("HACKME_POOL_COORDINATOR_ADMIN_TOKEN", t)
 		return
 	}
 	if t := operator.ReadCoordinatorAdminToken(); t != "" {

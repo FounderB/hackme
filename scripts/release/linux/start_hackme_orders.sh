@@ -60,11 +60,11 @@ chmod 700 "$DATA_DIR" 2>/dev/null || true
 
 read_orders_publish_token() {
   local tok="" f
+  # Scoped publish only — never fall back to coordinator admin (rc17 leak class).
   for f in \
     "${INSTALL_DIR}/pool.orders.token" \
     "${CONFIG_DIR}/pool.orders.token" \
-    "${INSTALL_DIR}/.secrets/hackme_coordinator_admin_token" \
-    "${INSTALL_DIR}/.secrets/coordinator_admin.token"; do
+    "${INSTALL_DIR}/.secrets/hackme_coordinator_orders_publish_token"; do
     [[ -f "$f" ]] || continue
     tok="$(tr -d '\r\n' <"$f")"
     if [[ -n "$tok" && "$tok" != "REPLACE_WITH_ORDERS_PUBLISH_TOKEN" ]]; then
@@ -135,41 +135,42 @@ repair_pool_coordinator_env() {
     fi
     echo "[hackme-orders] set HACKME_POOL_COORDINATOR_URL=${DEFAULT_COORD_URL}"
   fi
-  if grep -q '^HACKME_POOL_COORDINATOR_ADMIN_TOKEN=.\+' "$ENV_FILE" 2>/dev/null \
-    || grep -q '^HACKME_COORDINATOR_ADMIN_TOKEN=.\+' "$ENV_FILE" 2>/dev/null; then
+  if grep -q '^HACKME_POOL_ORDERS_PUBLISH_TOKEN=.\+' "$ENV_FILE" 2>/dev/null \
+    || grep -q '^HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN=.\+' "$ENV_FILE" 2>/dev/null; then
     return 0
   fi
   local pub
   pub="$(read_orders_publish_token 2>/dev/null || true)"
   if [[ -z "$pub" ]]; then
-    echo "[hackme-orders] NOTE: pool.orders.token is not shipped in public installers."
-    echo "[hackme-orders] Local Dig/Hunt on this machine still work. To publish campaigns to the"
-    echo "[hackme-orders] public pool, paste an operator-scoped publish token into:"
+    echo "[hackme-orders] NOTE: no pool.orders.token yet — local Dig/Hunt still work."
+    echo "[hackme-orders] rc18.1+ Orders bundles ship a scoped publish token; or paste into:"
     echo "[hackme-orders]   ${INSTALL_DIR}/pool.orders.token  (or ${CONFIG_DIR}/pool.orders.token)"
     return 0
   fi
-  if grep -q '^HACKME_POOL_COORDINATOR_ADMIN_TOKEN=' "$ENV_FILE" 2>/dev/null; then
-    sed -i "s|^HACKME_POOL_COORDINATOR_ADMIN_TOKEN=.*|HACKME_POOL_COORDINATOR_ADMIN_TOKEN=${pub}|" "$ENV_FILE"
+  if grep -q '^HACKME_POOL_ORDERS_PUBLISH_TOKEN=' "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^HACKME_POOL_ORDERS_PUBLISH_TOKEN=.*|HACKME_POOL_ORDERS_PUBLISH_TOKEN=${pub}|" "$ENV_FILE"
   else
-    echo "HACKME_POOL_COORDINATOR_ADMIN_TOKEN=${pub}" >>"$ENV_FILE"
+    echo "HACKME_POOL_ORDERS_PUBLISH_TOKEN=${pub}" >>"$ENV_FILE"
   fi
   if [[ -f "${INSTALL_DIR}/pool.orders.token" && ! -f "${CONFIG_DIR}/pool.orders.token" ]]; then
     cp "${INSTALL_DIR}/pool.orders.token" "${CONFIG_DIR}/pool.orders.token"
     chmod 600 "${CONFIG_DIR}/pool.orders.token" 2>/dev/null || true
   fi
-  echo "[hackme-orders] repaired pool register token from pool.orders.token (not pool.miner.token)"
+  echo "[hackme-orders] set scoped pool publish token from pool.orders.token (not admin/miner)"
 }
 
-# Miner scripts seed settle-pull=0; Orders needs pull when admin/publish token is present
-# so escrow can close after progress sync (rc17.3 soft-launch).
+# Miner scripts seed settle-pull=0; Orders needs pull when publish/admin token is present
+# so escrow can close after progress sync.
 repair_orders_settle_pull() {
   [[ -f "$ENV_FILE" ]] || return 0
-  if grep -q '^HACKME_POOL_COORDINATOR_ADMIN_TOKEN=.\+' "$ENV_FILE" 2>/dev/null \
+  if grep -q '^HACKME_POOL_ORDERS_PUBLISH_TOKEN=.\+' "$ENV_FILE" 2>/dev/null \
+    || grep -q '^HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN=.\+' "$ENV_FILE" 2>/dev/null \
+    || grep -q '^HACKME_POOL_COORDINATOR_ADMIN_TOKEN=.\+' "$ENV_FILE" 2>/dev/null \
     || grep -q '^HACKME_COORDINATOR_ADMIN_TOKEN=.\+' "$ENV_FILE" 2>/dev/null; then
     if grep -q '^HACKME_FUZZ_SETTLE_PULL=0$' "$ENV_FILE" 2>/dev/null \
       || grep -qi '^HACKME_FUZZ_SETTLE_PULL=false$' "$ENV_FILE" 2>/dev/null; then
       sed -i 's/^HACKME_FUZZ_SETTLE_PULL=.*/HACKME_FUZZ_SETTLE_PULL=1/' "$ENV_FILE"
-      echo "[hackme-orders] enabled HACKME_FUZZ_SETTLE_PULL=1 (Orders admin token present)"
+      echo "[hackme-orders] enabled HACKME_FUZZ_SETTLE_PULL=1 (Orders publish/admin credential present)"
     elif ! grep -q '^HACKME_FUZZ_SETTLE_PULL=' "$ENV_FILE" 2>/dev/null; then
       echo 'HACKME_FUZZ_SETTLE_PULL=1' >>"$ENV_FILE"
       echo "[hackme-orders] set HACKME_FUZZ_SETTLE_PULL=1"

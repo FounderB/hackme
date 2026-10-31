@@ -56,7 +56,7 @@ func corpusDeltaMux(t *testing.T) (*http.ServeMux, *poolfuzz.Service, string, in
 		dropReasonCount:     make(map[string]uint64),
 	}
 	mux := http.NewServeMux()
-	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", false, wm, pf)
+	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", "", false, wm, pf)
 	addCorpusDeltaRoute(mux, "admin-tok", "worker-tok", false, pf)
 	return mux, pf, id, itemID
 }

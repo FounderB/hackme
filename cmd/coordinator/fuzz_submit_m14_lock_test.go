@@ -81,7 +81,7 @@ func TestFuzzSubmitM14RejectKeepsVictimLeaseAndHidesLock(t *testing.T) {
 	wm.notePayoutLock("victim-w1", signerAddr(victimPub))
 
 	mux := http.NewServeMux()
-	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", false, wm, pf)
+	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", "", false, wm, pf)
 
 	// Attacker holds a valid pool token and signs with their own key while
 	// declaring the victim's worker_id — the forged-worker_id submit position.
