@@ -9,10 +9,13 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        HACKME_VERSION: "${HACKME_VERSION:-0.1.0-rc18.1}"
     command: ["/usr/local/bin/coordinator"]
     environment:
       HACKME_COORDINATOR_ADDR: "0.0.0.0:8081"
       HACKME_COORDINATOR_ADMIN_TOKEN: "${E2E_TOKEN:?set E2E_TOKEN}"
+      HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN: "${E2E_PUBLISH_TOKEN:-}"
       HACKME_COORDINATOR_DB: "/data/coordinator.db"
     volumes:
       - coord_data:/data
@@ -29,6 +32,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        HACKME_VERSION: "${HACKME_VERSION:-0.1.0-rc18.1}"
     depends_on:
       - coordinator
     restart: on-failure:3
@@ -44,6 +49,8 @@ services:
       HACKME_RIG_PROFILE_AUTO: "0"
       HACKME_POOL_COORDINATOR_URL: "http://coordinator:8081"
       HACKME_POOL_COORDINATOR_TOKEN: "${E2E_TOKEN:?set E2E_TOKEN}"
+      HACKME_POOL_ORDERS_PUBLISH_TOKEN: "${E2E_PUBLISH_TOKEN:-}"
+      HACKME_FUZZ_SETTLE_PULL: "1"
       HACKME_FUZZ_AUTORUN: "0"
       HACKME_GPU_DISABLE: "1"
       HACKME_MINER_CPU_PCT: "${HACKME_MINER_CPU_PCT:-70}"

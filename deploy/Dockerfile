@@ -1,12 +1,14 @@
 # Runtime layout under /opt/hackme: binaries + scripts (worker_loop) + tasks (fuzz gates).
 # Set HACKME_WORKING_DIR=/opt/hackme in compose so cwd resolves ./scripts and ./data.
 FROM golang:1.26.8-bookworm AS build
+ARG HACKME_VERSION=0.1.0-rc18.1
 WORKDIR /src
 COPY go.mod go.sum ./
-ENV GOTOOLCHAIN=local
+# go.mod may require a newer patch than the image tag — allow toolchain download.
+ENV GOTOOLCHAIN=auto
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.Version=0.1.0-rc17.1" -o /out/hackme .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.Version=${HACKME_VERSION}" -o /out/hackme .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/coordinator ./cmd/coordinator
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/workerpoh-cpu ./cmd/workerpoh
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/minersign ./cmd/minersign
