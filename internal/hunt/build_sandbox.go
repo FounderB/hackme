@@ -106,16 +106,19 @@ func RunBuildIsolated(ctx context.Context, opts BuildIsolateOpts) error {
 }
 
 func runBareBuild(ctx context.Context, opts BuildIsolateOpts, env []string, wall time.Duration) error {
-	return RunIsolated(ctx, IsolateOpts{
-		Bin:       opts.Bin,
-		Args:      opts.Args,
-		Dir:       opts.Dir,
-		Env:       env,
-		Wall:      wall,
-		Stdout:    opts.Stdout,
-		Stderr:    opts.Stderr,
-		AllowBare: true,
-	})
+	// Desk/opt-out path for HACKME_HUNT_BUILD_SANDBOX=0: must NOT enter bwrap.
+	// RunIsolated still prefers a working cage when IsolateRequired (default ON),
+	// which drops ephemeral /tmp/hunt-inv-build-* unless every path is bound —
+	// clang then fails with "no such file or directory: …/hunt_wrapper.c".
+	return runBareIsolated(ctx, IsolateOpts{
+		Bin:    opts.Bin,
+		Args:   opts.Args,
+		Dir:    opts.Dir,
+		Env:    env,
+		Wall:   wall,
+		Stdout: opts.Stdout,
+		Stderr: opts.Stderr,
+	}, env, wall)
 }
 
 func buildToolchainRoBinds() []string {

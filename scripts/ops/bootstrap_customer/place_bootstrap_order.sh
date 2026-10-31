@@ -27,37 +27,39 @@ ADMIN="$(grep -m1 '^HACKME_ADMIN_TOKEN=' "$INSTALL/.env" | cut -d= -f2- | tr -d 
 # shellcheck source=load_coord_token.sh
 source "$(dirname "$0")/load_coord_token.sh"
 load_bootstrap_coord_token
-# PoH order gate must be solvable for pool M finds. Dig "bounds_guard" / detector wasm
-# rejects almost all nonces and leaves progress stuck at 0/N while leases look healthy.
-# Prefer dedicated order gate (embedded in coordinator; or WASM_FILE / tracked artifact).
-# Escape hatch only: HACKME_ALLOW_MINIMAL_POH_GATE=1 (always-pass demo — not for prod fleet).
-WASM="${WASM_FILE:-}"
-if [[ -z "$WASM" ]]; then
+# Dig detector WASM (property/security) — NOT the PoH order gate.
+# Coordinator PoH attach ignores Dig wasm_check_hex and uses the order gate
+# (or poh_wasm_check_hex). Shipping the order gate as Dig detector made every
+# run look like failed_checks / fake "FINDING" noise (live e2e 2026-10-31).
+DIG_WASM="${DIG_WASM_FILE:-${WASM_FILE:-}}"
+if [[ -z "$DIG_WASM" ]]; then
   for cand in \
-    "$INSTALL/tasks/artifacts/security/upstream_hackme_order_gate.wasm" \
-    "$ROOT/tasks/artifacts/security/upstream_hackme_order_gate.wasm" \
-    "$ROOT/internal/sandbox/embed/upstream_hackme_order_gate.wasm"; do
-    if [[ -f "$cand" ]]; then WASM="$cand"; break; fi
+    "$INSTALL/tasks/artifacts/security/rust_overflow_smoke_guard.wasm" \
+    "$ROOT/tasks/artifacts/security/rust_overflow_smoke_guard.wasm" \
+    "$INSTALL/tasks/artifacts/security/rust_bounds_smoke_guard.wasm" \
+    "$ROOT/tasks/artifacts/security/rust_bounds_smoke_guard.wasm"; do
+    if [[ -f "$cand" ]]; then DIG_WASM="$cand"; break; fi
   done
 fi
-if [[ "${HACKME_ALLOW_MINIMAL_POH_GATE:-0}" == "1" ]]; then
-  echo "[bootstrap-order] WARN HACKME_ALLOW_MINIMAL_POH_GATE=1 — using always-pass MinimalGate" >&2
-  WASM_HEX="0061736d0100000001060160017e017f0302010007090105636865636b00000a0601040041010b"
-elif [[ -n "$WASM" && -f "$WASM" ]]; then
-  WASM_HEX="$(xxd -p "$WASM" | tr -d '\n')"
-else
-  echo "[bootstrap-order] missing PoH order gate wasm (set WASM_FILE or ship upstream_hackme_order_gate.wasm)" >&2
+if [[ -z "$DIG_WASM" || ! -f "$DIG_WASM" ]]; then
+  echo "[bootstrap-order] missing Dig detector wasm (set DIG_WASM_FILE or ship rust_overflow_smoke_guard.wasm)" >&2
   exit 1
 fi
-# Reject accidental Dig detector modules as PoH gate (too large / wrong semantics).
-if [[ "${HACKME_ALLOW_MINIMAL_POH_GATE:-0}" != "1" ]]; then
-  wasm_bytes=$(( ${#WASM_HEX} / 2 ))
-  if [[ "$wasm_bytes" -gt 4096 ]]; then
-    echo "[bootstrap-order] wasm looks like Dig detector (${wasm_bytes}B) — refusing as PoH gate. Use order gate." >&2
-    exit 1
-  fi
+WASM_HEX="$(xxd -p "$DIG_WASM" | tr -d '\n')"
+[[ -n "$WASM_HEX" ]] || { echo "[bootstrap-order] empty Dig wasm hex" >&2; exit 1; }
+log_gate() { echo "[bootstrap-order] Dig detector=$(basename "$DIG_WASM") bytes=$(( ${#WASM_HEX} / 2 ))" >&2; }
+log_gate
+# Optional: verify order gate artifact exists for coordinator PoH attach (not Dig wasm).
+POH_GATE=""
+for cand in \
+  "$INSTALL/tasks/artifacts/security/upstream_hackme_order_gate.wasm" \
+  "$ROOT/tasks/artifacts/security/upstream_hackme_order_gate.wasm" \
+  "$ROOT/internal/sandbox/embed/upstream_hackme_order_gate.wasm"; do
+  if [[ -f "$cand" ]]; then POH_GATE="$cand"; break; fi
+done
+if [[ -z "$POH_GATE" && "${HACKME_ALLOW_MINIMAL_POH_GATE:-0}" != "1" ]]; then
+  echo "[bootstrap-order] WARN: PoH order gate wasm missing on disk — coordinator attach may fail" >&2
 fi
-[[ -n "$WASM_HEX" ]] || { echo "[bootstrap-order] empty wasm hex" >&2; exit 1; }
 OID="order-bootstrap-${TARGET}-${STAMP}"
 CID="campaign-bootstrap-${TARGET}-${STAMP}"
 TITLE="HackMe Bootstrap Audit · ${TARGET} · deep pool"
