@@ -73,7 +73,8 @@ fi
 
 build_docker() {
   echo "[iso] Docker build (VERSION=${VERSION})"
-  docker build -t hackme-miner-iso-build "${ISO_DIR}"
+  # --network=host: buildkit DNS inside default bridge intermittently fails resolving archive.ubuntu.com
+  docker build --network=host -t hackme-miner-iso-build "${ISO_DIR}"
   docker run --rm --privileged --network host \
     -v "${PAYLOAD_DIR}:/payload:ro" \
     -v "${ISO_DIR}:/iso-scripts:ro" \
