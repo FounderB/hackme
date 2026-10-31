@@ -43,8 +43,13 @@ Requires Dig `dig_package` (`scan`/`starter`/`audit`/`pro`/`deep`/`enterprise`) 
   Settle-pull only **applies** rows for local escrow; do not ACK foreign campaigns.
 - Publish cannot: cancel/complete via status API **or** register upsert; settle replay;
   cleanup-stale/gates/repair-zombies; harness upload; PoH attach (`attach_poh_order` stripped).
+- Publish cannot hijack existing non-`orders_publish` campaign IDs (HTTP 409).
+- Settle outbox GET/ACK with publish **requires `campaign_id`** and only works for
+  `orders_publish` campaigns (no global list / cross-tenant ACK of admin campaigns).
+- Progress + findings mirror accept publish for `orders_publish` campaigns only.
 - Publish IDs are ASCII `[A-Za-z0-9._-]` only (no `..`, no unicode lookalikes).
 - Build env scrub drops `HACKME_*ORDERS_PUBLISH*` / coordinator worker+admin tokens.
+- `pool.orders.token` must be mode ≤0600 (same as other secrets).
 
 ## Operator checklist
 

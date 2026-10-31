@@ -403,12 +403,13 @@ if [[ -n "${ORDERS_PUBLISH_TOKEN}" ]]; then
     echo "[release] REFUSING: orders publish token must differ from pool.miner.token" >&2
     exit 1
   fi
-  if [[ -f "${ROOT_DIR}/.secrets/hackme_coordinator_admin_token" ]]; then
+  _admin="${HACKME_COORDINATOR_ADMIN_TOKEN:-}"
+  if [[ -z "${_admin}" && -f "${ROOT_DIR}/.secrets/hackme_coordinator_admin_token" ]]; then
     _admin="$(tr -d '\r\n' <"${ROOT_DIR}/.secrets/hackme_coordinator_admin_token")"
-    if [[ -n "${_admin}" && "${ORDERS_PUBLISH_TOKEN}" == "${_admin}" ]]; then
-      echo "[release] REFUSING: orders publish token must differ from coordinator admin token" >&2
-      exit 1
-    fi
+  fi
+  if [[ -n "${_admin}" && "${ORDERS_PUBLISH_TOKEN}" == "${_admin}" ]]; then
+    echo "[release] REFUSING: orders publish token must differ from coordinator admin token" >&2
+    exit 1
   fi
   printf '%s' "${ORDERS_PUBLISH_TOKEN}" >"${WIN_DIR}/pool.orders.token"
   printf '%s' "${ORDERS_PUBLISH_TOKEN}" >"${LINUX_DIR}/pool.orders.token"

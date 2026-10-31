@@ -83,12 +83,23 @@ func TestReadCoordinatorAdminTokenRejectsSymlink(t *testing.T) {
 func TestReadOrdersPublishToken(t *testing.T) {
 	dir := t.TempDir()
 	const want = "orders-publish-token-test-value!!"
-	if err := os.WriteFile(filepath.Join(dir, "pool.orders.token"), []byte(want+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "pool.orders.token"), []byte(want+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HACKME_REPO_ROOT", dir)
 	if got := ReadOrdersPublishToken(); got != want {
 		t.Fatalf("ReadOrdersPublishToken()=%q want %q", got, want)
+	}
+}
+
+func TestReadOrdersPublishTokenRejectsWorldReadable(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pool.orders.token"), []byte("leak\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HACKME_REPO_ROOT", dir)
+	if got := ReadOrdersPublishToken(); got != "" {
+		t.Fatalf("world-readable pool.orders.token must be rejected, got %q", got)
 	}
 }
 

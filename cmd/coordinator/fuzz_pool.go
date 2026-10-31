@@ -132,14 +132,22 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken, publishToken
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if !coordPoolReadOK(r, adminToken, workerToken, allowInsecure) {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
 		id := strings.TrimSpace(r.URL.Query().Get("id"))
 		if id == "" {
 			http.Error(w, "id required", http.StatusBadRequest)
 			return
+		}
+		isAdmin, isPublish, pubOK := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure)
+		if !coordPoolReadOK(r, adminToken, workerToken, allowInsecure) && !pubOK {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if isPublish && !isAdmin && !coordPoolReadOK(r, adminToken, workerToken, allowInsecure) {
+			ok, err := pf.CampaignIsOrdersPublish(r.Context(), id)
+			if err != nil || !ok {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
 		}
 		prog, err := pf.CampaignProgress(r.Context(), id)
 		if err == sql.ErrNoRows {
@@ -173,23 +181,28 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken, publishToken
 		_ = json.NewEncoder(w).Encode(prog)
 	})
 
-	// Admin-only findings mirror for Orders nodes (customer report rows).
+	// Admin or scoped Orders publish (orders_publish campaigns only) for findings mirror.
 	mux.HandleFunc("/api/fuzz/pool/campaigns/findings", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		if adminToken == "" && allowInsecure {
-			// loopback dev
-		} else if adminToken == "" || !coordAdminOK(r, adminToken) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
-			http.Error(w, "admin authentication required", http.StatusUnauthorized)
 			return
 		}
 		id := strings.TrimSpace(r.URL.Query().Get("id"))
 		if id == "" {
 			http.Error(w, "id required", http.StatusBadRequest)
 			return
+		}
+		isAdmin, isPublish, authed := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure)
+		if !authed {
+			writePublishAuthError(w)
+			return
+		}
+		if isPublish && !isAdmin {
+			ok, err := pf.CampaignIsOrdersPublish(r.Context(), id)
+			if err != nil || !ok {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
 		}
 		limit := 100
 		if s := strings.TrimSpace(r.URL.Query().Get("limit")); s != "" {
@@ -219,7 +232,8 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken, publishToken
 			return
 		}
 		// Admin or scoped Orders publish (desktop settle-pull). Worker token denied.
-		if _, _, ok := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure); !ok {
+		isAdmin, isPublish, ok := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure)
+		if !ok {
 			writePublishAuthError(w)
 			return
 		}
@@ -230,6 +244,21 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken, publishToken
 			}
 		}
 		campaignID := strings.TrimSpace(r.URL.Query().Get("campaign_id"))
+		if isPublish && !isAdmin {
+			if campaignID == "" {
+				http.Error(w, "campaign_id required for publish token", http.StatusBadRequest)
+				return
+			}
+			pub, err := pf.CampaignIsOrdersPublish(r.Context(), campaignID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if !pub {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+		}
 		countOnly := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("count")), "1") ||
 			strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("count")), "true")
 		if campaignID != "" && countOnly {
@@ -266,21 +295,40 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken, publishToken
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if _, _, ok := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure); !ok {
+		isAdmin, isPublish, ok := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure)
+		if !ok {
 			writePublishAuthError(w)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
 		var req struct {
-			IDs []int64 `json:"ids"`
+			IDs        []int64 `json:"ids"`
+			CampaignID string  `json:"campaign_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
-		n, err := pf.AckSettleOutbox(r.Context(), req.IDs)
+		var (
+			n   int64
+			err error
+		)
+		if isPublish && !isAdmin {
+			if strings.TrimSpace(req.CampaignID) == "" {
+				http.Error(w, "campaign_id required for publish token", http.StatusBadRequest)
+				return
+			}
+			n, err = pf.AckSettleOutboxForOrdersPublish(r.Context(), req.CampaignID, req.IDs)
+		} else {
+			n, err = pf.AckSettleOutbox(r.Context(), req.IDs)
+		}
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			msg := err.Error()
+			if strings.Contains(msg, "not orders_publish") || strings.Contains(msg, "campaign_id required") {
+				http.Error(w, msg, http.StatusForbidden)
+				return
+			}
+			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -568,6 +616,22 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken, publishToken
 		if isPublish && !isAdmin {
 			stripPublishEscalationConfig(req.Config)
 			req.Config["orders_publish"] = true
+			exists, err := pf.CampaignExists(r.Context(), req.ID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if exists {
+				pub, err := pf.CampaignIsOrdersPublish(r.Context(), req.ID)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				if !pub {
+					http.Error(w, "campaign id exists (not orders_publish) — publish cannot hijack", http.StatusConflict)
+					return
+				}
+			}
 		}
 		if err := pf.RegisterCampaign(r.Context(), poolfuzz.Campaign{
 			ID:            req.ID,

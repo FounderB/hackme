@@ -60,6 +60,19 @@ func envIntDefault(key string, def int) int {
 	return n
 }
 
+// envIntDefaultPositive treats 0 / negative / garbage as def (rate limits must not disable via 0).
+func envIntDefaultPositive(key string, def int) int {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return def
+	}
+	return n
+}
+
 func publishMaxBudgetRuns() int {
 	return envIntDefault("HACKME_ORDERS_PUBLISH_MAX_BUDGET_RUNS", 2048)
 }
@@ -69,11 +82,11 @@ func publishMaxBudgetSeconds() int {
 }
 
 func publishMaxPerHour() int {
-	return envIntDefault("HACKME_ORDERS_PUBLISH_MAX_PER_HOUR", 10)
+	return envIntDefaultPositive("HACKME_ORDERS_PUBLISH_MAX_PER_HOUR", 10)
 }
 
 func publishMaxPerDay() int {
-	return envIntDefault("HACKME_ORDERS_PUBLISH_MAX_PER_DAY", 40)
+	return envIntDefaultPositive("HACKME_ORDERS_PUBLISH_MAX_PER_DAY", 40)
 }
 
 func coordPublishOK(r *http.Request, publishToken string) bool {

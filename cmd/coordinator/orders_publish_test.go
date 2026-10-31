@@ -116,21 +116,47 @@ func TestOrdersPublishTokenDeniedOnAdminRoutes(t *testing.T) {
 
 func TestOrdersPublishTokenMaySettleOutbox(t *testing.T) {
 	mux := ordersPublishMux(t)
+	// Global outbox forbidden for publish.
 	req := httptest.NewRequest(http.MethodGet, "/api/fuzz/pool/settle/outbox?limit=8", nil)
 	req.Header.Set("X-Hackme-Admin-Token", "publish-tok")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("publish outbox GET want 200, got %d %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("publish global outbox want 400, got %d %s", rec.Code, rec.Body.String())
 	}
-	raw, _ := json.Marshal(map[string]any{"ids": []int64{}})
+	// Register orders_publish campaign then scoped GET/ACK.
+	rec = publishReq(t, mux, "publish-tok", map[string]any{
+		"id": "camp-settle-1", "budget_runs": 8, "budget_seconds": 60,
+		"config": map[string]any{"dig_package": "scan", "guard_pack": "secrets"},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("register want 200, got %d %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/fuzz/pool/settle/outbox?campaign_id=camp-settle-1&limit=8", nil)
+	req.Header.Set("X-Hackme-Admin-Token", "publish-tok")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("publish scoped outbox GET want 200, got %d %s", rec.Code, rec.Body.String())
+	}
+	raw, _ := json.Marshal(map[string]any{"ids": []int64{}, "campaign_id": "camp-settle-1"})
 	req = httptest.NewRequest(http.MethodPost, "/api/fuzz/pool/settle/outbox/ack", bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Hackme-Admin-Token", "publish-tok")
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("publish outbox ACK want 200, got %d %s", rec.Code, rec.Body.String())
+		t.Fatalf("publish scoped ACK want 200, got %d %s", rec.Code, rec.Body.String())
+	}
+	// ACK without campaign_id rejected.
+	raw, _ = json.Marshal(map[string]any{"ids": []int64{1}})
+	req = httptest.NewRequest(http.MethodPost, "/api/fuzz/pool/settle/outbox/ack", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Hackme-Admin-Token", "publish-tok")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("publish ACK without campaign_id want 400, got %d", rec.Code)
 	}
 	// Replay remains admin-only.
 	raw, _ = json.Marshal(map[string]any{"campaign_id": "x"})
@@ -141,6 +167,24 @@ func TestOrdersPublishTokenMaySettleOutbox(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("publish must not settle/replay: got %d", rec.Code)
+	}
+}
+
+func TestOrdersPublishCannotHijackAdminCampaign(t *testing.T) {
+	mux := ordersPublishMux(t)
+	rec := publishReq(t, mux, "admin-tok", map[string]any{
+		"id": "admin-owned", "budget_runs": 8,
+		"config": map[string]any{"pool_distributed": true},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin create want 200, got %d", rec.Code)
+	}
+	rec = publishReq(t, mux, "publish-tok", map[string]any{
+		"id": "admin-owned", "budget_runs": 8,
+		"config": map[string]any{"dig_package": "scan", "guard_pack": "secrets"},
+	})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("hijack want 409, got %d %s", rec.Code, rec.Body.String())
 	}
 }
 

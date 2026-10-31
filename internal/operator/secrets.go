@@ -142,9 +142,10 @@ func OrdersPublishTokenPaths() []string {
 }
 
 // ReadOrdersPublishToken loads pool.orders.token (release / Orders profile).
+// Same hardening as admin/worker secrets: no symlinks, mode ≤ 0600.
 func ReadOrdersPublishToken() string {
 	for _, p := range OrdersPublishTokenPaths() {
-		b, err := os.ReadFile(p)
+		b, err := openSecretFile(p)
 		if err != nil {
 			continue
 		}

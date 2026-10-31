@@ -21,13 +21,38 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 	if a.chain == nil || !poolSyncCoordinatorConfigured() {
 		return nil
 	}
-	// Multi-pass catch-up until the outbox window is empty (or hard-stuck).
-	// Early "acked < 64 → break" used to return nil while unpaid rows remained,
-	// then cancel/finalize refunded the payer (report #23 residual).
+	// Scoped publish token cannot list/ACK the global outbox — drain per local escrow.
+	if poolsync.OrdersPublishToken() != "" {
+		ids, err := a.localOpenFuzzEscrowCampaignIDs(ctx)
+		if err != nil {
+			return err
+		}
+		var firstErr error
+		for _, cid := range ids {
+			if err := a.pullFuzzSettleOutboxWindow(ctx, cid, true); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		return firstErr
+	}
+	return a.pullFuzzSettleOutboxWindow(ctx, "", false)
+}
+
+// pullFuzzSettleOutboxWindow drains coordinator outbox (global admin or one campaign).
+// When scoped is true, campaignID is required and ACKs include campaign_id.
+func (a *app) pullFuzzSettleOutboxWindow(ctx context.Context, campaignID string, scoped bool) error {
 	const maxPasses = 32
 	totalAcked := 0
 	for pass := 0; pass < maxPasses; pass++ {
-		items, err := poolsync.FetchSettleOutbox(ctx, 256)
+		var (
+			items []poolsync.SettleOutboxItem
+			err   error
+		)
+		if scoped {
+			items, err = poolsync.FetchSettleOutboxForCampaign(ctx, campaignID, 256)
+		} else {
+			items, err = poolsync.FetchSettleOutbox(ctx, 256)
+		}
 		if err != nil {
 			log.Printf("fuzz settle pull: fetch outbox: %v", err)
 			return err
@@ -41,7 +66,6 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 		acked := make([]int64, 0, len(items))
 		localHits := 0
 		undrainable := 0
-		// Prefer run/crash_bonus/finding before finalize so refund cannot race ahead of payouts.
 		ordered := make([]poolsync.SettleOutboxItem, 0, len(items))
 		var finals []poolsync.SettleOutboxItem
 		for _, it := range items {
@@ -62,8 +86,6 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 			}
 			localHits++
 			kind := strings.TrimSpace(strings.ToLower(it.Kind))
-			// Do not finalize/close a campaign in the same pass after a non-drainable
-			// pay failure — that refunds while unpaid rows stay pending forever.
 			if fuzzSettleSkipFinalizeAfterPayFail(kind, it.CampaignID, payFailed) {
 				log.Printf("fuzz settle pull: skip %s for %s after pay failure in batch", kind, it.CampaignID)
 				continue
@@ -74,7 +96,6 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 				continue
 			}
 			if !apply {
-				// Closed escrow + unpaid run/finding — must not ACK (miner pay).
 				undrainable++
 				continue
 			}
@@ -105,13 +126,45 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 			}
 			return fmt.Errorf("fuzz settle pull: outbox not drained (%d pending, local_hits=%d)", len(items), localHits)
 		}
-		if err := poolsync.AckSettleOutbox(ctx, acked); err != nil {
-			log.Printf("fuzz settle pull: ack: %v", err)
-			return err
+		var ackErr error
+		if scoped {
+			ackErr = poolsync.AckSettleOutboxForCampaign(ctx, campaignID, acked)
+		} else {
+			ackErr = poolsync.AckSettleOutbox(ctx, acked)
+		}
+		if ackErr != nil {
+			log.Printf("fuzz settle pull: ack: %v", ackErr)
+			return ackErr
 		}
 		totalAcked += len(acked)
 	}
 	return fmt.Errorf("fuzz settle pull: outbox still pending after %d passes (acked=%d)", maxPasses, totalAcked)
+}
+
+func (a *app) localOpenFuzzEscrowCampaignIDs(ctx context.Context) ([]string, error) {
+	if a.db == nil {
+		return nil, nil
+	}
+	rows, err := a.db.QueryContext(ctx,
+		`SELECT campaign_id FROM fuzz_campaign_escrow
+		 WHERE status IN ('open','bounty_paid')
+		 ORDER BY campaign_id ASC LIMIT 500`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return out, err
+		}
+		id = strings.TrimSpace(id)
+		if id != "" {
+			out = append(out, id)
+		}
+	}
+	return out, rows.Err()
 }
 
 func (a *app) localFuzzEscrowStatus(ctx context.Context, campaignID string) (status string, ok bool) {

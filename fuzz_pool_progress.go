@@ -124,7 +124,7 @@ func (a *app) fetchCoordinatorPoolCampaignProgressErr(ctx context.Context, campa
 	if err != nil {
 		return coordinatorPoolCampaign{}, false, err
 	}
-	if tok := coordinatorAdminToken(); tok != "" {
+	if tok := coordinatorOrdersCustomerToken(); tok != "" {
 		req.Header.Set("X-Hackme-Admin-Token", tok)
 	}
 	res, err := netutil.HTTPClientNoRedirect(6 * time.Second).Do(req)
@@ -455,9 +455,9 @@ func (a *app) pullPoolFindingsFromCoordinator(ctx context.Context, campaignID st
 	if err != nil {
 		return 0, err
 	}
-	tok := coordinatorAdminToken()
+	tok := coordinatorOrdersCustomerToken()
 	if tok == "" {
-		return 0, fmt.Errorf("coordinator admin token required for findings mirror")
+		return 0, fmt.Errorf("orders publish or coordinator admin token required for findings mirror")
 	}
 	req.Header.Set("X-Hackme-Admin-Token", tok)
 	res, err := netutil.HTTPClientNoRedirect(12 * time.Second).Do(req)
