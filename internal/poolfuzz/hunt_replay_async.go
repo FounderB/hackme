@@ -645,8 +645,8 @@ func (s *Service) finalizeHuntSubmit(ctx context.Context, p finalizeHuntSubmitPa
 		minerBind = miner
 	}
 	wantRunSettle := s.Settler != nil && escrowEnabled(p.cfg) && minerBind != "" && p.pass
-	// Do not enqueue PayRun after pause/complete/cancel — origin escrow is often
-	// already closed and those rows become undrainable settle-outbox head.
+	// Do not enqueue PayRun after cancel — paused/completed still accept settle
+	// so in-flight floor/run rows can drain before finalize.
 	if wantRunSettle && !s.campaignAcceptsSettle(ctx, p.req.CampaignID) {
 		wantRunSettle = false
 	}

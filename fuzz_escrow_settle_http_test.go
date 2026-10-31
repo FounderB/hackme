@@ -105,6 +105,45 @@ func fundFuzzSettleEscrow(t *testing.T, ctx context.Context, db *sql.DB, svc *ch
 	}
 }
 
+func TestHandleFuzzPoolSettleRunFloorAccepted(t *testing.T) {
+	t.Setenv("HACKME_ADMIN_TOKEN", "settle-test-admin")
+	a, db := newFuzzSettleTestApp(t)
+	ctx := context.Background()
+	miner := "HMC-9876543210987654"
+	fundFuzzSettleEscrow(t, ctx, db, a.chain, "evt-floor", miner)
+
+	raw := []byte(`{"kind":"run_floor","campaign_id":"evt-floor","miner_address":"` + miner + `","event_id":"outbox:evt-floor:7"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/fuzz/pool/settle", bytes.NewReader(raw))
+	req.Header.Set("X-Hackme-Admin-Token", "settle-test-admin")
+	rec := httptest.NewRecorder()
+	a.handleFuzzPoolSettle(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("run_floor settle: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var bal uint64
+	if err := db.QueryRowContext(ctx, `SELECT balance_units FROM accounts WHERE address=?`, miner).Scan(&bal); err != nil {
+		t.Fatal(err)
+	}
+	if bal == 0 {
+		t.Fatal("expected miner credited on run_floor settle")
+	}
+	// Replay same event_id must not double-pay.
+	req2 := httptest.NewRequest(http.MethodPost, "/api/fuzz/pool/settle", bytes.NewReader(raw))
+	req2.Header.Set("X-Hackme-Admin-Token", "settle-test-admin")
+	rec2 := httptest.NewRecorder()
+	a.handleFuzzPoolSettle(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("run_floor replay: status=%d body=%s", rec2.Code, rec2.Body.String())
+	}
+	var bal2 uint64
+	if err := db.QueryRowContext(ctx, `SELECT balance_units FROM accounts WHERE address=?`, miner).Scan(&bal2); err != nil {
+		t.Fatal(err)
+	}
+	if bal2 != bal {
+		t.Fatalf("run_floor replay double-paid: bal1=%d bal2=%d", bal, bal2)
+	}
+}
+
 func TestHandleFuzzPoolSettleNumericEventIDRejected(t *testing.T) {
 	t.Setenv("HACKME_ADMIN_TOKEN", "settle-test-admin")
 	a, db := newFuzzSettleTestApp(t)

@@ -19,11 +19,14 @@ func TestFuzzSettleOutboxAction(t *testing.T) {
 		wantDrain bool
 	}{
 		{"open", "run", true, false},
+		{"open", "run_floor", true, false},
 		{"open", "finding", true, false},
 		{"open", "crash_bonus", true, false},
 		{"closed", "run", false, false}, // must not ACK unpaid runs after premature finalize
+		{"closed", "run_floor", false, false},
 		{"closed", "finalize", false, true},
 		{"bounty_paid", "run", true, false},
+		{"bounty_paid", "run_floor", true, false},
 		{"bounty_paid", "finding", false, true},
 		{"bounty_paid", "finalize", true, false},
 		{"unknown", "run", false, false},
