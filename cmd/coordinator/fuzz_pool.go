@@ -37,7 +37,7 @@ func coordPoolReadOK(r *http.Request, adminToken, workerToken string, allowInsec
 	return false
 }
 
-func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allowInsecure bool, wm *workManager, pf *poolfuzz.Service) {
+func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken, publishToken string, allowInsecure bool, wm *workManager, pf *poolfuzz.Service) {
 	if pf == nil {
 		return
 	}
@@ -218,11 +218,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if adminToken == "" && allowInsecure {
-			// loopback dev
-		} else if adminToken == "" || !coordAdminOK(r, adminToken) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
-			http.Error(w, "admin authentication required", http.StatusUnauthorized)
+		// Admin or scoped Orders publish (desktop settle-pull). Worker token denied.
+		if _, _, ok := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure); !ok {
+			writePublishAuthError(w)
 			return
 		}
 		limit := 64
@@ -268,11 +266,8 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if adminToken == "" && allowInsecure {
-			// loopback dev
-		} else if adminToken == "" || !coordAdminOK(r, adminToken) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
-			http.Error(w, "admin authentication required", http.StatusUnauthorized)
+		if _, _, ok := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure); !ok {
+			writePublishAuthError(w)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
@@ -503,11 +498,9 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if adminToken == "" && allowInsecure {
-			// loopback dev
-		} else if adminToken == "" || !coordAdminOK(r, adminToken) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="hackme-coordinator"`)
-			http.Error(w, "admin authentication required", http.StatusUnauthorized)
+		isAdmin, isPublish, authed := campaignRegisterAuthed(r, adminToken, publishToken, allowInsecure)
+		if !authed {
+			writePublishAuthError(w)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxCoordinatorJSONBodyBytes)
@@ -534,6 +527,32 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			req.Config = map[string]any{}
 		}
 		req.Config["pool_distributed"] = true
+		if isPublish && !isAdmin {
+			stripPublishEscalationConfig(req.Config)
+			if err := validatePublishCampaignCaps(publishCampaignReq{
+				ID: req.ID, Status: req.Status, Title: req.Title, Description: req.Description,
+				OwnerRef: req.OwnerRef, BudgetRuns: req.BudgetRuns, BudgetSeconds: req.BudgetSeconds, Config: req.Config,
+			}); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			// Force safe lifecycle — register upsert must not cancel/complete via publish.
+			st := strings.ToLower(strings.TrimSpace(req.Status))
+			if st == "" || st == "planned" {
+				req.Status = st
+				if st == "" {
+					req.Status = "running"
+				}
+			} else {
+				req.Status = "running"
+			}
+			if !publishRateAllow(r) {
+				http.Error(w, "orders publish rate limit exceeded", http.StatusTooManyRequests)
+				return
+			}
+			req.Config["orders_publish"] = true
+			stripPublishEscalationConfig(req.Config) // again after any finalize side effects below
+		}
 		// Dig (non-Hunt) campaigns get the same depth pack/mutator/seed finalize as local B2B.
 		if !poolfuzz.IsHuntCampaign(req.Config) {
 			repoRoot := strings.TrimSpace(os.Getenv("HACKME_REPO_ROOT"))
@@ -545,6 +564,10 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			pack := configString(req.Config, "guard_pack", "guard_name")
 			pkg := configString(req.Config, "dig_package")
 			req.Config = fuzzingcli.FinalizeDigCampaignConfig(req.Config, pkg, pack, repoRoot)
+		}
+		if isPublish && !isAdmin {
+			stripPublishEscalationConfig(req.Config)
+			req.Config["orders_publish"] = true
 		}
 		if err := pf.RegisterCampaign(r.Context(), poolfuzz.Campaign{
 			ID:            req.ID,
@@ -567,11 +590,14 @@ func addFuzzPoolRoutes(mux *http.ServeMux, adminToken, workerToken string, allow
 			_ = pf.EnsureWorkItems(ctx, campaignID, time.Now().Unix())
 		}()
 		attach := map[string]any{"ok": false, "skipped": true, "reason": "no_work_manager"}
-		if wm != nil {
+		// Publish token must never attach PoH escrow (admin-only escalation).
+		if isPublish && !isAdmin {
+			attach = map[string]any{"ok": false, "skipped": true, "reason": "orders_publish_no_poh_attach"}
+		} else if wm != nil {
 			attach = wm.attachPoHOrderFromFuzzConfig(req.ID, req.Config)
 		}
 		wantAttach := false
-		if req.Config != nil {
+		if req.Config != nil && !(isPublish && !isAdmin) {
 			wantAttach = configTruthy(req.Config, "attach_poh_order", "create_poh_order")
 		}
 		if wantAttach {

@@ -35,7 +35,7 @@ func report32Mux(t *testing.T) *http.ServeMux {
 		dropReasonCount:     make(map[string]uint64),
 	}
 	mux := http.NewServeMux()
-	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", false, wm, pf)
+	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", "", false, wm, pf)
 	addCorpusNamespaceRoute(mux, "admin-tok", false, pf)
 	return mux
 }

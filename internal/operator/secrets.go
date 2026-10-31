@@ -96,8 +96,8 @@ func ReadCoordinatorWorkerToken() string {
 	return readCoordinatorTokenFile(CoordinatorWorkerTokenPaths())
 }
 
-// OrdersPublishTokenPaths returns candidate paths for the public B2B pool register token
-// (coordinator admin class — not the miner worker pool.miner.token).
+// OrdersPublishTokenPaths returns candidate paths for the scoped B2B Orders publish token
+// (campaign register + settle-pull only — not admin, not miner pool.miner.token).
 func OrdersPublishTokenPaths() []string {
 	var paths []string
 	seen := make(map[string]struct{})

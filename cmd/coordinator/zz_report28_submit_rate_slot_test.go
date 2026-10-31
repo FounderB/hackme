@@ -45,7 +45,7 @@ func report28Setup(t *testing.T, submitPerMin int) (*workManager, *http.ServeMux
 	}
 	wm.attachDedupDB(db)
 	mux := http.NewServeMux()
-	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", false, wm, pf)
+	addFuzzPoolRoutes(mux, "admin-tok", "worker-tok", "", false, wm, pf)
 	addWorkRoutes(mux, "admin-tok", "worker-tok", false, lanpool.NewRegistry(), wm, nil)
 	return wm, mux
 }

@@ -19,9 +19,16 @@ func TestEnsurePoolCoordinatorAdminTokenEnvLoadsOrdersPublishFile(t *testing.T) 
 	t.Setenv("HACKME_REPO_ROOT", dir)
 	t.Setenv("HACKME_COORDINATOR_ADMIN_TOKEN", "")
 	t.Setenv("HACKME_POOL_COORDINATOR_ADMIN_TOKEN", "")
+	t.Setenv("HACKME_POOL_ORDERS_PUBLISH_TOKEN", "")
+	t.Setenv("HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN", "")
+	t.Setenv("HACKME_ORDERS_PUBLISH_TOKEN", "")
 	ensurePoolCoordinatorAdminTokenEnv()
-	if got := os.Getenv("HACKME_POOL_COORDINATOR_ADMIN_TOKEN"); got != want {
-		t.Fatalf("HACKME_POOL_COORDINATOR_ADMIN_TOKEN=%q want %q", got, want)
+	if got := os.Getenv("HACKME_POOL_ORDERS_PUBLISH_TOKEN"); got != want {
+		t.Fatalf("HACKME_POOL_ORDERS_PUBLISH_TOKEN=%q want %q", got, want)
+	}
+	// Admin may load from real operator secrets on this machine; publish must never be copied there.
+	if got := os.Getenv("HACKME_POOL_COORDINATOR_ADMIN_TOKEN"); got == want {
+		t.Fatalf("publish token must not load into admin env")
 	}
 }
 

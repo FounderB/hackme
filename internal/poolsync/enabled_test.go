@@ -7,14 +7,21 @@ func TestFuzzSettlePullEnabled(t *testing.T) {
 	t.Setenv("HACKME_COORDINATOR_ADMIN_TOKEN", "")
 	t.Setenv("HACKME_POOL_COORDINATOR_ADMIN_TOKEN", "")
 	t.Setenv("HACKME_POOL_COORDINATOR_TOKEN", "")
+	t.Setenv("HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN", "")
+	t.Setenv("HACKME_POOL_ORDERS_PUBLISH_TOKEN", "")
 	if FuzzSettlePullEnabled() {
-		t.Fatal("want disabled without admin token")
+		t.Fatal("want disabled without customer token")
 	}
 	// Worker pool token must NOT enable settle pull (public pool returns 401).
 	t.Setenv("HACKME_POOL_COORDINATOR_TOKEN", "worker-only-token")
 	if FuzzSettlePullEnabled() {
 		t.Fatal("worker pool token must not enable settle pull")
 	}
+	t.Setenv("HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN", "publish-test")
+	if !FuzzSettlePullEnabled() {
+		t.Fatal("want enabled with orders publish token")
+	}
+	t.Setenv("HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN", "")
 	t.Setenv("HACKME_COORDINATOR_ADMIN_TOKEN", "admin-test")
 	if !FuzzSettlePullEnabled() {
 		t.Fatal("want enabled with admin token")

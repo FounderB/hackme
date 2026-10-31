@@ -10,13 +10,20 @@ func TestScrubBuildEnvDropsHubTokens(t *testing.T) {
 		"PATH=/usr/bin",
 		"HACKME_ADMIN_TOKEN=admin",
 		"HACKME_SETTLEMENT_ADMIN_TOKEN=settle",
+		"HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN=pub",
+		"HACKME_POOL_ORDERS_PUBLISH_TOKEN=pub2",
+		"HACKME_ORDERS_PUBLISH_TOKEN=pub3",
 		"COORD_TOKEN=x",
 		"AFL_PATH=/opt/afl",
 		"RUSTFLAGS=-Zsanitizer=address",
 	}
 	out := ScrubBuildEnv(in)
 	joined := strings.Join(out, "\n")
-	for _, bad := range []string{"HACKME_ADMIN_TOKEN=", "HACKME_SETTLEMENT_ADMIN_TOKEN=", "COORD_TOKEN="} {
+	for _, bad := range []string{
+		"HACKME_ADMIN_TOKEN=", "HACKME_SETTLEMENT_ADMIN_TOKEN=", "COORD_TOKEN=",
+		"HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN=", "HACKME_POOL_ORDERS_PUBLISH_TOKEN=",
+		"HACKME_ORDERS_PUBLISH_TOKEN=",
+	} {
 		if strings.Contains(joined, bad) {
 			t.Fatalf("secret leaked: %s\n%s", bad, joined)
 		}

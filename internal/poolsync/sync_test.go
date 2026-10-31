@@ -9,6 +9,21 @@ import (
 	"testing"
 )
 
+func TestOrdersPublishTokenPreferred(t *testing.T) {
+	t.Setenv("HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN", "pub-only")
+	t.Setenv("HACKME_COORDINATOR_ADMIN_TOKEN", "admin-only")
+	t.Setenv("HACKME_POOL_COORDINATOR_TOKEN", "worker-only")
+	if got := OrdersPublishToken(); got != "pub-only" {
+		t.Fatalf("publish=%q", got)
+	}
+	if got := adminToken(); got != "pub-only" {
+		t.Fatalf("register auth should prefer publish, got %q", got)
+	}
+	if got := CoordinatorAdminToken(); got != "admin-only" {
+		t.Fatalf("admin must stay admin, got %q", got)
+	}
+}
+
 func TestRegisterWithRetryOK(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/fuzz/pool/campaigns" {

@@ -53,12 +53,12 @@ func CountPendingSettleOutbox(ctx context.Context, campaignID string) (int64, er
 		return 0, fmt.Errorf("settle outbox: campaign_id required")
 	}
 	coordURL := ResolveCoordinatorURL()
-	token := CoordinatorAdminToken()
+	token := OrdersCustomerToken()
 	if coordURL == "" {
 		return 0, nil
 	}
 	if token == "" {
-		return 0, fmt.Errorf("settle outbox: coordinator admin token required")
+		return 0, fmt.Errorf("settle outbox: orders publish or coordinator admin token required")
 	}
 	q := url.Values{}
 	q.Set("campaign_id", campaignID)
@@ -88,12 +88,12 @@ func CountPendingSettleOutbox(ctx context.Context, campaignID string) (int64, er
 
 func fetchSettleOutboxQuery(ctx context.Context, limit int, campaignID string) ([]SettleOutboxItem, error) {
 	coordURL := ResolveCoordinatorURL()
-	token := CoordinatorAdminToken()
+	token := OrdersCustomerToken()
 	if coordURL == "" {
 		return nil, nil
 	}
 	if token == "" {
-		return nil, fmt.Errorf("settle outbox: coordinator admin token required")
+		return nil, fmt.Errorf("settle outbox: orders publish or coordinator admin token required")
 	}
 	if limit <= 0 || limit > 500 {
 		limit = 64
@@ -205,12 +205,12 @@ func AckSettleOutbox(ctx context.Context, ids []int64) error {
 		return nil
 	}
 	coordURL := ResolveCoordinatorURL()
-	token := CoordinatorAdminToken()
+	token := OrdersCustomerToken()
 	if coordURL == "" {
 		return nil
 	}
 	if token == "" {
-		return fmt.Errorf("settle outbox ack: coordinator admin token required")
+		return fmt.Errorf("settle outbox ack: orders publish or coordinator admin token required")
 	}
 	body, _ := json.Marshal(map[string]any{"ids": ids})
 	var lastErr error

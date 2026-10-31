@@ -88,35 +88,34 @@ if "!HACKME_ADMIN_TOKEN!"=="" (
   exit /b 1
 )
 
-rem Pool Dig/Hunt register needs coordinator URL + admin-class publish token (not pool.miner.token).
+rem Pool Dig/Hunt register needs coordinator URL + scoped publish token (not miner/admin).
 set "COORD_URL=https://hackme.tech/pool/coordinator"
 if "!HACKME_POOL_COORDINATOR_URL!"=="" set "HACKME_POOL_COORDINATOR_URL=!COORD_URL!"
 findstr /B /I "HACKME_POOL_COORDINATOR_URL=" "%ENV_FILE%" >nul 2>&1 || (
   echo HACKME_POOL_COORDINATOR_URL=!COORD_URL!>> "%ENV_FILE%"
 )
-set "HAS_POOL_ADMIN="
+set "HAS_ORDERS_PUBLISH="
 for /f "usebackq tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
-  if /I "%%~A"=="HACKME_POOL_COORDINATOR_ADMIN_TOKEN" if not "%%~B"=="" set "HAS_POOL_ADMIN=1"
-  if /I "%%~A"=="HACKME_COORDINATOR_ADMIN_TOKEN" if not "%%~B"=="" set "HAS_POOL_ADMIN=1"
+  if /I "%%~A"=="HACKME_POOL_ORDERS_PUBLISH_TOKEN" if not "%%~B"=="" set "HAS_ORDERS_PUBLISH=1"
+  if /I "%%~A"=="HACKME_COORDINATOR_ORDERS_PUBLISH_TOKEN" if not "%%~B"=="" set "HAS_ORDERS_PUBLISH=1"
 )
-if not "!HAS_POOL_ADMIN!"=="1" (
+if not "!HAS_ORDERS_PUBLISH!"=="1" (
   set "ORD_PUB="
   if exist "%APP_DIR%\pool.orders.token" (
     for /f "usebackq delims=" %%T in ("%APP_DIR%\pool.orders.token") do set "ORD_PUB=%%T"
   )
-  if "!ORD_PUB!"=="" if exist "%APP_DIR%\.secrets\hackme_coordinator_admin_token" (
-    for /f "usebackq delims=" %%T in ("%APP_DIR%\.secrets\hackme_coordinator_admin_token") do set "ORD_PUB=%%T"
+  if "!ORD_PUB!"=="" if exist "%APP_DIR%\.secrets\hackme_coordinator_orders_publish_token" (
+    for /f "usebackq delims=" %%T in ("%APP_DIR%\.secrets\hackme_coordinator_orders_publish_token") do set "ORD_PUB=%%T"
   )
   if not "!ORD_PUB!"=="" if /I not "!ORD_PUB!"=="REPLACE_WITH_ORDERS_PUBLISH_TOKEN" (
-    echo HACKME_POOL_COORDINATOR_ADMIN_TOKEN=!ORD_PUB!>> "%ENV_FILE%"
-    set "HACKME_POOL_COORDINATOR_ADMIN_TOKEN=!ORD_PUB!"
-    echo Repaired pool register token from pool.orders.token
+    echo HACKME_POOL_ORDERS_PUBLISH_TOKEN=!ORD_PUB!>> "%ENV_FILE%"
+    set "HACKME_POOL_ORDERS_PUBLISH_TOKEN=!ORD_PUB!"
+    echo Set scoped pool publish token from pool.orders.token
   ) else (
     echo.
-    echo NOTE: pool.orders.token is not shipped in public installers.
-    echo Local Dig/Hunt on this PC still work. To publish campaigns to the
-    echo public pool, ask the operator for a scoped Orders publish token and
-    echo save it as:  %APP_DIR%\pool.orders.token
+    echo NOTE: no pool.orders.token yet — local Dig/Hunt still work.
+    echo rc18.1+ Orders bundles ship a scoped publish token; or save one as:
+    echo   %APP_DIR%\pool.orders.token
     echo.
   )
 )
