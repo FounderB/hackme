@@ -269,8 +269,14 @@ WHERE excluded.accepted_attempts >= worker_accrual.accepted_attempts
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, alive := wm.fetchDurableAccrual("evil"); !alive {
-		t.Fatal("stale INSERT should have resurrected row before epoch purge")
+	var rawN int
+	_ = wm.dedupDB.QueryRow(`SELECT COUNT(1) FROM worker_accrual WHERE worker_id=?`, "evil").Scan(&rawN)
+	if rawN != 1 {
+		t.Fatalf("stale INSERT should land a raw row before purge, got %d", rawN)
+	}
+	// Tombstone hides the row from settle/load even before purge.
+	if _, alive := wm.fetchDurableAccrual("evil"); alive {
+		t.Fatal("tombstone must hide stale INSERT from fetchDurableAccrual")
 	}
 
 	// Fixed persist post-check: epoch mismatch → purge.
@@ -360,5 +366,64 @@ func TestPruneDoesNotBumpAccrualEpoch(t *testing.T) {
 	wm.persistWorkerAccrual("keep", true)
 	if _, ok := wm.fetchDurableAccrual("keep"); !ok {
 		t.Fatal("persist after prune must not wipe durable")
+	}
+}
+
+func TestTombstoneBlocksRestartAfterStaleInsert(t *testing.T) {
+	dir := t.TempDir()
+	db, err := store.Open(filepath.Join(dir, "accrual-tombstone.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	wm := &workManager{
+		worker:       map[string]workerPayoutStat{},
+		accrualEpoch: map[string]uint64{},
+		abuse:        map[string]workerAbuseState{},
+		ipAbuse:      map[string]workerAbuseState{},
+	}
+	wm.attachDedupDB(db)
+	wm.mu.Lock()
+	wm.worker["evil"] = workerPayoutStat{AcceptedAtt: 9_000_000, PayoutHMC: 5, PayoutUnits: 500_000_000}
+	wm.mu.Unlock()
+	wm.persistWorkerAccrual("evil", true)
+
+	_ = wm.revokeWorker("evil", "9.9.9.9", true)
+	if !wm.accrualRevoked("evil") {
+		t.Fatal("revoke must stamp durable tombstone")
+	}
+
+	// Crash window: stale INSERT after revoke DELETE (epoch purge never ran).
+	_, err = wm.dedupDB.Exec(`
+INSERT INTO worker_accrual (
+  worker_id, accepted_ranges, accepted_hits, accepted_attempts,
+  payout_hmc, payout_units, payout_sup, payout_address, signed_submits,
+  last_ghs, peak_ghs, last_seen_unix, last_poh_seen_unix, last_fuzz_seen_unix, updated_at
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		"evil", 0, 0, 9_000_000, 5.0, 500_000_000, 0.0, "HMC-evil", 0, 0.0, 0.0, 0, 0, 0, 99)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Restart load must skip tombstoned unpaid.
+	wm2 := &workManager{worker: map[string]workerPayoutStat{}}
+	wm2.attachDedupDB(db)
+	if _, exists := wm2.worker["evil"]; exists {
+		t.Fatal("restart must not rehydrate tombstoned accrual")
+	}
+	if _, ok := wm2.fetchDurableAccrual("evil"); ok {
+		t.Fatal("fetchDurableAccrual must hide tombstoned rows")
+	}
+
+	// persistWorkerAccrual must purge resurrection when tombstone is set.
+	wm.mu.Lock()
+	wm.worker["evil"] = workerPayoutStat{AcceptedAtt: 9_000_000, PayoutHMC: 5}
+	wm.mu.Unlock()
+	wm.persistWorkerAccrual("evil", true)
+	var n int
+	_ = db.QueryRow(`SELECT COUNT(1) FROM worker_accrual WHERE worker_id=?`, "evil").Scan(&n)
+	if n != 0 {
+		t.Fatalf("persist under tombstone must leave accrual empty, got %d", n)
 	}
 }

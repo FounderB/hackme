@@ -2875,6 +2875,11 @@ func (m *workManager) submit(req submitWorkRequest) (accepted bool, reason strin
 	}
 	m.worker[req.WorkerID] = st
 	m.totalPayoutHMC += payout
+	// Soft-revoke may have left a durable tombstone; fresh credited work clears it.
+	// Permaban still blocks submit earlier — never clear for hard-banned workers.
+	if !m.isHardPermabannedLocked(req.WorkerID, "") {
+		m.clearAccrualRevokedLocked(req.WorkerID)
+	}
 	// Durable accrual: survive coordinator restart (session_anchor alone abandons unpaid growth).
 	go m.persistWorkerAccrual(req.WorkerID, false)
 	// Keep pool M aligned with live fleet GH/s even when nothing polls /api/work/stats (top pools

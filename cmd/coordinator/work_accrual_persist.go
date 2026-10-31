@@ -45,6 +45,14 @@ CREATE TABLE IF NOT EXISTS accrual_journal (
 CREATE INDEX IF NOT EXISTS idx_accrual_journal_worker_ts ON accrual_journal(worker_id, created_at);
 `
 
+// Durable revoke tombstone: survives crash between stale persist INSERT and epoch purge
+// so loadWorkerAccruals / settle cannot resurrect unpaid after revoke.
+const workerAccrualRevokedTable = `
+CREATE TABLE IF NOT EXISTS worker_accrual_revoked (
+  worker_id TEXT PRIMARY KEY,
+  revoked_at INTEGER NOT NULL DEFAULT 0
+)`
+
 func migrateWorkerAccrualTable(db *sql.DB) error {
 	if db == nil {
 		return nil
@@ -55,6 +63,7 @@ func migrateWorkerAccrualTable(db *sql.DB) error {
 	_, _ = db.Exec(`ALTER TABLE worker_accrual ADD COLUMN payout_units INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`UPDATE worker_accrual SET payout_units = CAST(ROUND(payout_hmc * 100000000) AS INTEGER) WHERE payout_units = 0 AND payout_hmc > 0`)
 	_, _ = db.Exec(workerAccrualJournalTable)
+	_, _ = db.Exec(workerAccrualRevokedTable)
 	ensureSharePriceJournal(db)
 	ensurePoolPayDayTable(db)
 	return nil
@@ -65,10 +74,12 @@ func (m *workManager) loadWorkerAccruals() {
 		return
 	}
 	rows, err := m.dedupDB.Query(`
-SELECT worker_id, accepted_ranges, accepted_hits, accepted_attempts,
-       payout_hmc, COALESCE(payout_units,0), payout_sup, payout_address, signed_submits,
-       last_ghs, peak_ghs, last_seen_unix, last_poh_seen_unix, last_fuzz_seen_unix
-FROM worker_accrual`)
+SELECT a.worker_id, a.accepted_ranges, a.accepted_hits, a.accepted_attempts,
+       a.payout_hmc, COALESCE(a.payout_units,0), a.payout_sup, a.payout_address, a.signed_submits,
+       a.last_ghs, a.peak_ghs, a.last_seen_unix, a.last_poh_seen_unix, a.last_fuzz_seen_unix
+FROM worker_accrual a
+LEFT JOIN worker_accrual_revoked r ON r.worker_id = a.worker_id
+WHERE r.worker_id IS NULL`)
 	if err != nil {
 		log.Printf("worker accrual load: %v", err)
 		return
@@ -135,6 +146,9 @@ func (m *workManager) fetchDurableAccrual(workerID string) (workerPayoutStat, bo
 	}
 	workerID = strings.TrimSpace(workerID)
 	if workerID == "" {
+		return st, false
+	}
+	if m.accrualRevoked(workerID) {
 		return st, false
 	}
 	var addr string
@@ -219,7 +233,7 @@ func accrualPersistMinGapSec() int64 {
 	return 2 // throttle DB writes on the hot submit path
 }
 
-// deleteWorkerAccrualLocked removes durable unpaid for workerID.
+// deleteWorkerAccrualLocked removes durable unpaid for workerID and stamps a revoke tombstone.
 // Caller must hold m.mu. Safe no-op when DB is nil.
 func (m *workManager) deleteWorkerAccrualLocked(workerID string) {
 	if m == nil || m.dedupDB == nil {
@@ -229,6 +243,13 @@ func (m *workManager) deleteWorkerAccrualLocked(workerID string) {
 	if workerID == "" {
 		return
 	}
+	now := time.Now().Unix()
+	if _, err := m.dedupDB.Exec(
+		`INSERT INTO worker_accrual_revoked(worker_id, revoked_at) VALUES(?,?)
+		 ON CONFLICT(worker_id) DO UPDATE SET revoked_at=excluded.revoked_at`,
+		workerID, now); err != nil {
+		log.Printf("worker accrual tombstone id=%s err=%v", sanitizeLogToken(workerID), err)
+	}
 	if _, err := m.dedupDB.Exec(`DELETE FROM worker_accrual WHERE worker_id=?`, workerID); err != nil {
 		// Avoid logging raw worker_id (code-scanning go/log-injection); token is sanitized.
 		log.Printf("worker accrual revoke id=%s err=%v", sanitizeLogToken(workerID), err)
@@ -236,6 +257,34 @@ func (m *workManager) deleteWorkerAccrualLocked(workerID string) {
 	accrualPersistMu.Lock()
 	delete(accrualPersistLast, workerID)
 	accrualPersistMu.Unlock()
+}
+
+// clearAccrualRevokedLocked drops the tombstone so a soft-revoked worker can accrue again.
+// Caller must hold m.mu. No-op when permabanned (submit path should not clear).
+func (m *workManager) clearAccrualRevokedLocked(workerID string) {
+	if m == nil || m.dedupDB == nil {
+		return
+	}
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return
+	}
+	if _, err := m.dedupDB.Exec(`DELETE FROM worker_accrual_revoked WHERE worker_id=?`, workerID); err != nil {
+		log.Printf("worker accrual clear tombstone id=%s err=%v", sanitizeLogToken(workerID), err)
+	}
+}
+
+func (m *workManager) accrualRevoked(workerID string) bool {
+	if m == nil || m.dedupDB == nil {
+		return false
+	}
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return false
+	}
+	var n int
+	err := m.dedupDB.QueryRow(`SELECT COUNT(1) FROM worker_accrual_revoked WHERE worker_id=?`, workerID).Scan(&n)
+	return err == nil && n > 0
 }
 
 // bumpAccrualEpochLocked invalidates in-flight persist snapshots for workerID.
@@ -295,6 +344,14 @@ func (m *workManager) persistWorkerAccrual(workerID string, force bool) {
 	snap := st
 	m.mu.Unlock()
 
+	// Tombstone wins over any stale snapshot (crash-safe vs epoch-only purge).
+	if m.accrualRevoked(workerID) {
+		if _, err := m.dedupDB.Exec(`DELETE FROM worker_accrual WHERE worker_id=?`, workerID); err != nil {
+			log.Printf("worker accrual tombstone purge id=%s err=%v", sanitizeLogToken(workerID), err)
+		}
+		return
+	}
+
 	// Monotonic upsert: a delayed goroutine must not overwrite a newer accepted_attempts row.
 	pu := snap.PayoutUnits
 	if pu == 0 && snap.PayoutHMC > 0 {
@@ -313,6 +370,14 @@ func (m *workManager) persistWorkerAccrual(workerID string, force bool) {
 			_ = tx.Rollback()
 		}
 	}()
+	var revoked int
+	_ = tx.QueryRow(`SELECT COUNT(1) FROM worker_accrual_revoked WHERE worker_id=?`, workerID).Scan(&revoked)
+	if revoked > 0 {
+		_, _ = tx.Exec(`DELETE FROM worker_accrual WHERE worker_id=?`, workerID)
+		_ = tx.Commit()
+		committed = true
+		return
+	}
 	var prevUnits uint64
 	_ = tx.QueryRow(`SELECT COALESCE(payout_units,0) FROM worker_accrual WHERE worker_id=?`, workerID).Scan(&prevUnits)
 	res, err := tx.Exec(`
