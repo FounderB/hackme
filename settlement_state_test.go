@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -99,6 +100,17 @@ func TestMergeCanonicalSettlementStateFresherRemoteMayLower(t *testing.T) {
 	}
 	if local.Workers["w1"].LastTxHash != "vps" {
 		t.Fatalf("tx=%q", local.Workers["w1"].LastTxHash)
+	}
+}
+
+func TestFetchCanonicalSettlementStateHTTPRejectsMetadata(t *testing.T) {
+	t.Setenv("HACKME_SETTLEMENT_CANONICAL_URL", "http://169.254.169.254/latest/meta-data")
+	t.Setenv("HACKME_ALLOW_PRIVATE_EGRESS", "0")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := fetchCanonicalSettlementStateHTTP(ctx)
+	if err == nil || !strings.Contains(err.Error(), "not safe for egress") {
+		t.Fatalf("metadata must be rejected, got %v", err)
 	}
 }
 

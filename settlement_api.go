@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"hackme/internal/netutil"
 	"hackme/internal/poolauth"
 	"hackme/internal/workerid"
 )
@@ -149,15 +150,15 @@ var settlementCanonicalHTTP *http.Client
 
 func settlementCanonicalHTTPClient() *http.Client {
 	settlementCanonicalHTTPOnce.Do(func() {
-		settlementCanonicalHTTP = &http.Client{
-			Timeout: 2 * time.Second,
-			Transport: &http.Transport{
-				Proxy:                 nil,
-				ForceAttemptHTTP2:     false,
-				TLSHandshakeTimeout:   3 * time.Second,
-				ResponseHeaderTimeout: 2 * time.Second,
-			},
+		// Same floor as wallet/curl: never follow redirects (token-less but still SSRF).
+		c := netutil.HTTPClientNoRedirect(2 * time.Second)
+		c.Transport = &http.Transport{
+			Proxy:                 nil,
+			ForceAttemptHTTP2:     false,
+			TLSHandshakeTimeout:   3 * time.Second,
+			ResponseHeaderTimeout: 2 * time.Second,
 		}
+		settlementCanonicalHTTP = c
 	})
 	return settlementCanonicalHTTP
 }
@@ -165,6 +166,9 @@ func settlementCanonicalHTTPClient() *http.Client {
 func fetchCanonicalSettlementStateHTTP(ctx context.Context) (workerSettlementState, error) {
 	var out workerSettlementState
 	url := canonicalSettlementStateURL()
+	if !netutil.SafeHTTPURLForEgressAllowLab(url) {
+		return out, fmt.Errorf("canonical settlement url not safe for egress")
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return out, err
