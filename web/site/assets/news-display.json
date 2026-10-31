@@ -1,11 +1,28 @@
 {
   "items": [
     {
+      "id": "2026-10-31-rc18-1-orders-publish",
+      "date": "2026-10-31",
+      "title": "0.1.0-rc18.1 — Orders publish token · pool Dig/Hunt without admin",
+      "summary": "Current channel is 0.1.0-rc18.1. Orders bundles ship a scoped pool.orders.token so Dig/Hunt campaigns can register on the public pool without a full coordinator admin key. Caps and rate limits apply; settle-pull is campaign-scoped; PoH attach and cancel stay admin-only. Blake3 share-PPS, CUDA/OpenCL, Win/Linux/deb/ISO, and B2B fuzzing CLI (hackme-fuzzing + hackme-fuzzing-build) continue from rc18.",
+      "impact": "Orders customers: upgrade to 0.1.0-rc18.1 Orders profile (Win Setup → Orders, Linux → bash start_hackme_orders.sh). pool.orders.token loads as HACKME_POOL_ORDERS_PUBLISH_TOKEN — not admin, not miner. Miners: same share-PPS path; no token change. Verify SHA256SUMS before install.",
+      "action": "Downloads: https://hackme.tech/downloads.html · Orders: https://hackme.tech/orders.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1 · Docs: https://github.com/jokeez/hackme/blob/main/docs/ORDERS_PUBLISH.md",
+      "tags": [
+        "release",
+        "rc18.1",
+        "orders",
+        "publish",
+        "pool",
+        "security"
+      ],
+      "status": "published"
+    },
+    {
       "id": "2026-10-30-economics-v2-soft-announce",
       "date": "2026-10-30",
       "title": "Economics v2 — soft announce (design lock; not activated)",
       "summary": "Public RFC locks Economics v2 before any height switch: target 0.1 HMC/empty block, ~4-year halvings from genesis, permanent 0.002 HMC tail, no hard max-supply fiction, pool funded from emission (not perpetual treasury top-ups), clearer order fee/burn, SUP as utility. No airdrops. Activation only after D1 soak + published height with ≥14 days notice from tip — not a vanity block.",
-      "impact": "Operators and miners: read the RFC. Live network stays on current rc18 economics until a later announced activation height. Dig/Hunt package prices unchanged by this RFC. Do not treat 0.1 HMC/block as live yet.",
+      "impact": "Operators and miners: read the RFC. Live network stays on current rc18.1 economics until a later announced activation height. Dig/Hunt package prices unchanged by this RFC. Do not treat 0.1 HMC/block as live yet.",
       "action": "RFC: https://github.com/jokeez/hackme/blob/main/docs/RFC_ECONOMICS_V2.md · Economics overview: https://hackme.tech/economics-model.html · News: https://hackme.tech/news.html#2026-10-30-economics-v2-soft-announce",
       "tags": [
         "economics",
@@ -20,9 +37,9 @@
       "id": "2026-10-26-rc18-live",
       "date": "2026-10-26",
       "title": "0.1.0-rc18 — Blake3 share-PPS LIVE · CUDA/OpenCL · ISO channel",
-      "summary": "Current release channel is 0.1.0-rc18. Public pool runs SHARE_STRICT share-PPS: verified Blake3 share_nonces (work % (M/1024) == 0) pay. Pool hashrate kind is blake3_pow_ghs (shares/wall). NVIDIA CUDA and AMD OpenCL Blake3 miners are supported (see BLAKE3_GPU_MATRIX). Dig/Hunt remain useful-work lanes; Hunt needs Linux+bwrap. Legacy soft-mode copy is retired.",
-      "impact": "Upgrade workers/installers to 0.1.0-rc18. Dashboard What's new + miner notices match share-PPS. Historical rc17.x notes stay in the archive below.",
-      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18 · Economics: https://hackme.tech/economics-model.html",
+      "summary": "0.1.0-rc18 introduced SHARE_STRICT share-PPS: verified Blake3 share_nonces (work % (M/1024) == 0) pay. Pool hashrate kind is blake3_pow_ghs (shares/wall). NVIDIA CUDA and AMD OpenCL Blake3 miners are supported (see BLAKE3_GPU_MATRIX). Dig/Hunt remain useful-work lanes; Hunt needs Linux+bwrap. Legacy soft-mode copy is retired. Superseded by 0.1.0-rc18.1 (Orders publish).",
+      "impact": "Historical release note — current channel is 0.1.0-rc18.1. Upgrade via Downloads / self-update / apt. Verify SHA256SUMS before install.",
+      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1 · Economics: https://hackme.tech/economics-model.html",
       "tags": [
         "release",
         "rc18",

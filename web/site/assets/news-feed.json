@@ -1,12 +1,12 @@
 {
   "items": [
     {
-      "id": "2026-10-31-rc18-1-live",
+      "id": "2026-10-31-rc18-1-orders-publish",
       "date": "2026-10-31",
-      "title": "0.1.0-rc18.1 — Orders publish token · scoped pool register",
-      "summary": "Current release channel is 0.1.0-rc18.1. Orders installers may ship scoped pool.orders.token for capped public-pool Dig/Hunt register + settle-pull (not full coordinator admin). Blake3 share-PPS, CUDA/OpenCL, and Dig/Hunt lanes continue from rc18.",
-      "impact": "Upgrade to 0.1.0-rc18.1 for Orders public-pool publish. Miner-only installs keep pool.miner.token. Rotate publish token if a bundle leaks. Economics v2 remains soft-announce only.",
-      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1 · Orders: https://hackme.tech/orders.html · Docs: https://github.com/jokeez/hackme/blob/main/docs/ORDERS_PUBLISH.md",
+      "title": "0.1.0-rc18.1 — Orders publish token · pool Dig/Hunt without admin",
+      "summary": "Current channel is 0.1.0-rc18.1. Orders bundles ship a scoped pool.orders.token so Dig/Hunt campaigns can register on the public pool without a full coordinator admin key. Caps and rate limits apply; settle-pull is campaign-scoped; PoH attach and cancel stay admin-only. Blake3 share-PPS, CUDA/OpenCL, Win/Linux/deb/ISO, and B2B fuzzing CLI (hackme-fuzzing + hackme-fuzzing-build) continue from rc18.",
+      "impact": "Orders customers: upgrade to 0.1.0-rc18.1 Orders profile (Win Setup → Orders, Linux → bash start_hackme_orders.sh). pool.orders.token loads as HACKME_POOL_ORDERS_PUBLISH_TOKEN — not admin, not miner. Miners: same share-PPS path; no token change. Verify SHA256SUMS before install.",
+      "action": "Downloads: https://hackme.tech/downloads.html · Orders: https://hackme.tech/orders.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1 · Docs: https://github.com/jokeez/hackme/blob/main/docs/ORDERS_PUBLISH.md",
       "tags": [
         "release",
         "rc18.1",
@@ -18,38 +18,44 @@
       "status": "published",
       "featured": true,
       "social": {
-        "lead": "0.1.0-rc18.1 — scoped Orders publish to public pool.",
+        "lead": "0.1.0-rc18.1 — Orders → public pool without shipping admin.",
         "bullets": [
-          "pool.orders.token (not admin)",
-          "Caps + rate limits on register",
-          "Settle-pull scoped by campaign",
-          "Blake3 share-PPS unchanged"
+          "Scoped pool.orders.token",
+          "Caps + rate limits",
+          "Share-PPS unchanged",
+          "Win/Linux/ISO + fuzzing CLI"
         ],
-        "body": "**HackMe 0.1.0-rc18.1**\n\n• Orders: scoped **pool.orders.token**\n• Public-pool Dig/Hunt register (capped)\n• Settle-pull by campaign_id\n• Miners: still **pool.miner.token**\n\nhttps://hackme.tech/downloads.html",
-        "headline": "0.1.0-rc18.1 — Orders publish",
+        "body": "**HackMe 0.1.0-rc18.1**\n\nOrders can hit the public Dig/Hunt pool — without a full admin key.\n\n• Scoped `pool.orders.token`\n• Caps + rate limits · campaign-scoped settle\n• Blake3 share-PPS still LIVE\n• Win / Linux / deb / ISO + B2B fuzzing CLI\n\nhttps://hackme.tech/downloads.html",
+        "headline": "0.1.0-rc18.1 — Orders publish LIVE",
         "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1"
       },
       "telegram": {
-        "headline": "0.1.0-rc18.1 LIVE — Orders publish",
-        "lead": "Scoped pool.orders.token for B2B Dig/Hunt on the public pool.",
+        "headline": "0.1.0-rc18.1 — Orders publish",
+        "lead": "Customers place Dig/Hunt on the public pool with a scoped token — not coordinator admin.",
         "bullets": [
-          "Not full coordinator admin in installers",
-          "Register caps + IP rate limits",
-          "Settle outbox scoped to campaign",
-          "Miner path unchanged (pool.miner.token)"
+          "Orders bundle ships pool.orders.token",
+          "Caps / rate limits · settle scoped to your campaign",
+          "No cancel / no PoH attach on the publish path",
+          "Miners: share-PPS unchanged",
+          "Artifacts: Win · Linux · deb · ISO · hackme-fuzzing CLI"
         ],
-        "footer": "https://hackme.tech/downloads.html · https://hackme.tech/orders.html"
+        "footer": "Downloads: hackme.tech/downloads.html · Orders: hackme.tech/orders.html · not financial advice"
       },
       "discord": {
         "title": "0.1.0-rc18.1 — Orders publish token",
-        "body": "**0.1.0-rc18.1 LIVE**\n\n• Scoped **pool.orders.token** for Orders → public pool\n• Caps/rate limits · settle-pull by campaign\n• Miners unchanged\n\nhttps://hackme.tech/downloads.html",
+        "body": "**rc18.1 is live**\n\nOrders → public Dig/Hunt pool **without** shipping coordinator admin.\n\n• Scoped `pool.orders.token` (≠ miner, ≠ admin)\n• Caps + rate limits · campaign-scoped settle-pull\n• Blake3 **share-PPS** unchanged\n• Full channel: Win / Linux / deb / ISO + B2B fuzzing CLI\n\nhttps://hackme.tech/downloads.html\nhttps://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1",
         "ping": "#announcements"
+      },
+      "bitcointalk": {
+        "title": "[ANN][PoW] HackMe 0.1.0-rc18.1 — Orders publish (scoped pool Dig/Hunt)",
+        "body": "Update — HackMe 0.1.0-rc18.1 is the current channel.\n\nWhat changed for customers:\n• Orders installers can ship a scoped pool.orders.token\n• Dig/Hunt campaigns register on the public pool so diggers pick them up\n• No full coordinator admin in the customer bundle\n• Caps + rate limits; settle-pull is campaign-scoped; cancel/PoH attach stay admin-only\n\nUnchanged for miners:\n• Blake3 @ #485000 · SHARE_STRICT share-PPS · blake3_pow_ghs\n• CUDA / OpenCL workers\n\nDownloads (verify SHA256SUMS):\nhttps://hackme.tech/downloads.html\nGitHub:\nhttps://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1\nOrders:\nhttps://hackme.tech/orders.html\nDocs:\nhttps://github.com/jokeez/hackme/blob/main/docs/ORDERS_PUBLISH.md\n\nNot financial advice."
       },
       "links": {
         "downloads": "https://hackme.tech/downloads.html",
         "orders": "https://hackme.tech/orders.html",
         "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1",
-        "docs": "https://github.com/jokeez/hackme/blob/main/docs/ORDERS_PUBLISH.md"
+        "docs": "https://github.com/jokeez/hackme/blob/main/docs/ORDERS_PUBLISH.md",
+        "news": "https://hackme.tech/news.html#2026-10-31-rc18-1-orders-publish"
       }
     },
     {
@@ -57,7 +63,7 @@
       "date": "2026-10-30",
       "title": "Economics v2 — soft announce (design lock; not activated)",
       "summary": "Public RFC locks Economics v2 before any height switch: target 0.1 HMC/empty block, ~4-year halvings from genesis, permanent 0.002 HMC tail, no hard max-supply fiction, pool funded from emission (not perpetual treasury top-ups), clearer order fee/burn, SUP as utility. No airdrops. Activation only after D1 soak + published height with ≥14 days notice from tip — not a vanity block.",
-      "impact": "Operators and miners: read the RFC. Live network stays on current rc18 economics until a later announced activation height. Dig/Hunt package prices unchanged by this RFC. Do not treat 0.1 HMC/block as live yet.",
+      "impact": "Operators and miners: read the RFC. Live network stays on current rc18.1 economics until a later announced activation height. Dig/Hunt package prices unchanged by this RFC. Do not treat 0.1 HMC/block as live yet.",
       "action": "RFC: https://github.com/jokeez/hackme/blob/main/docs/RFC_ECONOMICS_V2.md · Economics overview: https://hackme.tech/economics-model.html · News: https://hackme.tech/news.html#2026-10-30-economics-v2-soft-announce",
       "tags": [
         "economics",
@@ -106,8 +112,8 @@
       "id": "2026-10-26-rc18-live",
       "date": "2026-10-26",
       "title": "0.1.0-rc18 — Blake3 share-PPS LIVE · CUDA/OpenCL · ISO channel",
-      "summary": "Historical: 0.1.0-rc18 brought SHARE_STRICT share-PPS (verified Blake3 shares), blake3_pow_ghs, NVIDIA CUDA and AMD OpenCL. Superseded by 0.1.0-rc18.1 for Orders publish path.",
-      "impact": "Historical release note — current channel is 0.1.0-rc18.1. Upgrade via Downloads / self-update / apt.",
+      "summary": "0.1.0-rc18 introduced SHARE_STRICT share-PPS: verified Blake3 share_nonces (work % (M/1024) == 0) pay. Pool hashrate kind is blake3_pow_ghs (shares/wall). NVIDIA CUDA and AMD OpenCL Blake3 miners are supported (see BLAKE3_GPU_MATRIX). Dig/Hunt remain useful-work lanes; Hunt needs Linux+bwrap. Legacy soft-mode copy is retired. Superseded by 0.1.0-rc18.1 (Orders publish).",
+      "impact": "Historical release note — current channel is 0.1.0-rc18.1. Upgrade via Downloads / self-update / apt. Verify SHA256SUMS before install.",
       "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1 · Economics: https://hackme.tech/economics-model.html",
       "tags": [
         "release",
@@ -446,47 +452,6 @@
         "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc17",
         "news": "https://hackme.tech/news.html",
         "cutover": "https://github.com/jokeez/hackme/blob/feature/hunt-mvp/docs/RC17_CUTOVER.md"
-      }
-    },
-    {
-      "id": "2026-08-27-release-rc16-update-channel",
-      "date": "2026-08-27",
-      "title": "0.1.0-rc16 — self-update channel + signed apt + branded Linux menu",
-      "summary": "rc16 ships miner self-update (latest.json + update_hackme_miner for Linux/Windows/HackMe OS), signed apt package hackme-node on hackme.tech/apt, branded Linux app menu, and a Windows update banner in the dashboard. ISO: HackMe-OS-0.1.0-rc16-amd64.iso SHA256 9e1c0850… — verify SHA256SUMS-iso.txt before flash.",
-      "impact": "Miners can upgrade without re-download roulette: apt upgrade hackme-node on Ubuntu/Debian, or update_hackme_miner.sh / .bat elsewhere. .env / data / logs are preserved. Operators: publish feed is https://hackme.tech/dist/latest.json",
-      "action": "Downloads: https://hackme.tech/downloads.html · apt: https://hackme.tech/downloads.html#apt · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16 · ISO SHA256: 9e1c0850285f6fa0733aa6459fb2864dad659bf6b8e12c33d17e61f146d65f67 · Verify SHA256SUMS.txt / SHA256SUMS-iso.txt",
-      "tags": [
-        "release",
-        "rc16",
-        "apt",
-        "update",
-        "iso",
-        "pre-exchange"
-      ],
-      "status": "published",
-      "telegram": {
-        "headline": "0.1.0-rc16 LIVE — self-update + signed apt",
-        "lead": "Self-update + signed apt (hackme-node) + Windows update banner. Verify SHA256 before run/flash.",
-        "bullets": [
-          "latest.json + update_hackme_miner.sh / .bat / OS wrapper",
-          "apt: curl keyring → apt install/upgrade hackme-node",
-          "Windows: update_hackme_miner.bat or Setup (dashboard banner)",
-          "ISO SHA256 9e1c0850… — verify SHA256SUMS-iso.txt"
-        ],
-        "footer": "hackme.tech/downloads.html · GitHub 0.1.0-rc16 · not financial advice"
-      },
-      "discord": {
-        "title": "0.1.0-rc16 LIVE — self-update + signed apt",
-        "body": "**HackMe 0.1.0-rc16 is LIVE**\n\n• Self-update via `latest.json`\n• Signed apt: `hackme-node` @ https://hackme.tech/apt\n• Windows updater + dashboard banner\n• ISO SHA256: `9e1c0850285f6fa0733aa6459fb2864dad659bf6b8e12c33d17e61f146d65f67`\n\nhttps://hackme.tech/downloads.html\nhttps://github.com/jokeez/hackme/releases/tag/0.1.0-rc16",
-        "ping": "#announcements"
-      },
-      "links": {
-        "downloads": "https://hackme.tech/downloads.html",
-        "apt": "https://hackme.tech/downloads.html#apt",
-        "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc16",
-        "news": "https://hackme.tech/news.html",
-        "latest": "https://hackme.tech/dist/latest.json",
-        "iso_sha": "https://hackme.tech/dist/release_0.1.0-rc16/SHA256SUMS-iso.txt"
       }
     }
   ],

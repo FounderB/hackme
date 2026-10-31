@@ -1,6 +1,22 @@
 {
   "items": [
     {
+      "id": "2026-07-20-oss-cve-watch-day14-nghttp2-libfuzzer",
+      "date": "2026-07-20",
+      "title": "OSS CVE Watch Day 14/14 · nghttp2 · 3.03B libFuzzer exec · CLEAN",
+      "summary": "Day 14 on nghttp2: 17.0h libFuzzer depth, 3,029,631,004 executions at ~49,622 exec/s. Corpus 420 (305KB), 467 coverage edges. ASAN heap crashes: 0 — verdict CLEAN.",
+      "impact": "Cumulative Days 2–14: ~14.32B libFuzzer executions on persistent corpus. Day 14 HTML live on the public ledger.",
+      "action": "Day 14 report: https://hackme.tech/reports/oss-cve-watch/day14.html · Series hub: https://hackme.tech/reports/oss-cve-watch/",
+      "tags": [
+        "research",
+        "oss-cve",
+        "fuzzing",
+        "nghttp2",
+        "day14"
+      ],
+      "status": "published"
+    },
+    {
       "id": "2026-07-19-oss-cve-watch-day13-nghttp2-libfuzzer",
       "date": "2026-07-19",
       "title": "OSS CVE Watch Day 13/14 · nghttp2 · 0.36B libFuzzer exec · CLEAN",
@@ -242,22 +258,6 @@
         "ops",
         "research",
         "roadmap"
-      ],
-      "status": "published"
-    },
-    {
-      "id": "2026-07-02-rc11r-linux-miner-layout",
-      "date": "2026-07-02",
-      "title": "HackMe 0.1.0-rc11r — Linux miners start again + fuzz payouts path",
-      "summary": "Win/Linux/ISO rc11r live. Linux tarball ships scripts/ops/worker_autostart.sh and bin/workerpoh-opencl — fixes worker_script_missing and exit 127. Fuzz pool settle outbox, escrow cleanup, and mining settlement ops fixes included.",
-      "impact": "Fresh Linux extract no longer loops on missing worker script. Friends on rc11q with manual symlinks should reinstall or run fix_miner_layout.sh. B2B fuzz campaigns get pull-mode settle relay; ~500 HMC stale escrow refunded in ops pass.",
-      "action": "Download: https://hackme.tech/downloads.html · Linux: extract → bash start_hackme_miner.sh · Old folder: bash fix_miner_layout.sh · Pool: https://hackme.tech/pool/coordinator",
-      "tags": [
-        "release",
-        "mining",
-        "linux",
-        "fuzzing",
-        "settlement"
       ],
       "status": "published"
     }
