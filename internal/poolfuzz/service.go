@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -880,10 +882,27 @@ func (s *Service) Claim(ctx context.Context, workerID string, now int64) (Claime
 	return out, false, nil
 }
 
+// emptyClaimNegativeCache is how long Claim short-circuits after a global miss.
+// Default 400ms: 1500ms starved fleets when Tick just topped up work. Override with
+// HACKME_POOL_EMPTY_CLAIM_MS (50–2000).
+func emptyClaimNegativeCache() time.Duration {
+	const def = 400 * time.Millisecond
+	v := strings.TrimSpace(os.Getenv("HACKME_POOL_EMPTY_CLAIM_MS"))
+	if v == "" {
+		return def
+	}
+	ms, err := strconv.Atoi(v)
+	if err != nil || ms < 50 || ms > 2000 {
+		return def
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
 func (s *Service) noteEmptyClaim() {
 	s.emptyClaimMu.Lock()
-	// Longer negative cache when no work — idle workerfuzz fleets were hammering SQLite ~3/s.
-	s.emptyClaimUntil = time.Now().Add(1500 * time.Millisecond)
+	// Negative cache when no work — idle fleets must not hammer SQLite, but a long
+	// global TTL delays the whole pool after Tick seeds new shards.
+	s.emptyClaimUntil = time.Now().Add(emptyClaimNegativeCache())
 	s.emptyClaimMu.Unlock()
 }
 
