@@ -153,12 +153,12 @@ func TestLoadRetargetSkippedWhenBaselineRelayOn(t *testing.T) {
 	t.Setenv("HACKME_POOL_BASELINE_RELAY", "on")
 	t.Setenv("HACKME_CHAIN_LEADER_LOCAL_POH", "0")
 	wm := &workManager{
-		targetMod:         27_428_398,
-		targetModMin:      2_000_000,
-		targetModMax:      1_000_000_000_000,
-		poolRetarget:      true,
+		targetMod:          27_428_398,
+		targetModMin:       2_000_000,
+		targetModMax:       1_000_000_000_000,
+		poolRetarget:       true,
 		poolRetargetMinSec: 0,
-		pohFormulaVersion: 3,
+		pohFormulaVersion:  3,
 	}
 	before := wm.targetMod
 	wm.maybeRetargetPoolLoadLocked(1_700_000_100, 50.0, 20)
