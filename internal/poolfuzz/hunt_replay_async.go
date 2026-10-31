@@ -556,11 +556,6 @@ func (s *Service) runHuntReplayJob(ctx context.Context, job huntReplayJob, now i
 			}
 		}
 	}
-	if raw, ok := cfg["seed_byte_corpus"]; ok && raw != nil {
-		if list, ok := raw.([]any); ok && len(list) > 0 {
-			cfg["seed_byte_corpus"] = TrimSeedByteCorpusForWire(list)
-		}
-	}
 	expectedU, expectedB, err := s.expectedInputsForSubmit(ctx, job.CampaignID, job.ItemID, job.InputN, cfg)
 	if err != nil {
 		return err
@@ -656,21 +651,26 @@ func (s *Service) finalizeHuntSubmit(ctx context.Context, p finalizeHuntSubmitPa
 		wantRunSettle = false
 	}
 	// Coverage engines: full PayRun only for proven edges/crashes (engineFullPay).
-	// CLEAN floor must NOT equal a full shard PayRun (cheat: instant submit after claim).
-	// Lab opt-in: HACKME_HUNT_ENGINE_FLOOR_PAY_RUN=1 restores tiny/legacy floor PayRun.
-	// Deprecated alias: HACKME_HUNT_ENGINE_FLOOR_SKIP_PAY_RUN=1 (no-op; floor already skips).
+	// CLEAN floor uses kind run_floor (fractional per_run; default 10% BPS).
+	// Opt out entirely: HACKME_HUNT_ENGINE_FLOOR_PAY_RUN=0.
+	floorSettle := false
 	if p.engineMode && wantRunSettle && !p.engineFullPay && !p.recordFinding {
 		if p.enginePayKind == "" {
 			p.enginePayKind = HuntEnginePayFloor
 		}
-		allowFloorPay := os.Getenv("HACKME_HUNT_ENGINE_FLOOR_PAY_RUN") == "1"
-		if !allowFloorPay {
+		if !huntEngineFloorPayRunEnabled() {
 			wantRunSettle = false
+		} else {
+			floorSettle = true
 		}
 	}
 	runSettleStatus := ""
 	if wantRunSettle {
-		runSettleStatus = "pending"
+		if floorSettle {
+			runSettleStatus = "pending_floor"
+		} else {
+			runSettleStatus = "pending"
+		}
 	}
 	wantAnySettle := s.Settler != nil && escrowEnabled(p.cfg) && minerBind != ""
 	statusWhere := "leased"
@@ -751,8 +751,8 @@ func (s *Service) finalizeHuntSubmit(ctx context.Context, p finalizeHuntSubmitPa
 				return err
 			}
 			if completed {
-				if _, err := s.Settler.Finalize(ctx, p.req.CampaignID, 0); err != nil {
-					return fmt.Errorf("poolfuzz: finalize escrow: %w", err)
+				if err := s.tryFinalizeEscrow(ctx, p.req.CampaignID); err != nil {
+					return err
 				}
 			}
 			return nil
@@ -782,8 +782,8 @@ func (s *Service) finalizeHuntSubmit(ctx context.Context, p finalizeHuntSubmitPa
 		return err
 	}
 	if completed && s.Settler != nil && escrowEnabled(p.cfg) {
-		if _, err := s.Settler.Finalize(ctx, p.req.CampaignID, 0); err != nil {
-			return fmt.Errorf("poolfuzz: finalize escrow: %w", err)
+		if err := s.tryFinalizeEscrow(ctx, p.req.CampaignID); err != nil {
+			return err
 		}
 	}
 	return nil

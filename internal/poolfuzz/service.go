@@ -7,8 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -353,9 +351,49 @@ func (s *Service) RepairZombiePoolCampaigns(ctx context.Context, limit int) (int
 	return n, rows.Err()
 }
 
-// campaignAcceptsSettle is true while the campaign is still running (or planned).
-// Paused/completed/cancelled must not enqueue new settle-outbox PayRun rows —
-// origin escrow is usually closed and those rows clog the undrainable head.
+// tryFinalizeEscrow enqueues Finalize only when no unpaid settle intents remain.
+// Prevents closed-escrow + pending run/run_floor undrainable heads (econ audit).
+func (s *Service) tryFinalizeEscrow(ctx context.Context, campaignID string) error {
+	if s == nil || s.Settler == nil {
+		return nil
+	}
+	campaignID = strings.TrimSpace(campaignID)
+	if campaignID == "" {
+		return nil
+	}
+	// Heal applied-outbox / still-queued drift before the unpaid gate.
+	if _, err := s.PromoteAppliedSettleIntents(ctx, campaignID); err != nil {
+		return err
+	}
+	pending, err := s.CountPendingSettleOutbox(ctx, campaignID)
+	if err != nil {
+		return err
+	}
+	if pending > 0 {
+		return nil
+	}
+	var unpaid int64
+	if err := s.DB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM fuzz_work_items
+		 WHERE campaign_id=? AND (
+		   settle_run_status IN ('pending','queued','pending_floor','queued_floor')
+		   OR settle_finding_status IN ('pending','queued')
+		 )`, campaignID).Scan(&unpaid); err != nil {
+		return err
+	}
+	if unpaid > 0 {
+		return nil
+	}
+	if _, err := s.Settler.Finalize(ctx, campaignID, 0); err != nil {
+		return fmt.Errorf("poolfuzz: finalize escrow: %w", err)
+	}
+	return nil
+}
+
+// campaignAcceptsSettle gates new settle-outbox PayRun / run_floor rows.
+// running|planned: always. completed|paused: allowed so in-flight CLEAN floors
+// still enqueue (tryFinalizeEscrow waits for unpaid intents). cancelled: never
+// (admin kill — do not create undrainable heads after origin close).
 func (s *Service) campaignAcceptsSettle(ctx context.Context, id string) bool {
 	if s == nil || s.DB == nil {
 		return false
@@ -369,7 +407,12 @@ func (s *Service) campaignAcceptsSettle(ctx context.Context, id string) bool {
 		return false
 	}
 	st = strings.TrimSpace(strings.ToLower(st))
-	return st == "running" || st == "planned"
+	switch st {
+	case "running", "planned", "completed", "paused":
+		return true
+	default:
+		return false
+	}
 }
 
 // SetCampaignStatus updates campaign lifecycle and cancels pending work when stopping.
@@ -901,27 +944,10 @@ func (s *Service) Claim(ctx context.Context, workerID string, now int64) (Claime
 	return out, false, nil
 }
 
-// emptyClaimNegativeCache is how long Claim short-circuits after a global miss.
-// Default 400ms: 1500ms starved fleets when Tick just topped up work. Override with
-// HACKME_POOL_EMPTY_CLAIM_MS (50–2000).
-func emptyClaimNegativeCache() time.Duration {
-	const def = 400 * time.Millisecond
-	v := strings.TrimSpace(os.Getenv("HACKME_POOL_EMPTY_CLAIM_MS"))
-	if v == "" {
-		return def
-	}
-	ms, err := strconv.Atoi(v)
-	if err != nil || ms < 50 || ms > 2000 {
-		return def
-	}
-	return time.Duration(ms) * time.Millisecond
-}
-
 func (s *Service) noteEmptyClaim() {
 	s.emptyClaimMu.Lock()
-	// Negative cache when no work — idle fleets must not hammer SQLite, but a long
-	// global TTL delays the whole pool after Tick seeds new shards.
-	s.emptyClaimUntil = time.Now().Add(emptyClaimNegativeCache())
+	// Longer negative cache when no work — idle workerfuzz fleets were hammering SQLite ~3/s.
+	s.emptyClaimUntil = time.Now().Add(1500 * time.Millisecond)
 	s.emptyClaimMu.Unlock()
 }
 
@@ -1457,8 +1483,8 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 			return SubmitOutcome{}, err
 		}
 		if completed && s.Settler != nil && escrowEnabled(cfg) {
-			if _, err := s.Settler.Finalize(ctx, req.CampaignID, 0); err != nil {
-				return SubmitOutcome{}, fmt.Errorf("poolfuzz: finalize escrow: %w", err)
+			if err := s.tryFinalizeEscrow(ctx, req.CampaignID); err != nil {
+				return SubmitOutcome{}, err
 			}
 		}
 		return SubmitOutcome{}, nil
@@ -1532,8 +1558,8 @@ func (s *Service) SubmitWithOutcome(ctx context.Context, req SubmitRequest) (Sub
 		return SubmitOutcome{}, err
 	}
 	if completed && s.Settler != nil && escrowEnabled(cfg) {
-		if _, err := s.Settler.Finalize(ctx, req.CampaignID, 0); err != nil {
-			return SubmitOutcome{}, fmt.Errorf("poolfuzz: finalize escrow: %w", err)
+		if err := s.tryFinalizeEscrow(ctx, req.CampaignID); err != nil {
+			return SubmitOutcome{}, err
 		}
 	}
 	return SubmitOutcome{ReplayStatus: digReplayStatus}, nil
@@ -1563,18 +1589,28 @@ func (s *Service) flushPendingSettles(ctx context.Context, campaignID string, it
 	}
 	runSt = strings.TrimSpace(strings.ToLower(runSt))
 	findSt = strings.TrimSpace(strings.ToLower(findSt))
-	if runSt == "pending" || runSt == "queued" {
-		res, err := s.Settler.PayRun(ctx, campaignID, miner, itemID, runOutbox)
+	if runSt == "pending" || runSt == "queued" || runSt == "pending_floor" || runSt == "queued_floor" {
+		var res SettleResult
+		var err error
+		floor := runSt == "pending_floor" || runSt == "queued_floor"
+		if floor {
+			res, err = s.Settler.PayRunFloor(ctx, campaignID, miner, itemID, runOutbox)
+		} else {
+			res, err = s.Settler.PayRun(ctx, campaignID, miner, itemID, runOutbox)
+		}
 		if err != nil {
 			return fmt.Errorf("poolfuzz: settle run: %w", err)
 		}
 		next := "queued"
+		if floor {
+			next = "queued_floor"
+		}
 		if res.Applied {
 			next = "paid"
 		}
 		if _, err := s.DB.ExecContext(ctx,
 			`UPDATE fuzz_work_items SET settle_run_status=?, settle_run_outbox_id=?
-			 WHERE campaign_id=? AND id=? AND settle_run_status IN ('pending','queued')`,
+			 WHERE campaign_id=? AND id=? AND settle_run_status IN ('pending','queued','pending_floor','queued_floor')`,
 			next, res.OutboxID, campaignID, itemID); err != nil {
 			return err
 		}

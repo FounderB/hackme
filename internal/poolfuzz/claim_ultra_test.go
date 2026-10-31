@@ -77,8 +77,9 @@ func TestEmptyClaimNegativeCache(t *testing.T) {
 		t.Fatalf("empty claim cache not armed: until=%v", until)
 	}
 	remain := time.Until(until)
-	if remain > 800*time.Millisecond {
-		t.Fatalf("empty claim TTL too long (want ~400ms default): remain=%s", remain)
+	// Idle fleets use a longer negative cache (~1.5s) to spare SQLite.
+	if remain < 1*time.Second || remain > 2*time.Second {
+		t.Fatalf("empty claim TTL out of range (want ~1500ms): remain=%s", remain)
 	}
 	start := time.Now()
 	_, ok, err = svc.Claim(ctx, "worker-empty", now)

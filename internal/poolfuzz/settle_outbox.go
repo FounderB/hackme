@@ -404,7 +404,7 @@ func (s *Service) ackSettleOutbox(ctx context.Context, campaignID string, ids []
 		// Promote local work-item settle status from queued → paid once origin ACKed.
 		_, _ = s.DB.ExecContext(ctx,
 			`UPDATE fuzz_work_items SET settle_run_status='paid'
-			 WHERE settle_run_outbox_id=? AND settle_run_status IN ('queued','pending')`, id)
+			 WHERE settle_run_outbox_id=? AND settle_run_status IN ('queued','pending','queued_floor','pending_floor')`, id)
 		_, _ = s.DB.ExecContext(ctx,
 			`UPDATE fuzz_work_items SET settle_finding_status='paid'
 			 WHERE settle_finding_outbox_id=? AND settle_finding_status IN ('queued','pending')`, id)
@@ -465,6 +465,47 @@ func configTruthyAny(cfg map[string]any, key string) bool {
 	default:
 		return false
 	}
+}
+
+// PromoteAppliedSettleIntents marks work-item settle_*_status paid when the linked
+// outbox row is already applied. Heals ACK/apply races and legacy rows where outbox
+// flipped to applied without promoting the intent (blocks tryFinalizeEscrow otherwise).
+// campaignID empty → all campaigns.
+func (s *Service) PromoteAppliedSettleIntents(ctx context.Context, campaignID string) (int64, error) {
+	if s == nil || s.DB == nil {
+		return 0, fmt.Errorf("poolfuzz: no database")
+	}
+	campaignID = strings.TrimSpace(campaignID)
+	var n int64
+	runSQL := `UPDATE fuzz_work_items
+	 SET settle_run_status='paid'
+	 WHERE settle_run_status IN ('queued','pending','queued_floor','pending_floor')
+	   AND settle_run_outbox_id IN (SELECT id FROM fuzz_settle_outbox WHERE status='applied')`
+	findSQL := `UPDATE fuzz_work_items
+	 SET settle_finding_status='paid'
+	 WHERE settle_finding_status IN ('queued','pending')
+	   AND settle_finding_outbox_id IN (SELECT id FROM fuzz_settle_outbox WHERE status='applied')`
+	args := []any{}
+	if campaignID != "" {
+		runSQL += ` AND campaign_id=?`
+		findSQL += ` AND campaign_id=?`
+		args = []any{campaignID}
+	}
+	res, err := s.DB.ExecContext(ctx, runSQL, args...)
+	if err != nil {
+		return 0, err
+	}
+	if aff, _ := res.RowsAffected(); aff > 0 {
+		n += aff
+	}
+	res, err = s.DB.ExecContext(ctx, findSQL, args...)
+	if err != nil {
+		return n, err
+	}
+	if aff, _ := res.RowsAffected(); aff > 0 {
+		n += aff
+	}
+	return n, nil
 }
 
 // SettleOutboxStatus returns pending|applied|"" for an outbox row id.

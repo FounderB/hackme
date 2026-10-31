@@ -40,6 +40,9 @@ func (a *app) pullFuzzSettleOutbox(ctx context.Context) error {
 
 // pullFuzzSettleOutboxWindow drains coordinator outbox (global admin or one campaign).
 // When scoped is true, campaignID is required and ACKs include campaign_id.
+// Multi-pass catch-up until the outbox window is empty (or hard-stuck).
+// Early "acked < 64 → break" used to return nil while unpaid rows remained,
+// then cancel/finalize refunded the payer (report #23 residual).
 func (a *app) pullFuzzSettleOutboxWindow(ctx context.Context, campaignID string, scoped bool) error {
 	const maxPasses = 32
 	totalAcked := 0
@@ -66,6 +69,7 @@ func (a *app) pullFuzzSettleOutboxWindow(ctx context.Context, campaignID string,
 		acked := make([]int64, 0, len(items))
 		localHits := 0
 		undrainable := 0
+		// Prefer run/crash_bonus/finding before finalize so refund cannot race ahead of payouts.
 		ordered := make([]poolsync.SettleOutboxItem, 0, len(items))
 		var finals []poolsync.SettleOutboxItem
 		for _, it := range items {
@@ -86,6 +90,8 @@ func (a *app) pullFuzzSettleOutboxWindow(ctx context.Context, campaignID string,
 			}
 			localHits++
 			kind := strings.TrimSpace(strings.ToLower(it.Kind))
+			// Do not finalize/close a campaign in the same pass after a non-drainable
+			// pay failure — that refunds while unpaid rows stay pending forever.
 			if fuzzSettleSkipFinalizeAfterPayFail(kind, it.CampaignID, payFailed) {
 				log.Printf("fuzz settle pull: skip %s for %s after pay failure in batch", kind, it.CampaignID)
 				continue
@@ -96,6 +102,7 @@ func (a *app) pullFuzzSettleOutboxWindow(ctx context.Context, campaignID string,
 				continue
 			}
 			if !apply {
+				// Closed escrow + unpaid run/finding — must not ACK (miner pay).
 				undrainable++
 				continue
 			}
@@ -195,7 +202,7 @@ func fuzzSettleOutboxAction(escrowStatus, kind string) (apply bool, drain bool) 
 			// Already closed — safe to ACK.
 			return false, true
 		default:
-			// Do NOT ACK unpaid run/finding/crash_bonus after a premature finalize:
+			// Do NOT ACK unpaid run/run_floor/finding/crash_bonus after a premature finalize:
 			// that permanently burns miner payouts. Leave pending for ops replay.
 			return false, false
 		}
@@ -203,7 +210,7 @@ func fuzzSettleOutboxAction(escrowStatus, kind string) (apply bool, drain bool) 
 		return true, false
 	case "bounty_paid":
 		switch kind {
-		case "run", "crash_bonus", "unique_crash":
+		case "run", "run_floor", "crash_bonus", "unique_crash":
 			return true, false
 		case "finding", "bounty":
 			return false, true

@@ -16,7 +16,7 @@ import (
 // Hunt engine pay kinds (coordinator-proven only — miner edges_touched ignored).
 const (
 	HuntEnginePayNone  = "none"  // reject / no settle
-	HuntEnginePayFloor = "floor" // CLEAN without proven delta — pennies / no full PayRun
+	HuntEnginePayFloor = "floor" // CLEAN without proven delta — fractional run_floor (default 10% BPS)
 	HuntEnginePayEdges = "edges" // proven new coverage edges
 	HuntEnginePayCrash = "crash" // ASAN-verified crash
 )
@@ -448,6 +448,21 @@ func noteHuntEnginePay(kind string, full bool) {
 		huntEnginePayFullN.Add(1)
 	} else if kind == HuntEnginePayFloor {
 		huntEnginePayFloorN.Add(1)
+	}
+}
+
+// huntEngineFloorPayRunEnabled reports whether CLEAN coverage-engine shards (floor pay)
+// enqueue PayRun. Default ON: submit already passed hunt_engine_wall_too_short.
+// Opt out: HACKME_HUNT_ENGINE_FLOOR_PAY_RUN=0 (lab / soak without run-pool debit).
+func huntEngineFloorPayRunEnabled() bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("HACKME_HUNT_ENGINE_FLOOR_PAY_RUN")))
+	switch v {
+	case "0", "false", "no", "off":
+		return false
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return true
 	}
 }
 
