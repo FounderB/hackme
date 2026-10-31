@@ -1,6 +1,58 @@
 {
   "items": [
     {
+      "id": "2026-10-31-rc18-1-live",
+      "date": "2026-10-31",
+      "title": "0.1.0-rc18.1 — Orders publish token · scoped pool register",
+      "summary": "Current release channel is 0.1.0-rc18.1. Orders installers may ship scoped pool.orders.token for capped public-pool Dig/Hunt register + settle-pull (not full coordinator admin). Blake3 share-PPS, CUDA/OpenCL, and Dig/Hunt lanes continue from rc18.",
+      "impact": "Upgrade to 0.1.0-rc18.1 for Orders public-pool publish. Miner-only installs keep pool.miner.token. Rotate publish token if a bundle leaks. Economics v2 remains soft-announce only.",
+      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1 · Orders: https://hackme.tech/orders.html · Docs: https://github.com/jokeez/hackme/blob/main/docs/ORDERS_PUBLISH.md",
+      "tags": [
+        "release",
+        "rc18.1",
+        "orders",
+        "publish",
+        "pool",
+        "security"
+      ],
+      "status": "published",
+      "featured": true,
+      "social": {
+        "lead": "0.1.0-rc18.1 — scoped Orders publish to public pool.",
+        "bullets": [
+          "pool.orders.token (not admin)",
+          "Caps + rate limits on register",
+          "Settle-pull scoped by campaign",
+          "Blake3 share-PPS unchanged"
+        ],
+        "body": "**HackMe 0.1.0-rc18.1**\n\n• Orders: scoped **pool.orders.token**\n• Public-pool Dig/Hunt register (capped)\n• Settle-pull by campaign_id\n• Miners: still **pool.miner.token**\n\nhttps://hackme.tech/downloads.html",
+        "headline": "0.1.0-rc18.1 — Orders publish",
+        "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1"
+      },
+      "telegram": {
+        "headline": "0.1.0-rc18.1 LIVE — Orders publish",
+        "lead": "Scoped pool.orders.token for B2B Dig/Hunt on the public pool.",
+        "bullets": [
+          "Not full coordinator admin in installers",
+          "Register caps + IP rate limits",
+          "Settle outbox scoped to campaign",
+          "Miner path unchanged (pool.miner.token)"
+        ],
+        "footer": "https://hackme.tech/downloads.html · https://hackme.tech/orders.html"
+      },
+      "discord": {
+        "title": "0.1.0-rc18.1 — Orders publish token",
+        "body": "**0.1.0-rc18.1 LIVE**\n\n• Scoped **pool.orders.token** for Orders → public pool\n• Caps/rate limits · settle-pull by campaign\n• Miners unchanged\n\nhttps://hackme.tech/downloads.html",
+        "ping": "#announcements"
+      },
+      "links": {
+        "downloads": "https://hackme.tech/downloads.html",
+        "orders": "https://hackme.tech/orders.html",
+        "github": "https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1",
+        "docs": "https://github.com/jokeez/hackme/blob/main/docs/ORDERS_PUBLISH.md"
+      }
+    },
+    {
       "id": "2026-10-30-economics-v2-soft-announce",
       "date": "2026-10-30",
       "title": "Economics v2 — soft announce (design lock; not activated)",
@@ -15,7 +67,7 @@
         "announcement"
       ],
       "status": "published",
-      "featured": true,
+      "featured": false,
       "social": {
         "lead": "Economics v2 soft announce — design lock, not live yet.",
         "bullets": [
@@ -54,9 +106,9 @@
       "id": "2026-10-26-rc18-live",
       "date": "2026-10-26",
       "title": "0.1.0-rc18 — Blake3 share-PPS LIVE · CUDA/OpenCL · ISO channel",
-      "summary": "Current release channel is 0.1.0-rc18. Public pool runs SHARE_STRICT share-PPS: verified Blake3 share_nonces (work % (M/1024) == 0) pay. Pool hashrate kind is blake3_pow_ghs (shares/wall). NVIDIA CUDA and AMD OpenCL Blake3 miners are supported (see BLAKE3_GPU_MATRIX). Dig/Hunt remain useful-work lanes; Hunt needs Linux+bwrap. Legacy soft-mode copy is retired.",
-      "impact": "Upgrade workers/installers to 0.1.0-rc18. Dashboard What's new + miner notices match share-PPS. Historical rc17.x notes stay in the archive below.",
-      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18 · Economics: https://hackme.tech/economics-model.html",
+      "summary": "Historical: 0.1.0-rc18 brought SHARE_STRICT share-PPS (verified Blake3 shares), blake3_pow_ghs, NVIDIA CUDA and AMD OpenCL. Superseded by 0.1.0-rc18.1 for Orders publish path.",
+      "impact": "Historical release note — current channel is 0.1.0-rc18.1. Upgrade via Downloads / self-update / apt.",
+      "action": "Downloads: https://hackme.tech/downloads.html · GitHub: https://github.com/jokeez/hackme/releases/tag/0.1.0-rc18.1 · Economics: https://hackme.tech/economics-model.html",
       "tags": [
         "release",
         "rc18",

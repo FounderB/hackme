@@ -1,20 +1,28 @@
 {
   "version": 1,
-  "updated_unix": 1793362800,
+  "updated_unix": 1761926400,
   "notices": [
+    {
+      "id": "rc18-1-orders-publish",
+      "severity": "info",
+      "title": "0.1.0-rc18.1 \u2014 Orders publish token",
+      "body": "Channel 0.1.0-rc18.1: Orders may ship scoped pool.orders.token for capped Dig/Hunt register on the public pool (not full admin). Miners still use pool.miner.token. Blake3 share-PPS unchanged.",
+      "cta_label": "Orders",
+      "cta_href": "/orders.html"
+    },
     {
       "id": "economics-v2-soft-announce",
       "severity": "info",
       "title": "Economics v2 — soft announce (not activated)",
-      "body": "Public RFC locks Economics v2 design: target 0.1 HMC/block, ~4y halvings, 0.002 tail, pool from emission, no airdrops. Not live yet — activation only after soak + \u226514 days notice. Live payouts remain current rc18 rules.",
+      "body": "Public RFC locks Economics v2 design: target 0.1 HMC/block, ~4y halvings, 0.002 tail, pool from emission, no airdrops. Not live yet — activation only after soak + \u226514 days notice. Live payouts remain current rc18.1 rules.",
       "cta_label": "Read RFC",
       "cta_href": "https://github.com/jokeez/hackme/blob/main/docs/RFC_ECONOMICS_V2.md"
     },
     {
       "id": "rc18-share-pps",
       "severity": "info",
-      "title": "0.1.0-rc18 \u2014 Blake3 share-PPS \u00b7 CUDA/OpenCL",
-      "body": "Channel 0.1.0-rc18: Blake3 PoH LIVE (tip \u2265 #485000). Pool pays verified shares (SHARE_STRICT PPS at M/1024). Pool GH/s is blake3_pow_ghs (shares/wall). NVIDIA: CUDA worker (RTX 50 needs CUDA \u226512.8). AMD: OpenCL device Blake3 (RX 580 2048SP in-matrix). Hunt = Linux + bubblewrap (not Windows).",
+      "title": "Blake3 share-PPS \u00b7 CUDA/OpenCL",
+      "body": "Blake3 PoH LIVE (tip \u2265 #485000). Pool pays verified shares (SHARE_STRICT PPS at M/1024). Pool GH/s is blake3_pow_ghs (shares/wall). NVIDIA CUDA / AMD OpenCL. Hunt = Linux + bubblewrap.",
       "cta_label": "Downloads",
       "cta_href": "/downloads.html"
     },
