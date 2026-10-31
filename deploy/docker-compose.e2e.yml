@@ -9,6 +9,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
       args:
         HACKME_VERSION: "${HACKME_VERSION:-0.1.0-rc18.1}"
     command: ["/usr/local/bin/coordinator"]
@@ -32,6 +33,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      network: host
       args:
         HACKME_VERSION: "${HACKME_VERSION:-0.1.0-rc18.1}"
     depends_on:
