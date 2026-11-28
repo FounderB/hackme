@@ -21,7 +21,7 @@ func TestLibFuzzerFleetSeedAndReload(t *testing.T) {
 	if libFuzzerSeedFlag(2) == libFuzzerSeedFlag(4) {
 		t.Fatal("distinct shards collapsed to one seed")
 	}
-	if libFuzzerReloadSec(90) != 0 || libFuzzerReloadSec(120) != 20 {
+	if libFuzzerReloadSec(90) != 0 || libFuzzerReloadSec(120) != 5 {
 		t.Fatalf("reload 90=%d 120=%d", libFuzzerReloadSec(90), libFuzzerReloadSec(120))
 	}
 }

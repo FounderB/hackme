@@ -777,11 +777,13 @@ func libFuzzerSeedFlag(seed uint64) string {
 	return "-seed=" + fmt.Sprint(n)
 }
 
-// libFuzzerReloadSec is how often a long wall re-reads the corpus directory.
-// Short walls finish before a pull would matter. Zero means do not pass -reload.
+// libFuzzerReloadSec is how often a long wall publishes and reloads corpus
+// units. Five seconds is enough for a neighbor to pick up a new stage inside
+// one lease. A quiet tick is one generation stat, not a file read. Short walls
+// finish before a pull would matter. Zero means do not pass -reload.
 func libFuzzerReloadSec(wallSec int) int {
 	if wallSec >= 120 {
-		return 20
+		return 5
 	}
 	return 0
 }
